@@ -14,7 +14,8 @@ import subprocess, sys, os
 
 # ---- Flask app ----
 app = Flask(__name__)
-app.secret_key = "dev"  # enables flash()
+app.secret_key = os.environ.get("SECRET_KEY", "dev")
+ # enables flash()
 
 # ---- Blueprints (admin UI + keyword APIs) ----
 from truist.admin_categories import admin_categories_bp, load_cfg
