@@ -157,7 +157,7 @@ def save_cfg(cfg):
 
     overrides_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-        shutil.copy(JSON_PATH, BACKUP_DIR / f"categories.{ts}.json")
+    shutil.copy(JSON_PATH, BACKUP_DIR / f"categories.{ts}.json")
     # save pretty
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
