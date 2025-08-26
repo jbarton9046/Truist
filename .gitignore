@@ -1,0 +1,24 @@
+# virtual envs
+.venv/
+.ven/
+venv/
+env/
+
+# Python noise
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# local data & secrets
+truist/statements/*
+!truist/statements/.gitkeep
+*.env
+*.sqlite
+*.db
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
