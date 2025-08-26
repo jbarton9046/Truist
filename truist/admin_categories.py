@@ -127,10 +127,36 @@ def load_cfg() -> Dict[str, Any]:
     cfg["OMIT_KEYWORDS"]               = copy.deepcopy(getattr(fc, "OMIT_KEYWORDS", []))
     return cfg
 
+
 def save_cfg(cfg):
-    # backup
-    if JSON_PATH.exists():
+    """
+    Persist ONLY editable keyword maps to CONFIG_DIR/filter_overrides.json.
+    Creates a timestamped backup in CONFIG_DIR/backups/ before writing.
+    """
+    paths = load_cfg().get("_PATHS", {})
+    overrides_path = Path(paths.get("KEYWORD_OVERRIDES_PATH", "config/filter_overrides.json"))
+    backups_dir = overrides_path.parent / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+
+    # Prepare overrides payload (only the editable parts)
+    payload = {
+        "CATEGORY_KEYWORDS": cfg.get("CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS": cfg.get("SUBCATEGORY_MAPS", {}),
+        "SUBSUBCATEGORY_MAPS": cfg.get("SUBSUBCATEGORY_MAPS", {}),
+        "SUBSUBSUBCATEGORY_MAPS": cfg.get("SUBSUBSUBCATEGORY_MAPS", {}),
+        "CUSTOM_TRANSACTION_KEYWORDS": cfg.get("CUSTOM_TRANSACTION_KEYWORDS", {}),
+        "OMIT_KEYWORDS": cfg.get("OMIT_KEYWORDS", []),
+    }
+
+    # Backup if existing
+    if overrides_path.exists():
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        (backups_dir / f"filter_overrides.{ts}.json").write_text(
+            overrides_path.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+    overrides_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
         shutil.copy(JSON_PATH, BACKUP_DIR / f"categories.{ts}.json")
     # save pretty
     with open(JSON_PATH, "w", encoding="utf-8") as f:
@@ -597,12 +623,42 @@ def save_json():
     text = request.form.get("json_text", "")
     try:
         data = json.loads(text)
-        # normalize missing keys
-        cfg = load_cfg()
-        for key in EMPTY_CFG.keys():
-            cfg[key] = data.get(key, cfg.get(key, EMPTY_CFG[key]))
-        save_cfg(cfg)
-        flash("Categories saved from JSON editor.", "success")
+
+        # Split into categories vs overrides
+        cfg_live = load_cfg()
+        paths = cfg_live.get("_PATHS", {})
+        categories_path = Path(paths.get("CATEGORIES_PATH", "config/categories.json"))
+        overrides_path  = Path(paths.get("KEYWORD_OVERRIDES_PATH", "config/filter_overrides.json"))
+
+        # If the editor provided a CATEGORIES blob, persist it
+        if isinstance(data, dict) and "CATEGORIES" in data:
+            categories_payload = data.get("CATEGORIES") or {}
+            categories_path.write_text(json.dumps(categories_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        # Collect editable maps (fallback to existing live cfg for missing keys)
+        overrides_payload = {
+            "CATEGORY_KEYWORDS": data.get("CATEGORY_KEYWORDS", cfg_live.get("CATEGORY_KEYWORDS", {})),
+            "SUBCATEGORY_MAPS": data.get("SUBCATEGORY_MAPS", cfg_live.get("SUBCATEGORY_MAPS", {})),
+            "SUBSUBCATEGORY_MAPS": data.get("SUBSUBCATEGORY_MAPS", cfg_live.get("SUBSUBCATEGORY_MAPS", {})),
+            "SUBSUBSUBCATEGORY_MAPS": data.get("SUBSUBSUBCATEGORY_MAPS", cfg_live.get("SUBSUBSUBCATEGORY_MAPS", {})),
+            "CUSTOM_TRANSACTION_KEYWORDS": data.get("CUSTOM_TRANSACTION_KEYWORDS", cfg_live.get("CUSTOM_TRANSACTION_KEYWORDS", {})),
+            "OMIT_KEYWORDS": data.get("OMIT_KEYWORDS", cfg_live.get("OMIT_KEYWORDS", [])),
+        }
+
+        # Backup and write overrides
+        if overrides_path.exists():
+            backups_dir = overrides_path.parent / "backups"
+            backups_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            (backups_dir / f"filter_overrides.{ts}.json").write_text(
+                overrides_path.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+        overrides_path.write_text(json.dumps(overrides_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        flash("Configuration saved.", "success")
+        return redirect(url_for("admin_categories.categories_page"))
+    except Exception as e:
+        flash(f"Save failed: {e}", "danger")
         return redirect(url_for("admin_categories.categories_page"))
     except Exception as e:
         flash(f"Save failed: {e}", "danger")
