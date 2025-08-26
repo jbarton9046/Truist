@@ -123,8 +123,8 @@
       "PR PAYMENT",
       "MOBILE DEPOSIT",
       "METZ",
-      "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT",
-      "TIP"
+      "TIP",
+      "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT"
     ],
     "Kids": [
       "JANSPORT",
@@ -1095,8 +1095,7 @@
     "Income": {
       "JL Pay": {
         "Element": [
-          "MOBILE DEPOSIT",
-          "TIP"
+          "MOBILE DEPOSIT"
         ],
         "Ringling": [
           "METZ"
@@ -1288,9 +1287,7 @@
     "Income": {
       "JL Pay": {
         "Element": {
-          "Element Cash": [
-            "TIP"
-          ],
+          "Element Cash": [],
           "Element Check": [
             "MOBILE DEPOSIT"
           ]
@@ -1311,9 +1308,6 @@
     "Kids": {
       "Ivy": {
         "Girl Scouts": {}
-      },
-      "Oona": {
-        "School": {}
       },
       "School Lunch": {}
     },

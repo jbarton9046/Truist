@@ -42,21 +42,80 @@ def _wants_json() -> bool:
         or request.args.get("ajax") == "1"
     )
 
-def load_cfg():
+from pathlib import Path
+import os, json
+from typing import Dict, Any
+
+# Import your code defaults
+from truist import filter_config as fc  # keeps your existing Python defaults
+
+def _config_dir() -> Path:
+    """Return CONFIG_DIR (env) or ./config, ensure it exists."""
+    p = Path(os.environ.get("CONFIG_DIR", "config"))
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+def _seed_if_missing(src: Path, dst: Path) -> None:
+    """Copy seed file from repo to disk on first run."""
+    if not dst.exists() and src.exists():
+        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+def _load_json(path: Path, fallback: Any) -> Any:
+    if not path.exists():
+        return fallback
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+
+def _merge_keywords(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+    """Shallow-merge dicts for editable parts (override wins)."""
+    merged = dict(defaults)
+    for k, v in overrides.items():
+        merged[k] = v
+    return merged
+
+def load_cfg() -> Dict[str, Any]:
     """
-    Load categories config.
-    - If categories.json exists, load it and normalize missing keys.
-    - If it does NOT exist, bootstrap from filter_config.py so the UI has data immediately.
+    Loads the live config from CONFIG_DIR, seeding from package defaults on first run.
+    Returns a dict you can pass to templates/APIs.
     """
-    if JSON_PATH.exists():
-        try:
-            with open(JSON_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f) or {}
-        except Exception:
-            data = {}
-        cfg = EMPTY_CFG.copy()
-        cfg.update({k: v for k, v in data.items() if k in cfg})
-        return cfg
+    cfg_dir = _config_dir()
+
+    # 1) Categories: seed from repo if not present on disk
+    pkg_categories = Path(__file__).with_name("categories.json")       # truist/categories.json
+    live_categories = cfg_dir / "categories.json"                      # /var/data/config/categories.json
+    _seed_if_missing(pkg_categories, live_categories)
+    categories = _load_json(live_categories, fallback={})
+
+    # 2) Keyword maps:
+    #    - defaults come from filter_config.py (code)
+    #    - optional overrides live in JSON at /var/data/config/filter_overrides.json
+    defaults = {
+        "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS": getattr(fc, "SUBCATEGORY_MAPS", {}),
+        "OMIT_KEYWORDS": getattr(fc, "OMIT_KEYWORDS", []),
+    }
+    overrides_path = cfg_dir / "filter_overrides.json"
+    overrides = _load_json(overrides_path, fallback={})
+
+    merged = _merge_keywords(defaults, overrides)
+
+    # 3) Return a unified config blob (and useful paths for save handlers)
+    return {
+        "CATEGORIES": categories,
+        "CATEGORY_KEYWORDS": merged.get("CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS": merged.get("SUBCATEGORY_MAPS", {}),
+        "OMIT_KEYWORDS": merged.get("OMIT_KEYWORDS", []),
+
+        # paths your save endpoints should write to:
+        "_PATHS": {
+            "CONFIG_DIR": str(cfg_dir),
+            "CATEGORIES_PATH": str(live_categories),
+            "KEYWORD_OVERRIDES_PATH": str(overrides_path),
+        },
+    }
+
 
     # Bootstrap from Python config (first run / no JSON yet)
     cfg = EMPTY_CFG.copy()

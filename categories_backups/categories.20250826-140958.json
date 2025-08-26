@@ -123,8 +123,8 @@
       "PR PAYMENT",
       "MOBILE DEPOSIT",
       "METZ",
-      "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT",
-      "TIP"
+      "TIP",
+      "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT"
     ],
     "Kids": [
       "JANSPORT",
@@ -132,8 +132,7 @@
       "STAGE DOOR",
       "PHOTODAY",
       "GIV*CHURCH",
-      "GIRL SCOUTS",
-      "SARASOTA COUNTY PU"
+      "GIRL SCOUTS"
     ],
     "Medical": [
       "BAYVIEW DENTALCLA",
@@ -169,7 +168,8 @@
       "COMCAST",
       "WATER",
       "ELECTRIC",
-      "UTILIT"
+      "UTILIT",
+      "SARASOTA COUNTY PU"
     ],
     "Shipping/Moving": [
       "USPS",
@@ -510,9 +510,6 @@
         "MISS SARASOTA",
         "SARASOTA SOFTBALL",
         "JANSPORT"
-      ],
-      "School Lunch": [
-        "SARASOTA COUNTY PU"
       ],
       "VBS": [
         "GIV*CHURCH"
@@ -1132,8 +1129,7 @@
           "MISS SARASOTA",
           "SARASOTA SOFTBALL"
         ]
-      },
-      "School Lunch": {}
+      }
     },
     "Medical": {
       "DR/Lab": {
@@ -1311,11 +1307,7 @@
     "Kids": {
       "Ivy": {
         "Girl Scouts": {}
-      },
-      "Oona": {
-        "School": {}
-      },
-      "School Lunch": {}
+      }
     },
     "Phone": {
       "Straight Talk": {
