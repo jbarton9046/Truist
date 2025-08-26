@@ -1,0 +1,31 @@
+<!-- templates/_category_movers.html -->
+<section class="mb-4">
+  <h5 class="mb-2">Category Movers (vs previous month)</h5>
+
+  <table id="category-movers" class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Prev</th>
+        <th>Latest</th>
+        <th>Δ</th>
+        <th>Δ%</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Use data-cat to match your internal category key exactly -->
+      <tr data-cat="Withdrawals">
+        <td>Withdrawals</td><td>$180</td><td>$100</td><td>-$80</td><td>-44.4%</td>
+      </tr>
+
+      <!-- Add the rest of your categories here, e.g.:
+      <tr data-cat="Eating Out">
+        <td>Eating Out</td><td>$1,544</td><td>$126</td><td>-$1,419</td><td>-91.9%</td>
+      </tr>
+      <tr data-cat="Vehicles">
+        <td>Vehicles</td><td>$1,188</td><td>$31</td><td>-$1,157</td><td>-97.4%</td>
+      </tr>
+      -->
+    </tbody>
+  </table>
+</section>

@@ -1,0 +1,47 @@
+{
+  "CATEGORY_KEYWORDS": {
+    "Income": ["ACH CREDIT", "HOLLYWOOD RTP", "RTP CREDIT", "INTEREST PAYMENT", "PR PAYMENT", "MOBILE DEPOSIT", "METZ"]
+  },
+
+  "SUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": ["METZ", "MOBILE DEPOSIT", "TIP"],
+      "Rachel Pay": ["PR PAYMENT"],
+      "Interest": ["INTEREST PAYMENT"]
+    }
+  },
+
+  "SUBSUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": {
+        "Cash Tips": ["TIP"]
+      },
+      "Rachel Pay": {
+        "Photo Gig": ["PHOTO GIG"]
+      }
+    }
+  },
+
+  "SUBSUBSUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": {
+        "Cash Tips": {
+          "Ringling Tips": ["RINGLING"],
+          "Element Tips": ["ELEMENT", "TIP"]
+        }
+      },
+      "Rachel Pay": {
+        "Photo Gig": {
+          "Wedding": ["WEDDING"],
+          "Portrait": ["PORTRAIT"]
+        }
+      }
+    }
+  },
+
+  "CUSTOM_TRANSACTION_KEYWORDS": {
+    "VENMO - $200.0": { "category": "Animal", "subcategory": "Pet Sitting" }
+  },
+
+  "OMIT_KEYWORDS": ["GALLERY HEMP"]
+}

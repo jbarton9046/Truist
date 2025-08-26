@@ -1,0 +1,380 @@
+[
+  {
+    "account_id": "NENm5BLYzjCq4YXn60PNs9o1mAeZY0UxVBdx7",
+    "account_owner": null,
+    "amount": 20.0,
+    "authorized_date": null,
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "OpenAI",
+        "type": "merchant",
+        "website": "openai.com",
+        "logo_url": "https://plaid-merchant-logos.plaid.com/openai_1883.png",
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "KkzrJYWyrRzj1AYR650aZz5ger3590kV8nREQ",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-18",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": null,
+      "city": null,
+      "region": null,
+      "postal_code": null,
+      "country": null,
+      "lat": null,
+      "lon": null,
+      "store_number": null
+    },
+    "logo_url": "https://plaid-merchant-logos.plaid.com/openai_1883.png",
+    "merchant_entity_id": "KkzrJYWyrRzj1AYR650aZz5ger3590kV8nREQ",
+    "merchant_name": "OpenAI",
+    "name": "OPENAI *CHATGPT SUBSCR +141587",
+    "payment_channel": "in store",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "VERY_HIGH",
+      "detailed": "GENERAL_SERVICES_OTHER_GENERAL_SERVICES",
+      "primary": "GENERAL_SERVICES"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_GENERAL_SERVICES.png",
+    "transaction_code": null,
+    "transaction_id": "9kBDLr6VpoUev8OmEVxjIzN5qgjYvoUzbw4PP",
+    "transaction_type": "unresolved",
+    "unofficial_currency_code": null,
+    "website": "openai.com",
+    "description": "OPENAI *CHATGPT SUBSCR +141587"
+  },
+  {
+    "account_id": "QnNgdKPezaCxm65Oe4JEFkOgAjQwMnuzXQdzX",
+    "account_owner": null,
+    "amount": 35.0,
+    "authorized_date": null,
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "Citibank",
+        "type": "financial_institution",
+        "website": "citi.com",
+        "logo_url": null,
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "4pK9RJnqY7N078jeKrn6Zzraq9QDLbQn9kgbd",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-18",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": null,
+      "city": null,
+      "region": null,
+      "postal_code": null,
+      "country": null,
+      "lat": null,
+      "lon": null,
+      "store_number": null
+    },
+    "logo_url": null,
+    "merchant_entity_id": null,
+    "merchant_name": null,
+    "name": "PAYMENT CITI AUTOPAY",
+    "payment_channel": "other",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "HIGH",
+      "detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT",
+      "primary": "LOAN_PAYMENTS"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_LOAN_PAYMENTS.png",
+    "transaction_code": null,
+    "transaction_id": "jZNKqQbrPxINPYM3OxyvHe7xDMYKynSMNDm15",
+    "transaction_type": "special",
+    "unofficial_currency_code": null,
+    "website": null,
+    "description": "PAYMENT CITI AUTOPAY"
+  },
+  {
+    "account_id": "ngz0KQbJydCoyO5BmaeQuYOkMzJRLbs0Dma0z",
+    "account_owner": null,
+    "amount": 1600.0,
+    "authorized_date": null,
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "Truist Financial",
+        "type": "financial_institution",
+        "website": "truist.com",
+        "logo_url": "https://plaid-counterparty-logos.plaid.com/truist_financial_26.png",
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "E91DyXOe3bBEz5KXKv7AOpRyoKKKnqpXAJR0n",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-18",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": null,
+      "city": null,
+      "region": null,
+      "postal_code": null,
+      "country": null,
+      "lat": null,
+      "lon": null,
+      "store_number": null
+    },
+    "logo_url": null,
+    "merchant_entity_id": null,
+    "merchant_name": null,
+    "name": "TRUIST DEPOSIT TRANSFER - TO *6935",
+    "payment_channel": "other",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "HIGH",
+      "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+      "primary": "TRANSFER_OUT"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_TRANSFER_OUT.png",
+    "transaction_code": null,
+    "transaction_id": "KVbgE1dezAtqQX5exkmATAOnQBpd58iyn3kEA",
+    "transaction_type": "special",
+    "unofficial_currency_code": null,
+    "website": null,
+    "description": "TRUIST DEPOSIT TRANSFER - TO *6935"
+  },
+  {
+    "account_id": "QnNgdKPezaCxm65Oe4JEFkOgAjQwMnuzXQdzX",
+    "account_owner": null,
+    "amount": -1600.0,
+    "authorized_date": null,
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "Truist Financial",
+        "type": "financial_institution",
+        "website": "truist.com",
+        "logo_url": "https://plaid-counterparty-logos.plaid.com/truist_financial_26.png",
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "E91DyXOe3bBEz5KXKv7AOpRyoKKKnqpXAJR0n",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-18",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": null,
+      "city": null,
+      "region": null,
+      "postal_code": null,
+      "country": null,
+      "lat": null,
+      "lon": null,
+      "store_number": null
+    },
+    "logo_url": null,
+    "merchant_entity_id": null,
+    "merchant_name": null,
+    "name": "TRUIST ONLINE TRANSFER - FROM *3258",
+    "payment_channel": "other",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "HIGH",
+      "detailed": "TRANSFER_IN_ACCOUNT_TRANSFER",
+      "primary": "TRANSFER_IN"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_TRANSFER_IN.png",
+    "transaction_code": null,
+    "transaction_id": "ave6qgJBzKFJZ4eDyK1vINXqQrVo6MtKRwdZ7",
+    "transaction_type": "special",
+    "unofficial_currency_code": null,
+    "website": null,
+    "description": "TRUIST ONLINE TRANSFER - FROM *3258"
+  },
+  {
+    "account_id": "QnNgdKPezaCxm65Oe4JEFkOgAjQwMnuzXQdzX",
+    "account_owner": null,
+    "amount": 41.07,
+    "authorized_date": "2025-08-18",
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "Walmart",
+        "type": "merchant",
+        "website": "walmart.com",
+        "logo_url": "https://plaid-merchant-logos.plaid.com/walmart_1100.png",
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "O5W5j4dN9OR3E6ypQmjdkWZZRoXEzVMz2ByWM",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-18",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": "5401 Palmer Crossing Cir",
+      "city": "Sarasota",
+      "region": "FL",
+      "postal_code": "34233",
+      "country": null,
+      "lat": 27.266693,
+      "lon": -82.462669,
+      "store_number": "7298"
+    },
+    "logo_url": "https://plaid-merchant-logos.plaid.com/walmart_1100.png",
+    "merchant_entity_id": "O5W5j4dN9OR3E6ypQmjdkWZZRoXEzVMz2ByWM",
+    "merchant_name": "Walmart",
+    "name": "Walmart",
+    "payment_channel": "in store",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "VERY_HIGH",
+      "detailed": "GENERAL_MERCHANDISE_SUPERSTORES",
+      "primary": "GENERAL_MERCHANDISE"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_GENERAL_MERCHANDISE.png",
+    "transaction_code": null,
+    "transaction_id": "4qLx5kropOhQbN4eBk5yS6nky70Pp1CDeMYkk",
+    "transaction_type": "place",
+    "unofficial_currency_code": null,
+    "website": "walmart.com",
+    "description": "Walmart"
+  },
+  {
+    "account_id": "QnNgdKPezaCxm65Oe4JEFkOgAjQwMnuzXQdzX",
+    "account_owner": null,
+    "amount": 50.16,
+    "authorized_date": null,
+    "authorized_datetime": null,
+    "category": null,
+    "category_id": null,
+    "check_number": null,
+    "counterparties": [
+      {
+        "name": "Straight Talk",
+        "type": "merchant",
+        "website": "straighttalk.com",
+        "logo_url": "https://plaid-merchant-logos.plaid.com/straight_talk_969.png",
+        "confidence_level": "VERY_HIGH",
+        "entity_id": "gM58zNnWa2qYjVZBvvwY9qZkbRop6vYrLDkO8",
+        "phone_number": null
+      }
+    ],
+    "date": "2025-08-17",
+    "datetime": null,
+    "iso_currency_code": "USD",
+    "location": {
+      "address": null,
+      "city": null,
+      "region": null,
+      "postal_code": null,
+      "country": null,
+      "lat": null,
+      "lon": null,
+      "store_number": null
+    },
+    "logo_url": "https://plaid-merchant-logos.plaid.com/straight_talk_969.png",
+    "merchant_entity_id": "gM58zNnWa2qYjVZBvvwY9qZkbRop6vYrLDkO8",
+    "merchant_name": "Straight Talk",
+    "name": "STRAIGHTTALK*SERVICES 877-430",
+    "payment_channel": "online",
+    "payment_meta": {
+      "reference_number": null,
+      "ppd_id": null,
+      "payee": null,
+      "by_order_of": null,
+      "payer": null,
+      "payment_method": null,
+      "payment_processor": null,
+      "reason": null
+    },
+    "pending": true,
+    "pending_transaction_id": null,
+    "personal_finance_category": {
+      "confidence_level": "HIGH",
+      "detailed": "RENT_AND_UTILITIES_TELEPHONE",
+      "primary": "RENT_AND_UTILITIES"
+    },
+    "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_RENT_AND_UTILITIES.png",
+    "transaction_code": null,
+    "transaction_id": "YmNgBavdzLT1ZygNBzkEtmng54MQYvcqmBmxg",
+    "transaction_type": "place",
+    "unofficial_currency_code": null,
+    "website": "straighttalk.com",
+    "description": "STRAIGHTTALK*SERVICES 877-430"
+  }
+]

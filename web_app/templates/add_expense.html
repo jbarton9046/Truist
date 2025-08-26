@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="flex-grow-1 ms-3">
+    <div class="container mt-4">
+        <div class="card mb-4">
+            <div class="card-header text-center">
+                <h1 class="m-0" style="color: #adb5bd;">➖ Add Expense</h1>
+            </div>
+            <div class="card-body" style="background-color: #dfe3e6;">
+                <form method="POST" action="{{ url_for('submit_expense') }}">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount</label>
+                        <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <input type="text" class="form-control" id="description" name="description" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select name="category" id="category" class="form-select" required>
+                            {% for cat in category_keywords.keys() if cat != "Income" %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="subcategory" class="form-label">Subcategory</label>
+                        <select name="subcategory" id="subcategory" class="form-select">
+                            <option value="">--</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sub_subcategory" class="form-label">Sub-subcategory</label>
+                        <select name="sub_subcategory" id="sub_subcategory" class="form-select">
+                            <option value="">--</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Save Expense</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const subMap = {{ subcategory_maps | tojson }};
+    const subSubMap = {{ subsubcategory_maps | tojson }};
+    const categorySelect = document.getElementById('category');
+    const subcategorySelect = document.getElementById('subcategory');
+    const subSubcategorySelect = document.getElementById('sub_subcategory');
+
+    categorySelect.addEventListener('change', function () {
+        const cat = this.value;
+        const subs = subMap[cat] || {};
+        subcategorySelect.innerHTML = '<option value="">--</option>';
+        subSubcategorySelect.innerHTML = '<option value="">--</option>';
+        Object.keys(subs).forEach(function (sub) {
+            const opt = document.createElement('option');
+            opt.value = sub;
+            opt.textContent = sub;
+            subcategorySelect.appendChild(opt);
+        });
+    });
+
+    subcategorySelect.addEventListener('change', function () {
+        const cat = categorySelect.value;
+        const sub = this.value;
+        const subSubs = (subSubMap[cat] && subSubMap[cat][sub]) || {};
+        subSubcategorySelect.innerHTML = '<option value="">--</option>';
+        Object.keys(subSubs).forEach(function (subSub) {
+            const opt = document.createElement('option');
+            opt.value = subSub;
+            opt.textContent = subSub;
+            subSubcategorySelect.appendChild(opt);
+        });
+    });
+
+    categorySelect.dispatchEvent(new Event('change'));
+</script>
+{% endblock %}

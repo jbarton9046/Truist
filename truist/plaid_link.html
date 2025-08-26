@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Plaid Link</title>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+  <h1>Connect Your Bank with Plaid</h1>
+  <button id="link-button">Launch Plaid Link</button>
+
+  <pre id="output" style="margin-top:20px; padding:10px; background:#f4f4f4; border:1px solid #ccc;"></pre>
+
+  <script>
+    const linkHandler = Plaid.create({
+      token: "link-production-29d367e9-3a5a-4745-8e75-411c2540e2d7", // replace this with your link_token
+      onSuccess: function(public_token, metadata) {
+        const output = `✅ Success!\nPublic Token:\n${public_token}`;
+        console.log(output);
+        document.getElementById("output").textContent = output;
+        alert("Copy the public_token and paste it into your terminal!");
+      },
+      onExit: function(err, metadata) {
+        if (err != null) {
+          console.error("❌ Plaid error:", err);
+          alert("Error occurred. Check console.");
+        } else {
+          console.log("🔁 User exited Plaid Link:", metadata);
+        }
+      },
+    });
+
+    document.getElementById("link-button").onclick = function() {
+      linkHandler.open();
+    };
+  </script>
+</body>
+</html>

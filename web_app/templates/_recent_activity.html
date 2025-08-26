@@ -1,0 +1,103 @@
+<!-- templates/_recent_activity.html -->
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-baseline justify-content-between">
+      <h5 class="card-title mb-1">Recent Activity</h5>
+      <span class="text-muted small">as of {{ recent.as_of }} · last {{ recent.window_days }}d</span>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="text-muted small mb-1">Top increases (MoM)</div>
+          {% if recent.top_ups %}
+            <ul class="list-unstyled mb-0">
+              {% for r in recent.top_ups %}
+                <li class="d-flex justify-content-between">
+                  <span>{{ r.name }}</span>
+                  <span class="text-success fw-semibold">
+                    {{ (r.pct * 100)|round(1) }}%
+                    <span class="text-muted"> ({{ "$%0.0f"|format(r.delta) }})</span>
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted">No increases.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="text-muted small mb-1">Top decreases (MoM)</div>
+          {% if recent.top_downs %}
+            <ul class="list-unstyled mb-0">
+              {% for r in recent.top_downs %}
+                <li class="d-flex justify-content-between">
+                  <span>{{ r.name }}</span>
+                  <span class="text-danger fw-semibold">
+                    {{ (r.pct * 100)|round(1) }}%
+                    <span class="text-muted"> ({{ "$%0.0f"|format(r.delta) }})</span>
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted">No decreases.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="border rounded p-2 h-100">
+          <div class="text-muted small mb-1">Most volatile (6m)</div>
+          {% if recent.volatile %}
+            <ul class="list-unstyled mb-0">
+              {% for v in recent.volatile %}
+                <li class="d-flex justify-content-between">
+                  <span>{{ v.name }}</span>
+                  <span class="fw-semibold">{{ (v.vol * 100)|round(0) }}%</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted">Not enough data.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <div class="text-muted small mb-1">Large recent transactions</div>
+      {% if recent.large_txs %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr class="text-muted">
+              <th style="width:110px;">Date</th>
+              <th>Description</th>
+              <th style="width:160px;">Category</th>
+              <th class="text-end" style="width:120px;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in recent.large_txs %}
+              <tr>
+                <td class="text-nowrap">{{ t.date }}</td>
+                <td>{{ t.desc }}</td>
+                <td class="text-nowrap">{{ t.category }}{% if t.subcategory %} / {{ t.subcategory }}{% endif %}</td>
+                <td class="text-end fw-semibold {% if t.amount < 0 %}text-danger{% else %}text-success{% endif %}">
+                  {{ "$%0.0f"|format(t.amount) }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="text-muted">No large transactions in the last {{ recent.window_days }} days.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

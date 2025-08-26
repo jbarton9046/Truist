@@ -1,0 +1,326 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  .search { max-width:280px; }
+
+  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.9rem; background:#fff; }
+  .muted { color:#6c757d; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .tiny { font-size:.85rem; color:#6c757d; }
+
+  .grid-ctx { display:grid; gap:.8rem 1rem; grid-template-columns: repeat(4, minmax(140px, 1fr)); }
+
+  table.goals { width:100%; border-collapse:collapse; }
+  .goals th, .goals td { padding:.55rem .6rem; border-bottom:1px solid #edf2f7; vertical-align:middle; }
+  .goals th { text-align:left; font-weight:600; background:#fafbfc; position:sticky; top:0; z-index:1; cursor:pointer; }
+
+  .path-cell { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+  .path-chip {
+    display:inline-block; padding:.15rem .45rem;
+    border-radius:999px; border:1px solid #dee5ff; background:#eef2ff;
+    color:#0a58ca; font-weight:600; line-height:1;
+  }
+  .path-chip.level-0 { background:#e7f1ff; border-color:#cfe2ff; }
+  .path-chip.level-1 { background:#ecf8ff; border-color:#d6efff; }
+  .path-chip.level-2 { background:#f2ffef; border-color:#d6ffd0; }
+  .path-chip.level-3 { background:#fff7e6; border-color:#ffe2b5; }
+  .path-sep { color:#b6c0ff; margin:0 .15rem; user-select:none; }
+
+  .delta-pos { color:#1e7e34; font-weight:600; }
+  .delta-neg { color:#c0392b; font-weight:600; }
+
+  .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
+  .spark > i { display:block; width:6px; background:#cfe2ff; border-radius:2px 2px 0 0; }
+
+  .goal-input { width:120px; }
+</style>
+
+<div class="container mt-4">
+  <div class="page-header">
+    <h3 class="m-0">Monthly Goals</h3>
+    <div class="actions">
+      <input id="search" class="form-control form-control-sm search" placeholder="Filter by path…">
+      <select id="scope" class="form-select form-select-sm">
+        <option value="leaves" selected>Leaves only</option>
+        <option value="all">All nodes</option>
+        <option value="top">Top-level only</option>
+      </select>
+      <select id="topFilter" class="form-select form-select-sm">
+        <option value="">All top levels</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Summary strip: prev vs prev-1 -->
+  <div class="stat-card mb-2">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div><span class="tiny">Window</span><div class="mono" id="monthsWindow">—</div></div>
+      <div><span class="tiny">Prev (<span id="lblPrev">—</span>)</span><div class="mono" id="sumPrev">$0</div></div>
+      <div><span class="tiny">Prev-1 (<span id="lblPrev1">—</span>)</span><div class="mono" id="sumPrev1">$0</div></div>
+      <div><span class="tiny">Δ (Prev − Prev-1)</span><div class="mono" id="sumDelta">$0</div></div>
+      <div class="ms-auto tiny">Tip: set your goal near the higher of the two or a short moving average.</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <table class="goals" id="table">
+      <thead>
+        <tr>
+          <th data-sort="path">Path</th>
+          <th data-sort="prev" id="thPrev">Prev</th>
+          <th data-sort="prev1" id="thPrev1">Prev-1</th>
+          <th data-sort="avg3">3-mo avg</th>
+          <th>Goal</th>
+          <th data-sort="delta">Δ vs Prev</th>
+          <th>Spark</th>
+          <th>Manage</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="tiny mt-2">Columns “Prev” and “Prev-1” always refer to the last closed month and the month before that.</div>
+  </div>
+</div>
+
+<!-- Data bootstrap from Flask -->
+<script id="catMonthlyData" type="application/json">
+{{ (cat_monthly | default({})) | tojson }}
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- helpers ----------
+  const fmt = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:0 });
+  const toNum = (v)=> (typeof v === 'number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,'')) || 0);
+  const sparkline = (arr)=>{ const max=Math.max(...arr.map(v=>Math.abs(toNum(v))),1);
+    return '<div class="spark">'+arr.map(v=>`<i style="height:${Math.round((Math.abs(toNum(v))/max)*18)}px"></i>`).join('')+'</div>'; };
+
+  function renderPathChips(segs){
+    if (!segs?.length) return '';
+    return segs.map((s,i)=>`<span class="path-chip level-${i}">${s}</span>`)
+               .join('<span class="path-sep">›</span>');
+  }
+  function ctxFromSegs(segs){
+    return {
+      level: ['category','subcategory','subsubcategory','subsubsubcategory'][Math.min((segs?.length||1)-1,3)] || 'category',
+      cat: segs?.[0]||'', sub: segs?.[1]||'', ssub: segs?.[2]||'', sss: segs?.[3]||''
+    };
+  }
+
+  // Build a tree so internal nodes have rollups and leaves retain their series
+  function buildTree(categories){
+    const root = { key:'__ROOT__', name:'All Categories', path:[], monthly:[], total:0, parent:null, children:[] };
+    const map = new Map(); map.set('', root);
+    const segKey = (segs)=> segs.join(' / ');
+    function getNode(segs){
+      const p = segKey(segs);
+      if (map.has(p)) return map.get(p);
+      const node = { key: encodeURIComponent(p), name: segs[segs.length-1], path:[...segs], monthly:[], total:0, parent:null, children:[] };
+      const parent = getNode(segs.slice(0,-1));
+      node.parent = parent; parent.children.push(node);
+      map.set(p, node); return node;
+    }
+    categories.forEach(c=>{
+      const segs = String(c.name||'').split(/\s*\/\s*/g).filter(Boolean);
+      const leaf = getNode(segs.length?segs:[c.name||'']);
+      const m = (c.monthly||[]).map(toNum);
+      leaf.monthly = m.slice();
+      leaf.total = m.reduce((a,b)=>a+b,0);
+    });
+    function roll(n){
+      if (!n.children.length) return;
+      const L = Math.max(...n.children.map(ch => (ch.monthly||[]).length), 0);
+      const agg = new Array(L).fill(0);
+      n.children.forEach(ch=>{
+        roll(ch);
+        const m = ch.monthly||[];
+        for (let i=0;i<L;i++) agg[i]+=toNum(m[i]||0);
+      });
+      n.monthly = agg; n.total = agg.reduce((a,b)=>a+b,0);
+    }
+    roll(root);
+    return root;
+  }
+
+  // ---------- state ----------
+  const tbody = document.querySelector('#table tbody');
+  const thPrev = document.getElementById('thPrev');
+  const thPrev1 = document.getElementById('thPrev1');
+  const lblPrev = document.getElementById('lblPrev');
+  const lblPrev1 = document.getElementById('lblPrev1');
+  const monthsWindow = document.getElementById('monthsWindow');
+  const sumPrevEl = document.getElementById('sumPrev');
+  const sumPrev1El = document.getElementById('sumPrev1');
+  const sumDeltaEl = document.getElementById('sumDelta');
+
+  const searchEl = document.getElementById('search');
+  const scopeEl = document.getElementById('scope');
+  const topFilterEl = document.getElementById('topFilter');
+
+  let months=[], root=null;
+  let q='', scope='leaves', topFilter='';
+  let sort={ key:'prev', dir:'desc' };
+
+  function lastClosedIdx(){ return months.length>=2 ? months.length-2 : Math.max(0, months.length-1); }
+  function prevPrevIdx(){ const li=lastClosedIdx(); return li>0 ? li-1 : li; }
+
+  function gatherNodes(root, scope){
+    const out=[];
+    const isLeaf=(n)=> n.children.length===0;
+    const isTop =(n)=> n.parent && n.parent.key==='__ROOT__';
+    (function visit(n){
+      if (n!==root){
+        if (scope==='leaves' && !isLeaf(n)) { /*skip*/ }
+        else if (scope==='top' && !isTop(n)) { /*skip*/ }
+        else out.push(n);
+      }
+      n.children.forEach(visit);
+    })(root);
+    return out;
+  }
+  function topOf(n){ let x=n; while(x.parent && x.parent.key!=='__ROOT__') x=x.parent; return x.parent?x:null; }
+
+  function currentRows(){
+    const all = gatherNodes(root, scope);
+    const qq = q.trim().toLowerCase();
+    return all.filter(n=>{
+      if (topFilter && (topOf(n)?.name||'')!==topFilter) return false;
+      if (qq && !(n.path.join(' / ').toLowerCase().includes(qq))) return false;
+      return true;
+    });
+  }
+
+  function render(){
+    const rows = currentRows();
+    const li = lastClosedIdx();
+    const pi = prevPrevIdx();
+
+    // label headers
+    const L = months[li]||''; const P = months[pi]||'';
+    thPrev.textContent = `Prev (${L})`;
+    thPrev1.textContent = `Prev-1 (${P})`;
+    lblPrev.textContent = L;
+    lblPrev1.textContent = P;
+    monthsWindow.textContent = months.length ? `${months[0]} … ${months[months.length-1]}` : '—';
+
+    // sort
+    rows.sort((a,b)=>{
+      const mul=(sort.dir==='asc'?1:-1);
+      if (sort.key==='path') return mul * a.path.join(' / ').localeCompare(b.path.join(' / '));
+      if (sort.key==='prev') return mul * (toNum(a.monthly[li]||0) - toNum(b.monthly[li]||0));
+      if (sort.key==='prev1') return mul * (toNum(a.monthly[pi]||0) - toNum(b.monthly[pi]||0));
+      if (sort.key==='avg3'){
+        const a3=avgK(a.monthly,3), b3=avgK(b.monthly,3);
+        return mul*(a3-b3);
+      }
+      if (sort.key==='delta'){
+        const da=toNum(a.monthly[li]||0) - toNum(a.monthly[pi]||0);
+        const db=toNum(b.monthly[li]||0) - toNum(b.monthly[pi]||0);
+        return mul*(da-db);
+      }
+      return 0;
+    });
+
+    // summary totals
+    const sumPrev = rows.reduce((s,n)=> s + toNum(n.monthly[li]||0), 0);
+    const sumPrev1= rows.reduce((s,n)=> s + toNum(n.monthly[pi]||0), 0);
+    sumPrevEl.textContent = fmt.format(sumPrev);
+    sumPrev1El.textContent= fmt.format(sumPrev1);
+    sumDeltaEl.textContent = fmt.format(sumPrev - sumPrev1);
+
+    // rows
+    const html = rows.map(n=>{
+      const prev = toNum(n.monthly[li]||0);
+      const prev1= toNum(n.monthly[pi]||0);
+      const avg3 = avgK(n.monthly,3);
+      // default goal suggestion: max(prev, avg3)
+      const goal = Math.max(prev, avg3);
+      const delta = goal - prev;
+      const segs = n.path || [];
+      const pathStr = segs.join(' / ');
+
+      return `<tr>
+        <td>
+          <div class="path-cell">${renderPathChips(segs)}</div>
+        </td>
+        <td class="mono">${fmt.format(prev)}</td>
+        <td class="mono">${fmt.format(prev1)}</td>
+        <td class="mono">${fmt.format(avg3)}</td>
+        <td>
+          <input type="number" class="form-control form-control-sm goal-input"
+                 min="0" step="1"
+                 value="${Math.round(goal)}"
+                 data-key="${n.key}">
+        </td>
+        <td class="mono ${delta>=0?'delta-pos':'delta-neg'}">${fmt.format(delta)}</td>
+        <td>${sparkline(n.monthly||[])}</td>
+        <td><a href="#" class="name-link manage" data-manage-path="${pathStr}">manage</a></td>
+      </tr>`;
+    }).join('');
+    tbody.innerHTML = html;
+  }
+
+  function avgK(arr,k){
+    const n=arr.length; if (!n||!k) return 0;
+    let used=0,sum=0;
+    for(let i=n-1;i>=0 && used<k;i--){ sum+=toNum(arr[i]); used++; }
+    return used? (sum/used) : 0;
+  }
+
+  // interactions
+  document.querySelectorAll('#table th[data-sort]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key=th.dataset.sort;
+      sort = (sort.key===key && sort.dir==='desc') ? {key, dir:'asc'} : {key, dir:'desc'};
+      render();
+    });
+  });
+
+  tbody.addEventListener('click', (e)=>{
+    const m = e.target.closest('.manage'); if (!m) return;
+    e.preventDefault();
+    const pathStr = m.getAttribute('data-manage-path') || '';
+    const segs = pathStr.split(/\s*\/\s*/).filter(Boolean);
+    const ctx = ctxFromSegs(segs);
+    if (window.openCategoryManager) window.openCategoryManager(ctx);
+  });
+
+  // goal input live delta
+  tbody.addEventListener('input', (e)=>{
+    const inp = e.target.closest('.goal-input'); if (!inp) return;
+    // Just re-render deltas by re-running render() (simple for now)
+    render();
+  });
+
+  searchEl.addEventListener('input', ()=>{ q = searchEl.value.trim(); render(); });
+  scopeEl.addEventListener('change', ()=>{ scope = scopeEl.value; render(); });
+  topFilterEl.addEventListener('change', ()=>{ topFilter = topFilterEl.value; render(); });
+
+  // boot
+  (function main(){
+    let j=null;
+    try{ const el=document.getElementById('catMonthlyData'); j = el ? JSON.parse(el.textContent||'null') : null; }
+    catch(err){ console.error('Failed to parse cat_monthly JSON', err); }
+
+    if (!j || !Array.isArray(j.months) || !Array.isArray(j.categories)){
+      const msg = '<tr><td colspan="8" class="muted">No data injected (cat_monthly)</td></tr>';
+      tbody.innerHTML = msg; return;
+    }
+
+    months = j.months||[];
+    const cats = (j.categories||[]).map(c=>({ name:c.name, monthly:(c.monthly||[]).map(toNum) }));
+    root = buildTree(cats);
+
+    // top filter options
+    const tops = [...new Set(root.children.map(c=>c.name))].sort((a,b)=>a.localeCompare(b));
+    tops.forEach(name=>{ const opt=document.createElement('option'); opt.value=name; opt.textContent=name; topFilterEl.appendChild(opt); });
+
+    render();
+  })();
+})();
+</script>
+{% endblock %}

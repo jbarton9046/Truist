@@ -1,0 +1,417 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .budget-title { color: #2c3e50 !important; }
+  .summary-label { color: #adb5bd !important; }
+
+  details > summary { list-style: none; cursor: pointer; user-select: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.6; }
+  details[open] .caret { transform:rotate(90deg); opacity:.85; }
+
+  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.25rem 0; }
+  .node-main { display:flex; align-items:center; gap:.5rem; }
+  .node-total { opacity:.8; font-variant-numeric: tabular-nums; }
+
+  .link-manage { color:#212529; text-decoration:none; border-bottom:1px dashed transparent; }
+  .link-manage:hover { text-decoration:none; border-bottom-color:#ced4da; }
+
+  .transaction-entry { padding:.15rem 0; }
+
+  .mono { font-variant-numeric: tabular-nums; }
+  .tx-neg { color:#c0392b; font-weight:600; }
+  .tx-pos { color:#1e7e34; font-weight:600; }
+  .muted { color:#6c757d; }
+  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.75rem; }
+  .sticky-subheader { position:sticky; top:0; background:#fff; z-index:1; padding:.25rem 0; border-bottom:1px solid #f1f3f5; }
+
+  .crumbs { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin-bottom:.25rem; }
+  .crumb { display:inline-flex; align-items:center; gap:.35rem; background:#e7f1ff; color:#0a58ca; border:1px solid #cfe2ff; padding:.25rem .6rem; border-radius:999px; text-decoration:none; font-weight:600; }
+  .crumb:hover { background:#dbe9ff; border-color:#b6d4fe; }
+  .sep { color:#9ab8f7; margin:0 .1rem; }
+
+  .pill { display:inline-block; padding:.25rem .6rem; background:#f1f3f5; border-radius:999px; margin:.15rem .25rem 0 0; font-size:.85rem; text-decoration:none; color:#212529; }
+  .pill:hover { background:#e9ecef; }
+
+  .kw-chip { display:inline-flex; align-items:center; gap:.35rem; background:#eef7ee; color:#1b6e22; border:1px solid #cfe9d1; padding:.2rem .55rem; border-radius:999px; margin:.15rem .25rem 0 0; font-size:.85rem; }
+  .kw-chip .x { font-weight:700; cursor:pointer; opacity:.7; }
+  .kw-chip .x:hover { opacity:1; }
+
+  .kw-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+  .kw-add input { max-width:220px; }
+
+  .add-child { display:flex; gap:.4rem; align-items:center; margin-top:.5rem; }
+  .thin-hr { margin:.6rem 0; }
+
+  .trend-row { display:flex; align-items:center; gap:.5rem; margin:.25rem 0; }
+  .trend-label { width:72px; color:#6c757d; font-size:.85rem; }
+  .trend-bar { height:8px; border-radius:4px; background:#e9ecef; overflow:hidden; flex:1; }
+  .trend-fill { height:100%; background:#cfe2ff; }
+  .trend-val { width:90px; text-align:right; font-variant-numeric: tabular-nums; color:#495057; font-size:.85rem; }
+
+  .pareto-wrap { margin-top:.25rem; }
+  .pareto-row { display:grid; grid-template-columns:auto 1fr 70px 70px; gap:.5rem; align-items:center; padding:.15rem 0; }
+  .pareto-bar { height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; }
+  .pareto-fill { height:100%; background:#ffe8cc; }
+  .pareto-head { font-size:.8rem; color:#6c757d; }
+
+  .subs-table thead th { position:sticky; top:0; background:#fff; }
+
+  .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
+  .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
+  .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
+</style>
+
+<!-- Header -->
+<div class="container mt-3 mb-2">
+  <div class="d-flex align-items-center justify-content-center">
+    <h1 class="m-0 budget-title">📊 Barton Budget Tracker</h1>
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="container my-4" id="recent-activity">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h5 class="m-0">Recent Activity</h5>
+    <small class="text-muted" id="ra-asof"></small>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <!-- 📈 Category Movers -->
+      <div class="card shadow-sm" id="catMoversCard">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="fw-bold">
+            📈 Category Movers <span class="text-muted small" id="cmSubtitle"></span>
+          </div>
+          <!-- Removed individual movers refresh button -->
+        </div>
+
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height: 42vh; overflow:auto;">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="small text-muted">
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Prev</th>
+                  <th class="text-end">Latest</th>
+                  <th class="text-end">Δ</th>
+                  <th class="text-end">Δ%</th>
+                </tr>
+              </thead>
+              <tbody id="cmBody">
+                <tr><td colspan="5" class="text-center py-4 text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latest Month Totals -->
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <h6 class="card-title mb-2">Latest Month Totals</h6>
+          <div class="row g-3">
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="text-muted small">Income</div>
+                <div class="fw-semibold" id="ra-inc"></div>
+                <div class="small" id="ra-inc-delta"></div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="text-muted small">Expense</div>
+                <div class="fw-semibold" id="ra-exp"></div>
+                <div class="small" id="ra-exp-delta"></div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="text-muted small">Net</div>
+                <div class="fw-semibold" id="ra-net"></div>
+                <div class="small" id="ra-net-delta"></div>
+              </div>
+            </div>
+          </div>
+          <div class="text-muted small mt-2" id="ra-months"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <!-- Most Recent Transactions -->
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title mb-2 d-flex justify-content-between align-items-center">
+            Most Recent Transactions
+            <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-primary">🔄 Refresh</button>
+          </h6>
+          <div class="table-responsive" style="max-height: 420px; overflow:auto;">
+            <table class="table table-sm align-middle mb-0" id="ra-recent">
+              <thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th>Description</th>
+                  <th style="width:130px;" class="text-end">Amount</th>
+                  <th style="width:120px;">Category</th>
+                </tr>
+              </thead>
+              <tbody id="ra-recent-body"></tbody>
+            </table>
+          </div>
+          <div class="text-muted small mt-2" id="ra-windows"></div>
+        </div>
+      </div>
+
+      <!-- (Runway removed) -->
+    </div>
+  </div>
+</div>
+
+<!-- One consolidated loader for Movers & Recent -->
+<script>
+(function(){
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  const fmtMoney = (n) => {
+    const v = Number(n||0);
+    const sign = v < 0 ? '-' : '';
+    return sign + '$' + Math.abs(v).toFixed(2);
+  };
+  const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
+  const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // ---------- Category Movers ----------
+  const cmBody = $('cmBody'), cmSub = $('cmSubtitle'); // no cmRefresh button anymore
+  async function loadCategoryMovers(){
+    if (!cmBody) return;
+    cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Loading…</td></tr>';
+    try{
+      const r = await fetch('/api/category_movers');
+      if (!r.ok) throw new Error(await r.text());
+      const j = await r.json();
+      if (cmSub) cmSub.textContent = (j.prev_month && j.latest_month) ? `(${j.prev_month} → ${j.latest_month})` : '';
+      const rows = j.rows || [];
+      if (!rows.length){
+        cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No category movement yet.</td></tr>';
+        return;
+      }
+      cmBody.innerHTML = rows.map(row => {
+        const d = Number(row.delta || 0);
+        const cls = d > 0 ? 'text-danger' : d < 0 ? 'text-success' : 'text-muted';
+        const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '—';
+        const deltaHtml = '<span class="'+cls+'">'+arrow+' '+fmtMoney(Math.abs(d))+'</span>';
+        return (
+          '<tr>' +
+            '<td>' + (safe(row.category) || '—') + '</td>' +
+            '<td class="text-end">' + fmtMoney(row.prev) + '</td>' +
+            '<td class="text-end">' + fmtMoney(row.latest) + '</td>' +
+            '<td class="text-end">' + deltaHtml + '</td>' +
+            '<td class="text-end">' + fmtPct(row.delta_pct) + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+    }catch(err){
+      cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">Failed to load: ' + safe(err.message||err) + '</td></tr>';
+    }
+  }
+  window.loadCategoryMovers = loadCategoryMovers;
+
+  // ---------- Recent Activity (totals + recent table) ----------
+  const raAsOf=$('ra-asof'), raInc=$('ra-inc'), raExp=$('ra-exp'), raNet=$('ra-net');
+  const raIncD=$('ra-inc-delta'), raExpD=$('ra-exp-delta'), raNetD=$('ra-net-delta'), raMonths=$('ra-months');
+  const raWin=$('ra-windows'), raBody=$('ra-recent-body');
+
+  async function loadRecentActivity(){
+    if (!raBody) return;
+    try{
+      const r = await fetch('/api/recent-activity');
+      if (!r.ok) throw new Error(await r.text());
+      const j = await r.json();
+      const d = j.data || j;
+
+      if (raAsOf)   raAsOf.textContent   = d.as_of ? `as of ${d.as_of}` : '';
+      if (raMonths) raMonths.textContent = (d.prev_month && d.latest_month) ? `${d.prev_month} → ${d.latest_month}` : '';
+
+      const lt = d.latest_totals || {};
+      if (raInc)   raInc.textContent   = fmtMoney(lt.income);
+      if (raExp)   raExp.textContent   = fmtMoney(lt.expense);
+      if (raNet)   raNet.textContent   = fmtMoney(lt.net);
+
+      const mkDelta = (val, posGood=true) => {
+        const d = Number(val||0);
+        const cls = (posGood ? (d>0) : (d<0)) ? 'text-success' : d===0 ? 'text-muted' : 'text-danger';
+        const arrow = d>0 ? '▲' : d<0 ? '▼' : '—';
+        return '<span class="'+cls+'">'+arrow+' '+fmtMoney(Math.abs(d))+'</span>';
+      };
+      if (raIncD) raIncD.innerHTML = mkDelta(lt.delta_income, true);
+      if (raExpD) raExpD.innerHTML = mkDelta(lt.delta_expense, false);
+      if (raNetD) raNetD.innerHTML = mkDelta(lt.delta_net, true);
+
+      if (raWin){
+        const w = d.recent_windows || {};
+        raWin.textContent = '7d: +' + fmtMoney(w.last_7_income) + ' / -' + fmtMoney(w.last_7_expense) +
+                            ' • 30d: +' + fmtMoney(w.last_30_income) + ' / -' + fmtMoney(w.last_30_expense);
+      }
+
+      const rows = d.recent_txs || [];
+      raBody.innerHTML = rows.length ? rows.map(t => (
+        '<tr>' +
+          '<td class="mono">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
+          '<td>' + safe(t.desc) + '</td>' +
+          '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
+          '<td>' + safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') + '</td>' +
+        '</tr>'
+      )).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">No recent transactions.</td></tr>';
+    }catch(err){
+      console.error('Recent activity error:', err);
+      raBody.innerHTML = '<tr><td colspan="4" class="text-danger text-center py-3">Couldn’t load recent activity: ' + safe(err?.message||err) + '</td></tr>';
+    }
+  }
+  window.loadRecentActivity = loadRecentActivity;
+
+  // ---------- Global Refresh (single button) ----------
+  const raRefreshBtn = $('refresh-btn');
+  if (raRefreshBtn){
+    raRefreshBtn.addEventListener('click', async () => {
+      const original = raRefreshBtn.textContent;
+      raRefreshBtn.disabled = true;
+      raRefreshBtn.textContent = '⏳ Refreshing…';
+      try {
+        // Kick the backend refresh
+        await fetch('/refresh_data', { method:'POST' }).catch(()=>{});
+        // Reload the whole app to ensure server-rendered sections (like month cards) update too
+        window.location.reload();
+      } finally {
+        // In case reload is blocked, restore button state
+        raRefreshBtn.disabled = false;
+        raRefreshBtn.textContent = original;
+      }
+    });
+  }
+
+  // ---------- initial loads ----------
+  loadCategoryMovers();
+  loadRecentActivity();
+})();
+</script>
+
+<!-- Per-month summary + category tree -->
+<div class="container mt-2">
+  {% macro render_node(node, ancestors=[], depth=1) %}
+    {% set cat  = (ancestors[0] if ancestors|length > 0 else (node.name if depth == 1 else '')) %}
+    {% set sub  = (ancestors[1] if ancestors|length > 1 else (node.name if depth == 2 else '')) %}
+    {% set ssub = (ancestors[2] if ancestors|length > 2 else (node.name if depth == 3 else '')) %}
+    {% set sss  = (node.name if depth == 4 else '') %}
+
+    {% if depth == 1 %}{% set level = 'category' %}
+    {% elif depth == 2 %}{% set level = 'subcategory' %}
+    {% elif depth == 3 %}{% set level = 'subsubcategory' %}
+    {% else %}{% set level = 'subsubsubcategory' %}{% endif %}
+
+    <details>
+      <summary>
+        <div class="node-line">
+          <div class="node-main" style="padding-left: {{ (depth-1) * 16 }}px">
+            <span class="caret">▸</span>
+
+            <a
+              class="link-manage"
+              title="Manage {{ node.name }}"
+              data-level="{{ level }}"
+              data-cat="{{ cat }}"
+              data-sub="{{ sub }}"
+              data-ssub="{{ ssub }}"
+              data-sss="{{ sss }}"
+              href="#"
+              onclick="return dashManage(event, this);">
+              {{ node.name }}
+            </a>
+
+            <span class="node-total">${{ '%.2f'|format(node.total) }}</span>
+          </div>
+        </div>
+      </summary>
+
+      {% if node.children and node.children|length > 0 %}
+        <ul class="list-unstyled ms-3 mt-1">
+          {% for child in node.children %}
+            <li>{{ render_node(child, ancestors + [node.name], depth + 1) }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        {% if node.transactions %}
+          <ul class="list-unstyled ms-3 mt-1">
+            {% for tx in node.transactions %}
+              <li class="transaction-entry">
+                <span class="text-dark">{{ tx.date }}</span>:
+                {{ tx.description }}
+                <span class="fw-bold {% if tx.amount>=0 %}text-success{% else %}text-danger{% endif %}">
+                  ${{ '%.2f'|format(tx.amount) }}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {% endif %}
+    </details>
+  {% endmacro %}
+
+  {% for month_key, summary in summary_data.items()|sort(reverse=True) %}
+    {% set norm = month_key|replace('_','-') %}
+    {% set parts = norm.split('-') %}
+    {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
+    {% set net_class = 'tx-pos' if summary.net_cash_flow >= 0 else 'tx-neg' %}
+
+    <div class="card mb-4" id="card-{{ month_key }}">
+      <div class="card-header" onclick="toggleSection('{{ month_key }}')">
+        <span class="summary-label">{{ formatted_month_key }} Summary</span>
+      </div>
+
+      <div id="section-{{ month_key }}" class="card-body" style="display: none;">
+        <p><strong>Total Income:</strong>
+          <span class="text-success">${{ '%.2f'|format(summary.income_total) }}</span>
+        </p>
+        <p><strong>Total Expenses:</strong>
+          <span class="text-danger">${{ '%.2f'|format(summary.expense_total) }}</span>
+        </p>
+        <p><strong>Net Cash Flow:</strong>
+          <span class="fw-bold {{ net_class }}">${{ '%.2f'|format(summary.net_cash_flow) }}</span>
+        </p>
+
+        <h5 class="mt-3 highlight-inline" onclick="toggleCategoryList('{{ month_key }}')">Categories</h5>
+        <div id="category-list-{{ month_key }}" style="display:none;">
+          {% if summary.tree and summary.tree|length > 0 %}
+            <div class="ms-1">
+              {% for top in summary.tree %}
+                {{ render_node(top) }}
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-muted">No category data for this month.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Tiny helpers so the month cards expand/collapse -->
+<script>
+window.toggleSection = function(key){
+  const el = document.getElementById('section-' + key);
+  if (!el) return false;
+  const v = el.style.display;
+  el.style.display = (v === 'none' || !v) ? 'block' : 'none';
+  return false;
+};
+window.toggleCategoryList = function(key){
+  const el = document.getElementById('category-list-' + key);
+  if (!el) return false;
+  const v = el.style.display;
+  el.style.display = (v === 'none' || !v) ? 'block' : 'none';
+  return false;
+};
+</script>
+{% endblock %}

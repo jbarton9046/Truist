@@ -1,0 +1,138 @@
+2025-07-18 13:49:03,213 INFO: Plaid fetch started
+2025-07-18 13:50:14,853 INFO: Plaid fetch started
+2025-07-18 22:31:48,050 INFO: Plaid fetch started
+2025-07-18 22:36:15,803 INFO: Plaid fetch started
+2025-07-18 22:59:43,327 INFO: Plaid fetch started
+2025-07-18 23:33:34,308 INFO: Plaid fetch started
+2025-07-19 12:57:01,720 INFO: Added 484 new transactions from 2025-04-20 to 2025-07-19
+2025-07-19 12:58:15,119 INFO: Added 0 new transactions from 2025-04-20 to 2025-07-19
+2025-07-19 13:05:01,000 INFO: Added 0 new transactions from 2025-04-20 to 2025-07-19
+2025-07-21 16:37:37,812 INFO: Saved 8 transactions to plaid_2025-07-21_16-37-37.json
+2025-07-21 16:44:28,951 INFO: Saved 8 transactions to plaid_2025-07-21_16-44-28.json
+2025-07-22 20:02:30,931 INFO: Saved 17 transactions to plaid_2025-07-22_20-02-30.json
+2025-07-22 20:02:35,390 INFO: Saved 17 transactions to plaid_2025-07-22_20-02-35.json
+2025-07-23 14:46:54,987 INFO: Saved 17 transactions to plaid_2025-07-23_14-46-54.json
+2025-07-24 10:14:46,878 INFO: Saved 10 transactions to plaid_2025-07-24_10-14-46.json
+2025-07-24 10:14:50,297 INFO: Saved 10 transactions to plaid_2025-07-24_10-14-50.json
+2025-07-24 10:14:53,003 INFO: Saved 10 transactions to plaid_2025-07-24_10-14-52.json
+2025-07-24 10:14:56,206 INFO: Saved 10 transactions to plaid_2025-07-24_10-14-56.json
+2025-07-24 10:14:59,256 INFO: Saved 10 transactions to plaid_2025-07-24_10-14-59.json
+2025-07-24 10:15:02,464 INFO: Saved 10 transactions to plaid_2025-07-24_10-15-02.json
+2025-07-24 23:28:39,163 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000013FB5E35FD0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-24 23:28:39,166 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000013FB5E6A210>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-24 23:28:39,168 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000013FB5E6A5D0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:20:12,368 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021276905FD0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:20:12,372 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002127693A210>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:20:12,373 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x000002127693A5D0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:21:40,224 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021CC5CE5FD0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:21:40,231 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021CC5D1A210>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:21:40,233 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021CC5D1A5D0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-07-29 23:30:10,537 INFO: Saved 27 transactions to plaid_2025-07-29_23-30-10.json
+2025-08-02 13:36:05,019 INFO: Saved 28 transactions to plaid_2025-08-02_13-36-05.json
+2025-08-03 10:16:30,250 INFO: Saved 26 transactions to plaid_2025-08-03_10-16-30.json
+2025-08-03 11:25:06,525 INFO: Saved 26 transactions to plaid_2025-08-03_11-25-06.json
+2025-08-03 11:26:50,230 INFO: Saved 26 transactions to plaid_2025-08-03_11-26-50.json
+2025-08-03 11:33:46,625 INFO: Saved 566 transactions to plaid_2025-08-03_11-33-46.json
+2025-08-03 11:33:46,799 INFO: 549 new transactions added to all_transactions.json
+2025-08-04 09:30:07,863 INFO: Saved 20 transactions to plaid_2025-08-04_09-30-07.json
+2025-08-04 09:30:08,059 INFO: 0 new transactions added to all_transactions.json
+2025-08-07 21:13:45,156 INFO: Saved 27 transactions to plaid_2025-08-07_21-13-45.json
+2025-08-07 21:13:45,337 INFO: 18 new transactions added to all_transactions.json
+2025-08-08 18:34:39,918 INFO: Saved 18 transactions to plaid_2025-08-08_18-34-39.json
+2025-08-08 18:34:40,113 INFO: 13 new transactions added to all_transactions.json
+2025-08-09 21:14:04,738 INFO: Saved 19 transactions to plaid_2025-08-09_21-14-04.json
+2025-08-09 21:14:04,898 INFO: 11 new transactions added to all_transactions.json
+2025-08-10 01:20:53,873 INFO: Saved 14 transactions to plaid_2025-08-10_01-20-53.json
+2025-08-10 01:20:54,061 INFO: 7 new transactions added to all_transactions.json
+2025-08-10 02:02:13,659 INFO: Saved 14 transactions to plaid_2025-08-10_02-02-13.json
+2025-08-10 02:02:13,816 INFO: 7 new transactions added to all_transactions.json
+2025-08-11 00:21:40,138 INFO: Saved 4 transactions to plaid_2025-08-11_00-21-40.json
+2025-08-11 00:21:40,296 INFO: 0 new transactions added to all_transactions.json
+2025-08-11 10:11:16,983 INFO: Saved 6 transactions to plaid_2025-08-11_10-11-16.json
+2025-08-11 10:11:17,181 INFO: 0 new transactions added to all_transactions.json
+2025-08-11 14:05:19,267 INFO: Saved 7 transactions to plaid_2025-08-11_14-05-19.json
+2025-08-11 14:05:19,452 INFO: 0 new transactions added to all_transactions.json
+2025-08-11 22:42:25,337 INFO: Saved 11 transactions to plaid_2025-08-11_22-42-25.json
+2025-08-11 22:42:25,535 INFO: 0 new transactions added to all_transactions.json
+2025-08-12 13:41:04,914 WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x00000203277C1E80>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-08-12 13:41:04,917 WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x00000203277DA210>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-08-12 13:41:04,921 WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x00000203277DA5D0>: Failed to resolve 'production.plaid.com' ([Errno 11001] getaddrinfo failed)")': /transactions/get
+2025-08-12 13:41:48,198 INFO: Saved 18 transactions to plaid_2025-08-12_13-41-48.json
+2025-08-12 13:41:48,419 INFO: 14 new transactions added to all_transactions.json
+2025-08-13 00:11:10,996 INFO: Saved 19 transactions to plaid_2025-08-13_00-11-10.json
+2025-08-13 00:11:11,204 INFO: 14 new transactions added to all_transactions.json
+2025-08-13 20:58:39,981 INFO: Saved 21 transactions to plaid_2025-08-13_20-58-39.json
+2025-08-13 20:58:40,155 INFO: 18 new transactions added to all_transactions.json
+2025-08-14 08:31:24,415 INFO: Saved 9 transactions to plaid_2025-08-14_08-31-24.json
+2025-08-14 08:31:24,667 INFO: 6 new transactions added to all_transactions.json
+2025-08-14 08:31:27,527 INFO: Saved 9 transactions to plaid_2025-08-14_08-31-27.json
+2025-08-14 08:31:27,795 INFO: 6 new transactions added to all_transactions.json
+2025-08-14 16:01:03,780 INFO: Saved 9 transactions to plaid_2025-08-14_16-01-03.json
+2025-08-14 16:01:03,975 INFO: 6 new transactions added to all_transactions.json
+2025-08-14 22:47:01,251 INFO: Saved 11 transactions to plaid_2025-08-14_22-47-01.json
+2025-08-14 22:47:01,423 INFO: 6 new transactions added to all_transactions.json
+2025-08-15 19:33:08,336 INFO: Saved 18 transactions to plaid_2025-08-15_19-33-08.json
+2025-08-15 19:33:08,517 INFO: 5 new transactions added to all_transactions.json
+2025-08-16 07:01:57,846 INFO: Saved 15 transactions to plaid_2025-08-16_07-01-57.json
+2025-08-16 07:01:58,045 INFO: 9 new transactions added to all_transactions.json
+2025-08-17 00:01:15,124 INFO: Saved 12 transactions to plaid_2025-08-17_00-01-15.json
+2025-08-17 00:01:15,341 INFO: 6 new transactions added to all_transactions.json
+2025-08-18 18:03:10,978 INFO: Saved 5 transactions to plaid_2025-08-18_18-03-10.json
+2025-08-18 18:03:11,235 INFO: 0 new transactions added to all_transactions.json
+2025-08-19 00:14:33,751 INFO: Saved 6 transactions to plaid_2025-08-19_00-14-33.json
+2025-08-19 00:14:33,950 INFO: 0 new transactions added to all_transactions.json
+2025-08-19 08:41:47,910 INFO: Saved 16 transactions to plaid_2025-08-19_08-41-47.json
+2025-08-19 08:41:48,190 INFO: 12 new transactions added to all_transactions.json
+2025-08-19 20:51:48,045 INFO: Saved 24 transactions to plaid_2025-08-19_20-51-48.json
+2025-08-19 20:51:48,295 INFO: 12 new transactions added to all_transactions.json
+2025-08-20 10:50:44,239 INFO: Saved 24 transactions to plaid_2025-08-20_10-50-44.json
+2025-08-20 10:50:44,359 INFO: 19 new transactions added to all_transactions.json
+2025-08-22 13:50:30,601 INFO: Saved 14 transactions to plaid_2025-08-22_13-50-30.json
+2025-08-22 13:50:30,707 INFO: 9 new transactions added to all_transactions.json
+2025-08-23 00:32:55,802 INFO: Saved 9 transactions to plaid_2025-08-23_00-32-55.json
+2025-08-23 00:32:56,008 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 00:33:04,913 INFO: Saved 9 transactions to plaid_2025-08-23_00-33-04.json
+2025-08-23 00:33:05,095 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 01:12:55,493 INFO: Saved 9 transactions to plaid_2025-08-23_01-12-55.json
+2025-08-23 01:12:55,650 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 01:13:05,111 INFO: Saved 9 transactions to plaid_2025-08-23_01-13-05.json
+2025-08-23 01:13:05,248 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 01:20:10,591 INFO: Saved 9 transactions to plaid_2025-08-23_01-20-10.json
+2025-08-23 01:20:10,857 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 01:20:16,530 INFO: Saved 9 transactions to plaid_2025-08-23_01-20-16.json
+2025-08-23 01:20:16,798 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 01:29:33,897 INFO: Saved 9 transactions to plaid_2025-08-23_01-29-33.json
+2025-08-23 01:29:34,155 INFO: 4 new transactions added to all_transactions.json
+2025-08-23 11:00:16,708 INFO: Saved 12 transactions to plaid_2025-08-23_11-00-16.json
+2025-08-23 11:00:16,968 INFO: 7 new transactions added to all_transactions.json
+2025-08-24 00:05:38,127 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-38.json
+2025-08-24 00:05:38,386 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:45,197 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-45.json
+2025-08-24 00:05:45,202 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-45.json
+2025-08-24 00:05:45,222 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-45.json
+2025-08-24 00:05:45,505 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:45,509 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:45,516 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:45,528 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:58,505 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-58.json
+2025-08-24 00:05:58,632 INFO: Saved 6 transactions to plaid_2025-08-24_00-05-58.json
+2025-08-24 00:05:58,845 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:05:58,847 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:06:00,310 INFO: Saved 6 transactions to plaid_2025-08-24_00-06-00.json
+2025-08-24 00:06:00,550 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 00:07:59,450 INFO: Saved 6 transactions to plaid_2025-08-24_00-07-59.json
+2025-08-24 00:07:59,714 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 01:02:51,520 INFO: Saved 6 transactions to plaid_2025-08-24_01-02-51.json
+2025-08-24 01:02:51,632 INFO: 3 new transactions added to all_transactions.json
+2025-08-24 01:12:45,731 INFO: Saved 6 transactions to plaid_2025-08-24_01-12-45.json
+2025-08-24 01:12:45,865 INFO: 3 new transactions added to all_transactions.json
+2025-08-25 08:59:27,076 INFO: Saved 1 transactions to plaid_2025-08-25_08-59-27.json
+2025-08-25 08:59:27,258 INFO: 0 new transactions added to all_transactions.json
+2025-08-25 11:05:41,385 INFO: Saved 1 transactions to plaid_2025-08-25_11-05-41.json
+2025-08-25 11:05:41,622 INFO: 0 new transactions added to all_transactions.json
+2025-08-25 20:17:41,539 INFO: Saved 1 transactions to plaid_2025-08-25_20-17-41.json
+2025-08-25 20:17:41,747 INFO: 0 new transactions added to all_transactions.json
+2025-08-25 20:17:43,571 INFO: Saved 1 transactions to plaid_2025-08-25_20-17-43.json
+2025-08-25 20:17:43,783 INFO: 0 new transactions added to all_transactions.json
+2025-08-26 08:37:27,133 INFO: Saved 1 transactions to plaid_2025-08-26_08-37-27.json
+2025-08-26 08:37:27,405 INFO: 0 new transactions added to all_transactions.json

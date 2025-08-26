@@ -1,0 +1,13 @@
+<div class="sidebar">
+  <h5>Navigation</h5>
+
+  <a href="{{ url_for('index') }}">🏠 Dashboard</a>
+  <a href="{{ url_for('all_categories_page') }}">📊 All Categories</a>
+  <a href="{{ url_for('category_builder') }}">🧩 Category Builder</a>
+
+  <h6 class="mt-3">Cash</h6>
+  <a href="{{ url_for('cash_page') }}">💵 Add Cash Transaction</a>
+
+  <h6 class="mt-3">Statements</h6>
+  <a href="{{ url_for('index') }}#summary-cards" data-nav="summary">📑 Summary</a>
+</div>

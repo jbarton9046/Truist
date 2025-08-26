@@ -1,0 +1,1379 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .muted { color:#6c757d; }
+  .mono { font-variant-numeric: tabular-nums; }
+  .chip { display:inline-block; padding:.2rem .5rem; border:1px solid #dee2e6; border-radius:999px; margin:.1rem .25rem; font-size:.85rem; }
+  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.75rem; }
+
+  /* one-bar chooser */
+  .onebar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .onebar .onebar-new { display:flex; align-items:center; gap:.5rem; }
+  .onebar .onebar-new.d-none { display:none !important; }
+  .onebar .onebar-select.d-none { display:none !important; }
+
+  /* modal table tweaks */
+  .manage-table input.form-control-sm { min-width: 260px; }
+
+  /* misc panel */
+  .misc-card { border:1px solid #e9ecef; border-radius:.75rem; }
+  .misc-table tbody tr td { vertical-align: middle; }
+  .misc-controls .form-control, .misc-controls .form-select { height: 36px; }
+  .misc-scroll { max-height: 60vh; overflow:auto; }
+  .pointer { cursor:pointer; }
+
+  /* --- Keyword Finder styles --- */
+  .kb-card { border-radius:1rem; border:1px solid #e9ecef; background:#fff; }
+  .kb-card .kb-head { padding:.6rem .9rem; border-bottom:1px solid #edf2f7; }
+  .kb-card .kb-body { padding:.75rem; }
+  .kb-muted { color:#6c757d; }
+  .kb-toolbar {
+    position: sticky; top:.25rem; z-index:5; background:#fff; padding:.6rem .8rem;
+    border:1px solid #eaecf0; border-radius:.75rem; box-shadow:0 1px 0 rgba(0,0,0,.02);
+    margin-bottom: .75rem;
+  }
+  .kb-chip {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.2rem .55rem; border-radius:999px; background:#f1f3f5; color:#212529;
+    border:1px solid #e9ecef; margin:.15rem .25rem 0 0; font-size:.9rem; cursor:pointer;
+  }
+  .kb-chip:hover { background:#e9ecef; }
+  .kb-manage {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.15rem .5rem; border-radius:999px; background:#e7f1ff; color:#0a58ca;
+    border:1px solid #cfe2ff; font-weight:600;
+  }
+  .kb-manage:hover { background:#dbe9ff; border-color:#b6d4fe; color:#0a58ca; }
+  .kb-path { max-width:480px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kb-table thead th { position:sticky; top:0; background:#fff; z-index:1; }
+</style>
+
+<div class="container-fluid my-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="m-0">🧩 Category Builder</h2>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category=='success' else ('warning' if category=='warning' else ('danger' if category=='danger' else 'info')) }} mb-2">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ========================= -->
+  <!-- Row 1: Keywords | Build   -->
+  <!-- ========================= -->
+  <div class="row g-3">
+
+    <!-- 1) Keywords Used -->
+    <div class="col-12 col-xl-6">
+      <div class="kb-card">
+        <div class="kb-head d-flex justify-content-between align-items-center">
+          <div class="fw-semibold">Keywords Used</div>
+          <div class="small kb-muted"><span id="kwMiniTotal">0</span> total</div>
+        </div>
+        <div class="kb-body">
+          <input id="kwMiniFilter" class="form-control form-control-sm mb-2" placeholder="Filter keywords…">
+          <!-- reduced visible height, still full list via scroll -->
+          <div class="list-group small" id="kwMiniList" style="max-height:35vh; overflow:auto;"></div>
+
+          <!-- keep details compact; scroll if long -->
+          <div class="mt-2" id="kwMiniDetails" style="max-height:20vh; overflow:auto;">
+            <div class="small kb-muted">Select a keyword to see its categories.</div>
+          </div>
+        </div>
+      </div>
+      <div class="small kb-muted mt-2">
+        Tip: Click a <strong>path</strong> to load it into the builder on the right.
+      </div>
+
+      <!-- CFG JSON + parse (one source of truth) -->
+      <script id="cfg-json" type="application/json">
+        {{ cfg | default({}) | tojson | safe }}
+      </script>
+      <script>
+        window.CFG = window.CFG || JSON.parse(document.getElementById('cfg-json').textContent || '{}');
+      </script>
+
+      <!-- Compact keywords logic (5-path cap + Show all) -->
+      <script>
+        (function(){
+          const CFG = window.CFG || {};
+          const elFilter  = document.getElementById('kwMiniFilter');
+          const elList    = document.getElementById('kwMiniList');
+          const elTotal   = document.getElementById('kwMiniTotal');
+          const elDetails = document.getElementById('kwMiniDetails');
+
+          const MAX_PATHS_SHOWN = 5;
+          const norm = s => String(s||'').trim().toLowerCase();
+
+          function collectAllKeywordsAndPaths(cfg){
+            const kwSet = new Map();     // normalized -> display
+            const pathsByKw = new Map(); // normalized -> Set(paths)
+
+            function add(kw, pathArr){
+              const n = norm(kw);
+              if (!n) return;
+              if (!kwSet.has(n)) kwSet.set(n, String(kw).trim());
+              const path = pathArr.filter(Boolean).join(' > ');
+              if (!pathsByKw.has(n)) pathsByKw.set(n, new Set());
+              pathsByKw.get(n).add(path);
+            }
+
+            Object.entries(cfg.CATEGORY_KEYWORDS || {}).forEach(([cat, kws])=>{
+              (kws||[]).forEach(kw=> add(kw, [cat]));
+            });
+            Object.entries(cfg.SUBCATEGORY_MAPS || {}).forEach(([cat, subs])=>{
+              Object.entries(subs||{}).forEach(([sub, kws])=>{
+                (kws||[]).forEach(kw=> add(kw, [cat, sub]));
+              });
+            });
+            Object.entries(cfg.SUBSUBCATEGORY_MAPS || {}).forEach(([cat, subs])=>{
+              Object.entries(subs||{}).forEach(([sub, ssubs])=>{
+                Object.entries(ssubs||{}).forEach(([ssub, kws])=>{
+                  (kws||[]).forEach(kw=> add(kw, [cat, sub, ssub]));
+                });
+              });
+            });
+            Object.entries(cfg.SUBSUBSUBCATEGORY_MAPS || {}).forEach(([cat, subs])=>{
+              Object.entries(subs||{}).forEach(([sub, ssubs])=>{
+                Object.entries(ssubs||{}).forEach(([ssub, ssss])=>{
+                  Object.entries(ssss||{}).forEach(([sss, kws])=>{
+                    (kws||[]).forEach(kw=> add(kw, [cat, sub, ssub, sss]));
+                  });
+                });
+              });
+            });
+
+            const stats = cfg.KEYWORD_STATS || {};
+            const countFor = (display)=>{
+              const s = stats[display] || stats[display?.toUpperCase?.()] || stats[display?.toLowerCase?.()];
+              return s && typeof s.count === 'number' ? s.count : undefined;
+            };
+
+            return Array.from(kwSet.entries()).map(([n, display])=>{
+              const paths = Array.from(pathsByKw.get(n) || []);
+              return { n, display, paths, pathsCount: paths.length, usage: countFor(display) };
+            });
+          }
+
+          const ALL = collectAllKeywordsAndPaths(CFG).sort((a,b)=> a.display.localeCompare(b.display));
+          elTotal.textContent = ALL.length;
+
+          function renderList(q=''){
+            const query = norm(q);
+            elList.innerHTML = '';
+            let shown = 0;
+            ALL.forEach(item=>{
+              if (query && !item.display.toLowerCase().includes(query)) return;
+              shown++;
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+              btn.dataset.kw = item.display;
+
+              const left = document.createElement('span');
+              left.textContent = item.display;
+
+              const right = document.createElement('span');
+              right.className = 'badge rounded-pill text-bg-light';
+              right.textContent = item.pathsCount;
+
+              btn.appendChild(left);
+              btn.appendChild(right);
+              elList.appendChild(btn);
+            });
+            if (!shown) {
+              const li = document.createElement('div');
+              li.className = 'list-group-item text-muted';
+              li.textContent = 'No keywords match your filter.';
+              elList.appendChild(li);
+            }
+          }
+
+          function renderDetailsFor(keyword, showAll=false){
+            const n = norm(keyword);
+            const item = ALL.find(i => i.n === n);
+            if (!item){
+              elDetails.innerHTML = '<div class="small kb-muted">Select a keyword to see its categories.</div>';
+              return;
+            }
+
+            const total = item.paths.length;
+            const visible = showAll ? item.paths : item.paths.slice(0, MAX_PATHS_SHOWN);
+
+            const lines = visible.map(p => {
+              const esc = p.replace(/"/g,'&quot;');
+              return `<li class="mb-1">
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">${p || '—'}</span>
+                <a href="#" class="ms-2 small kw-path" data-path="${esc}">Use path</a>
+              </li>`;
+            }).join('');
+
+            const usage = (typeof item.usage === 'number') ? `<span class="ms-2 small kb-muted">• ${item.usage} seen</span>` : '';
+            const more = (!showAll && total > MAX_PATHS_SHOWN)
+              ? `<div class="mt-1"><a href="#" class="small kw-show-all" data-kw="${item.display}">Show all (${total - MAX_PATHS_SHOWN} more)</a></div>`
+              : '';
+
+            elDetails.innerHTML = `
+              <div class="small">
+                <div class="mb-1"><strong>${item.display}</strong> used in ${item.pathsCount} path(s) ${usage}</div>
+                <ul class="ps-3 mb-2" style="max-height:20vh; overflow:auto;">${lines || '<li class="kb-muted">No paths found.</li>'}</ul>
+                ${more}
+              </div>
+            `;
+          }
+
+          elFilter.addEventListener('input', (e)=> renderList(e.target.value));
+          elList.addEventListener('click', (e)=>{
+            const btn = e.target.closest('.list-group-item');
+            if (!btn) return;
+            renderDetailsFor(btn.dataset.kw);
+          });
+          elDetails.addEventListener('click', (e)=>{
+            const aPath = e.target.closest('.kw-path');
+            if (aPath){
+              e.preventDefault();
+              const path = aPath.dataset.path || '';
+              if (typeof window.applyPathToLeft === 'function') {
+                window.applyPathToLeft(path);
+              }
+              return;
+            }
+            const aAll = e.target.closest('.kw-show-all');
+            if (aAll){
+              e.preventDefault();
+              renderDetailsFor(aAll.dataset.kw, true);
+            }
+          });
+
+          renderList('');
+        })();
+      </script>
+    </div>
+
+    <!-- 2) Build Path & Keyword -->
+    <div class="col-12 col-xl-6">
+      <form id="formUpsert" method="POST" action="{{ url_for('admin_categories.upsert_path_and_keyword') }}">
+        <div class="card shadow-sm">
+          <div class="card-header fw-bold">Build Path &amp; Add Keyword</div>
+          <div class="card-body">
+            <div class="row g-3">
+
+              <!-- Category -->
+              <div class="col-12" id="wrap-cat">
+                <label class="form-label d-flex align-items-center gap-2">
+                  <span>Category</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
+                </label>
+                <div class="onebar" data-level="cat">
+                  <select id="selCategory" class="form-select onebar-select"></select>
+                  <div class="onebar-new d-none" id="newCategoryWrap">
+                    <input id="inpCategory" class="form-control" placeholder="New category name">
+                    <button type="button" class="btn btn-outline-secondary btn-sm onebar-cancel" data-target="cat">Select existing</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subcategory -->
+              <div class="col-12 d-none" id="wrap-sub">
+                <label class="form-label d-flex align-items-center gap-2">
+                  <span>Subcategory</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
+                </label>
+                <div class="onebar" data-level="sub">
+                  <select id="selSub" class="form-select onebar-select"></select>
+                  <div class="onebar-new d-none" id="newSubWrap">
+                    <input id="inpSub" class="form-control" placeholder="New subcategory name">
+                    <button type="button" class="btn btn-outline-secondary btn-sm onebar-cancel" data-target="sub">Select existing</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-subcategory -->
+              <div class="col-12 d-none" id="wrap-ssub">
+                <label class="form-label d-flex align-items-center gap-2">
+                  <span>Sub-subcategory</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
+                </label>
+                <div class="onebar" data-level="ssub">
+                  <select id="selSubSub" class="form-select onebar-select"></select>
+                  <div class="onebar-new d-none" id="newSubSubWrap">
+                    <input id="inpSubSub" class="form-control" placeholder="New sub-subcategory name">
+                    <button type="button" class="btn btn-outline-secondary btn-sm onebar-cancel" data-target="ssub">Select existing</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sub-sub-subcategory -->
+              <div class="col-12 d-none" id="wrap-sssb">
+                <label class="form-label d-flex align-items-center gap-2">
+                  <span>Sub-sub-subcategory</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
+                </label>
+                <div class="onebar" data-level="sss">
+                  <select id="selSubSubSub" class="form-select onebar-select"></select>
+                  <div class="onebar-new d-none" id="newSubSubSubWrap">
+                    <input id="inpSubSubSub" class="form-control" placeholder="New sub-sub-subcategory name">
+                    <button type="button" class="btn btn-outline-secondary btn-sm onebar-cancel" data-target="sss">Select existing</button>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="mt-2 mb-1">
+
+              <!-- Optional Keyword -->
+              <div class="col-12">
+                <label class="form-label">Keyword (optional)</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="kw_input" placeholder="e.g., COSTCO">
+                  <button type="button" id="kw_clear" class="btn btn-outline-secondary">Clear</button>
+                </div>
+                <div class="form-text">Tip: click “Use path” in the Keywords panel to auto-fill selections here.</div>
+              </div>
+
+              <div class="col-12">
+                <div class="muted small mb-1">Current path</div>
+                <div id="currentPathBadge" class="badge bg-secondary">—</div>
+              </div>
+
+              <div class="col-12">
+                <button type="submit" id="btnSaveAll" class="btn btn-primary" disabled>Save Path</button>
+                <small class="form-text text-muted" id="submitHint">Pick or enter a Category to enable.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden posts for UPSERT -->
+        <input type="hidden" name="cat" id="post_cat">
+        <input type="hidden" name="sub" id="post_sub">
+        <input type="hidden" name="ssub" id="post_ssub">
+        <input type="hidden" name="sss" id="post_sss">
+        <input type="hidden" name="keyword" id="post_keyword">
+        <input type="hidden" name="target_level" id="post_target_level">
+        <input type="hidden" name="target_label" id="post_target_label">
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================= -->
+  <!-- Row 2: Misc underneath    -->
+  <!-- ========================= -->
+  <div class="row g-3 mt-1">
+    <div class="col-12">
+      <div class="card misc-card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div class="fw-bold">🧭 Misc Transactions</div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="small muted me-2" id="miscMeta">—</div>
+            <button id="miscRefresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Hidden controls kept for JS compatibility -->
+          <div class="d-none">
+            <input type="text" id="miscSearch" value="">
+            <input type="number" step="0.01" id="miscMinAbs" value="">
+            <select id="miscLimit">
+              <option>50</option>
+              <option selected>100</option>
+              <option>200</option>
+              <option>300</option>
+              <option>500</option>
+            </select>
+            <input class="form-check-input" type="checkbox" id="lblMisc" checked>
+            <input class="form-check-input" type="checkbox" id="lblUncat" checked>
+            <input class="form-check-input" type="checkbox" id="lblUnknown" checked>
+            <a href="#" id="miscClearFilters">Clear filters</a>
+          </div>
+          <!-- /Hidden controls -->
+
+          <div class="misc-scroll">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle misc-table">
+                <thead>
+                  <tr class="small text-muted">
+                    <th style="width: 92px;">Date</th>
+                    <th>Description</th>
+                    <th class="text-end" style="width: 110px;">Amount</th>
+                    <th style="width: 30%;">Path</th>
+                    <th class="text-end" style="width: 110px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="miscTableBody">
+                  <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <div class="small muted" id="miscCount">—</div>
+            <div class="small d-none"><a href="#" id="miscClearFilters2">Clear filters</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Modal (unchanged) -->
+  <div class="modal fade" id="manageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="manageTitle">Manage</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="manageBody">
+          <!-- filled by JS -->
+        </div>
+        <div class="modal-footer">
+          <div class="me-auto d-flex align-items-center gap-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkCascade">
+              <label class="form-check-label" for="chkCascade">Cascade delete children & keywords</label>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" id="btnPreviewCascade" type="button">Preview impact</button>
+            <span class="muted small" id="cascadePreview" style="display:none;">Preview: —</span>
+          </div>
+          <button class="btn btn-primary" id="saveManage" type="button">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="manageArea" class="mt-4 d-none"></div>
+</div>
+
+
+
+<script>
+  // Safe defaults so Keyword Finder / drawer work even if CL_URLS isn’t injected from layout
+  window.CL_URLS = Object.assign({
+    KW_GET_URL: '/admin/api/keywords_for_name',   // GET ?name=<label>  -> {keywords: [...]}
+    KW_ADD_URL: '/admin/api/keyword_add',         // POST {name, keyword}
+    KW_REMOVE_URL: '/admin/api/keyword_remove',   // POST {name, keyword, remove:true}
+    INSPECT_URL: '/admin/categories/inspect',
+    RENAME_URL: '/admin/categories/rename',
+    UPSERT_URL: '/admin/categories/upsert_child'
+  }, window.CL_URLS || {});
+</script>
+
+<script id="cfg-json" type="application/json">
+  {{ cfg | default({}) | tojson | safe }}
+</script>
+<script>
+  // Injected config + make it global for other scripts
+  const CFG = JSON.parse(document.getElementById('cfg-json').textContent);
+  window.CFG = CFG;
+
+  /* ---------- data access ---------- */
+  function getAllCategories() {
+    const a = new Set(Object.keys(CFG.SUBCATEGORY_MAPS || {}));
+    Object.keys(CFG.CATEGORY_KEYWORDS || {}).forEach(k => a.add(k));
+    Object.keys(CFG.SUBSUBCATEGORY_MAPS || {}).forEach(k => a.add(k));
+    Object.keys(CFG.SUBSUBSUBCATEGORY_MAPS || {}).forEach(k => a.add(k));
+    return Array.from(a).sort();
+  }
+  function getSubs(cat) {
+    const m = CFG.SUBCATEGORY_MAPS || {};
+    return cat && m[cat] ? Object.keys(m[cat]).sort() : [];
+  }
+  function getSSubs(cat, sub) {
+    const m = CFG.SUBSUBCATEGORY_MAPS || {};
+    return (cat && sub && m[cat] && m[cat][sub]) ? Object.keys(m[cat][sub]).sort() : [];
+  }
+  function getSSSubs(cat, sub, ssub) {
+    const m = CFG.SUBSUBSUBCATEGORY_MAPS || {};
+    return (cat && sub && ssub && m[cat] && m[cat][sub] && m[cat][sub][ssub]) ? Object.keys(m[cat][sub][ssub]).sort() : [];
+  }
+
+  /* ---------- one-bar helpers ---------- */
+  const NEW_SENTINEL = '__NEW__';
+  const isNewMode = { cat:false, sub:false, ssub:false, sss:false };
+
+  function setOptionsWithNew(select, list, placeholder='Select…', includeNew=true){
+    const prev = select.value;
+    select.innerHTML = '';
+
+    const ph = document.createElement('option');
+    ph.value = ''; ph.textContent = placeholder; ph.disabled = true; ph.selected = true;
+    select.appendChild(ph);
+
+    if (includeNew){
+      const newOpt = document.createElement('option');
+      newOpt.value = NEW_SENTINEL; newOpt.textContent = '＋ Create new…';
+      select.appendChild(newOpt);
+    }
+
+    list.forEach(v => {
+      const o = document.createElement('option'); o.value = v; o.textContent = v; select.appendChild(o);
+    });
+
+    if (prev && Array.from(select.options).some(o => o.value === prev)){
+      select.value = prev;
+    } else {
+      select.selectedIndex = 0;
+    }
+  }
+
+  function oneBarEnterNew(level){
+    const {select, newWrap} = byLevel(level);
+    isNewMode[level] = true;
+    select.classList.add('d-none'); newWrap.classList.remove('d-none');
+    const input = newWrap.querySelector('input');
+    setTimeout(()=>input.focus(), 0);
+  }
+  function oneBarExitNew(level, clearValue=true){
+    const {select, newWrap} = byLevel(level);
+    isNewMode[level] = false;
+    newWrap.classList.add('d-none'); select.classList.remove('d-none');
+    if (clearValue){ select.value = ''; }
+  }
+  function getValue(level){
+    const {select, newWrap} = byLevel(level);
+    if (!newWrap.classList.contains('d-none')) {
+      return (newWrap.querySelector('input').value || '').trim();
+    }
+    const v = select.value;
+    return (v === NEW_SENTINEL ? '' : (v || ''));
+  }
+  function clearDescendants(fromLevel){
+    const order = ['cat','sub','ssub','sss'];
+    const idx = order.indexOf(fromLevel);
+    for (let i=idx+1; i<order.length; i++){
+      oneBarExitNew(order[i], true);
+      const s = byLevel(order[i]).select;
+      s.value = '';
+    }
+  }
+
+  /* ---------- DOM refs ---------- */
+  const wrapSub  = document.getElementById('wrap-sub');
+  const wrapSSub = document.getElementById('wrap-ssub');
+  const wrapSSSb = document.getElementById('wrap-sssb');
+
+  const selCategory   = document.getElementById('selCategory');
+  const selSub        = document.getElementById('selSub');
+  const selSubSub     = document.getElementById('selSubSub');
+  const selSubSubSub  = document.getElementById('selSubSubSub');
+
+  const inpCategory   = document.getElementById('inpCategory');
+  const inpSub        = document.getElementById('inpSub');
+  const inpSubSub     = document.getElementById('inpSubSub');
+  const inpSubSubSub  = document.getElementById('inpSubSubSub');
+
+  const newCategoryWrap = document.getElementById('newCategoryWrap');
+  const newSubWrap      = document.getElementById('newSubWrap');
+  const newSubSubWrap   = document.getElementById('newSubSubWrap');
+  const newSubSubSubWrap= document.getElementById('newSubSubSubWrap');
+
+  const kwInput = document.getElementById('kw_input');
+  const btnSaveAll = document.getElementById('btnSaveAll');
+  const submitHint = document.getElementById('submitHint');
+  const currentPathBadge = document.getElementById('currentPathBadge');
+  const kwClearBtn = document.getElementById('kw_clear');
+
+  const post_cat = document.getElementById('post_cat');
+  const post_sub = document.getElementById('post_sub');
+  const post_ssub = document.getElementById('post_ssub');
+  const post_sss = document.getElementById('post_sss');
+  const post_keyword = document.getElementById('post_keyword');
+  const post_target_level = document.getElementById('post_target_level');
+  const post_target_label = document.getElementById('post_target_label');
+
+  /* Misc panel DOM */
+  const miscSearch = document.getElementById('miscSearch');
+  const miscMinAbs = document.getElementById('miscMinAbs');
+  const miscLimit  = document.getElementById('miscLimit');
+  const lblMisc    = document.getElementById('lblMisc');
+  const lblUncat   = document.getElementById('lblUncat');
+  const lblUnknown = document.getElementById('lblUnknown');
+  const miscRefresh = document.getElementById('miscRefresh');
+  const miscMeta   = document.getElementById('miscMeta');
+  const miscCount  = document.getElementById('miscCount');
+  const miscTableBody = document.getElementById('miscTableBody');
+  const miscClearFilters = document.getElementById('miscClearFilters');
+
+  function byLevel(level){
+    if (level==='cat') return {select: selCategory, newWrap: newCategoryWrap};
+    if (level==='sub') return {select: selSub, newWrap: newSubWrap};
+    if (level==='ssub') return {select: selSubSub, newWrap: newSubSubWrap};
+    if (level==='sss') return {select: selSubSubSub, newWrap: newSubSubSubWrap};
+    return {};
+  }
+
+  function show(el, on){ el.classList.toggle('d-none', !on); }
+
+  /* ---------- value + UI state ---------- */
+  function readValues(){
+    const cat  = getValue('cat');
+    const sub  = cat ? getValue('sub') : '';
+    const ssub = sub ? getValue('ssub') : '';
+    const sss  = ssub ? getValue('sss') : '';
+    return {cat, sub, ssub, sss};
+  }
+
+  function updatePathPreview(){
+    const {cat, sub, ssub, sss} = readValues();
+    const parts = [cat, sub, ssub, sss].filter(Boolean);
+    currentPathBadge.textContent = parts.length ? parts.join(' › ') : '—';
+  }
+
+  function populateSelects(){
+    const prev = {
+      catSel: selCategory.value, subSel: selSub.value, ssubSel: selSubSub.value, sssSel: selSubSubSub.value,
+      catNew: isNewMode.cat, subNew: isNewMode.sub, ssubNew: isNewMode.ssub, sssNew: isNewMode.sss,
+      catVal: getValue('cat'), subVal: getValue('sub'), ssubVal: getValue('ssub')
+    };
+
+    setOptionsWithNew(selCategory, getAllCategories(), 'Select category…');
+    if (!prev.catNew && prev.catSel && Array.from(selCategory.options).some(o => o.value === prev.catSel)){
+      selCategory.value = prev.catSel;
+    }
+
+    const subs  = getSubs(prev.catVal);
+    setOptionsWithNew(selSub, subs, subs.length ? 'Select subcategory…' : 'No subcategories — select to create…');
+    if (!prev.subNew && prev.subSel && Array.from(selSub.options).some(o => o.value === prev.subSel)){
+      selSub.value = prev.subSel;
+    }
+
+    const ssubs = getSSubs(prev.catVal, prev.subVal);
+    setOptionsWithNew(selSubSub, ssubs, ssubs.length ? 'Select sub-subcategory…' : 'No sub-subcategories — select to create…');
+    if (!prev.ssubNew && prev.ssubSel && Array.from(selSubSub.options).some(o => o.value === prev.ssubSel)){
+      selSubSub.value = prev.ssubSel;
+    }
+
+    const sssubs = getSSSubs(prev.catVal, prev.subVal, prev.ssubVal);
+    setOptionsWithNew(selSubSubSub, sssubs, sssubs.length ? 'Select sub-sub-subcategory…' : 'No deeper level — select to create…');
+    if (prev.sssSel && Array.from(selSubSubSub.options).some(o => o.value === prev.sssSel)){
+      selSubSubSub.value = prev.sssSel;
+    }
+
+    if (prev.catNew)  oneBarEnterNew('cat');  else oneBarExitNew('cat', false);
+    if (prev.subNew)  oneBarEnterNew('sub');  else oneBarExitNew('sub', false);
+    if (prev.ssubNew) oneBarEnterNew('ssub'); else oneBarExitNew('ssub', false);
+    if (prev.sssNew)  oneBarEnterNew('sss');  else oneBarExitNew('sss', false);
+  }
+
+  function updateVisibility(){
+    const {cat, sub, ssub} = readValues();
+    show(wrapSub,  !!cat);
+    show(wrapSSub, !!sub);
+    show(wrapSSSb, !!ssub);
+  }
+
+  function updateEnablement(){
+    const {cat, sub, ssub, sss} = readValues();
+    let level='', label='';
+    if (sss){ level='subsubsubcategory'; label=sss; }
+    else if (ssub){ level='subsubcategory'; label=ssub; }
+    else if (sub){ level='subcategory'; label=sub; }
+    else if (cat){ level='category'; label=cat; }
+
+    const ok = !!label && !!level && !!cat;
+    btnSaveAll.disabled = !ok;
+    submitHint.textContent = ok ? 'Ready to save.' : 'Pick or enter a Category to enable.';
+
+    post_cat.value = cat || '';
+    post_sub.value = sub || '';
+    post_ssub.value = ssub || '';
+    post_sss.value = sss || '';
+    post_keyword.value = (kwInput.value || '').trim();
+    post_target_level.value = level;
+    post_target_label.value = label;
+
+    updatePathPreview();
+    updateVisibility();
+  }
+
+  function onLevelChange(level){
+    clearDescendants(level);
+    populateSelects();
+    updateEnablement();
+  }
+
+  function selectIfExists(selectEl, value){
+    if (!value) return false;
+    const ok = Array.from(selectEl.options).some(o => o.value === value);
+    if (ok){ selectEl.value = value; }
+    return ok;
+  }
+
+  function applyPathToLeft(pathStr){
+    if (!pathStr) return;
+    const parts = pathStr.split('>').map(s => s.trim()).filter(Boolean);
+    ['cat','sub','ssub','sss'].forEach(l => oneBarExitNew(l, true));
+    populateSelects();
+    if (parts[0]){
+      selectIfExists(selCategory, parts[0]);
+      onLevelChange('cat');
+    }
+    if (parts[1]){
+      selectIfExists(selSub, parts[1]);
+      onLevelChange('sub');
+    }
+    if (parts[2]){
+      selectIfExists(selSubSub, parts[2]);
+      onLevelChange('ssub');
+    }
+    if (parts[3]){
+      selectIfExists(selSubSubSub, parts[3]);
+      onLevelChange('sss');
+    }
+    kwInput.focus();
+  }
+
+  /* ---------- manage area (modal) ---------- */
+  function qs(obj){
+    const sp = new URLSearchParams();
+    Object.entries(obj).forEach(([k,v]) => { if (v !== undefined && v !== null) sp.set(k, v); });
+    return sp.toString();
+  }
+
+  async function previewCascadeTotals(level, ctx, names){
+    let totals = { nodes: 0, keywords: 0, transactions: 0, okCount: 0 };
+    for (const name of names){
+      const params = { level, cat: ctx.cat || '', sub: ctx.sub || '', ssub: ctx.ssub || '', sss: '' };
+      if (level === 'category') { params.cat = name; params.sub = params.ssub = params.sss = ''; }
+      if (level === 'subcategory') { params.sub = name; params.ssub = params.sss = ''; }
+      if (level === 'subsubcategory') { params.ssub = name; params.sss = ''; }
+      if (level === 'subsubsubcategory') { params.sss = name; }
+      try{
+        const r = await fetch(`/admin/categories/cascade_preview?${qs(params)}`);
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (j && j.ok && j.data){
+          const n = (j.data.nodes_total ?? j.data.total_nodes ?? j.data.nodes?.total ?? j.data.nodes?.total_nodes ?? 1);
+          const k = (j.data.keywords ?? 0);
+          const t = (j.data.transactions ?? 0);
+          totals.nodes += Number(n)||0;
+          totals.keywords += Number(k)||0;
+          totals.transactions += Number(t)||0;
+          totals.okCount += 1;
+        }
+      }catch(_e){}
+    }
+    return totals;
+  }
+
+  function buildManageBody(level, items){
+    if (!items.length){
+      return `<div class="text-center muted">No items at this level.</div>`;
+    }
+    return `
+      <div class="table-responsive">
+        <table class="table table-sm align-middle manage-table">
+          <thead>
+            <tr>
+              <th style="width:60%">Name</th>
+              <th class="text-end">Delete</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(i => `
+              <tr>
+                <td><input type="text" class="form-control form-control-sm edit-name" data-old="${i}" value="${i}"></td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-danger btn-delete" data-name="${i}" type="button">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function openManageModal(level, items, ctx){
+    const title = {
+      category: 'Manage Categories',
+      subcategory: 'Manage Subcategories',
+      subsubcategory: 'Manage Sub-subcategories',
+      subsubsubcategory: 'Manage Sub-sub-subcategories'
+    }[level] || 'Manage';
+
+    document.getElementById('manageTitle').textContent = title;
+    document.getElementById('manageBody').innerHTML = buildManageBody(level, items);
+
+    const modalEl = document.getElementById('manageModal');
+    const modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
+    if (modal) modal.show();
+
+    const btnPreview = document.getElementById('btnPreviewCascade');
+    const divPreview = document.getElementById('cascadePreview');
+    const chkCascade = document.getElementById('chkCascade');
+
+    async function computeAndShowPreview() {
+      const deletes = Array.from(document.querySelectorAll('.btn-delete'))
+        .filter(btn => btn.dataset.deleted === 'true')
+        .map(btn => btn.dataset.name);
+      if (!deletes.length){ divPreview.style.display='none'; return; }
+      divPreview.style.display='inline';
+      divPreview.textContent = 'Preview: calculating…';
+      try{
+        const totals = await previewCascadeTotals(level, ctx, deletes);
+        if (totals.okCount > 0){
+          divPreview.textContent = `Preview: ${totals.nodes} node(s), ${totals.keywords} keyword(s), affecting ${totals.transactions} transaction row(s).`;
+        }else{
+          divPreview.textContent = 'Preview unavailable (endpoint not found). You can still proceed.';
+        }
+      }catch(e){
+        divPreview.textContent = 'Preview failed. You can still proceed.';
+      }
+    }
+    btnPreview.onclick = (e)=>{ e.preventDefault(); computeAndShowPreview(); };
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const isDeleted = btn.dataset.deleted === 'true';
+        btn.dataset.deleted = isDeleted ? 'false' : 'true';
+        btn.closest('tr').style.opacity = isDeleted ? '1' : '0.5';
+        if (chkCascade?.checked) { computeAndShowPreview(); }
+      });
+    });
+
+    document.getElementById('saveManage').onclick = async () => {
+      const edits = Array.from(document.querySelectorAll('.edit-name'))
+        .map(inp => ({ old: inp.dataset.old, new: inp.value.trim() }));
+      const deletes = Array.from(document.querySelectorAll('.btn-delete'))
+        .filter(btn => btn.dataset.deleted === 'true')
+        .map(btn => btn.dataset.name);
+      const wantsCascade = !!chkCascade?.checked;
+
+      if (wantsCascade && deletes.length){
+        let msg = 'This will cascade delete selected item(s) and all of their children & keywords.\n\n';
+        try{
+          const totals = await previewCascadeTotals(level, ctx, deletes);
+          if (totals.okCount > 0){
+            msg += `Impact:\n• ${totals.nodes} node(s)\n• ${totals.keywords} keyword(s)\n• ${totals.transactions} transaction row(s)\n\n`;
+          }
+        }catch(_e){}
+        msg += 'Proceed?';
+        if (!confirm(msg)) return;
+      }
+
+      const res = await fetch('/admin/api/manage_category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level, ctx, edits, deletes, cascade: wantsCascade })
+      }).then(r => r.json()).catch(()=>({ok:false, error:'Network error'}));
+
+      if (!res.ok){
+        alert(res.error || 'Save failed');
+        return;
+      }
+      if (modal) modal.hide();
+      location.reload();
+    };
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.manage-link');
+    if (!btn) return;
+    e.preventDefault();
+    const level = btn.dataset.level;
+    const { cat, sub, ssub } = readValues();
+    let items = [];
+    if (level === 'category') items = getAllCategories();
+    if (level === 'subcategory') {
+      if (!cat) { alert('Pick a Category first.'); return; }
+      items = getSubs(cat);
+    }
+    if (level === 'subsubcategory') {
+      if (!cat || !sub) { alert('Pick a Category and Subcategory first.'); return; }
+      items = getSSubs(cat, sub);
+    }
+    if (level === 'subsubsubcategory') {
+      if (!cat || !sub || !ssub) { alert('Pick a Category, Subcategory and Sub-subcategory first.'); return; }
+      items = getSSSubs(cat, sub, ssub);
+    }
+    openManageModal(level, items, { cat, sub, ssub });
+  });
+
+  /* ---------- Misc panel wiring ---------- */
+  function miscLabelsParam(){
+    const labs = [];
+    if (lblMisc.checked) labs.push('Miscellaneous');
+    if (lblUncat.checked) labs.push('Uncategorized');
+    if (lblUnknown.checked) labs.push('Unknown');
+    if (!labs.length) labs.push('Miscellaneous');
+    return labs.join('|');
+  }
+
+  function setMiscLoading(){
+    miscTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>';
+    miscCount.textContent = '—';
+    miscMeta.textContent = '—';
+  }
+
+  function fmtAmt(n){
+    try {
+      const f = Number(n || 0);
+      return (f < 0 ? '-' : '') + '$' + Math.abs(f).toFixed(2);
+    } catch(e) { return n; }
+  }
+
+  async function fetchMisc(){
+    setMiscLoading();
+    const params = {
+      labels: miscLabelsParam(),
+      limit: miscLimit.value || '100',
+      q: (miscSearch.value || '').trim(),
+      min_abs: (miscMinAbs.value || '').trim()
+    };
+    const url = `/admin/categories/misc?${qs(params)}`;
+    try{
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(await r.text());
+      const j = await r.json();
+      renderMisc(j);
+    }catch(err){
+      miscTableBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Failed to load: ${String(err)}</td></tr>`;
+    }
+  }
+
+  function renderMisc(j){
+    const rows = (j && j.transactions) ? j.transactions : [];
+    miscMeta.textContent = j && j.as_of ? `as of ${j.as_of}` : '—';
+    miscCount.textContent = `${rows.length} row(s)`;
+
+    if (!rows.length){
+      miscTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 muted">No rows.</td></tr>';
+      return;
+    }
+
+    const html = rows.map(r => {
+      const date = (r.date || '').slice(0,10);
+      const desc = (r.desc || '');
+      const amt  = fmtAmt(r.amount);
+      const path = (r.path || '');
+      const safeDesc = desc.replace(/"/g,'&quot;');
+      const safePath = path.replace(/"/g,'&quot;');
+      return `
+        <tr>
+          <td class="mono small">${date || '—'}</td>
+          <td>${desc}</td>
+          <td class="text-end mono">${amt}</td>
+          <td>
+            <a href="#" class="link-path small" data-path="${safePath}">${path}</a>
+          </td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary btn-use" data-key="${safeDesc}">Use as keyword</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    miscTableBody.innerHTML = html;
+  }
+
+  // Event delegation for misc actions
+  document.addEventListener('click', (e) => {
+    const useBtn = e.target.closest('.btn-use');
+    if (useBtn){
+      e.preventDefault();
+      const val = (useBtn.dataset.key || '').trim().toUpperCase();
+      if (val){
+        kwInput.value = val;
+        updateEnablement();
+        kwInput.focus();
+      }
+    }
+    const pathLink = e.target.closest('.link-path');
+    if (pathLink){
+      e.preventDefault();
+      const p = pathLink.dataset.path || '';
+      applyPathToLeft(p);
+    }
+  });
+
+  // Controls for misc
+  miscRefresh.addEventListener('click', fetchMisc);
+  miscSearch.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); fetchMisc(); } });
+  [miscSearch, miscMinAbs, miscLimit, lblMisc, lblUncat, lblUnknown].forEach(el => {
+    el.addEventListener('change', fetchMisc);
+  });
+  miscClearFilters.addEventListener('click', (e)=>{
+    e.preventDefault();
+    miscSearch.value = '';
+    miscMinAbs.value = '';
+    miscLimit.value = '100';
+    lblMisc.checked = lblUncat.checked = lblUnknown.checked = true;
+    fetchMisc();
+  });
+
+  kwClearBtn.addEventListener('click', () => {
+    kwInput.value = '';
+    updateEnablement();
+  });
+
+  /* ---------- builder wiring ---------- */
+  [selCategory, selSub, selSubSub, selSubSubSub].forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const level = (sel === selCategory) ? 'cat' : (sel === selSub) ? 'sub' : (sel === selSubSub) ? 'ssub' : 'sss';
+      if (sel.value === NEW_SENTINEL){
+        oneBarEnterNew(level);
+        clearDescendants(level);
+        populateSelects();
+        updateEnablement();
+      } else {
+        onLevelChange(level);
+      }
+    });
+  });
+
+  [inpCategory, inpSub, inpSubSub, inpSubSubSub].forEach(inp => {
+    inp.addEventListener('input', () => {
+      populateSelects();
+      updateEnablement();
+    });
+  });
+
+  document.querySelectorAll('.onebar-cancel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const level = btn.dataset.target;
+      oneBarExitNew(level, true);
+      populateSelects();
+      updateEnablement();
+    });
+  });
+
+  kwInput.addEventListener('input', updateEnablement);
+
+  document.getElementById('formUpsert').addEventListener('submit', e => {
+    updateEnablement();
+    if (btnSaveAll.disabled) e.preventDefault();
+  });
+
+  // Initial boot
+  populateSelects();
+  updateVisibility();
+  updateEnablement();
+  fetchMisc();
+</script>
+
+
+<script>
+  // =========================
+  // === Keyword Finder JS ===
+  // =========================
+  (function(){
+    const QS = (s,r=document)=>r.querySelector(s);
+    const QSA = (s,r=document)=>Array.from(r.querySelectorAll(s));
+    const esc = s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+    const el = {
+      form: QS('#kb-form'),
+      q: QS('#kb-q'),
+      resultKw: QS('#kb-resultKw'),
+      body: QS('#kb-body'),
+      count: QS('#kb-count'),
+      cloud: QS('#kb-cloud'),
+      kwcount: QS('#kb-kwcount'),
+      status: QS('#kb-status'),
+      btnClear: QS('#kb-clear'),
+      btnMD: QS('#kb-md'),
+      btnReindex: QS('#kb-reindex'),
+    };
+
+    let INDEX = new Map();      // Map<kwLower, Set<"Cat / Sub / ...">>
+
+    const levelName = d => ['category','subcategory','subsubcategory','subsubsubcategory'][Math.min(d-1,3)] || 'category';
+
+    // ---------- FAST: build index purely from CFG ----------
+    function buildIndexFromCFG(){
+      const idx = new Map();
+      const add = (kw, parts) => {
+        const key = String(kw||'').trim().toLowerCase();
+        if (!key) return;
+        const path = parts.filter(Boolean).join(' / ');
+        if (!idx.has(key)) idx.set(key, new Set());
+        idx.get(key).add(path);
+      };
+
+      const CK  = (window.CFG && window.CFG.CATEGORY_KEYWORDS) || {};
+      const SK  = (window.CFG && window.CFG.SUBCATEGORY_KEYWORDS) || {};
+      const S2K = (window.CFG && window.CFG.SUBSUBCATEGORY_KEYWORDS) || {};
+      const S3K = (window.CFG && window.CFG.SUBSUBSUBCATEGORY_KEYWORDS) || {};
+
+      // category level
+      Object.keys(CK).forEach(cat=>{
+        (CK[cat]||[]).forEach(kw=> add(kw, [cat]));
+      });
+
+      // subcategory level
+      Object.keys(SK).forEach(cat=>{
+        const o = SK[cat]||{};
+        Object.keys(o).forEach(sub=>{
+          (o[sub]||[]).forEach(kw=> add(kw, [cat, sub]));
+        });
+      });
+
+      // sub-subcategory level
+      Object.keys(S2K).forEach(cat=>{
+        const o = S2K[cat]||{};
+        Object.keys(o).forEach(sub=>{
+          const oo = o[sub]||{};
+          Object.keys(oo).forEach(ssub=>{
+            (oo[ssub]||[]).forEach(kw=> add(kw, [cat, sub, ssub]));
+          });
+        });
+      });
+
+      // sub-sub-subcategory level
+      Object.keys(S3K).forEach(cat=>{
+        const o = S3K[cat]||{};
+        Object.keys(o).forEach(sub=>{
+          const oo = o[sub]||{};
+          Object.keys(oo).forEach(ssub=>{
+            const ooo = oo[ssub]||{};
+            Object.keys(ooo).forEach(sss=>{
+              (ooo[sss]||[]).forEach(kw=> add(kw, [cat, sub, ssub, sss]));
+            });
+          });
+        });
+      });
+
+      return idx;
+    }
+
+    function renderCloud(){
+      const entries = Array.from(INDEX.entries())
+        .map(([k,set])=>({kw:k,count:set.size}))
+        .sort((a,b)=> a.kw.localeCompare(b.kw));
+      el.kwcount.textContent = entries.length;
+      el.cloud.innerHTML = entries.map(e=>`
+        <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
+          ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
+        </span>`).join('');
+      QSA('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
+        const kw=ch.getAttribute('data-kw')||''; el.q.value=kw; runSearch();
+      }));
+    }
+
+    function renderMatches(keyword){
+      const key = (keyword||'').trim().toLowerCase();
+      el.resultKw.textContent = key ? `for “${keyword}”` : '';
+      if (!key){
+        el.count.textContent='0';
+        el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Type a keyword and press Search.</td></tr>`;
+        return;
+      }
+      if (!INDEX || INDEX.size===0){
+        el.count.textContent='0';
+        el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Index is empty. Click Re-index.</td></tr>`;
+        return;
+      }
+      // substring across all keywords
+      const hits = Array.from(INDEX.keys()).filter(k=>k.includes(key));
+      const paths = new Set(); hits.forEach(h=> INDEX.get(h).forEach(p=>paths.add(p)));
+      const rows = Array.from(paths).sort((a,b)=> a.localeCompare(b));
+
+      el.count.textContent = rows.length;
+      el.body.innerHTML = rows.length ? rows.map(p=>{
+        const parts=p.split(' / ').map(s=>s.trim()).filter(Boolean);
+        const ds={ level: levelName(parts.length), cat:parts[0]||'', sub:parts[1]||'', ssub:parts[2]||'', sss:parts[3]||'' };
+        return `<tr>
+          <td class="kb-path" title="${esc(p)}">${esc(p)}</td>
+          <td>${esc(ds.level)}</td>
+          <td class="text-end">
+            <a href="#"
+               class="kb-manage"
+               data-manage
+               data-level="${esc(ds.level)}"
+               data-cat="${esc(ds.cat)}"
+               data-sub="${esc(ds.sub)}"
+               data-ssub="${esc(ds.ssub)}"
+               data-sss="${esc(ds.sss)}"
+               onclick="return (window.dashManage ? dashManage(event, this) : (window.openCategoryManager ? (openCategoryManager({level:'${esc(ds.level)}',cat:'${esc(ds.cat)}',sub:'${esc(ds.sub)}',ssub:'${esc(ds.ssub)}',sss:'${esc(ds.sss)}'}), false) : false));"
+            >manage</a>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="3" class="text-muted">No paths found for that keyword.</td></tr>`;
+    }
+
+    function reindexFast(){
+      const t0 = performance.now();
+      INDEX = buildIndexFromCFG();
+      renderCloud();
+      el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
+    }
+
+    // ---------- OPTIONAL: deeper server pass when you *need* it ----------
+    async function reindexDeep(){
+      const t0 = performance.now();
+      el.status.textContent = 'Building index (deep)…';
+
+      // Build a quick tree from CFG so we know all paths
+      function treeFromCFG(){
+        const cats = new Set(Object.keys((CFG||{}).SUBCATEGORY_MAPS||{}));
+        Object.keys((CFG||{}).CATEGORY_KEYWORDS||{}).forEach(k=>cats.add(k));
+        Object.keys((CFG||{}).SUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
+        Object.keys((CFG||{}).SUBSUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
+        const getSubs=(c)=> (CFG.SUBCATEGORY_MAPS?.[c]) ? Object.keys(CFG.SUBCATEGORY_MAPS[c]).sort() : [];
+        const getSSubs=(c,s)=> (CFG.SUBSUBCATEGORY_MAPS?.[c]?.[s]) ? Object.keys(CFG.SUBSUBCATEGORY_MAPS[c][s]).sort() : [];
+        const getSSSubs=(c,s,ss)=> (CFG.SUBSUBSUBCATEGORY_MAPS?.[c]?.[s]?.[ss]) ? Object.keys(CFG.SUBSUBSUBCATEGORY_MAPS[c][s][ss]).sort() : [];
+        return Array.from(cats).sort().map(cat=>({
+          name:cat, children:getSubs(cat).map(sub=>({
+            name:sub, children:getSSubs(cat,sub).map(ssub=>({
+              name:ssub, children:getSSSubs(cat,sub,ssub).map(sss=>({name:sss, children:[]}))
+            }))
+          }))
+        }));
+      }
+      const tree = treeFromCFG();
+      const nodes = [];
+      (function flatten(t){
+        function walk(n, anc){
+          const parts=[...anc,(n.name||'').trim()].filter(Boolean);
+          nodes.push({name:n.name, parts});
+          (n.children||[]).forEach(c=>walk(c, parts));
+        }
+        t.forEach(n=>walk(n, []));
+      })(tree);
+
+      // De-dupe by label name (huge reduction)
+      const uniqueNames = Array.from(new Set(nodes.map(n=>n.name)));
+
+      // Try server once per *name*, then fall back to CFG
+      const nameCache = new Map();
+      async function fetchKeywordsForName(name){
+        if (nameCache.has(name)) return nameCache.get(name);
+        async function tryGet(url){
+          const r = await fetch(url, {headers:{'Accept':'application/json'}});
+          if (!r.ok) throw new Error(await r.text());
+          return r.json();
+        }
+        let arr = [];
+        try {
+          const url1 = `${(window.CL_URLS && window.CL_URLS.KW_GET_URL) || '/admin/api/keywords_for_name'}?` + new URLSearchParams({name}).toString();
+          const j1 = await tryGet(url1);
+          arr = (j1 && (j1.keywords || j1.data?.keywords)) || [];
+        } catch(_e){}
+        nameCache.set(name, Array.isArray(arr)?arr:[]);
+        return nameCache.get(name);
+      }
+
+      // Concurrency
+      const CONCURRENCY = 12;
+      let i=0, active=0;
+      await new Promise(resolve=>{
+        const next=()=>{
+          if (i>=uniqueNames.length && active===0) return resolve();
+          while (active<CONCURRENCY && i<uniqueNames.length){
+            const nm = uniqueNames[i++]; active++;
+            fetchKeywordsForName(nm).finally(()=>{active--; next();});
+          }
+        };
+        next();
+      });
+
+      // Build index by marrying name->keywords with every path that has that name at any level
+      const idx = new Map();
+      const add = (kw, parts)=>{
+        const key=String(kw||'').trim().toLowerCase(); if(!key) return;
+        const path=parts.join(' / ');
+        if (!idx.has(key)) idx.set(key,new Set());
+        idx.get(key).add(path);
+      };
+
+      nodes.forEach(n=>{
+        const kws = nameCache.get(n.name) || [];
+        if (kws.length){
+          kws.forEach(kw=> add(kw, n.parts));
+        }else{
+          // fallback to CFG keywords for that exact path label
+          const [cat,sub,ssub,sss] = n.parts;
+          const CK=(CFG.CATEGORY_KEYWORDS||{}), SK=(CFG.SUBCATEGORY_KEYWORDS||{}),
+                S2K=(CFG.SUBSUBCATEGORY_KEYWORDS||{}), S3K=(CFG.SUBSUBSUBCATEGORY_KEYWORDS||{});
+          if (cat && !sub) (CK[cat]||[]).forEach(k=>add(k,[cat]));
+          if (cat && sub && !ssub) (SK[cat]?.[sub]||[]).forEach(k=>add(k,[cat,sub]));
+          if (cat && sub && ssub && !sss) (S2K[cat]?.[sub]?.[ssub]||[]).forEach(k=>add(k,[cat,sub,ssub]));
+          if (cat && sub && ssub && sss) (S3K[cat]?.[sub]?.[ssub]?.[sss]||[]).forEach(k=>add(k,[cat,sub,ssub,sss]));
+        }
+      });
+
+      INDEX = idx;
+      renderCloud();
+      el.status.textContent = `Ready (deep) in ${Math.round(performance.now()-t0)}ms.`;
+    }
+
+    function runSearch(ev){
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      renderMatches(el.q.value||'');
+    }
+
+    // Wire events
+    if (el.form) el.form.addEventListener('submit', runSearch);
+    if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ el.q.value=''; renderMatches(''); });
+    if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); });
+    if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> e.shiftKey ? reindexDeep() : reindexFast());
+
+    // Boot fast (instant)
+    reindexFast();
+  })();
+</script>
+
+<script>
+(function () {
+  const EPS = 0.005;
+
+  function shouldHide(desc, amtText) {
+    const d = (desc || "").toUpperCase();
+    const a = Number(String(amtText || "").replace(/[^0-9.-]/g, "")) || 0;
+
+    // ±$10,002.02 sentinel transfers
+    if (Math.abs(a - 10002.02) < EPS || Math.abs(a + 10002.02) < EPS) return true;
+
+    // Robinhood -$450.00 anywhere
+    if (d.includes("ROBINHOOD") && Math.abs(a + 450.0) < EPS) return true;
+
+    return false;
+  }
+
+  function scrub(container) {
+    // Only touch the “Misc / Uncategorized Transactions” area
+    const sections = Array.from(container.querySelectorAll("h1,h2,h3,h4,h5,h6"))
+      .filter(h => /misc\s*\/\s*uncategorized/i.test(h.textContent || ""));
+
+    sections.forEach(h => {
+      // Find tables within the same section block
+      const scope = h.parentElement || document;
+      const tables = scope.querySelectorAll("table");
+      tables.forEach(tbl => {
+        const rows = tbl.querySelectorAll("tbody tr");
+        rows.forEach(tr => {
+          const tds = tr.querySelectorAll("td");
+          if (tds.length < 3) return;
+          const desc = tds[1]?.innerText || tds[1]?.textContent || "";
+          const amt  = tds[2]?.innerText || tds[2]?.textContent || "";
+          if (shouldHide(desc, amt)) tr.remove();
+        });
+      });
+    });
+  }
+
+  // Initial pass
+  scrub(document);
+
+  // Catch dynamic updates
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType === 1) scrub(node);
+      });
+    }
+  });
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
+
+{% endblock %}

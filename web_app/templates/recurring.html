@@ -1,0 +1,724 @@
+{% extends "layout.html" %}
+{% block title %}Recurring{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">Recurring Dashboard</h2>
+    <div class="d-flex gap-2">
+      <input id="search" class="form-control form-control-sm" placeholder="Search (category/freq)..." style="width: 220px;">
+      <button id="exportCsv" class="btn btn-sm btn-outline-secondary">Export CSV</button>
+      <select id="win" class="form-select form-select-sm" style="width: 140px;">
+        <option value="90">Last 90 days</option>
+        <option value="180">Last 180 days</option>
+        <option value="365" selected>Last 365 days</option>
+        <option value="all">All time</option>
+      </select>
+      <select id="horizon" class="form-select form-select-sm" style="width: 140px;">
+        <option value="30" selected>Next 30 days</option>
+        <option value="60">Next 60 days</option>
+        <option value="90">Next 90 days</option>
+        <option value="180">Next 180 days</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-grid mb-3" id="kpiBar">
+    <div class="kpi-tile accent-red" id="tile-floor">
+      <div class="kpi-top">
+        <div class="kpi-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M12 3l7 3v6c0 5-3.5 9-7 9s-7-4-7-9V6l7-3z" stroke="currentColor" stroke-width="1.6" fill="none"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Floor</div>
+      </div>
+      <div class="kpi-value" id="kpi-floor">—</div>
+      <div class="kpi-sub"><span id="kpi-floor-sub">— of income</span></div>
+      <div class="kpi-meter" role="progressbar" aria-label="Floor vs Income">
+        <div id="kpi-floor-meter" class="fill"></div>
+      </div>
+    </div>
+
+    <div class="kpi-tile accent-green" id="tile-income">
+      <div class="kpi-top">
+        <div class="kpi-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6" fill="none"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Expected income</div>
+      </div>
+      <div class="kpi-value" id="kpi-income">—</div>
+      <div class="kpi-sub">from detected streams</div>
+    </div>
+
+    <div class="kpi-tile accent-blue" id="tile-leftover">
+      <div class="kpi-top">
+        <div class="kpi-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="7" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/>
+            <path d="M21 11h-5a2 2 0 100 4h5v-4z" stroke="currentColor" stroke-width="1.6" fill="none"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Leftover</div>
+      </div>
+      <div class="kpi-value" id="kpi-leftover">—</div>
+      <div class="kpi-sub" id="kpi-leftover-sub">after floor</div>
+    </div>
+
+    <div class="kpi-tile accent-amber" id="tile-week">
+      <div class="kpi-top">
+        <div class="kpi-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="kpi-label">Due this week</div>
+      </div>
+      <div class="kpi-value" id="kpi-week">—</div>
+      <div class="kpi-sub"></div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+
+      <!-- Detected Streams -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Recurring Charges</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" id="streamsTable">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
+                <th class="text-end sortable" data-sort="amount">Amount <span class="sort"></span></th>
+                <th class="text-end sortable" data-sort="count">Count <span class="sort"></span></th>
+                <th class="sortable" data-sort="freq">Freq <span class="sort"></span></th>
+                <th class="sortable" data-sort="next">Next <span class="sort"></span></th>
+                <th>Trend (6 mo)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6" class="text-muted py-3 text-center">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <!-- Predictive (Projected Month) -->
+      <div class="card mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Projected month</span>
+          <small class="text-muted" id="pmNote"></small>
+        </div>
+        <div class="card-body small">
+          <div class="d-flex justify-content-between mb-1">
+            <span>Recurring income</span>
+            <span id="pmRecurring">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <span>Variable income (monthly)</span>
+            <span id="pmVariable">$0.00</span>
+          </div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="fw-semibold">Expected income</span>
+            <span id="pmExpected" class="fw-semibold">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <span>Fixed floor (bills)</span>
+            <span id="pmFloor">$0.00</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="fw-semibold">Projected leftover</span>
+            <span id="pmLeftover" class="fw-semibold">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Due soon (next 7 days) -->
+      <div class="card mt-3">
+        <div class="card-header">Due next 7 days</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" id="dueSoonTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th class="text-end">Amount</th>
+                <th class="text-end">In</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4" class="text-muted py-3 text-center">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const winSel = document.getElementById('win');
+  const horSel = document.getElementById('horizon');
+  const searchEl = document.getElementById('search');
+  const exportBtn = document.getElementById('exportCsv');
+
+  const money = n => {
+    const v = Number(n || 0);
+    const s = v < 0 ? '-$' : '$';
+    return s + Math.abs(v).toFixed(2);
+  };
+
+  const parseDate = s => {
+    const [y,m,d] = (s||'').split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m-1, d);
+  };
+
+  const daysFromToday = s => {
+    const dt = parseDate(s);
+    if (!dt) return null;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const t = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    return Math.round((t - today) / (1000*60*60*24));
+  };
+
+  function setFloorMeter(floor, income){
+    const bar = document.getElementById('kpi-floor-meter');
+    const sub = document.getElementById('kpi-floor-sub');
+    const tile = document.getElementById('tile-floor');
+    if (income > 0){
+      const pct = Math.min(140, Math.max(0, (floor / income) * 100));
+      bar.style.width = pct.toFixed(0) + '%';
+      sub.textContent = `${pct.toFixed(0)}% of income`;
+      tile.classList.toggle('over', pct > 100);
+    } else {
+      bar.style.width = '0%';
+      sub.textContent = 'no income set';
+      tile.classList.remove('over');
+    }
+  }
+
+  // ---------- Sparkline helpers ----------
+  const SPARK_W = 120, SPARK_H = 28;
+
+  function lastNMonthsLabels(n){
+    const labels = [];
+    const today = new Date();
+    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+    for (let i=n-1; i>=0; i--){
+      const mm = new Date(d.getFullYear(), d.getMonth()-i, 1);
+      labels.push(mm.toISOString().slice(0,7));
+    }
+    return labels;
+  }
+
+  function bucketSeriesByMonth(txs, months){
+    const sums = Object.fromEntries(months.map(m=>[m,0]));
+    for (const t of txs){
+      const [mm,dd,yy] = (t.date||'').split('/');
+      let key = '';
+      if (yy && mm){ key = `${yy}-${String(mm).padStart(2,'0')}`; }
+      else if ((t.date||'').includes('-')) { key = (t.date||'').slice(0,7); }
+      if (key && key in sums){
+        const a = Math.abs(Number(t.amount||0));
+        sums[key] += a;
+      }
+    }
+    return months.map(m => Math.round((sums[m]||0)*100)/100);
+  }
+
+  function svgSparkline(series, w=SPARK_W, h=SPARK_H){
+    const pad=2;
+    const max = Math.max(...series, 1);
+    const step = (w - pad*2) / Math.max(series.length-1, 1);
+    const ys = series.map(v => h - pad - (max === 0 ? 0 : (v/max)*(h - pad*2)));
+    const xs = series.map((_,i)=> pad + i*step);
+    let d = '';
+    for (let i=0;i<series.length;i++){
+      d += (i===0 ? 'M' : 'L') + xs[i] + ' ' + ys[i] + ' ';
+    }
+    return `
+      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>
+      </svg>
+    `;
+  }
+
+  function median(vals){
+    const v = [...vals].sort((a,b)=>a-b);
+    if (!v.length) return 0;
+    const m = Math.floor(v.length/2);
+    return v.length % 2 ? v[m] : (v[m-1]+v[m])/2;
+  }
+
+  function outlierFlag(series){
+    if (!series.length) return '';
+    const med = median(series.filter(x => x>0));
+    const last = series[series.length-1] || 0;
+    if (med>0 && last > med*1.2) return '⚠';
+    return '';
+  }
+
+  // ---------- Category helpers ----------
+  function txDeepLabel(t){
+    const lbl = (t.sub_subcategory || t.subcategory || t.subcat || t.category || t.cat_top || '').toString().trim();
+    return lbl || 'Other';
+  }
+  function deepCategoryForStream(subset){
+    const counts = new Map();
+    for (const t of subset){
+      const lbl = txDeepLabel(t);
+      counts.set(lbl, (counts.get(lbl)||0)+1);
+    }
+    if (!counts.size) return 'Other';
+    return [...counts.entries()].sort((a,b)=> b[1]-a[1])[0][0];
+  }
+  function categoryPathForLabel(subset, targetLabel){
+    const norm = (d) => {
+      if (!d) return '';
+      if (d.includes('-')) return d;
+      if (d.includes('/')){
+        const [mm,dd,yy] = d.split('/');
+        if (yy && mm && dd) return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+      }
+      return d;
+    };
+    let chosen = subset.find(t => txDeepLabel(t) === targetLabel);
+    if (!chosen){
+      const sorted = subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0)));
+      chosen = sorted[0] || {};
+    }
+    const cat  = (chosen.cat_top || chosen.category || '').toString().trim();
+    const sub  = (chosen.subcat || chosen.subcategory || '').toString().trim();
+    const ssub = (chosen.sub_subcategory || '').toString().trim();
+    return { cat, sub, ssub, sss:'', label: (ssub || sub || cat || 'Category') };
+  }
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+  function chipColorClass(label){
+    const L = String(label||'').toLowerCase();
+    if (L.includes('utility') || L.includes('rent') || L.includes('mortgage')) return 'chip-blue';
+    if (L.includes('insurance')) return 'chip-green';
+    if (L.includes('subscription') || L.includes('xbox') || L.includes('netflix') || L.includes('spotify')) return 'chip-amber';
+    if (L.includes('internet') || L.includes('phone') || L.includes('mobile')) return 'chip-indigo';
+    return '';
+  }
+  function catChipBtn(label, key, path){
+    const cls = chipColorClass(label);
+    const txt = escapeHtml(label || 'Category');
+    return `<button type="button" class="chip chip-btn ${cls}"
+              data-stream-key="${escapeHtml(key||'')}"
+              data-cat="${escapeHtml(path.cat||'')}"
+              data-sub="${escapeHtml(path.sub||'')}"
+              data-ssub="${escapeHtml(path.ssub||'')}"
+            >${txt}</button>`;
+  }
+
+  // ---------- Sorting helpers ----------
+  let sortState = { key: 'category', dir: 'asc' };
+  const freqOrder = { 'biweekly':1, 'monthly':2, 'bi-monthly':3, 'quarterly':4, 'semiannual':5, 'annual':6, 'unknown':7 };
+
+  function sortableVal(key, s, txByKey){
+    if (key === 'amount')   return Number(s.amount || 0);
+    if (key === 'count')    return Number(s.count || 0);
+    if (key === 'freq')     return freqOrder[(s.freq || 'unknown').toLowerCase()] || 9;
+    if (key === 'next')     return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+    if (key === 'category') {
+      const deep = deepCategoryForStream(txByKey[s._key] || []);
+      return deep.toLowerCase();
+    }
+    return 0;
+  }
+
+  function compareStreams(a, b, txByKey){
+    const va = sortableVal(sortState.key, a, txByKey);
+    const vb = sortableVal(sortState.key, b, txByKey);
+    if (va < vb) return sortState.dir === 'asc' ? -1 : 1;
+    if (va > vb) return sortState.dir === 'asc' ?  1 : -1;
+    return 0;
+  }
+
+  function setSortIndicators(){
+    document.querySelectorAll('#streamsTable thead th.sortable').forEach(th=>{
+      const key = th.getAttribute('data-sort');
+      th.classList.remove('sorted-asc','sorted-desc');
+      if (key === sortState.key){
+        th.classList.add(sortState.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+      }
+    });
+  }
+
+  function bindSort(){
+    document.querySelectorAll('#streamsTable thead th.sortable').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.getAttribute('data-sort');
+        if (sortState.key === key){
+          sortState.dir = (sortState.dir === 'asc' ? 'desc' : 'asc');
+        } else {
+          sortState = { key, dir: (key === 'category') ? 'asc' : 'desc' };
+        }
+        renderStreamsTable();
+        setSortIndicators();
+      });
+    });
+  }
+
+  let cachedData = null;
+  let delegationBound = false;
+
+  async function load() {
+    const win = winSel.value;
+    const horizon = horSel.value;
+    const url = `/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    cachedData = data;
+
+    // Predictive block (fallback safe)
+    const pm = data.projected_month || {
+      income_recurring: Number(data.income_recurring || 0),
+      variable_income_monthly: Number(data.variable_income_monthly || 0),
+      income_expected: Number(data.income_expected || 0),
+      fixed_floor: Number(data.floor || 0),
+      leftover: Number(data.leftover != null ? data.leftover : (Number(data.income_expected||0) - Number(data.floor||0)))
+    };
+
+    // KPIs
+    const income = Number(pm.income_expected || data.income_expected || 0);
+    const floor  = Number(pm.fixed_floor || data.floor || 0);
+    const leftover = Number(pm.leftover != null ? pm.leftover : (income - floor));
+
+    document.getElementById('kpi-floor').textContent    = money(floor);
+    document.getElementById('kpi-income').textContent   = money(income);
+    const leftoverEl = document.getElementById('kpi-leftover');
+    leftoverEl.textContent = money(leftover);
+    leftoverEl.classList.toggle('text-danger', leftover < 0);
+    document.getElementById('kpi-week').textContent     = money(data.this_week_due);
+
+    // No Monthly Plan card anymore; just keep the KPI floor meter
+    setFloorMeter(floor, income);
+
+    // Predictive card values
+    document.getElementById('pmRecurring').textContent = money(pm.income_recurring || 0);
+    document.getElementById('pmVariable').textContent  = money(pm.variable_income_monthly || 0);
+    document.getElementById('pmExpected').textContent  = money(pm.income_expected || 0);
+    document.getElementById('pmFloor').textContent     = money(pm.fixed_floor || 0);
+    const pmLeftEl = document.getElementById('pmLeftover');
+    pmLeftEl.textContent = money(pm.leftover || 0);
+    pmLeftEl.classList.toggle('text-danger', Number(pm.leftover||0) < 0);
+    document.getElementById('pmNote').textContent = `Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
+
+    // ---------- Due soon (next 7 days) ----------
+    const txs = cachedData.transactions || [];
+    const dueTbody = document.querySelector('#dueSoonTable tbody');
+    dueTbody.innerHTML = '';
+
+    const upcoming = (data.upcoming || []).slice().sort((a,b)=> (a.date<b.date?-1:1));
+    const dueSoon = upcoming
+      .map(u => ({...u, days: daysFromToday(u.date)}))
+      .filter(u => u.days !== null && u.days >= 0 && u.days <= 7)
+      .sort((a,b)=> (a.date<b.date?-1:1));
+
+    if (!dueSoon.length) {
+      dueTbody.innerHTML = '<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>';
+    } else {
+      for (const u of dueSoon) {
+        const key = u._stream_key || u.stream_key || u.merchant_key || '';
+        let subset = [];
+        if (key) {
+          subset = txs.filter(t => (t._stream_key || t.merchant_key || '') === key);
+        } else {
+          const name = String(u.merchant || '').toLowerCase();
+          subset = txs.filter(t => {
+            const m = String(t.merchant || t.merchant_name || t.description || '').toLowerCase();
+            return name && m.includes(name);
+          });
+          if (!subset.length && Array.isArray(cachedData.streams)) {
+            const s = cachedData.streams.find(x => String(x.merchant||'').toLowerCase() === name);
+            if (s) subset = txs.filter(t => (t._stream_key || t.merchant_key || '') === (s._key || ''));
+          }
+        }
+        const deep = subset.length ? deepCategoryForStream(subset) : (u.category || 'Other');
+        const path = subset.length ? categoryPathForLabel(subset, deep) : { cat: u.category || 'Other', sub:'', ssub:'', sss:'' };
+        const chip = catChipBtn(deep, key, path);
+
+        const label = u.days === 0 ? '<span class="badge text-bg-danger">Today</span>' :
+                      u.days === 1 ? '1 day' : `${u.days} days`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${u.date}</td>
+          <td>${chip}</td>
+          <td class="text-end">${money(u.amount)}</td>
+          <td class="text-end">${label}</td>
+        `;
+        dueTbody.appendChild(tr);
+
+        // Canonicalize this chip’s text to match Category Builder rename
+        const btn = tr.querySelector('.chip-btn');
+        if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
+      }
+    }
+
+    // Streams
+    renderStreamsTable();
+    bindSort();
+    setSortIndicators();
+
+    // One-time delegation for drawer opens (both tables)
+    if (!delegationBound){
+      delegationBound = true;
+
+      const openFromBtn = async (btn) => {
+        const cat  = (btn.getAttribute('data-cat')  || '').trim();
+        const sub  = (btn.getAttribute('data-sub')  || '').trim();
+        const ssub = (btn.getAttribute('data-ssub') || '').trim();
+        const level = ssub ? 'subsubcategory' : (sub ? 'subcategory' : 'category');
+
+        // Set drawer title to canonical label too
+        let title = [cat, sub, ssub].filter(Boolean).join(' › ') || 'Category Manager';
+        try{
+          if (window.resolveCategoryLabel){
+            const lbl = await window.resolveCategoryLabel({cat, sub, ssub});
+            if (lbl) title = lbl;
+          }
+        }catch{}
+
+        if (typeof window.openCategoryManager === 'function'){
+          window.openCategoryManager({ level, cat, sub, ssub, sss:'' });
+          return;
+        }
+        const ocEl = document.getElementById('dashCategoryManager');
+        if (ocEl) {
+          const titleEl = document.getElementById('dashCategoryManagerLabel');
+          if (titleEl) titleEl.textContent = title;
+          const dyn = document.getElementById('drawer-dynamic');
+          if (dyn) dyn.innerHTML = `<div class="muted">Select a category to load details…</div>`;
+          try { bootstrap.Offcanvas.getOrCreateInstance(ocEl).show(); } catch {}
+          return;
+        }
+        alert('Shared drawer not found. Ensure templates/_drawer.html is included.');
+      };
+
+      document.getElementById('streamsTable').addEventListener('click', (e)=>{
+        const btn = e.target.closest('.chip-btn');
+        if (btn) openFromBtn(btn);
+      });
+      document.getElementById('dueSoonTable').addEventListener('click', (e)=>{
+        const btn = e.target.closest('.chip-btn');
+        if (btn) openFromBtn(btn);
+      });
+    }
+  }
+
+  function renderStreamsTable(){
+    if (!cachedData) return;
+    const tbody = document.querySelector('#streamsTable tbody');
+    tbody.innerHTML = '';
+
+    const streams = (cachedData.streams || []).slice();
+    const txs = cachedData.transactions || [];
+
+    const txByKey = txs.reduce((acc, t) => {
+      const k = t._stream_key || t.merchant_key || '';
+      (acc[k] ||= []).push(t);
+      return acc;
+    }, {});
+
+    // Filter by search using deep category + freq
+    const q = (searchEl.value || '').trim().toLowerCase();
+    const filtered = streams.filter(s => {
+      if (!q) return true;
+      const deep = deepCategoryForStream(txByKey[s._key] || []);
+      const hay = [ deep || '', s.freq || '' ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+
+    if (!filtered.length){
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted py-3 text-center">No streams detected.</td></tr>';
+      return;
+    }
+
+    filtered.sort((a,b)=>compareStreams(a,b,txByKey));
+    const months = lastNMonthsLabels(6);
+
+    for (const s of filtered){
+      const key = s._key || '';
+      const subset = txByKey[key] || [];
+      const series = bucketSeriesByMonth(subset, months);
+      const warn = outlierFlag(series);
+      const nextDays = s.next ? daysFromToday(s.next) : null;
+
+      const deepLabel = deepCategoryForStream(subset);
+      const path = categoryPathForLabel(subset, deepLabel);
+      const catBtnHtml = catChipBtn(deepLabel, key, path);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="streams-category">
+          <div class="d-flex align-items-center gap-2">
+            ${catBtnHtml}
+            ${warn?`<span class="badge variance-badge" title="Last charge &gt;20% above median">variance</span>`:''}
+          </div>
+        </td>
+        <td class="text-end">${money(s.amount)}</td>
+        <td class="text-end">${s.count ?? ''}</td>
+        <td>${(s.freq || '—')}</td>
+        <td>
+          ${s.next ? `<div>${s.next}</div><div class="small text-muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}
+        </td>
+        <td class="trend-cell">
+          ${svgSparkline(series)}
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      // Canonicalize this chip’s text to match Category Builder rename
+      const btn = tr.querySelector('.chip-btn');
+      if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
+    }
+
+    // CSV export for current view (category-first)
+    exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
+  }
+
+  // CSV (Category-first)
+  function exportStreamsCsv(streams, txByKey){
+    const rows = [
+      ['Category','Amount','Count','Freq','Next'].join(',')
+    ];
+    for (const s of streams){
+      const deep = deepCategoryForStream((txByKey[s._key] || []));
+      rows.push([
+        `"${String(deep||'Other').replace(/"/g,'""')}"`,
+        s.amount,
+        s.count??'',
+        s.freq||'',
+        s.next||''
+      ].join(','));
+    }
+    const blob = new Blob([rows.join('\n')], {type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download='recurring_streams.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Events
+  winSel.addEventListener('change', load);
+  horSel.addEventListener('change', load);
+  searchEl.addEventListener('input', renderStreamsTable);
+
+  load();
+})();
+</script>
+
+<style>
+/* --- KPI strip styles --- */
+.kpi-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap:12px;
+}
+@media (max-width: 992px){
+  .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 576px){
+  .kpi-grid{ grid-template-columns: 1fr; }
+}
+.kpi-tile{
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:12px 14px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(16,24,40,.04);
+}
+.kpi-top{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.kpi-icon{
+  display:grid; place-items:center;
+  width:28px; height:28px; border-radius:999px;
+  color:#344054; background:#f3f4f6; border:1px solid #eceff1;
+}
+.kpi-label{ font-size:12px; color:#6b7280; font-weight:600; }
+.kpi-value{ font-size:22px; font-weight:700; line-height:1.1; margin-top:2px; }
+.kpi-sub{ font-size:12px; color:#6b7280; margin-top:2px; }
+
+/* color accents */
+.accent-red .kpi-icon{ background:#fff1f2; color:#b91c1c; border-color:#fde2e4; }
+.accent-green .kpi-icon{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
+.accent-blue .kpi-icon{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
+.accent-amber .kpi-icon{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+
+/* meter (Floor vs Income) */
+.kpi-meter{
+  width:100%; height:10px; border-radius:999px; background:#f3f4f6;
+  border:1px solid #e5e7eb; overflow:hidden; margin-top:6px;
+}
+.kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
+#tile-floor.over .kpi-meter .fill{ background:#dc2626; }
+
+/* chips (bigger & clickable) */
+.chip{
+  display:inline-block;
+  border:1px solid #e5e7eb;
+  background:#f9fafb;
+  color:#334155;
+  border-radius:999px;
+  padding:8px 16px;
+  font-size:14px;
+  font-weight:600;
+  line-height:1.1;
+  transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
+}
+.chip-btn{
+  cursor:pointer;
+  box-shadow:0 1px 0 rgba(16,24,40,.05);
+}
+.chip-btn:hover{ background:#f3f4f6; transform:translateY(-1px); }
+.chip-btn:active{ transform:translateY(0); }
+.chip-btn:focus{ outline:0; box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+
+.chip-blue{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
+.chip-green{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
+.chip-amber{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+.chip-indigo{ background:#eef2ff; color:#4338ca; border-color:#e0e7ff; }
+
+/* tables */
+#streamsTable thead th { position: sticky; top: 0; background: #fff; z-index: 2; box-shadow: inset 0 -1px 0 #e5e7eb; }
+#streamsTable thead th.sortable { cursor: pointer; user-select: none; }
+#streamsTable thead th .sort { opacity: .4; margin-left: 4px; font-size: 10px; }
+#streamsTable thead th.sorted-asc .sort::after  { content: "▲"; }
+#streamsTable thead th.sorted-desc .sort::after { content: "▼"; }
+#streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content: "↕"; }
+
+#streamsTable svg{ display:block; margin:0 auto; color:#64748b; }
+.trend-cell { white-space: nowrap; min-width: 190px; }
+.trend-delta { text-align:center; opacity:.85; }
+.trend-delta.up { color:#166534; }
+.trend-delta.down { color:#b91c1c; }
+.trend-delta.flat { color:#6b7280; }
+
+/* Category cell badge */
+.streams-category .badge.variance-badge {
+  background: #fff8e1; color: #92400e; border: 1px solid #fde68a; font-weight: 600;
+}
+
+/* Drawer fallback content styling */
+.kv{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
+.kv .k{ color:#64748b; }
+.kv .v{ color:#111827; }
+</style>
+{% endblock %}

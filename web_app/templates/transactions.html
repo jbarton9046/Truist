@@ -1,0 +1,169 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  .tx-wrap { max-width: 1200px; margin: 1rem auto; }
+  .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin-bottom: .75rem; }
+  .month-row { background:#f8f9fa; position: sticky; top: 0; z-index: 1; }
+  .month-row td { font-weight: 700; }
+  .table thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
+
+  /* Add space so right-aligned Amounts don't crowd Category */
+  .col-amount { padding-right: 1.25rem !important; }
+</style>
+
+<div class="tx-wrap">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h3 class="m-0">All Transactions</h3>
+    <small class="text-muted">Non-hidden items (excludes ±$10,002.02)</small>
+  </div>
+
+  <div class="toolbar">
+    <div>
+      <label class="form-label small mb-1">Search</label>
+      <input id="q" class="form-control form-control-sm" placeholder="desc/category terms (space = AND)">
+    </div>
+    <div>
+      <label class="form-label small mb-1">Type</label>
+      <select id="type" class="form-select form-select-sm">
+        <option value="all">All</option>
+        <option value="income">Income only</option>
+        <option value="expense">Expenses only</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label small mb-1">From</label>
+      <input id="date_from" type="date" class="form-control form-control-sm">
+    </div>
+    <div>
+      <label class="form-label small mb-1">To</label>
+      <input id="date_to" type="date" class="form-control form-control-sm">
+    </div>
+    <div>
+      <label class="form-label small mb-1">Months</label>
+      <select id="months" class="form-select form-select-sm">
+        <option value="12">Last 12</option>
+        <option value="24" selected>Last 24</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label small mb-1">&nbsp;</label>
+      <button id="run" class="btn btn-sm btn-primary w-100">Search</button>
+    </div>
+  </div>
+
+  <div class="small text-muted mb-2" id="meta">—</div>
+
+  <div class="table-responsive" style="max-height:70vh; overflow:auto;">
+    <table class="table table-sm align-middle mb-0" id="tbl">
+      <thead>
+        <tr>
+          <th style="width:110px;">Date</th>
+          <th>Description</th>
+          <th class="text-end col-amount" style="width:140px;">Amount</th>
+          <th style="width:220px;">Category</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id)=> document.getElementById(id);
+  const fmtUSD = (n)=> new Intl.NumberFormat(undefined, {style:'currency', currency:'USD'}).format(n||0);
+  const fmtDate= (s)=> s || '';
+
+  function monthKey(s){
+    if (!s) return '0000-00';
+    const t = String(s);
+    if (t.includes('-')) return t.slice(0,7);
+    const parts = t.split('/');
+    if (parts.length === 3) return `${parts[2]}-${String(parts[0]).padStart(2,'0')}`;
+    return '0000-00';
+  }
+  function monthLabel(k){
+    const [y,m] = k.split('-');
+    const d = new Date(Number(y), Number(m)-1, 1);
+    return d.toLocaleString(undefined, {month:'short', year:'numeric'});
+  }
+
+  // Robust numeric parser
+  function toNumber(x){
+    if (typeof x === 'number') return x;
+    if (x == null) return 0;
+    let s = String(x).trim();
+    let negParens = false;
+    if (/^\(.*\)$/.test(s)) { negParens = true; s = s.slice(1, -1); }
+    const n = parseFloat(s.replace(/[^0-9.-]/g, ''));
+    if (!Number.isFinite(n)) return 0;
+    return negParens ? -n : n;
+  }
+
+  async function load(){
+    const params = new URLSearchParams();
+    const q = $('q').value.trim();
+    const type = $('type').value;
+    const df = $('date_from').value;
+    const dt = $('date_to').value;
+    const months = $('months').value;
+    if (q) params.set('q', q);
+    if (type && type !== 'all') params.set('type', type);
+    if (df) params.set('date_from', df);
+    if (dt) params.set('date_to', dt);
+    if (months) params.set('months', months);
+    params.set('limit', '4000');
+
+    const r = await fetch('/api/tx/all?' + params.toString(), {headers:{'Accept':'application/json'}});
+    const j = await r.json();
+
+    const rows = (j && j.transactions) || [];
+    $('meta').textContent = `${rows.length} transactions`;
+
+    // group by month and compute monthly net
+    const groups = new Map();
+    for (const t of rows){
+      const k = t.month || monthKey(t.date);
+      if (!groups.has(k)) groups.set(k, {label:monthLabel(k), items:[], net:0});
+      const g = groups.get(k);
+      g.items.push(t);
+      g.net += toNumber(t.amount);
+    }
+    const keys = Array.from(groups.keys()).sort().reverse();
+
+    const body = $('tbody');
+    const out = [];
+    for (const k of keys){
+      const g = groups.get(k);
+      const net = toNumber(g.net);
+      const netCls = net < 0 ? 'text-danger fw-semibold' : (net > 0 ? 'text-success fw-semibold' : '');
+      out.push(
+        `<tr class="month-row"><td colspan="4">${g.label} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`
+      );
+      for (const t of g.items){
+        const amt = toNumber(t.amount);
+        const cls = amt < 0 ? 'text-danger fw-semibold' : (amt > 0 ? 'text-success fw-semibold' : '');
+        out.push(`
+          <tr>
+            <td class="text-nowrap">${fmtDate(t.date)}</td>
+            <td>${String(t.description||'').replace(/</g,'&lt;')}</td>
+            <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
+            <td>${(t.category||'') + (t.subcategory?(' / '+t.subcategory):'')}</td>
+          </tr>
+        `);
+      }
+    }
+    body.innerHTML = out.join('') || `<tr><td colspan="4" class="text-muted">No transactions.</td></tr>`;
+  }
+
+  $('run').addEventListener('click', load);
+  $('q').addEventListener('keydown', (e)=>{ if (e.key === 'Enter') load(); });
+
+  // initial load
+  load().catch(err=>{
+    $('tbody').innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`;
+  });
+})();
+</script>
+{% endblock %}

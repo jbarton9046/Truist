@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="flex-grow-1 ms-3">
+    <div class="container mt-4">
+        <div class="card mb-4">
+            <div class="card-header text-center">
+                <h1 class="m-0" style="color: #adb5bd;">📊 Barton Budget Tracker</h1>
+            </div>
+        </div>
+
+        {% for month_key, summary in summary_data.items()|sort(reverse=True) %}
+        {% set parts = month_key.split('-') %}
+        {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
+        {% set net_class = 'net-cash-positive' if summary.net_cash_flow >= 0 else 'net-cash-negative' %}
+        <div class="card mb-4" id="card-{{ month_key }}">
+            <div class="card-header" onclick="toggleSection('{{ month_key }}')">
+                🗕️ {{ formatted_month_key }} Summary <small class="text-muted">({{ summary.config_source }})</small>
+            </div>
+
+            <div id="section-{{ month_key }}" class="card-body" style="display: none;">
+                <p><strong>Total Income:</strong> <span class="text-success">${{ summary.income_total | round(2) }}</span></p>
+                <p><strong>Total Expenses:</strong> <span class="text-danger">${{ summary.expense_total | round(2) }}</span></p>
+                <p><strong>Net Cash Flow:</strong> <span class="fw-bold {{ net_class }}">${{ summary.net_cash_flow | round(2) }}</span></p>
+
+                <h5 class="mt-3 money-cursor" style="color: #ffc107; display: inline;" onclick="toggleCategoryList('{{ month_key }}')">
+                    Category Breakdown
+                </h5>
+
+                <ul id="category-list-{{ month_key }}" class="list-group" style="background-color: #dfe3e6; display: none;">
+                    {% for category, data in summary.categories.items() %}
+                    <li class="list-group-item">
+                        <details>
+                            <summary><strong>{{ category }}:</strong> ${{ data.total | round(2) }}</summary>
+
+                            {% if data.subcategories %}
+                            <ul class="list-unstyled ms-3 mt-1">
+                                {% for subcat, subtotal in data.subcategories.items() %}
+                                <li>
+                                    <details>
+                                        <summary>{{ subcat }}: ${{ subtotal | round(2) }}</summary>
+
+                                        {% if category == 'Withdrawals' and summary.categories[category].owner_subtotals and subcat in summary.categories[category].owner_subtotals %}
+                                        <ul class="list-unstyled ms-3 mb-2">
+                                            {% for owner, owner_amt in summary.categories[category].owner_subtotals[subcat]|dictsort(false, by='value', reverse=true) %}
+                                            <li>
+                                                <details>
+                                                    <summary><em>{{ owner }}</em>: ${{ owner_amt | round(2) }}</summary>
+                                                    <ul class="list-unstyled ms-3 mt-1">
+                                                        {% for tx in data.transactions if tx.subcategory == subcat and tx.owner == owner %}
+                                                        <li class="transaction-entry">
+                                                            <span style="color: black;">{{ tx.date }}</span>: {{ tx.description }} - 
+                                                            <span class="fw-bold text-primary">${{ tx.amount | round(2) }}</span>
+                                                        </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </details>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                        {% endif %}
+
+                                        <ul class="list-unstyled ms-3 mt-1">
+                                            {% for tx in data.transactions if tx.subcategory == subcat and (category != 'Withdrawals' or not tx.owner) %}
+                                            <li class="transaction-entry">
+                                                <span style="color: black;">{{ tx.date }}</span>: {{ tx.description }} - 
+                                                <span class="fw-bold text-primary">${{ tx.amount | round(2) }}</span>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </details>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <ul class="list-unstyled ms-3 mt-1">
+                                {% for tx in data.transactions %}
+                                <li class="transaction-entry">
+                                    <span style="color: black;">{{ tx.date }}</span>: {{ tx.description }} - 
+                                    <span class="fw-bold text-primary">${{ tx.amount | round(2) }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </details>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function toggleSection(monthKey) {
+    const section = document.getElementById(`section-${monthKey}`);
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+function toggleCategoryList(monthKey) {
+    const list = document.getElementById(`category-list-${monthKey}`);
+
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+    } else {
+        list.style.display = 'none';
+    }
+}
+
+function toggleMonthList() {
+    const list = document.getElementById("month-list");
+
+    if (list.style.display === 'none') {
+        list.style.display = 'block';
+    } else {
+        list.style.display = 'none';
+    }
+}
+</script>
+
+{% endblock %}

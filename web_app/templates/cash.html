@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container my-4" style="max-width: 900px;">
+
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="m-0 text-secondary fw-semibold">Cash</h2>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category=='success' else ('warning' if category=='warning' else ('danger' if category=='danger' else 'info')) }} mb-2">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="row g-3">
+    <!-- Add Income -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h5 class="m-0">➕ Add Income</h5>
+        </div>
+        <div class="card-body pt-3">
+          <form method="POST" action="{{ url_for('submit_income') }}" autocomplete="off">
+            <div class="mb-3">
+              <label for="inc_date" class="form-label">Date</label>
+              <input type="date" class="form-control" id="inc_date" name="date" required>
+            </div>
+            <div class="mb-3">
+              <label for="inc_amount" class="form-label">Amount</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" class="form-control" id="inc_amount" name="amount" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="inc_description" class="form-label">Description</label>
+              <input type="text" class="form-control" id="inc_description" name="description" required>
+            </div>
+            <div class="mb-3">
+              <label for="inc_person" class="form-label">Cash From</label>
+              <select class="form-select" id="inc_person" name="person" required>
+                <option value="">— Select —</option>
+                <option value="JL">JL</option>
+                <option value="Rachel">Rachel</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Submit Income</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Expense -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white border-0">
+          <h5 class="m-0">➖ Add Expense</h5>
+        </div>
+        <div class="card-body pt-3">
+          <form method="POST" action="{{ url_for('submit_expense') }}" autocomplete="off">
+            <div class="mb-3">
+              <label for="exp_date" class="form-label">Date</label>
+              <input type="date" class="form-control" id="exp_date" name="date" required>
+            </div>
+            <div class="mb-3">
+              <label for="exp_amount" class="form-label">Amount</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" class="form-control" id="exp_amount" name="amount" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="exp_description" class="form-label">Description</label>
+              <input type="text" class="form-control" id="exp_description" name="description" required>
+            </div>
+
+            <!-- Cascading selectors -->
+            <div class="mb-3">
+              <label for="category" class="form-label">Category</label>
+              <select name="category" id="category" class="form-select" required>
+                <option value="">— Select —</option>
+                {% for cat in category_keywords.keys() if cat != "Income" %}
+                  <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="mb-3 d-none" id="wrap-subcategory">
+              <label for="subcategory" class="form-label">Subcategory</label>
+              <select name="subcategory" id="subcategory" class="form-select">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+
+            <div class="mb-3 d-none" id="wrap-sub-subcategory">
+              <label for="sub_subcategory" class="form-label">Sub-subcategory</label>
+              <select name="sub_subcategory" id="sub_subcategory" class="form-select">
+                <option value="">— Select —</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-danger w-100">Save Expense</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // maps provided by app.py
+  const subMap    = {{ subcategory_maps    | tojson }};
+  const subSubMap = {{ subsubcategory_maps | tojson }};
+
+  const categorySelect = document.getElementById('category');
+  const subWrap        = document.getElementById('wrap-subcategory');
+  const subSelect      = document.getElementById('subcategory');
+  const ssubWrap       = document.getElementById('wrap-sub-subcategory');
+  const ssubSelect     = document.getElementById('sub_subcategory');
+
+  function resetSelect(selectEl, placeholder) {
+    selectEl.innerHTML = '';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = placeholder || '— Select —';
+    selectEl.appendChild(opt);
+  }
+
+  function hide(el) { el.classList.add('d-none'); }
+  function show(el) { el.classList.remove('d-none'); }
+
+  // When category changes: populate subcategory, show only if any
+  categorySelect.addEventListener('change', () => {
+    const cat = categorySelect.value;
+    resetSelect(subSelect, '— Select —');
+    resetSelect(ssubSelect, '— Select —');
+    hide(subWrap);
+    hide(ssubWrap);
+
+    if (!cat) return;
+
+    const subs = subMap[cat] || {};
+    const subKeys = Object.keys(subs);
+
+    if (subKeys.length > 0) {
+      subKeys.sort().forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        subSelect.appendChild(opt);
+      });
+      show(subWrap);
+    }
+  });
+
+  // When subcategory changes: populate sub-subcategory, show only if any
+  subSelect.addEventListener('change', () => {
+    const cat = categorySelect.value;
+    const sub = subSelect.value;
+    resetSelect(ssubSelect, '— Select —');
+    hide(ssubWrap);
+
+    if (!cat || !sub) return;
+
+    const ssubs = (subSubMap[cat] && subSubMap[cat][sub]) || {};
+    const ssubKeys = Object.keys(ssubs);
+
+    if (ssubKeys.length > 0) {
+      ssubKeys.sort().forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k;
+        ssubSelect.appendChild(opt);
+      });
+      show(ssubWrap);
+    }
+  });
+
+  // Start with only Category visible (subs hidden)
+  hide(subWrap);
+  hide(ssubWrap);
+</script>
+{% endblock %}

@@ -1,0 +1,1353 @@
+{
+  "CATEGORY_KEYWORDS": {
+    "Animal": [
+      "DIANE'S",
+      "ROOT",
+      "ANIMAL",
+      "PETCO",
+      "ANIMA",
+      "SARASOTA VETERINAR",
+      "SARASOTA COANIMAL",
+      "ASHTON ANIMAL CLIN",
+      "PAWFEC"
+    ],
+    "Bet": [
+      "VIATRUSTLY"
+    ],
+    "Camera": [
+      "BEST BUY",
+      "AMAZON MKTPL*NA09L",
+      "421739594945978",
+      "BEST BUY 00005629 06-20-25 SARASOTA FL 8834"
+    ],
+    "Clothes": [
+      "ABERCROMBIE",
+      "GOODWILL",
+      "MISSION THRIFT",
+      "HM.COM",
+      "PLATOS",
+      "ONCE UPON",
+      "MARSHALLS",
+      "AMERICAN EAGLE",
+      "AT UNIVTNCT",
+      "OLD NAVY",
+      "KOHL'S"
+    ],
+    "Cosmetic": [
+      "LUSH",
+      "HAPPY NAI",
+      "MANATEE TECHNICAL",
+      "CHRISTOPHER TR",
+      "SEPHORA"
+    ],
+    "Costco (repaid)": [
+      "ANNUAL REN"
+    ],
+    "Credit Card": [
+      "CITI",
+      "CAPITAL ONE",
+      "BK OF AMER"
+    ],
+    "Eating Out": [
+      "WHITE HOUSE P",
+      "GOLLY G'S",
+      "FIREHOUSE SUBS",
+      "PIZZA HUT",
+      "PUBLIC HOUSE",
+      "QUIZNOS",
+      "MAIN STREET CR",
+      "P.F. CHANG'S",
+      "FIVE GUYS",
+      "400 DEGREE",
+      "CASA VIEJA",
+      "JERSEY MIKE'S",
+      "MAS TACOS",
+      "MELLOW MUSHROOM",
+      "ROCCOS",
+      "CAROUSEL'S",
+      "ORIGIN",
+      "STARBUCKS",
+      "GECKOS",
+      "TACO BELL",
+      "MCDONALD'S",
+      "CHICKFIL",
+      "JERSEY MIKES",
+      "CASK AND ALE",
+      "CHIPOTLE MEXICAN GRILL",
+      "THE GATOR CLUB 0810 SARASOTA FL6466 DEBIT CARD PURCHASE"
+    ],
+    "Entertainment": [
+      "NAYAX",
+      "SKY ZONE"
+    ],
+    "Fees": [
+      "FEE",
+      "SARASOTA CNTY LIBR",
+      "PLAID"
+    ],
+    "Flight": [
+      "SRQ SARASOTA TO GO",
+      "AIR",
+      "BNA",
+      "CHARLOTTE COUNTY",
+      "SARASOTA A",
+      "SRQ"
+    ],
+    "Golf": [
+      "BENTT"
+    ],
+    "Groceries/Home": [
+      "HOBBYLOBB",
+      "WM",
+      "ACE",
+      "DOLLARTRE",
+      "DOLLAR GENERAL",
+      "FIVE BELO",
+      "COSTCO",
+      "TRADER JOE",
+      "ALDI",
+      "WORLDMARKET",
+      "#403",
+      "TARGET",
+      "PUBLIX",
+      "WALMART",
+      "SAMS",
+      "SAM'S",
+      "SAMSCLUB"
+    ],
+    "Income": [
+      "ACH CREDIT",
+      "HOLLYWOOD RTP",
+      "RTP CREDIT",
+      "INTEREST PAYMENT",
+      "PR PAYMENT",
+      "MOBILE DEPOSIT",
+      "METZ",
+      "TIP",
+      "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT"
+    ],
+    "Kids": [
+      "JANSPORT",
+      "MISS SARASOTA",
+      "STAGE DOOR",
+      "PHOTODAY",
+      "GIV*CHURCH",
+      "GIRL SCOUTS"
+    ],
+    "Medical": [
+      "BAYVIEW DENTALCLA",
+      "CHEEKY",
+      "KORPATH",
+      "ALMA",
+      "RX",
+      "ODONOGHUE",
+      "CVS",
+      "1800 CONTACTS",
+      "CVS/PHARMACY",
+      "PRIMEHEALTH",
+      "RADIOLOG"
+    ],
+    "Miscellaneous": [],
+    "Online Shopping": [
+      "EBAY",
+      "SHOPIFY",
+      "WALGREENS",
+      "AMAZON"
+    ],
+    "Phone": [
+      "STRAIGHTTALK",
+      "VERIZON",
+      "STRAIGHTTALK*SERVI 0807 FL 8842",
+      "STRAIGHTTALK*SERVI 0818 FL 6466 DEBIT CARD RECURRING PYMT",
+      "STRAIGHTTALK*SERVI 0807 FL 8842 DEBIT CARD RECURRING PYMT"
+    ],
+    "Rent/Utilities": [
+      "2500.00",
+      "FPL",
+      "FRONTIER",
+      "COMCAST",
+      "WATER",
+      "ELECTRIC",
+      "UTILIT",
+      "SARASOTA COUNTY PU"
+    ],
+    "Shipping/Moving": [
+      "USPS",
+      "UPS",
+      "FEDEX",
+      "UHAUL"
+    ],
+    "Subscriptions": [
+      "ADOBE",
+      "AMAZON PRIME",
+      "AMZNFREETIME*NL60S",
+      "AMZNFREETIME*N614Y",
+      "SAMS CLUB RENEWAL",
+      "OPENAI",
+      "MICROSOFT*ULTIMATE",
+      "PRIME VIDEO",
+      "SPOTIFY",
+      "YOUTUBE TV",
+      "NETFLIX",
+      "PELOTON",
+      "AMZNFREETIME*L10MF 0805 WA 6466 DEBIT CARD PURCHASE"
+    ],
+    "Transfers": [
+      "TRANSFER"
+    ],
+    "Vehicles": [
+      "BP#",
+      "DT RETAIL",
+      "STATE FARM",
+      "LOVE'S",
+      "CHEVRON",
+      "AMOCO#",
+      "BP#6189385PHILL",
+      "SHELL",
+      "EXXONMOBIL",
+      "CIRCLE K",
+      "GAS",
+      "TEXACO",
+      "7-ELEVEN",
+      "VIOC",
+      "JIFFY LUBE",
+      "MEINEKE",
+      "CAR WASH",
+      "MR. CLEAN",
+      "WASH",
+      "SPARKLE",
+      "ADVANCE AUTO",
+      "AUTOZONE",
+      "SARASOTA PARK METE"
+    ],
+    "Venmo": [
+      "VENMO"
+    ],
+    "Withdrawals": [
+      "ATM",
+      "CASH",
+      "WITHDRAWL"
+    ],
+    "Written Checks": [
+      "CHECK"
+    ]
+  },
+  "CUSTOM_TRANSACTION_KEYWORDS": {
+    "VENMO - $200.0": {
+      "category": "Animal",
+      "subcategory": "Pet Sitting"
+    }
+  },
+  "OMIT_KEYWORDS": [
+    "GALLERY HEMP"
+  ],
+  "SUBCATEGORY_MAPS": {
+    "Animal": {
+      "Jack": [
+        "FOREST LAKES"
+      ],
+      "Pet Food": [
+        "DOG FOOD",
+        "PET FOOD",
+        "PURINA",
+        "BLUE BUFFALO",
+        "NUTRO",
+        "CHEWY"
+      ],
+      "Pet Sitting": [
+        "VENMO"
+      ],
+      "Pet Stores": [
+        "PETCO",
+        "PETSMART",
+        "LEASH",
+        "TOY",
+        "TREAT",
+        "BOWL",
+        "KENNEL",
+        "BED"
+      ],
+      "Rosie": [
+        "ROOT",
+        "VET",
+        "VETERINARY",
+        "SARASOTA VETERINAR",
+        "DIANE'S",
+        "PAWFEC"
+      ],
+      "Stormy": [
+        "SARASOTA COANIMAL",
+        "ASHTON ANIMAL CLIN"
+      ]
+    },
+    "Bet": {
+      "Hard Rock App": [
+        "VIATRUSTLY"
+      ]
+    },
+    "Clothes": {
+      "Retail Stores": [
+        "ABERCROMBIE",
+        "HM.COM",
+        "MARSHALLS",
+        "AMERICAN EAGLE",
+        "AT UNIVTNCT",
+        "SEPHORA",
+        "OLD NAVY",
+        "KOHL'S"
+      ],
+      "Thrift Stores": [
+        "GOODWILL",
+        "MISSION THRIFT",
+        "ONCE UPON A CHILD",
+        "PLATOS CLOSET"
+      ]
+    },
+    "Cosmetic": {
+      "JL Haircut": [
+        "CHRISTOPHER TR"
+      ],
+      "Lush": [
+        "LUSH"
+      ],
+      "Nail Salon": [
+        "HAPPY NAI",
+        "NAIL SALON"
+      ],
+      "Rachel Haircut": [
+        "MANATEE TECHNICAL"
+      ],
+      "Retail Cosmetic": [
+        "SEPHORA"
+      ]
+    },
+    "Credit Card": {
+      "JL CC": [
+        "CAPITAL ONE",
+        "CAP ONE",
+        "CAP1"
+      ],
+      "Rachel CC": [
+        "CITI",
+        "CITIBANK",
+        "CITI CARD",
+        "BK OF AMER",
+        "BANK OF AMERICA",
+        "CHASE",
+        "JPMORGAN"
+      ]
+    },
+    "Eating Out": {
+      "Coffee": [
+        "STARBUCKS",
+        "DUNKIN",
+        "COFFEE",
+        "JAVA",
+        "CAFE"
+      ],
+      "Fast Food": [
+        "FIREHOUSE SUBS",
+        "QUIZNOS",
+        "FIVE GUYS",
+        "PIZZA HUT",
+        "TACO BELL",
+        "MCDONALD",
+        "BURGER KING",
+        "WENDY",
+        "CHICKFIL",
+        "POPEYES",
+        "SONIC",
+        "ZAXBY",
+        "JERSEY MIKE",
+        "JERSEY MIKES",
+        "CHIPOTLE MEXICAN GRILL"
+      ],
+      "Ice Cream": [
+        "MAIN STREET",
+        "CAROUSEL'S",
+        "GOLLY G'S",
+        "ICE CREAM",
+        "FROZEN YOGURT",
+        "SCOOPS",
+        "COLD STONE",
+        "BRUSTER'S"
+      ],
+      "Mom's Celebration Food": [
+        "PUBLIC HOUSE"
+      ],
+      "Sit-Down": [
+        "WHITE HOUSE P",
+        "MAS TACOS",
+        "P.F. CHANG",
+        "MELLOW MUSHROOM",
+        "400 DEGREE",
+        "ROCCOS",
+        "CASA VIEJA",
+        "ORIGIN",
+        "CASK AND ALE",
+        "THE GATOR CLUB 0810 SARASOTA FL6466 DEBIT CARD PURCHASE"
+      ]
+    },
+    "Entertainment": {
+      "Photo Booth": [
+        "NAYAX"
+      ],
+      "Sky Zone": [
+        "SKY ZONE"
+      ]
+    },
+    "Fees": {
+      "Bank Fees": [
+        "BANK FEE",
+        "ATM FEE",
+        "LIMIT FEE",
+        "OVERDRAFT FEE",
+        "SERVICE FEE"
+      ],
+      "Library Fees": [
+        "SARASOTA CNTY LIBR"
+      ],
+      "Service Fees": [
+        "SERVICE FEE",
+        "LATE FEE",
+        "PLAID"
+      ],
+      "Traffic Ticket": [
+        "CHECK #1054"
+      ]
+    },
+    "Flight": {
+      "Airfare": [
+        "ALLEGNT",
+        "DELTA",
+        "AMERICAN AIRLINES",
+        "UNITED",
+        "SOUTHWEST",
+        "FRONTIER",
+        "SPIRIT",
+        "JETBLUE",
+        "SUN COUNTRY",
+        "HAWAIIAN",
+        "ALASKA"
+      ],
+      "Baggage/Fees": [
+        "BAG",
+        "BAGGAGE",
+        "FEE",
+        "07-19 NV 6466"
+      ],
+      "Food": [
+        "GULCH GOODS",
+        "SRQ SEASIDE",
+        "SRQ SARASOTA TO GO"
+      ],
+      "Parking": [
+        "PARKING",
+        "AIRPORT PARK",
+        "CHARLOTTE COUNTY",
+        "BNA PARKING",
+        "SARASOTA A"
+      ]
+    },
+    "Golf": {
+      "Bent Tree CC": [
+        "BENTTREEGOLFCL",
+        "GLF*BENTT"
+      ]
+    },
+    "Groceries/Home": {
+      "Box Stores": [
+        "WALMART",
+        "WM SUPERC",
+        "PUBLIX",
+        "COSTCO",
+        "TRADER JOE",
+        "TARGET",
+        "ALDI",
+        "SAMS CLUB",
+        "SAMSCLUB",
+        "SAM'S CLUB"
+      ],
+      "Craft Stores": [
+        "HOBBYLOBB",
+        "MICHAELS",
+        "JOANN"
+      ],
+      "Dollar Stores": [
+        "DOLLAR GENERAL",
+        "FIVE BELO",
+        "DOLLAR TREE",
+        "#403",
+        "DOLLARTRE"
+      ],
+      "Home Improvement": [
+        "ACE",
+        "ACE HARDWARE",
+        "HOME DEPOT",
+        "LOWE'S"
+      ],
+      "Housing Stores": [
+        "WORLDMARKET"
+      ]
+    },
+    "Income": {
+      "Gambling Winnings": [
+        "HOLLYWOOD RTP"
+      ],
+      "Interest": [
+        "INTEREST PAYMENT"
+      ],
+      "JL Pay": [
+        "METZ",
+        "MOBILE DEPOSIT",
+        "TIP"
+      ],
+      "Rachel Pay": [
+        "PR PAYMENT",
+        "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT"
+      ]
+    },
+    "Kids": {
+      "Ivy": [
+        "STAGE DOOR",
+        "DANCE",
+        "PHOTODAY CREDIT",
+        "PHOTODAY ORDER",
+        "GIRL SCOUTS"
+      ],
+      "Oona": [
+        "MISS SARASOTA",
+        "SARASOTA SOFTBALL",
+        "JANSPORT"
+      ],
+      "VBS": [
+        "GIV*CHURCH"
+      ]
+    },
+    "Medical": {
+      "DR/Lab": [
+        "KORPATH",
+        "PRIMEHEALTH",
+        "RADIOLOG"
+      ],
+      "Dental": [
+        "BAYVIEW DENTALCLA",
+        "CHEEKY"
+      ],
+      "Dermatology": [
+        "ODONOGHUE",
+        "DERMATOL"
+      ],
+      "Miscellaneous": [],
+      "Pharmacy": [
+        "CVS",
+        "CVS/PHARMACY"
+      ],
+      "Therapy": [
+        "ALMA"
+      ],
+      "Vision": [
+        "VISION",
+        "CONTACTS"
+      ]
+    },
+    "Online Shopping": {
+      "Amazon": [
+        "WWW.AMAZON.CO",
+        "AMZN.COM/BILL"
+      ],
+      "eBay": [
+        "EBAY"
+      ]
+    },
+    "Phone": {
+      "JL New Phone": [
+        "WALMART",
+        "212.93"
+      ],
+      "Oona": [
+        "VERIZON"
+      ],
+      "Straight Talk": [
+        "STRAIGHTTALK",
+        "STRAIGHTTALK*SERVI 0807 FL 8842",
+        "STRAIGHTTALK*SERVI 0818 FL 6466 DEBIT CARD RECURRING PYMT",
+        "STRAIGHTTALK*SERVI 0807 FL 8842 DEBIT CARD RECURRING PYMT"
+      ]
+    },
+    "Rent/Utilities": {
+      "Electric": [
+        "DUKE",
+        "FPL",
+        "POWER",
+        "ELECTRIC",
+        "ELECTRICITY",
+        "ENERGY"
+      ],
+      "Gas Utility": [
+        "GAS COMPANY",
+        "NATURAL GAS",
+        "TECO",
+        "PEOPLES GAS"
+      ],
+      "HOA Fees": [
+        "HOA",
+        "HOMEOWNERS ASSOC"
+      ],
+      "Internet": [
+        "SPECTRUM",
+        "COMCAST",
+        "XFINITY",
+        "INTERNET",
+        "AT&T"
+      ],
+      "Rent": [
+        "CHECK"
+      ],
+      "Trash": [
+        "TRASH",
+        "WASTE",
+        "RECYCLING",
+        "SANITATION"
+      ],
+      "Water": [
+        "PAYMENTUS.COM",
+        "SARASOTA COUNTY PU"
+      ]
+    },
+    "Shipping/Moving": {
+      "FedEx": [
+        "FEDEX",
+        "FEDERAL EXPRESS"
+      ],
+      "U-Haul": [
+        "UHAUL",
+        "U-HAUL"
+      ],
+      "UPS": [
+        "UPS",
+        "UNITED PARCEL SERVICE"
+      ],
+      "USPS": [
+        "USPS",
+        "POST OFFICE",
+        "UNITED STATES POSTAL SERVICE"
+      ]
+    },
+    "Subscriptions": {
+      "Adobe": [
+        "ADOBE"
+      ],
+      "Amazon Prime": [
+        "AMAZON PRIME"
+      ],
+      "Apps & Software": [
+        "ADOBE",
+        "EVERNOTE",
+        "DROPBOX"
+      ],
+      "ChatGPT": [
+        "OPENAI",
+        "CHATGPT",
+        "GPT-4",
+        "GPT-3.5"
+      ],
+      "Cloud Storage": [
+        "ICLOUD",
+        "GOOGLE STORAGE",
+        "ONEDRIVE",
+        "DROPBOX"
+      ],
+      "Fire Tablet": [
+        "AMZNFREETIME*NL60S",
+        "AMZNFREETIME*N614Y",
+        "0605",
+        "AMZNFREETIME",
+        "AMZNFREETIME*L10MF 0805 WA 6466 DEBIT CARD PURCHASE"
+      ],
+      "News & Publications": [
+        "NYTIMES",
+        "WSJ",
+        "SUBSTACK",
+        "REDDIT PREMIUM",
+        "MEDIUM"
+      ],
+      "Peloton": [
+        "PELOTON"
+      ],
+      "Prime Video": [
+        "PRIME VIDEO",
+        "AMAZON VIDEO"
+      ],
+      "Sam's": [
+        "SAMS CLUB",
+        "SAMSCLUB"
+      ],
+      "Spotify": [
+        "SPOTIFY"
+      ],
+      "Streaming Services": [
+        "NETFLIX",
+        "HULU",
+        "DISNEY",
+        "MAX",
+        "HBOMAX",
+        "PEACOCK",
+        "PARAMOUNT",
+        "YOUTUBE",
+        "APPLE TV"
+      ],
+      "Xbox GamePass": [
+        "MICROSOFT*ULTIMATE"
+      ]
+    },
+    "Vehicles": {
+      "Car Wash": [
+        "CAR WASH",
+        "MR. CLEAN",
+        "WASH",
+        "SPARKLE"
+      ],
+      "Gas": [
+        "LOVE'S",
+        "BP#",
+        "CHEVRON",
+        "AMOCO#",
+        "BP#6189385PHILL",
+        "SHELL",
+        "EXXONMOBIL",
+        "CIRCLE K",
+        "GAS",
+        "TEXACO",
+        "7-ELEVEN"
+      ],
+      "Oil/Service": [
+        "VIOC",
+        "JIFFY LUBE",
+        "MEINEKE"
+      ],
+      "Parking": [
+        "SARASOTA PARK METE"
+      ],
+      "Parts": [
+        "ADVANCE AUTO",
+        "AUTOZONE"
+      ],
+      "Tundra": [
+        "BRIDGECREST"
+      ],
+      "Vehicle Insurance": [
+        "STATE FARM"
+      ]
+    },
+    "Withdrawals": {
+      "JL": [
+        "8842",
+        "3453"
+      ],
+      "Rachel": [
+        "6466"
+      ]
+    }
+  },
+  "SUBSUBCATEGORY_MAPS": {
+    "Animal": {
+      "Jack": {
+        "Jack Vet": [
+          "FOREST LAKES"
+        ]
+      },
+      "Pet Stores": {
+        "Bed": [
+          "BED"
+        ],
+        "Bowl": [
+          "BOWL"
+        ],
+        "Kennel": [
+          "KENNEL"
+        ],
+        "Leash": [
+          "LEASH"
+        ],
+        "Petco": [
+          "PETCO"
+        ],
+        "Petsmart": [
+          "PETSMART"
+        ],
+        "Toy": [
+          "TOY"
+        ],
+        "Treat": [
+          "TREAT"
+        ]
+      },
+      "Rosie": {
+        "Rosie Cut": [
+          "DIANE'S",
+          "PAWFEC"
+        ],
+        "Rosie Vet": [
+          "ROOT",
+          "VET",
+          "VETERINARY"
+        ]
+      },
+      "Stormy": {
+        "Stormy Vet": [
+          "SARASOTA COANIMAL",
+          "ASHTON ANIMAL CLIN"
+        ]
+      }
+    },
+    "Clothes": {
+      "Retail Stores": {
+        "Abercrombie": [
+          "ABERCROMBIE"
+        ],
+        "American Eagle": [
+          "AMERICAN EAGLE"
+        ],
+        "H&M": [
+          "HM.COM"
+        ],
+        "Hollister": [
+          "AT UNIVTNCT"
+        ],
+        "Kohl's": [
+          "KOHL'S"
+        ],
+        "Marshalls": [
+          "MARSHALLS"
+        ],
+        "Old Navy": [
+          "OLD NAVY"
+        ]
+      },
+      "Thrift Stores": {
+        "Goodwill": [
+          "GOODWILL"
+        ],
+        "Mission Thrift": [
+          "MISSION THRIFT"
+        ],
+        "Once Upon a Child": [
+          "ONCE UPON A CHILD"
+        ],
+        "Plato's Closet": [
+          "PLATOS CLOSET"
+        ],
+        "Value Village": [
+          "VALUE VILLAGE"
+        ]
+      }
+    },
+    "Cosmetic": {
+      "JL Haircut": {
+        "Chris T": [
+          "CHRISTOPHER TR"
+        ]
+      },
+      "Nail Salon": {
+        "Sarasota Happy Nail": [
+          "HAPPY NAI"
+        ]
+      },
+      "Rachel Haircut": {
+        "Natalie": [
+          "MANATEE TECHNICAL"
+        ]
+      },
+      "Retail Cosmetic": {
+        "Sephora": [
+          "SEPHORA"
+        ]
+      }
+    },
+    "Credit Card": {
+      "JL CC": {
+        "Capital One": [
+          "CAPITAL ONE"
+        ]
+      },
+      "Rachel CC": {
+        "Bank of America": [
+          "BK OF AMER"
+        ],
+        "CITI": [
+          "CITI"
+        ]
+      }
+    },
+    "Eating Out": {
+      "Coffee": {
+        "Caribou Coffee": [
+          "CARIBOU"
+        ],
+        "Dunkin'": [
+          "DUNKIN"
+        ],
+        "Other Coffee": [],
+        "Peet's Coffee": [
+          "PEETS"
+        ],
+        "Starbucks": [
+          "STARBUCKS"
+        ]
+      },
+      "Fast Food": {
+        "Burger King": [
+          "BURGER KING"
+        ],
+        "Chick-fil-A": [
+          "CHICKFIL",
+          "CHICK-FIL-A"
+        ],
+        "Firehouse Subs": [
+          "FIREHOUSE SUBS"
+        ],
+        "Five Guys": [
+          "FIVE GUYS"
+        ],
+        "Jersey Mike's": [
+          "JERSEY MIKE'S",
+          "JERSEY MIKES"
+        ],
+        "McDonald's": [
+          "MCDONALD",
+          "MCDONALD'S"
+        ],
+        "Other Fast Food": [],
+        "Pizza Hut": [
+          "PIZZA HUT"
+        ],
+        "Quiznos": [
+          "QUIZNOS"
+        ],
+        "Subway": [
+          "SUBWAY"
+        ],
+        "Taco Bell": [
+          "TACO BELL"
+        ],
+        "Wendy's": [
+          "WENDY",
+          "WENDY'S"
+        ]
+      },
+      "Ice Cream": {
+        "Carousel's": [
+          "CAROUSEL'S"
+        ],
+        "Golly G's": [
+          "GOLLY G'S",
+          "GOLLY",
+          "GOLLY G'S ICE CREAM"
+        ],
+        "Main Street Creamery": [
+          "MAIN STREET CR"
+        ]
+      },
+      "Sit-Down": {
+        "400 Degree": [
+          "400 DEGREE"
+        ],
+        "Casa Vieja": [
+          "CASA VIEJA"
+        ],
+        "Cask and Ale": [
+          "CASK AND ALE"
+        ],
+        "Gecko's": [
+          "GECKOS",
+          "WWW.GECKOS*",
+          "WWW.GECKOS* GECKOS"
+        ],
+        "Main Street": [
+          "MAIN STREET"
+        ],
+        "Mas Tacos": [
+          "MAS TACOS"
+        ],
+        "Mellow Mushroom": [
+          "MELLOW MUSHROOM"
+        ],
+        "Origin": [
+          "ORIGIN"
+        ],
+        "P.F. Chang's": [
+          "P.F. CHANG'S"
+        ],
+        "Rocco's Tacos": [
+          "ROCCO'S TACOS",
+          "TEQ"
+        ],
+        "The Gator Club": [
+          "THE GATOR CLUB 0810 SARASOTA FL6466 DEBIT CARD PURCHASE"
+        ],
+        "White House Pizza & Pub": [
+          "WHITE HOUSE P"
+        ]
+      }
+    },
+    "Fees": {
+      "Service Fees": {
+        "Plaid": [
+          "PLAID"
+        ]
+      }
+    },
+    "Flight": {
+      "Airfare": {
+        "Alaska": [
+          "ALASKA"
+        ],
+        "Allegiant": [
+          "ALLEGNT"
+        ],
+        "American Airlines": [
+          "AMERICAN AIRLINES"
+        ],
+        "Delta": [
+          "DELTA"
+        ],
+        "Frontier": [
+          "FRONTIER"
+        ],
+        "Hawaiian": [
+          "HAWAIIAN"
+        ],
+        "JetBlue": [
+          "JETBLUE"
+        ],
+        "Southwest": [
+          "SOUTHWEST"
+        ],
+        "Spirit": [
+          "SPIRIT"
+        ],
+        "Sun Country": [
+          "SUN COUNTRY"
+        ],
+        "United": [
+          "UNITED"
+        ]
+      }
+    },
+    "Golf": {
+      "Bent Tree CC": {
+        "Green Fees": [
+          "REEGOLFCL"
+        ],
+        "Pro Shop": [
+          "GLF*BENTT"
+        ]
+      }
+    },
+    "Groceries/Home": {
+      "Box Stores": {
+        "Aldi": [
+          "ALDI"
+        ],
+        "Costco": [
+          "COSTCO"
+        ],
+        "Publix": [
+          "PUBLIX"
+        ],
+        "Sam's Club": [
+          "SAMS CLUB",
+          "SAMSCLUB",
+          "SAM'S CLUB"
+        ],
+        "Target": [
+          "TARGET"
+        ],
+        "Trader Joe's": [
+          "TRADER JOE"
+        ],
+        "Walmart": [
+          "WALMART",
+          "WM SUPERC"
+        ]
+      },
+      "Craft Stores": {
+        "Hobby Lobby": [
+          "HOBBYLOBB"
+        ],
+        "Joann": [
+          "JOANN"
+        ],
+        "Michaels": [
+          "MICHAELS"
+        ]
+      },
+      "Dollar Stores": {
+        "#403": [
+          "#403"
+        ],
+        "Dollar General": [
+          "DOLLAR GENERAL"
+        ],
+        "Dollar Tree": [
+          "DOLLAR TREE"
+        ],
+        "Dollartree": [
+          "DOLLARTRE"
+        ],
+        "Five Below": [
+          "FIVE BELO"
+        ]
+      },
+      "Home Improvement": {
+        "Ace Hardware": [
+          "ACE"
+        ],
+        "Home Depot": [
+          "HOMEDEPOT"
+        ],
+        "Lowe's": [
+          "LOWES"
+        ]
+      },
+      "Housing Stores": {
+        "World Market": [
+          "WORLDMARKET"
+        ]
+      }
+    },
+    "Income": {
+      "JL Pay": {
+        "Element": [
+          "MOBILE DEPOSIT",
+          "TIP"
+        ],
+        "Ringling": [
+          "METZ"
+        ]
+      },
+      "Rachel Pay": {
+        "Paralllon": [
+          "PR PAYMENT",
+          "PR PAYMENT FINANCIAL SERVIC 4234ADKINS RACHEL ACH CREDIT"
+        ],
+        "Photo Gig": [
+          "PHOTO GIG"
+        ]
+      }
+    },
+    "Kids": {
+      "Ivy": {
+        "Dance": [
+          "STAGE DOOR",
+          "DANCE",
+          "PHOTODAY CREDIT",
+          "PHOTODAY ORDER"
+        ],
+        "Girl Scouts": [
+          "GIRL SCOUTS"
+        ]
+      },
+      "Oona": {
+        "School": [
+          "JANSPORT"
+        ],
+        "Softball": [
+          "MISS SARASOTA",
+          "SARASOTA SOFTBALL"
+        ]
+      }
+    },
+    "Medical": {
+      "DR/Lab": {
+        "Co-Pays": [
+          "KORPATH",
+          "PRIMEHEALTH"
+        ]
+      },
+      "Dental": {
+        "Bayview Dental": [
+          "BAYVIEW DENTALCLA"
+        ],
+        "Cheeky": [
+          "CHEEKY"
+        ]
+      },
+      "Dermatology": {
+        "Dr. O'Donoghue": [
+          "DERMATOL"
+        ]
+      },
+      "Pharmacy": {
+        "CVS": [
+          "CVS"
+        ],
+        "Walgreens": [
+          "WALGREENS"
+        ]
+      },
+      "Therapy": {
+        "Dr Schnyder": [
+          "ALMA*"
+        ]
+      },
+      "Vision": {
+        "1-800 Contacts": [
+          "1800 CONTACTS",
+          "VISION RX"
+        ]
+      }
+    },
+    "Phone": {
+      "Straight Talk": {
+        "JL Cell": [
+          "STRAIGHTTALK*SERVI 0807 FL 8842 DEBIT CARD RECURRING PYMT"
+        ],
+        "Rachel Cell": [
+          "STRAIGHTTALK*SERVI 0818 FL 6466 DEBIT CARD RECURRING PYMT"
+        ]
+      }
+    },
+    "Subscriptions": {
+      "Fire Tablet": {},
+      "Streaming Services": {
+        "Disney+": [
+          "DISNEY+"
+        ],
+        "Hulu": [
+          "HULU"
+        ],
+        "Netflix": [
+          "NETFLIX"
+        ],
+        "Youtube TV": [
+          "YOUTUBE TV"
+        ]
+      }
+    },
+    "Vehicles": {
+      "Gas": {
+        "7-Eleven": [
+          "7-ELEVEN"
+        ],
+        "Amoco": [
+          "AMOCO#"
+        ],
+        "BP": [
+          "BP#"
+        ],
+        "Chevron": [
+          "CHEVRON"
+        ],
+        "Circle K": [
+          "CIRCLE K"
+        ],
+        "Exxon": [
+          "EXXONMOBIL"
+        ],
+        "Love's": [
+          "LOVE'S"
+        ],
+        "Mcintosh Market": [
+          "BURT'S"
+        ],
+        "Shell": [
+          "SHELL"
+        ]
+      },
+      "Oil/Service": {
+        "Valvoline": [
+          "VIOC"
+        ]
+      },
+      "Parts": {
+        "Advance Auto Parts": [
+          "ADVANCE AUTO"
+        ]
+      },
+      "Tundra": {
+        "Bridgecrest": [
+          "BRIDGECREST"
+        ]
+      },
+      "Vehicle Insurance": {
+        "State Farm": [
+          "STATE FARM"
+        ]
+      }
+    }
+  },
+  "SUBSUBSUBCATEGORY_MAPS": {
+    "Clothes": {
+      "Retail Stores": {
+        "American Eagle": {},
+        "Hollister": {},
+        "Kohl's": {},
+        "Old Navy": {}
+      }
+    },
+    "Cosmetic": {
+      "Retail Cosmetic": {
+        "Sephora": {}
+      }
+    },
+    "Eating Out": {
+      "Fast Food": {},
+      "Sit-Down": {
+        "Cask and Ale": {},
+        "The Gator Club": {}
+      }
+    },
+    "Fees": {
+      "Service Fees": {
+        "Plaid": {}
+      }
+    },
+    "Groceries/Home": {
+      "Box Stores": {
+        "Walmart": {}
+      }
+    },
+    "Income": {
+      "JL Pay": {
+        "Element": {
+          "Element Cash": [
+            "TIP"
+          ],
+          "Element Check": [
+            "MOBILE DEPOSIT"
+          ]
+        }
+      },
+      "Rachel Pay": {
+        "Paralllon": {},
+        "Photo Gig": {
+          "Portrait": [
+            "PORTRAIT"
+          ],
+          "Wedding": [
+            "WEDDING"
+          ]
+        }
+      }
+    },
+    "Kids": {
+      "Ivy": {
+        "Girl Scouts": {}
+      }
+    },
+    "Phone": {
+      "Straight Talk": {
+        "JL Cell": {},
+        "Rachel Cell": {}
+      }
+    },
+    "Subscriptions": {
+      "Fire Tablet": {}
+    },
+    "Vehicles": {
+      "Vehicle Insurance": {}
+    }
+  }
+}

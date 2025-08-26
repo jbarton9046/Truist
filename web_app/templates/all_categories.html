@@ -1,0 +1,278 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+  /* Page layout & palette */
+  .page-wrap { max-width:1200px; margin:0 auto; padding:1.25rem; }
+  .page-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
+  .page-title { font-weight:800; letter-spacing:.3px; margin:0; }
+  .muted { color:#6c757d; }
+
+  /* Buttons */
+  .btn-soft { background:#f8f9fa; border:1px solid #eaecf0; }
+  .btn-soft:hover { background:#f1f3f5; }
+  .tiny { font-size:.9rem; }
+
+  /* Cards & sections (match other admin pages) */
+  .card { border-radius:1rem; border:1px solid #e9ecef; box-shadow:0 1px 0 rgba(0,0,0,.02); }
+  .card-header { background:#fff; border-bottom:1px solid #edf2f7; border-top-left-radius:1rem; border-top-right-radius:1rem; }
+  .card-body { background:#fff; }
+
+  /* Blocks */
+  .cat-block { border:1px solid #eaecf0; border-radius:.75rem; margin-bottom:1rem; overflow:hidden; background:#fff; }
+  .cat-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.75rem 1rem; border-bottom:1px solid #f1f3f5; }
+  .cat-name { font-weight:700; color:#0d6efd; }
+  .cat-body { padding:.25rem 1rem 1rem; }
+
+  .subgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:.65rem; margin-top:.5rem; }
+
+  .rowline { display:flex; align-items:center; gap:.5rem; padding:.35rem .35rem; border:1px solid #f1f3f5; border-radius:.5rem; margin:.35rem 0; }
+  .rowline .grow { flex:1; }
+  .rowline .path { font-weight:600; color:#0d6efd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Manage chip (opens drawer) */
+  .manage-link { display:inline-flex; align-items:center; gap:.35rem; text-decoration:none; padding:.2rem .5rem; border-radius:999px; background:#e7f1ff; color:#0a58ca; border:1px solid #cfe2ff; font-weight:600; }
+  .manage-link:hover { background:#dbe9ff; border-color:#b6d4fe; color:#0a58ca; }
+
+  /* Search/toolbar */
+  .searchbar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .searchbar .form-control { max-width:320px; }
+  .divider { margin: 1.25rem 0 .75rem; font-weight:700; font-size:1.05rem; color:#495057; }
+
+  /* Sticky toolbar (optional helper text) */
+  .toolbar { position:sticky; top:.5rem; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:.75rem; background:#fff; padding:.6rem .8rem; border:1px solid #eaecf0; border-radius:.75rem; box-shadow:0 1px 0 rgba(0,0,0,.02); }
+
+  /* Highlight for search */
+  mark { padding:.1rem .2rem; border-radius:.25rem; background:#fff3cd; }
+</style>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <h1 class="page-title">All Categories</h1>
+    <div class="searchbar">
+      <input class="form-control form-control-sm" id="searchInput" placeholder="Search label…">
+      <button id="clearSearchBtn" class="btn btn-sm btn-soft">Clear</button>
+      <div class="btn-group">
+        <button id="expandAllBtn" class="btn btn-sm btn-soft">Expand all</button>
+        <button id="collapseAllBtn" class="btn btn-sm btn-soft">Collapse all</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tiny muted">Browse or search your tree. Click a “manage” chip to open the drawer on that level.</div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('admin_categories.index') }}" class="btn btn-sm btn-primary">JSON Editor</a>
+      <a href="{{ url_for('category_builder') }}" class="btn btn-sm btn-outline-primary">Category Builder</a>
+    </div>
+  </div>
+
+  <div class="divider">Categories</div>
+  <div id="categoriesContainer" class="mb-4"></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ========== helpers ========== */
+  const qs = (sel, root=document)=> root.querySelector(sel);
+  const qsa = (sel, root=document)=> Array.from(root.querySelectorAll(sel));
+  const el = (html)=> { const d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; };
+  const escapeHTML = (s)=> String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  function highlight(text, q){
+    if (!q) return escapeHTML(text);
+    try {
+      const rx = new RegExp('(' + q.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&') + ')','ig');
+      return escapeHTML(text).replace(rx, '<mark>$1</mark>');
+    } catch(e){
+      return escapeHTML(text);
+    }
+  }
+
+  /* ========== state ========== */
+  let TREE = [];
+  let EXPANDED = new Set();
+  let SEARCH = '';
+
+  /* ========== data ========== */
+  async function fetchTree(){
+    const r = await fetch('{{ url_for("admin_categories.tree_api") if false else "/admin/api/tree" }}', { credentials:'same-origin' });
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    if (j && j.ok && Array.isArray(j.tree)) return j.tree;
+    if (Array.isArray(j)) return j; // fallback format
+    throw new Error('Bad tree format');
+  }
+
+  /* ========== render ========== */
+  function renderAll(){
+    const container = qs('#categoriesContainer');
+    container.innerHTML = '';
+
+    let filtered = TREE;
+    if (SEARCH){
+      const q = SEARCH.toLowerCase();
+      filtered = TREE.filter(cat => {
+        const catMatch = cat.name.toLowerCase().includes(q);
+        const subMatch = (cat.children||[]).some(s =>
+          s.name.toLowerCase().includes(q) ||
+          (s.children||[]).some(ss =>
+            ss.name.toLowerCase().includes(q) ||
+            (ss.children||[]).some(sss => sss.name.toLowerCase().includes(q))
+          )
+        );
+        return catMatch || subMatch;
+      });
+    }
+
+    filtered.forEach(cat => container.appendChild(renderCategory(cat)));
+  }
+
+  function renderCategory(cat){
+    const wrap = el(`<div class="cat-block"></div>`);
+    const header = el(`
+      <div class="cat-head">
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-soft toggle-btn" aria-expanded="false">›</button>
+          <div class="cat-name">${highlight(cat.name, SEARCH)}</div>
+        </div>
+        <div>
+          <a href="#" class="manage-link"
+             data-manage
+             data-level="category"
+             data-cat="${escapeHTML(cat.name)}">manage</a>
+        </div>
+      </div>
+    `);
+    wrap.appendChild(header);
+
+    const body = el(`<div class="cat-body" style="display:none"></div>`);
+    wrap.appendChild(body);
+
+    const toggle = header.querySelector('.toggle-btn');
+    toggle.addEventListener('click', ()=>{
+      const visible = body.style.display !== 'none';
+      body.style.display = visible ? 'none' : 'block';
+      toggle.textContent = visible ? '›' : '⌄';
+      toggle.setAttribute('aria-expanded', String(!visible));
+    });
+
+    if (EXPANDED.has(cat.name)) {
+      body.style.display = 'block';
+      toggle.textContent = '⌄';
+      toggle.setAttribute('aria-expanded','true');
+    }
+
+    const subs = el(`<div class="subgrid"></div>`);
+    (cat.children||[]).forEach(sub => subs.appendChild(renderSub(cat.name, sub)));
+    body.appendChild(subs);
+
+    return wrap;
+  }
+
+  function renderSub(catName, sub){
+    const card = el(`<div class="card"><div class="card-body"></div></div>`);
+    const inner = card.firstChild;
+
+    const head = el(`
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="fw-bold">${highlight(sub.name, SEARCH)}</div>
+        <a href="#" class="manage-link"
+           data-manage
+           data-level="subcategory"
+           data-cat="${escapeHTML(catName)}"
+           data-sub="${escapeHTML(sub.name)}">manage</a>
+      </div>
+    `);
+    inner.appendChild(head);
+
+    if (sub.children && sub.children.length){
+      const list = el(`<div class="mt-2"></div>`);
+      sub.children.forEach(ssub => list.appendChild(renderSsub(catName, sub.name, ssub)));
+      inner.appendChild(list);
+    } else {
+      inner.appendChild(el(`<div class="tiny muted mt-2">No sub-subcategories.</div>`));
+    }
+    return card;
+  }
+
+  function renderSsub(catName, subName, ssub){
+    const wrap = el(`<div class="mt-1"></div>`);
+    const head = el(`
+      <div class="rowline">
+        <span class="grow path">${highlight(ssub.name, SEARCH)}</span>
+        <a href="#" class="manage-link"
+           data-manage
+           data-level="subsubcategory"
+           data-cat="${escapeHTML(catName)}"
+           data-sub="${escapeHTML(subName)}"
+           data-ssub="${escapeHTML(ssub.name)}">manage</a>
+      </div>
+    `);
+    wrap.appendChild(head);
+
+    if (ssub.children && ssub.children.length){
+      ssub.children.forEach(sss => {
+        const row = el(`
+          <div class="rowline ms-3">
+            <span class="grow path">${highlight(sss.name, SEARCH)}</span>
+            <a href="#" class="manage-link"
+               data-manage
+               data-level="subsubsubcategory"
+               data-cat="${escapeHTML(catName)}"
+               data-sub="${escapeHTML(subName)}"
+               data-ssub="${escapeHTML(ssub.name)}"
+               data-sss="${escapeHTML(sss.name)}">manage</a>
+          </div>
+        `);
+        wrap.appendChild(row);
+      });
+    } else {
+      wrap.appendChild(el(`<div class="tiny muted ms-3">No sub-sub-subcategories.</div>`));
+    }
+    return wrap;
+  }
+
+  /* ========== interactions ========== */
+  qs('#searchInput').addEventListener('input', (e)=>{
+    SEARCH = (e.target.value || '').trim();
+    renderAll();
+  });
+  qs('#clearSearchBtn').addEventListener('click', ()=>{
+    SEARCH = '';
+    qs('#searchInput').value = '';
+    renderAll();
+  });
+  qs('#expandAllBtn').addEventListener('click', ()=>{
+    EXPANDED = new Set(TREE.map(c => c.name));
+    qsa('.cat-block .cat-body').forEach(b => { b.style.display = 'block'; });
+    qsa('.cat-block .toggle-btn').forEach(t => { t.textContent = '⌄'; t.setAttribute('aria-expanded','true'); });
+  });
+  qs('#collapseAllBtn').addEventListener('click', ()=>{
+    EXPANDED.clear();
+    qsa('.cat-block .cat-body').forEach(b => { b.style.display = 'none'; });
+    qsa('.cat-block .toggle-btn').forEach(t => { t.textContent = '›'; t.setAttribute('aria-expanded','false'); });
+  });
+
+  // NOTE: We DO NOT attach our own click handler for [data-manage] here.
+  // Your global handler in layout.html catches [data-manage] and calls window.dashManage(e, el),
+  // and dashManage reads data-level/cat/sub/ssub/sss → openCategoryManager(ctx).
+
+  /* ========== boot ========== */
+  (async function init(){
+    try {
+      TREE = await fetchTree();
+    } catch(e){
+      console.error('Failed to load tree:', e);
+      qs('#categoriesContainer').innerHTML = `
+        <div class="alert alert-danger">Failed to load categories. ${String(e.message||e)}</div>
+      `;
+      return;
+    }
+    renderAll();
+  })();
+
+})();
+</script>
+{% endblock %}

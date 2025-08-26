@@ -1,0 +1,80 @@
+<!-- Right-side Category Manager drawer -->
+<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
+  <div class="offcanvas-header">
+    <div class="d-flex flex-column">
+      <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
+        <span id="drawer-selected-path">(All Categories)</span>
+      </h5>
+      <div class="small text-muted">
+        Month: 
+        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
+        &nbsp;•&nbsp;
+        <span id="drawer-total" class="fw-semibold">—</span>
+      </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+
+  <div class="offcanvas-body">
+    <!-- simple drawer styles -->
+    <style>
+      .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
+      .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
+      .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
+      .child-pill { display:inline-block; padding:.2rem .55rem; background:#f1f3f5; border-radius:999px; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer; }
+      .month-divider { background:#f8f9fa; position:sticky; top:0; z-index:1; }
+      .month-divider td { font-weight:700; }
+      .text-pos { color:#1e7e34; font-weight:600; }
+      .text-neg { color:#c0392b; font-weight:600; }
+    </style>
+
+    <!-- Tabs -->
+    <div class="drawer-tabs">
+      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
+      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
+      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
+    </div>
+
+    <!-- Pane: Overview -->
+    <div class="drawer-pane" data-pane="overview" style="display:block;">
+      <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
+
+      <div class="table-responsive" style="max-height:58vh; overflow:auto;">
+        <table class="table table-sm align-middle mb-0" id="drawer-tx">
+          <thead>
+            <tr>
+              <th style="width:110px;">Date</th>
+              <th>Description</th>
+              <th class="text-end" style="width:120px;">Amount</th>
+              <th style="width:180px;">Category</th>
+            </tr>
+          </thead>
+          <tbody id="drawer-tx-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pane: Keywords -->
+    <div class="drawer-pane" data-pane="keywords" style="display:none;">
+      <div class="small text-muted mb-1">
+        Keywords attached to: <span id="kw-current-level" class="fw-semibold">(select a node)</span>.
+        Click × to remove. Case-insensitive “contains” match.
+      </div>
+      <div id="kw-list" class="mb-2"><span class="text-muted">No keywords yet.</span></div>
+      <div class="input-group input-group-sm">
+        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
+        <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
+      </div>
+    </div>
+
+    <!-- Pane: Actions -->
+    <div class="drawer-pane" data-pane="actions" style="display:none;">
+      <div class="d-grid gap-2">
+        <button id="drawer-inspect" class="btn btn-sm btn-outline-secondary">Inspect Path JSON</button>
+        <button id="drawer-rename"  class="btn btn-sm btn-outline-secondary">Rename Current Node</button>
+        <button id="drawer-upsert"  class="btn btn-sm btn-outline-primary">Create/Attach Child Under This Path</button>
+      </div>
+      <div class="small text-muted mt-2">These call your admin endpoints: inspect, rename, upsert.</div>
+    </div>
+  </div>
+</div>
