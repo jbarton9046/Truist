@@ -1,7 +1,8 @@
 # truist/debug_config.py
 from flask import Blueprint, jsonify, request
 from pathlib import Path
-import os, shutil
+import os, shutil, zipfile, io
+from werkzeug.utils import secure_filename
 
 # Optional deeper debug imports
 try:
@@ -199,3 +200,60 @@ def debug_statements():
         else:
             out.append({"path": str(p), "exists": False})
     return jsonify({"ok": True, "candidates": out})
+
+# ---- TEMPORARY upload routes ----
+@debug_bp.route("/debug/upload", methods=["GET"])
+def upload_form():
+    return (
+        """
+        <h1>Upload statements</h1>
+        <form action="/debug/upload" method="post" enctype="multipart/form-data">
+          <p><input type="file" name="files" multiple></p>
+          <p><button type="submit">Upload</button></p>
+        </form>
+        <p>Tip: you can upload individual CSV/JSON files or a single .zip.</p>
+        """,
+        200,
+        {"Content-Type": "text/html"},
+    )
+
+@debug_bp.route("/debug/upload", methods=["POST"])
+def upload_files():
+    """
+    Upload CSV/JSON or a .zip of them to /var/data/statements.
+    """
+    dst_base = Path("/var/data/statements")
+    dst_base.mkdir(parents=True, exist_ok=True)
+    saved = []
+    extracted = 0
+
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"ok": False, "error": "no files provided"}), 400
+
+    for f in files:
+        filename = secure_filename(f.filename or "")
+        if not filename:
+            continue
+
+        # If it's a ZIP, extract statement-like files
+        if filename.lower().endswith(".zip"):
+            data = f.read()
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                for member in z.infolist():
+                    if member.is_dir():
+                        continue
+                    if not (member.filename.lower().endswith(".csv") or member.filename.lower().endswith(".json")):
+                        continue
+                    target = dst_base / Path(member.filename).name
+                    with z.open(member, "r") as src, open(target, "wb") as out:
+                        out.write(src.read())
+                        extracted += 1
+            continue
+
+        # Otherwise save file directly
+        target = dst_base / filename
+        f.save(target)
+        saved.append(str(target))
+
+    return jsonify({"ok": True, "saved": saved, "extracted_from_zip": extracted, "dest": str(dst_base)})
