@@ -628,6 +628,12 @@ def _hidden_categories():
     return hidden
 
 
+# Small helper you can import in routes to decide behavior or for debugging.
+def list_hidden_categories() -> list:
+    """Return a sorted list of currently hidden categories (for logs or UI ribbons)."""
+    return sorted(_hidden_categories())
+
+
 def generate_summary(category_keywords, subcategory_maps):
     """
     Build monthly summaries using the *latest* config every call (so renames & deeper maps stay in sync).
@@ -728,6 +734,7 @@ def generate_summary(category_keywords, subcategory_maps):
             # Global omit/skip rules (now includes amount rules)
             if _should_omit_tx(desc, amt_signed, omit_keywords_live, amount_omit_rules_live):
                 continue
+            # 🚫 Skip *hidden* categories from totals/movers/recents
             if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat in hidden_cats:
                 continue
 
@@ -847,7 +854,7 @@ def generate_summary(category_keywords, subcategory_maps):
             "expense_total": expense_total,
             "net_cash_flow": round(income_total - expense_total, 2),
             "categories": {},
-            "all_transactions": month_tx,
+            "all_transactions": month_tx,  # unfiltered for downstream APIs; recents/movers will re-filter
             "config_source": CONFIG_SOURCE,  # visible for debugging
         }
 
