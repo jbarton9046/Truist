@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
 import subprocess, sys, os
 
 # ---- Flask app ----
@@ -17,13 +17,45 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")
 # enables flash()
 
+# --- Password gate (HTTP Basic Auth) ---
+# Set APP_PASSWORD in your environment. Optionally set APP_USER to pin a username.
+@app.get("/healthz")
+def healthz():
+    return "ok", 200
+
+EXEMPT_PATHS = {
+    "/login", "/logout", "/healthz",
+    "/static/manifest.webmanifest",
+    "/service-worker.js",
+}
+EXEMPT_PREFIXES = ("/static/",)
+
+@app.before_request
+def password_gate():
+    required = os.environ.get("APP_PASSWORD")
+    if not required:
+        return  # gate disabled when no password configured
+
+    p = request.path
+    if request.method == "HEAD" or p in EXEMPT_PATHS or p.startswith(EXEMPT_PREFIXES):
+        return
+
+    auth = request.authorization
+    expected_user = os.environ.get("APP_USER")  # optional
+    if auth and ((expected_user is None or auth.username == expected_user) and auth.password == required):
+        return
+
+    return Response(
+        "Authentication required", 401,
+        {"WWW-Authenticate": 'Basic realm="ClarityLedger"'}
+    )
+
 # ---- Debug endpoints (temporary) ----
 from truist.debug_config import debug_bp
 app.register_blueprint(debug_bp)
 
 # Optional: log where CONFIG_DIR points on boot
 app.logger.info(f"[Config] Using CONFIG_DIR={os.environ.get('CONFIG_DIR')}")
-
 
 # ---- Blueprints (admin UI + keyword APIs) ----
 from truist.admin_categories import admin_categories_bp, load_cfg
@@ -116,6 +148,7 @@ def save_manual_form_transaction(form, tx_type: str):
         "sub_subcategory": form.get("sub_subcategory", "")
     }
     save_manual_transaction(tx)
+
 
 # ------------------ UTILS ------------------
 
