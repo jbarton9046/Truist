@@ -57,6 +57,74 @@
     return dt.toLocaleString(undefined, { month:'short', year:'numeric' }); // e.g., "Aug 2025"
   }
 
+  function currentPathParts() {
+    return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean);
+  }
+  function currentPathPayload() {
+    const parts = currentPathParts();
+    const last = parts[parts.length-1] || '';
+    return {
+      level: state.ctx.level || 'category',
+      cat: state.ctx.cat || '',
+      sub: state.ctx.sub || '',
+      ssub: state.ctx.ssub || '',
+      sss: state.ctx.sss || '',
+      path: parts.join(' / '),
+      name: last
+    };
+  }
+
+  // NEW: breadcrumb render + navigate
+  function renderBreadcrumb() {
+    const bc = $('drawer-breadcrumb');
+    if (!bc) return;
+    const parts = currentPathParts();
+    bc.innerHTML = '';
+    if (!parts.length) {
+      bc.textContent = '(All Categories)';
+      return;
+    }
+    parts.forEach((p, i) => {
+      if (i) {
+        const sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.textContent = '/';
+        bc.appendChild(sep);
+      }
+      if (i === parts.length - 1) {
+        const cur = document.createElement('span');
+        cur.className = 'current';
+        cur.textContent = p;
+        bc.appendChild(cur);
+      } else {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.dataset.bcIndex = String(i);
+        a.textContent = p;
+        bc.appendChild(a);
+      }
+    });
+  }
+
+  // click handler for breadcrumb links
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-bc-index]');
+    if (!link) return;
+    e.preventDefault();
+    const idx = parseInt(link.getAttribute('data-bc-index'), 10);
+    const parts = currentPathParts().slice(0, idx + 1);
+
+    // assign parts back into ctx and set correct level
+    state.ctx.cat  = parts[0] || '';
+    state.ctx.sub  = parts[1] || '';
+    state.ctx.ssub = parts[2] || '';
+    state.ctx.sss  = parts[3] || '';
+    state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
+
+    fetchPathTx(state.ctx).catch(()=>{});
+    refreshKeywords();
+  });
+
   function renderPath() {
     const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
@@ -76,6 +144,9 @@
     // keywords header
     const kwHdr = $('kw-current-level');
     if (kwHdr) kwHdr.textContent = (p.length ? p.join(' / ') : '(All Categories)');
+
+    // NEW: render clickable breadcrumb
+    renderBreadcrumb();
   }
 
   function renderTx() {
@@ -166,23 +237,6 @@
     }
   }
 
-  function currentPathParts() {
-    return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean);
-  }
-  function currentPathPayload() {
-    const parts = currentPathParts();
-    const last = parts[parts.length-1] || '';
-    return {
-      level: state.ctx.level || 'category',
-      cat: state.ctx.cat || '',
-      sub: state.ctx.sub || '',
-      ssub: state.ctx.ssub || '',
-      sss: state.ctx.sss || '',
-      path: parts.join(' / '),
-      name: last
-    };
-  }
-
   async function fetchKeywords() {
     if (!urls.KW_GET_URL) return { keywords: [] };
     const qp = new URLSearchParams(currentPathPayload());
@@ -255,6 +309,9 @@
 
   // Export
   window.openCategoryManager = openCategoryManager;
+  // Also expose a tiny namespace for other scripts to call if needed
+  window.DRAWER = window.DRAWER || {};
+  window.DRAWER.open = openCategoryManager;
 
   // Unified click handler used by layout.html's global [data-manage] listener
   window.dashManage = function (e, el) {

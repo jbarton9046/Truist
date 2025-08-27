@@ -3,7 +3,10 @@
   <div class="offcanvas-header">
     <div class="d-flex flex-column">
       <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
-        <span id="drawer-selected-path">(All Categories)</span>
+        <!-- Breadcrumb (clickable) -->
+        <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
+        <!-- Keep original path label (now hidden) so existing JS can still update it -->
+        <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
       <div class="small text-muted">
         Month: 
@@ -26,6 +29,13 @@
       .month-divider td { font-weight:700; }
       .text-pos { color:#1e7e34; font-weight:600; }
       .text-neg { color:#c0392b; font-weight:600; }
+
+      /* Breadcrumb styles */
+      .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a { text-decoration:none; font-weight:600; }
+      .drawer-breadcrumb a:hover { text-decoration:underline; }
+      .drawer-breadcrumb .sep { color:#adb5bd; }
+      .drawer-breadcrumb .current { color:#212529; font-weight:700; cursor:default; }
     </style>
 
     <!-- Tabs -->
