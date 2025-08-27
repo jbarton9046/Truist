@@ -2,25 +2,26 @@
 // Exposes:
 //   - window.openCategoryManager(ctx)
 //   - window.dashManage(e, el)
-//   - window.openDrawerForCategory(catOrCtx, opts)  // alias/convenience
 // and tags itself with __cl_v2 = true so inline fallbacks disable themselves.
 
 (function () {
+  'use strict';
+
   if (window.openCategoryManager && window.openCategoryManager.__cl_v2 === true) {
     // Already initialized (another page load or duplicate include) — bail.
     return;
   }
 
   const urls = (window.CL_URLS || {});
+  const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
+
   const QS = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
+  const ocEl = document.getElementById('dashCategoryManager');
 
-  // Offcanvas bootstrapper (tolerates late insertion of the DOM node)
-  let ocEl = document.getElementById('dashCategoryManager');
   let offcanvas = null;
   function ensureOC() {
-    if (!ocEl) ocEl = document.getElementById('dashCategoryManager');
-    if (!offcanvas && ocEl && window.bootstrap && window.bootstrap.Offcanvas) {
+    if (!offcanvas && window.bootstrap && window.bootstrap.Offcanvas) {
       offcanvas = new bootstrap.Offcanvas(ocEl);
     }
     return offcanvas;
@@ -39,12 +40,13 @@
   // --- UI helpers ---
   function $(id) { return document.getElementById(id); }
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
-  function fmtUSD(n) { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n || 0); }
+  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n || 0); } catch { return `$${(n||0).toFixed(2)}`; } }
   function fmtDate(s) { return s || ''; }
+  function escapeHTML(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function monthKeyFromDateStr(s) {
     if (!s) return '0000-00';
-    const t = String(s);
+    const t = String(s).trim();
     if (t.includes('-')) {
       // YYYY-MM-DD or YYYY-MM
       return t.slice(0, 7);
@@ -56,7 +58,8 @@
   }
   function monthLabelFromKey(k) {
     const [y, m] = (k || '0000-00').split('-');
-    const dt = new Date(Number(y), Number(m)-1, 1);
+    const yy = Number(y), mm = Math.max(1, Math.min(12, Number(m)||1));
+    const dt = new Date(yy, mm-1, 1);
     return dt.toLocaleString(undefined, { month:'short', year:'numeric' }); // e.g., "Aug 2025"
   }
 
@@ -77,7 +80,7 @@
     };
   }
 
-  // --- Breadcrumb render + navigate ---
+  // NEW: breadcrumb render + navigate
   function renderBreadcrumb() {
     const bc = $('drawer-breadcrumb');
     if (!bc) return;
@@ -131,7 +134,7 @@
   function renderPath() {
     const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
-    setText('drawer-month', state.ctx.month || (state.months[state.months.length-1] || ''));
+    setText('drawer-month', state.ctx.month || (state.months[ state.months.length-1 ] || ''));
     const net = Number(state.total || 0);
     const netStr = `${fmtUSD(net)} net`;
     setText('drawer-total', netStr);
@@ -139,16 +142,20 @@
     // children
     const host = $('drawer-children');
     if (host) {
-      host.innerHTML = state.children.length
-        ? state.children.map(n=>`<span class="child-pill" data-child="${n}">${n}</span>`).join('')
-        : `<span class="text-muted">No children.</span>`;
+      if (state.children.length) {
+        host.innerHTML = state.children.map(n => (
+          `<span class="child-pill" data-child="${escapeHTML(n)}">${escapeHTML(n)}</span>`
+        )).join('');
+      } else {
+        host.innerHTML = `<span class="text-muted">No children.</span>`;
+      }
     }
 
     // keywords header
     const kwHdr = $('kw-current-level');
     if (kwHdr) kwHdr.textContent = (p.length ? p.join(' / ') : '(All Categories)');
 
-    // render clickable breadcrumb
+    // NEW: render clickable breadcrumb
     renderBreadcrumb();
   }
 
@@ -180,27 +187,27 @@
     for (const k of keys) {
       const g = groups.get(k);
       const net = Number(g.net || 0);
-      const netCls = net < 0 ? 'text-neg' : 'text-pos';
+      const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
       // Month divider row with NET only
-      parts.push(`
-        <tr class="month-divider">
+      parts.push(
+        `<tr class="month-divider">
           <td colspan="4">
-            ${g.label} — <span class="${netCls}">Net: ${fmtUSD(net)}</span>
+            ${escapeHTML(g.label)} — <span class="${netCls}">Net: ${fmtUSD(net)}</span>
           </td>
-        </tr>
-      `);
+        </tr>`
+      );
 
-      // The month's rows (show absolute value with color by sign, like your old table)
+      // The month's rows (show absolute value with color by sign)
       for (const t of g.items) {
-        const cls = (parseFloat(t.amount||0) < 0) ? 'text-neg' : 'text-pos';
-        parts.push(`
-          <tr>
-            <td class="text-nowrap">${fmtDate(t.date)}</td>
-            <td>${(t.description||'').replace(/</g,'&lt;')}</td>
+        const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
+        parts.push(
+          `<tr>
+            <td class="text-nowrap">${escapeHTML(fmtDate(t.date))}</td>
+            <td>${escapeHTML(t.description || '')}</td>
             <td class="text-end ${cls}">${fmtUSD(Math.abs(t.amount||0))}</td>
-            <td>${(t.category||'') + (t.subcategory?(' / '+t.subcategory):'')}</td>
-          </tr>
-        `);
+            <td>${escapeHTML((t.category||'') + (t.subcategory?(' / '+t.subcategory):''))}</td>
+          </tr>`
+        );
       }
     }
 
@@ -217,10 +224,17 @@
     if (ctx.sss)  params.set('sss',  ctx.sss);
     if (ctx.month) params.set('month', ctx.month);
     params.set('months', '12');
+    // cache bust
+    params.set('_', Date.now().toString());
 
-    const res = await fetch(`/api/path/transactions?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+    const url = `${PATH_TXN_URL}?${params.toString()}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) {
+      console.error('drawer fetchPathTx failed:', res.status, await res.text());
+      return;
+    }
     const raw = await res.json();
-    const j = raw && typeof raw === 'object' && 'data' in raw ? (raw.data || {}) : raw;
+    const j = raw && typeof raw === 'object' && 'transactions' in raw ? raw : {};
 
     state.months = j.months || [];
     state.tx = j.transactions || [];
@@ -233,16 +247,20 @@
 
     renderPath();
     renderTx();
+
     // Populate months dropdown
     const sel = $('drawer-months');
     if (sel) {
-      sel.innerHTML = (state.months || []).map(m => `<option value="${m}" ${m===state.ctx.month?'selected':''}>${m}</option>`).join('');
+      sel.innerHTML = (state.months || []).map(m => (
+        `<option value="${escapeHTML(m)}" ${m===state.ctx.month?'selected':''}>${escapeHTML(m)}</option>`
+      )).join('');
     }
   }
 
   async function fetchKeywords() {
     if (!urls.KW_GET_URL) return { keywords: [] };
     const qp = new URLSearchParams(currentPathPayload());
+    qp.set('_', Date.now().toString());
     const res = await fetch(`${urls.KW_GET_URL}?${qp.toString()}`, { headers:{'Accept':'application/json'} });
     try { return await res.json(); } catch { return { keywords: [] }; }
   }
@@ -254,36 +272,35 @@
     try {
       const data = await fetchKeywords();
       const arr = (data && (data.keywords || data.kw || data.items)) || [];
-      host.innerHTML = arr.length ? arr.map(k => `
-        <span class="kw-chip" data-kw="${k}">
-          <span>${k}</span>
-          <span class="x" title="Remove" data-action="kw-remove" data-kw="${k}">&times;</span>
-        </span>`).join('') : `<span class="text-muted">No keywords yet.</span>`;
+      host.innerHTML = arr.length ? arr.map(k =>
+        `<span class="kw-chip" data-kw="${escapeHTML(k)}">
+          <span>${escapeHTML(k)}</span>
+          <span class="x" title="Remove" data-action="kw-remove" data-kw="${escapeHTML(k)}">&times;</span>
+        </span>`
+      ).join('') : `<span class="text-muted">No keywords yet.</span>`;
     } catch (e) {
-      host.innerHTML = `<span class="text-danger">Failed to load keywords: ${e.message || e}</span>`;
+      host.innerHTML = `<span class="text-danger">Failed to load keywords: ${escapeHTML(e.message || String(e))}</span>`;
     }
   }
 
   async function addKeyword(kw) {
     if (!urls.KW_ADD_URL || !kw) return;
     const payload = { ...currentPathPayload(), keyword: kw };
-    const res = await fetch(urls.KW_ADD_URL, {
+    await fetch(urls.KW_ADD_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    return res.json();
   }
 
   async function removeKeyword(kw) {
     if (!urls.KW_REMOVE_URL || !kw) return;
     const payload = { ...currentPathPayload(), keyword: kw, remove: true };
-    const res = await fetch(urls.KW_REMOVE_URL, {
+    await fetch(urls.KW_REMOVE_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
-    return res.json();
   }
 
   // --- Public open function ---
@@ -312,14 +329,6 @@
 
   // Export
   window.openCategoryManager = openCategoryManager;
-  // Convenience alias used in some templates
-  window.openDrawerForCategory = function (catOrCtx, opts = {}) {
-    if (typeof catOrCtx === 'string') {
-      openCategoryManager({ level: 'category', cat: catOrCtx });
-    } else {
-      openCategoryManager(catOrCtx || {});
-    }
-  };
   // Also expose a tiny namespace for other scripts to call if needed
   window.DRAWER = window.DRAWER || {};
   window.DRAWER.open = openCategoryManager;

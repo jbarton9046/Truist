@@ -1,16 +1,33 @@
-# web_app/app.py 
+# web_app/app.py
+
+from __future__ import annotations
+
+# Standard library
+import json
+import os
+import subprocess
+import sys
+import sqlite3  # reserved for future use
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from time import time
-from datetime import date, datetime, timedelta
-from werkzeug.routing import BuildError
-from dateutil.relativedelta import relativedelta
-from collections import defaultdict
-from typing import Dict, Any, Optional, List
-import json
-import sqlite3  # reserved for future use
+from typing import Any, Dict, List, Optional
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
-import subprocess, sys, os
+# Third-party
+from dateutil.relativedelta import relativedelta
+from werkzeug.routing import BuildError
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
+
+# Local (unified data source for all pages)
+from truist.parser_web import (
+    generate_summary,
+    category_keywords,
+    subcategory_maps,
+    subsubcategory_maps,
+    subsubsubcategory_maps,
+)
+
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -1263,6 +1280,9 @@ def _find_node_by_path(tree: List[Dict[str, Any]], path: List[str]) -> Optional[
 
 @app.get("/api/path/transactions")
 def api_path_transactions():
+    from flask import request, jsonify
+    from datetime import datetime
+
     level = (request.args.get("level") or "category").strip().lower()
     cat   = request.args.get("cat")  or ""
     sub   = request.args.get("sub")  or ""
@@ -1283,8 +1303,40 @@ def api_path_transactions():
     since = (request.args.get("since") or "").strip()
     since_date = (request.args.get("since_date") or "").strip()
 
-    # Unified monthly build (pruned + categories rebuilt)
-    monthly, cfg_live = build_monthly()
+    # -------- UNIFIED SOURCE: build monthly via parser_web --------
+    monthly = generate_summary(category_keywords, subcategory_maps)
+
+    # Build a minimal cfg snapshot for children derivation helpers you already have
+    cfg_live = {
+        "CATEGORY_KEYWORDS": category_keywords,
+        "SUBCATEGORY_MAPS": subcategory_maps,
+        "SUBSUBCATEGORY_MAPS": subsubcategory_maps,
+        "SUBSUBSUBCATEGORY_MAPS": subsubsubcategory_maps,
+    }
+    # --------------------------------------------------------------
+
+    def _norm_month(mk: str) -> str:
+        # mk is already "YYYY-MM"
+        return mk[:7] if mk else ""
+
+    def _parse_any_date(s):
+        if not s:
+            return None
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                pass
+        try:
+            return datetime.fromisoformat(s)
+        except Exception:
+            return None
+
+    # Helper you already have elsewhere in file:
+    # _find_node_by_path(tree, parts)  -> returns node or None
+    # _cfg_children_for(level, cat, sub, ssub, cfg) -> returns list[str]
+    # _cfg_top_names(cfg) -> returns list[str]
+
     months_all_sorted = sorted(monthly.keys(), key=_norm_month)
     if not months_all_sorted:
         return jsonify({
@@ -1343,6 +1395,7 @@ def api_path_transactions():
     txs = []
     children_from_tree = set()
 
+    # Gather from the parser_web-built trees
     for mk in months_sel:
         blob = monthly.get(mk, {}) or {}
         tree = blob.get("tree") or []
@@ -1356,7 +1409,7 @@ def api_path_transactions():
                 if nm:
                     children_from_tree.add(nm)
 
-            def gather(n: Dict[str, Any]):
+            def gather(n):
                 ch = n.get("children") or []
                 if ch:
                     for c in ch:
@@ -1385,7 +1438,7 @@ def api_path_transactions():
                     if nm:
                         children_from_tree.add(nm)
 
-                def gather_all(n: Dict[str, Any]):
+                def gather_all(n):
                     ch = n.get("children") or []
                     if ch:
                         for c in ch:
@@ -1434,6 +1487,7 @@ def api_path_transactions():
         "total": total,                 # net (neg for expense categories)
         "magnitude_total": magnitude_total  # absolute total for UI bars/pills
     })
+
 
 
 # ------------------ SUBSCRIPTIONS API ------------------
