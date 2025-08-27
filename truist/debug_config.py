@@ -1,7 +1,7 @@
 # truist/debug_config.py
 from flask import Blueprint, jsonify, request
 from pathlib import Path
-import os, shutil, zipfile, io
+import os, shutil, zipfile, io, json
 from werkzeug.utils import secure_filename
 
 # Optional deeper debug imports
@@ -105,6 +105,80 @@ def init_overrides():
         dst.write_text("{}\n", encoding="utf-8")
         created = True
     return jsonify({"ok": True, "path": str(dst), "created": created})
+
+# ---- NEW: migrate keywords from categories.json -> filter_overrides.json ----
+@debug_bp.route("/debug/migrate_keywords", methods=["GET", "POST"])
+def migrate_keywords():
+    """
+    One-time migration: copy CATEGORY_KEYWORDS / SUB*MAPS / OMIT_KEYWORDS found in
+    $CONFIG_DIR/categories.json into $CONFIG_DIR/filter_overrides.json (merge).
+    Dicts are shallow-merged (overrides win). Lists are unioned (unique).
+    """
+    cfg_dir = _config_dir()
+    cats_path = cfg_dir / "categories.json"
+    ovrd_path = cfg_dir / "filter_overrides.json"
+
+    if not cats_path.exists():
+        return jsonify({"ok": False, "error": f"categories.json not found at {cats_path}"}), 404
+
+    try:
+        source = json.loads(cats_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to read categories.json: {e}"}), 500
+
+    keys = [
+        "CATEGORY_KEYWORDS",
+        "SUBCATEGORY_MAPS",
+        "SUBSUBCATEGORY_MAPS",
+        "SUBSUBSUBCATEGORY_MAPS",
+        "OMIT_KEYWORDS",
+    ]
+    picked = {k: source.get(k) for k in keys if source.get(k) is not None}
+
+    # existing overrides or empty
+    current = {}
+    if ovrd_path.exists():
+        try:
+            current = json.loads(ovrd_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Failed to read filter_overrides.json: {e}"}), 500
+
+    def merge(a, b):
+        if isinstance(a, dict) and isinstance(b, dict):
+            out = dict(a)
+            out.update(b)
+            return out
+        if isinstance(a, list) and isinstance(b, list):
+            return list(dict.fromkeys(a + b))
+        return b if b is not None else a
+
+    merged = dict(current)
+    for k, v in picked.items():
+        base = current.get(k, {} if isinstance(v, dict) else [])
+        merged[k] = merge(base, v)
+
+    try:
+        ovrd_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Failed to write overrides: {e}"}), 500
+
+    sizes = {}
+    for k in keys:
+        val = merged.get(k)
+        if isinstance(val, dict):
+            sizes[k] = len(val)
+        elif isinstance(val, list):
+            sizes[k] = len(val)
+        else:
+            sizes[k] = 0
+
+    return jsonify({
+        "ok": True,
+        "categories_json": str(cats_path),
+        "overrides_json": str(ovrd_path),
+        "migrated_keys": list(picked.keys()),
+        "overrides_sizes": sizes
+    })
 
 @debug_bp.route("/debug/seed_statements", methods=["GET"])
 def seed_statements():
