@@ -75,46 +75,55 @@ def _merge_keywords(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict
         merged[k] = v
     return merged
 
+
+# replace your existing load_cfg() with this version
 def load_cfg() -> Dict[str, Any]:
     """
-    Loads the live config from CONFIG_DIR, seeding from package defaults on first run.
-    Returns a dict you can pass to templates/APIs.
+    Loads the live config from CONFIG_DIR, seeding from repo defaults on first run.
+    Supports both layouts:
+      - <repo_root>/categories.json
+      - <repo_root>/truist/categories.json
     """
     cfg_dir = _config_dir()
 
-    # 1) Categories: seed from repo if not present on disk
-    pkg_categories = Path(__file__).with_name("categories.json")       # truist/categories.json
-    live_categories = cfg_dir / "categories.json"                      # /var/data/config/categories.json
-    _seed_if_missing(pkg_categories, live_categories)
+    # Find a seed file in the repo (either location)
+    project_root = Path(__file__).resolve().parents[1]
+    seed_candidates = [
+        project_root / "categories.json",            # repo root (your logs showed this path)
+        Path(__file__).with_name("categories.json"), # truist/categories.json
+    ]
+    pkg_categories = _first_existing(seed_candidates)
+
+    live_categories = cfg_dir / "categories.json"   # /var/data/config/categories.json
+    if pkg_categories:
+        _seed_if_missing(pkg_categories, live_categories)
+
+    # Load live categories (or {} if not present)
     categories = _load_json(live_categories, fallback={})
 
-    # 2) Keyword maps:
-    #    - defaults come from filter_config.py (code)
-    #    - optional overrides live in JSON at /var/data/config/filter_overrides.json
+    # Keyword defaults from code + optional JSON overrides
     defaults = {
         "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
         "SUBCATEGORY_MAPS": getattr(fc, "SUBCATEGORY_MAPS", {}),
         "OMIT_KEYWORDS": getattr(fc, "OMIT_KEYWORDS", []),
+        # "REFUND_KEYWORDS": getattr(fc, "REFUND_KEYWORDS", []),  # add if you expose in UI
     }
     overrides_path = cfg_dir / "filter_overrides.json"
     overrides = _load_json(overrides_path, fallback={})
-
     merged = _merge_keywords(defaults, overrides)
 
-    # 3) Return a unified config blob (and useful paths for save handlers)
     return {
         "CATEGORIES": categories,
         "CATEGORY_KEYWORDS": merged.get("CATEGORY_KEYWORDS", {}),
         "SUBCATEGORY_MAPS": merged.get("SUBCATEGORY_MAPS", {}),
         "OMIT_KEYWORDS": merged.get("OMIT_KEYWORDS", []),
-
-        # paths your save endpoints should write to:
         "_PATHS": {
             "CONFIG_DIR": str(cfg_dir),
             "CATEGORIES_PATH": str(live_categories),
             "KEYWORD_OVERRIDES_PATH": str(overrides_path),
         },
     }
+
 
 
     # Bootstrap from Python config (first run / no JSON yet)
@@ -1462,6 +1471,13 @@ def list_misc_transactions():
         summary_data = {}
 
     # Helpers
+
+    def _first_existing(paths):
+        for p in paths:
+            if p and Path(p).exists():
+                return Path(p)
+        return None
+
     def _walk(node, ancestors):
         yield node, ancestors
         for ch in (node.get("children") or []):

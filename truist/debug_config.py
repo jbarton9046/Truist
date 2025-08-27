@@ -52,17 +52,27 @@ def debug_config():
 @debug_bp.route("/debug/seed_categories", methods=["GET", "POST"])
 def seed_categories():
     """
-    Seed $CONFIG_DIR/categories.json from truist/categories.json.
+    Seed $CONFIG_DIR/categories.json from the repo.
+    Supports both repo layouts:
+      - <repo_root>/categories.json
+      - <repo_root>/truist/categories.json
     Add ?force=1 to overwrite if it already exists.
     """
     p = _config_dir()
     p.mkdir(parents=True, exist_ok=True)
-    src = Path(__file__).with_name("categories.json")   # truist/categories.json
+
+    here = Path(__file__).resolve()
+    project_root = here.parents[1]
+    seed_candidates = [
+        project_root / "categories.json",   # repo root
+        here.with_name("categories.json"),  # truist/categories.json
+    ]
+    src = _first_existing(seed_candidates)
+    if not src:
+        return jsonify({"ok": False, "error": "No seed categories.json found in repo root or truist/"}), 500
+
     dst = p / "categories.json"
     force = str(request.args.get("force", "0")).lower() in {"1", "true", "yes", "on"}
-
-    if not src.exists():
-        return jsonify({"ok": False, "error": f"Seed file not found at {src}"}), 500
 
     if dst.exists() and not force:
         return jsonify({
@@ -72,9 +82,8 @@ def seed_categories():
         }), 200
 
     dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-    return jsonify({"ok": True, "seeded": True, "path": str(dst)})
+    return jsonify({"ok": True, "seeded": True, "from": str(src), "to": str(dst)})
 
-@debug_bp.route("/debug/init_overrides", methods=["GET", "POST"])
 def init_overrides():
     """
     Ensure $CONFIG_DIR/filter_overrides.json exists (create empty {} if missing).
