@@ -1,6 +1,7 @@
-# truist/parser_web.py
 import json
 import re
+import os
+import csv
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -14,8 +15,8 @@ JSON_PATH = None  # set by _load_category_config()
 def _load_category_config():
     global JSON_PATH
 
-    base_dir = Path(__file__).resolve().parent   # .../Truist/truist
-    project_root = base_dir.parent               # ✅ .../Truist
+    base_dir = Path(__file__).resolve().parent   # .../truist
+    project_root = base_dir.parents[1]           # .../<repo_root>
 
     # Prefer the same JSON the Category Builder uses (project root),
     # but fall back to the local one if needed.
@@ -80,7 +81,8 @@ if JSON_PATH:
 def _parse_any_date(s: str):
     if not s:
         return None
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+    s = str(s).strip()
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
         try:
             return datetime.strptime(s, fmt)
         except ValueError:
@@ -149,6 +151,7 @@ def _is_return(desc: str) -> bool:
         kws = ("RETURN", "REFUND", "REVERSAL")
     return any(k.upper() in U for k in kws)
 
+
 def _expense_amount(raw_amount: float, is_return: bool) -> float:
     """
     Convert a raw signed amount into 'expense space':
@@ -158,6 +161,183 @@ def _expense_amount(raw_amount: float, is_return: bool) -> float:
     """
     base = abs(float(raw_amount))
     return -base if is_return else base
+
+
+# === Statements discovery (disk first, then repo fallbacks) ===
+def _candidate_statement_dirs():
+    """Ordered search paths for statements (disk first, then repo fallbacks)."""
+    here = Path(__file__).resolve()
+    project_root = here.parents[1]
+    env_dir = os.environ.get("STATEMENTS_DIR")
+    dirs = []
+    if env_dir:
+        dirs.append(Path(env_dir))
+    dirs.append(Path("/var/data/statements"))
+    dirs.append(project_root / "statements")
+    dirs.append(here.parent / "statements")   # truist/statements
+    dirs.append(Path.cwd() / "statements")
+    return dirs
+
+
+def get_statements_base_dir() -> Path:
+    """First existing candidate; falls back to /var/data/statements."""
+    for d in _candidate_statement_dirs():
+        if d.exists():
+            return d
+    return Path("/var/data/statements")
+
+
+def discover_statement_files():
+    """Find CSV/JSON statements across candidate dirs (flat or nested)."""
+    exts = {".csv", ".json"}
+    files = []
+    for base in _candidate_statement_dirs():
+        if base.exists():
+            files.extend(
+                p for p in base.rglob("*")
+                if p.is_file() and p.suffix.lower() in exts
+            )
+    return files
+
+
+# === File loaders ===
+def _parse_money(s: str) -> float:
+    if s is None:
+        return 0.0
+    t = str(s).strip()
+    if t == "":
+        return 0.0
+    # Handle parentheses for negatives and $/commas
+    neg = False
+    if t.startswith("(") and t.endswith(")"):
+        neg = True
+        t = t[1:-1]
+    t = t.replace("$", "").replace(",", "")
+    try:
+        v = float(t)
+    except Exception:
+        # Sometimes "1,234.56-" or "-1,234.56" or "CR"/"DR"
+        t2 = t.replace("-", "")
+        try:
+            v = float(t2)
+            if "-" in t:
+                neg = True
+        except Exception:
+            return 0.0
+    return -v if neg else v
+
+
+def load_json_transactions(file_path: Path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    # Some JSON dumps are {"transactions":[...]} — normalize
+    if isinstance(data, dict) and "transactions" in data and isinstance(data["transactions"], list):
+        return data["transactions"]
+    return data if isinstance(data, list) else []
+
+
+def load_csv_transactions(file_path: Path):
+    """Robust CSV reader for common bank exports (Amount OR Debit/Credit forms)."""
+    rows = []
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        reader = csv.DictReader(f)
+        headers = [h.strip().upper() for h in (reader.fieldnames or [])]
+
+        # Candidate columns
+        date_cols = ["DATE", "POSTED DATE", "TRANSACTION DATE", "DATE POSTED"]
+        desc_cols = ["DESCRIPTION", "MEMO", "NAME", "TRANSACTION DESCRIPTION", "DETAILS"]
+        amt_cols  = ["AMOUNT", "TRANSACTION AMOUNT", "AMT"]
+        debit_cols = ["DEBIT", "WITHDRAWAL"]
+        credit_cols = ["CREDIT", "DEPOSIT"]
+
+        def pick(colnames):
+            for c in colnames:
+                if c in headers:
+                    return c
+            return None
+
+        DATE = pick(date_cols)
+        DESC = pick(desc_cols)
+
+        # Amount logic
+        AMOUNT = pick(amt_cols)
+        DEBIT  = pick(debit_cols)
+        CREDIT = pick(credit_cols)
+
+        for raw in reader:
+            # Normalize keys to upper for safe access
+            row = { (k or "").strip().upper(): v for k, v in raw.items() }
+
+            # Date
+            ds = row.get(DATE or "", "") if DATE else ""
+            dt = _parse_any_date(ds)
+            if not dt:
+                # try alternative date columns ad-hoc
+                for alt in date_cols:
+                    ds = row.get(alt, "")
+                    dt = _parse_any_date(ds)
+                    if dt:
+                        break
+            if not dt:
+                continue  # skip if we can't parse a date
+
+            # Description
+            desc = clean_description(row.get(DESC or "", "")) if DESC else ""
+            if not desc:
+                for alt in desc_cols:
+                    v = row.get(alt, "")
+                    if v:
+                        desc = clean_description(v)
+                        break
+
+            # Amount
+            if AMOUNT:
+                raw_amt = _parse_money(row.get(AMOUNT, "0"))
+            elif DEBIT or CREDIT:
+                d = _parse_money(row.get(DEBIT or "", "0"))
+                c = _parse_money(row.get(CREDIT or "", "0"))
+                # Some exports use positive numbers; treat debit as negative, credit as positive
+                if d and c:
+                    raw_amt = c - d
+                elif d:
+                    raw_amt = -abs(d)
+                else:
+                    raw_amt = abs(c)
+            else:
+                # Fallback: look for any numeric-looking field named like *AMOUNT*
+                candidates = [k for k in row.keys() if "AMOUNT" in k]
+                raw_amt = _parse_money(row.get(candidates[0], "0")) if candidates else 0.0
+
+            rows.append({
+                "date": dt.strftime("%Y-%m-%d"),  # normalized later
+                "amount": raw_amt,
+                "description": desc,
+                "pending": False,
+            })
+    return rows
+
+
+
+def load_manual_transactions(file_path: Path):
+    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
+    transactions = []
+    if not file_path.exists():
+        return transactions
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            tx = json.loads(line)
+            tx["amount"] = float(tx["amount"])
+            tx["description"] = clean_description(tx.get("description", ""))
+            dt = _parse_any_date(tx.get("date", ""))
+            if dt:
+                tx["date"] = dt.strftime("%m/%d/%Y")
+            # mark return + compute expense_amount for manual rows too
+            tx["is_return"] = _is_return(tx["description"])
+            tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
+            transactions.append(tx)
+    return transactions
 
 
 def categorize_transaction(desc, amount, category_keywords):
@@ -200,29 +380,104 @@ def categorize_transaction(desc, amount, category_keywords):
     return "Miscellaneous"
 
 
-def load_json_transactions(file_path: Path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+def _iter_all_raw_transactions():
+    """Yield raw transaction dicts from discovered CSV and JSON files (skipping non-tx JSON)."""
+    files = discover_statement_files()
+    for file in files:
+        ext = file.suffix.lower()
+        if ext == ".json":
+            # Avoid clearly non-transaction JSON files
+            nm = file.name.lower()
+            if nm in {"access_token.json", "token.json"}:
+                continue
+            if not (nm.startswith(("plaid_", "transactions_")) or nm in {"all_transactions.json", "manual_transactions.json"}):
+                # only process known transaction dumps to avoid surprises
+                continue
+            try:
+                data = load_json_transactions(file)
+            except Exception:
+                continue
+            for tx in data:
+                yield tx
+        elif ext == ".csv":
+            try:
+                data = load_csv_transactions(file)
+            except Exception:
+                continue
+            for tx in data:
+                yield tx
 
 
-def load_manual_transactions(file_path: Path):
-    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
-    transactions = []
-    if not file_path.exists():
-        return transactions
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            tx = json.loads(line)
-            tx["amount"] = float(tx["amount"])
-            tx["description"] = clean_description(tx.get("description", ""))
-            dt = _parse_any_date(tx.get("date", ""))
-            if dt:
-                tx["date"] = dt.strftime("%m/%d/%Y")
-            # mark return + compute expense_amount for manual rows too
-            tx["is_return"] = _is_return(tx["description"])
-            tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
-            transactions.append(tx)
-    return transactions
+def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
+    """Normalize one raw row into our internal tx dict."""
+    # Skip pending
+    if isinstance(raw, dict) and raw.get("pending", False):
+        return None
+
+    # Extract date
+    date_str = None
+    if isinstance(raw, dict):
+        date_str = raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED")
+    dt = _parse_any_date(date_str)
+    if not dt:
+        return None
+
+    # Extract amount
+    try:
+        raw_amt = float(raw.get("amount"))
+    except Exception:
+        # try common variants
+        for key in ["AMOUNT", "transaction_amount", "TRANSACTION AMOUNT"]:
+            if key in raw:
+                try:
+                    raw_amt = float(raw[key])
+                except Exception:
+                    raw_amt = 0.0
+                break
+        else:
+            raw_amt = 0.0
+
+    # Description
+    desc = clean_description(
+        raw.get("description")
+        or raw.get("name", "")
+        or raw.get("merchant_name", "")
+        or raw.get("desc", "")
+        or ""
+    )
+
+    # Custom exact-key override
+    custom_key = f"{desc} - ${round(raw_amt, 2)}"
+    if custom_tx_keywords_live and custom_key in custom_tx_keywords_live:
+        category = custom_tx_keywords_live[custom_key]["category"]
+        subcategory = custom_tx_keywords_live[custom_key].get("subcategory")
+    else:
+        category = categorize_transaction(desc, raw_amt, category_keywords)
+        subcategory = None  # matched later
+
+    # Return/expense math
+    is_return = _is_return(desc)
+    expense_amount = _expense_amount(raw_amt, is_return)
+
+    # UI sign logic
+    if category == "Income":
+        norm_amount = abs(raw_amt)
+    else:
+        norm_amount = abs(raw_amt) if is_return else -abs(raw_amt)
+
+    tx = {
+        "date": dt.strftime("%m/%d/%Y"),
+        "amount": norm_amount,            # UI/sign logic
+        "category": category,
+        "description": desc,
+        "is_return": is_return,
+        "expense_amount": expense_amount  # category math
+    }
+    if subcategory:
+        tx["subcategory"] = subcategory
+    if category == "Transfers":
+        tx["is_transfer"] = True
+    return tx
 
 
 def _build_tree_from_categories(categories_dict):
@@ -287,70 +542,17 @@ def generate_summary(category_keywords, subcategory_maps):
         _src,
     ) = _load_category_config()
 
-    # Paths relative to this file (truist/)
-    base_dir = Path(__file__).resolve().parent
-    statements_dir = base_dir / "statements"
-    manual_file = statements_dir / "manual_transactions.json"
+    # Use discovered base dir for manual entries
+    statements_base = get_statements_base_dir()
+    manual_file = statements_base / "manual_transactions.json"
 
     all_tx = []
 
-    # Load Plaid/combined JSON files
-    for file in statements_dir.glob("*.json"):
-        if file.name.startswith(("plaid_", "transactions_")) or file.name == "all_transactions.json":
-            try:
-                data = load_json_transactions(file)
-            except Exception:
-                continue
-
-            for tx in data:
-                # Skip pending
-                if tx.get("pending", False):
-                    continue
-
-                # Parse date (Plaid uses YYYY-MM-DD)
-                dt = _parse_any_date(tx.get("date", ""))
-                if not dt:
-                    continue
-
-                raw_amt = float(tx.get("amount", 0))
-                desc = clean_description(tx.get("name", "") or tx.get("merchant_name", "") or tx.get("description", ""))
-
-                # Custom exact-key override
-                custom_key = f"{desc} - ${round(raw_amt, 2)}"
-                if custom_tx_keywords_live and custom_key in custom_tx_keywords_live:
-                    category = custom_tx_keywords_live[custom_key]["category"]
-                    subcategory = custom_tx_keywords_live[custom_key].get("subcategory")
-                else:
-                    category = categorize_transaction(desc, raw_amt, category_keywords)
-                    subcategory = None  # matched later or forced by manual entries
-
-                # NEW: mark return + compute expense_amount for category math
-                is_return = _is_return(desc)
-                expense_amount = _expense_amount(raw_amt, is_return)
-
-                # Keep UI-normalized sign for tx['amount']:
-                #  - Income: positive
-                #  - Non-income purchase: negative
-                #  - Non-income RETURN: positive (so UI can show green)
-                if category == "Income":
-                    norm_amount = abs(raw_amt)
-                else:
-                    norm_amount = abs(raw_amt) if is_return else -abs(raw_amt)
-
-                tx_dict = {
-                    "date": dt.strftime("%m/%d/%Y"),
-                    "amount": norm_amount,           # UI/sign logic
-                    "category": category,
-                    "description": desc,
-                    "is_return": is_return,
-                    "expense_amount": expense_amount # category math (+spend, -return)
-                }
-                if subcategory:
-                    tx_dict["subcategory"] = subcategory
-                if category == "Transfers":
-                    tx_dict["is_transfer"] = True
-
-                all_tx.append(tx_dict)
+    # Load from both JSON and CSV sources discovered on disk/repo
+    for raw in _iter_all_raw_transactions():
+        tx = _tx_from_raw(raw, category_keywords, custom_tx_keywords_live)
+        if tx:
+            all_tx.append(tx)
 
     # Load manual entries (already normalized above)
     all_tx.extend(load_manual_transactions(manual_file))
@@ -387,9 +589,6 @@ def generate_summary(category_keywords, subcategory_maps):
 
     # Deduplicate (keeps one per (date, signed_amount, category))
     all_tx = deduplicate(all_tx)
-
-    # NOTE: Removed the old credit/debit "offset matcher" so that legitimate returns
-    #       remain in the dataset and properly subtract from category totals.
 
     # Sort safely regardless of input date format
     all_tx.sort(key=lambda t: _parse_any_date(t.get("date") or "") or datetime.min)
@@ -780,61 +979,44 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
     # Fresh config
     ck, sm, ss, sss_map, _custom, omit_live, _src = _load_category_config()
 
-    base_dir = Path(__file__).resolve().parent
-    statements_dir = base_dir / "statements"
-    manual_file = statements_dir / "manual_transactions.json"
+    # Use discovered base for manual
+    statements_base = get_statements_base_dir()
+    manual_file = statements_base / "manual_transactions.json"
 
     rows = []
 
-    # --- Load Plaid/combined JSON files (same sources as generate_summary) ---
-    for file in statements_dir.glob("*.json"):
-        if file.name.startswith(("plaid_", "transactions_")) or file.name == "all_transactions.json":
-            try:
-                data = load_json_transactions(file)
-            except Exception:
-                continue
+    # --- Load from discovered sources (JSON + CSV) ---
+    for raw in _iter_all_raw_transactions():
+        # Basic normalize like generate_summary (but we don't need custom override here)
+        # We still use categorize_transaction to place into categories
+        if isinstance(raw, dict) and raw.get("pending", False):
+            continue
+        dt = _parse_any_date(raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED"))
+        if not dt:
+            continue
+        try:
+            raw_amt = float(raw.get("amount"))
+        except Exception:
+            raw_amt = 0.0
+        desc = clean_description(
+            raw.get("description") or raw.get("name", "") or raw.get("merchant_name", "") or raw.get("desc", "") or ""
+        )
 
-            for tx in data:
-                # Skip pending
-                if tx.get("pending", False):
-                    continue
+        category = categorize_transaction(desc, raw_amt, ck)
+        is_return = _is_return(desc)
+        if category == "Income":
+            amt = abs(raw_amt)
+        else:
+            amt = abs(raw_amt) if is_return else -abs(raw_amt)
 
-                dt = _parse_any_date(tx.get("date", ""))
-                if not dt:
-                    continue
-
-                raw_amt = float(tx.get("amount", 0))
-                desc = clean_description(tx.get("name", "") or tx.get("merchant_name", "") or tx.get("description", ""))
-
-                # Categorize
-                category = categorize_transaction(desc, raw_amt, ck)
-                subcategory = None
-                subsub = None
-
-                # NEW: mark return for row badges if needed
-                is_return = _is_return(desc)
-
-                # Normalize UI sign like generate_summary:
-                # income => +; expense purchase => -; expense return => +
-                if category == "Income":
-                    amt = abs(raw_amt)
-                else:
-                    amt = abs(raw_amt) if is_return else -abs(raw_amt)
-
-                row = {
-                    "date": dt.strftime("%m/%d/%Y"),
-                    "amount": amt,
-                    "category": category,
-                    "description": desc,
-                    "is_return": is_return,
-                }
-                if subcategory:
-                    row["subcategory"] = subcategory
-                if subsub:
-                    row["sub_subcategory"] = subsub
-                if category == "Transfers":
-                    row["is_transfer"] = True
-                rows.append(row)
+        row = {
+            "date": dt.strftime("%m/%d/%Y"),
+            "amount": amt,
+            "category": category,
+            "description": desc,
+            "is_return": is_return,
+        }
+        rows.append(row)
 
     # --- Load manual entries ---
     rows.extend(load_manual_transactions(manual_file))
@@ -919,11 +1101,9 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
     kept.sort(key=lambda t: _parse_any_date(t.get("date") or "") or datetime.min, reverse=True)
 
     # --- Path filter ---
-    # --- Path filter ---
     def _norm(x):
         return (x or "").strip().lower()
 
-    # normalize requested path once
     req_cat  = _norm(cat)
     req_sub  = _norm(sub)
     req_ssub = _norm(ssub)
