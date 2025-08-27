@@ -69,11 +69,38 @@ def _load_json(path: Path, fallback: Any) -> Any:
         return fallback
 
 def _merge_keywords(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
-    """Shallow-merge dicts for editable parts (override wins)."""
-    merged = dict(defaults)
-    for k, v in overrides.items():
-        merged[k] = v
+    """
+    Shallow-merge dicts and union lists so overrides ADD to defaults instead of replacing them.
+    - Dicts: defaults + overrides (override wins per key)
+    - Lists: union unique (defaults first, then overrides)
+    - Other types: overrides replace defaults
+    """
+    merged: Dict[str, Any] = {}
+
+    # First, copy all default keys
+    for key, def_val in defaults.items():
+        if key not in overrides:
+            merged[key] = def_val
+            continue
+
+        over_val = overrides[key]
+        if isinstance(def_val, dict) and isinstance(over_val, dict):
+            tmp = dict(def_val)
+            tmp.update(over_val)
+            merged[key] = tmp
+        elif isinstance(def_val, list) and isinstance(over_val, list):
+            merged[key] = list(dict.fromkeys(def_val + over_val))
+        else:
+            # Fallback: override wins
+            merged[key] = over_val
+
+    # Include any keys that exist only in overrides
+    for key, over_val in overrides.items():
+        if key not in merged:
+            merged[key] = over_val
+
     return merged
+
 
 
 # replace your existing load_cfg() with this version
