@@ -15,7 +15,15 @@ import subprocess, sys, os
 # ---- Flask app ----
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")
- # enables flash()
+# enables flash()
+
+# ---- Debug endpoints (temporary) ----
+from truist.debug_config import debug_bp
+app.register_blueprint(debug_bp)
+
+# Optional: log where CONFIG_DIR points on boot
+app.logger.info(f"[Config] Using CONFIG_DIR={os.environ.get('CONFIG_DIR')}")
+
 
 # ---- Blueprints (admin UI + keyword APIs) ----
 from truist.admin_categories import admin_categories_bp, load_cfg
