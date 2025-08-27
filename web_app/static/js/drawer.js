@@ -1,3 +1,4 @@
+
 // static/js/drawer.js — single source of truth for the drawer behavior.
 // Exposes:
 //   - window.openCategoryManager(ctx)
@@ -8,7 +9,6 @@
   'use strict';
 
   if (window.openCategoryManager && window.openCategoryManager.__cl_v2 === true) {
-    // Already initialized (another page load or duplicate include) — bail.
     return;
   }
 
@@ -40,27 +40,26 @@
   // --- UI helpers ---
   function $(id) { return document.getElementById(id); }
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
-  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n || 0); } catch { return `$${(n||0).toFixed(2)}`; } }
+  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n || 0); } catch { return '$' + Number(n||0).toFixed(2); } }
   function fmtDate(s) { return s || ''; }
-  function escapeHTML(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function escapeHTML(s) { return String(s || '').replace(/[&<>"']/g, function(c){ return ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" })[c] || c; }); }
 
   function monthKeyFromDateStr(s) {
     if (!s) return '0000-00';
     const t = String(s).trim();
     if (t.includes('-')) {
-      // YYYY-MM-DD or YYYY-MM
       return t.slice(0, 7);
     }
-    // MM/DD/YYYY
-    const [mm, , yyyy] = t.split('/');
-    if (yyyy && mm) return `${yyyy}-${String(mm).padStart(2,'0')}`;
+    const parts = t.split('/');
+    const mm = parts[0], yyyy = parts[2];
+    if (yyyy && mm) return yyyy + '-' + String(mm).padStart(2,'0');
     return '0000-00';
   }
   function monthLabelFromKey(k) {
-    const [y, m] = (k || '0000-00').split('-');
-    const yy = Number(y), mm = Math.max(1, Math.min(12, Number(m)||1));
+    const parts = (k || '0000-00').split('-');
+    const yy = Number(parts[0] || 0), mm = Math.max(1, Math.min(12, Number(parts[1]||1)));
     const dt = new Date(yy, mm-1, 1);
-    return dt.toLocaleString(undefined, { month:'short', year:'numeric' }); // e.g., "Aug 2025"
+    return dt.toLocaleString(undefined, { month:'short', year:'numeric' });
   }
 
   function currentPathParts() {
@@ -80,7 +79,6 @@
     };
   }
 
-  // NEW: breadcrumb render + navigate
   function renderBreadcrumb() {
     const bc = $('drawer-breadcrumb');
     if (!bc) return;
@@ -112,7 +110,6 @@
     });
   }
 
-  // click handler for breadcrumb links
   document.addEventListener('click', (e) => {
     const link = e.target.closest('a[data-bc-index]');
     if (!link) return;
@@ -120,7 +117,6 @@
     const idx = parseInt(link.getAttribute('data-bc-index'), 10);
     const parts = currentPathParts().slice(0, idx + 1);
 
-    // assign parts back into ctx and set correct level
     state.ctx.cat  = parts[0] || '';
     state.ctx.sub  = parts[1] || '';
     state.ctx.ssub = parts[2] || '';
@@ -136,26 +132,23 @@
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
     setText('drawer-month', state.ctx.month || (state.months[ state.months.length-1 ] || ''));
     const net = Number(state.total || 0);
-    const netStr = `${fmtUSD(net)} net`;
+    const netStr = fmtUSD(net) + ' net';
     setText('drawer-total', netStr);
 
-    // children
     const host = $('drawer-children');
     if (host) {
       if (state.children.length) {
         host.innerHTML = state.children.map(n => (
-          `<span class="child-pill" data-child="${escapeHTML(n)}">${escapeHTML(n)}</span>`
+          '<span class="child-pill" data-child="' + escapeHTML(n) + '">' + escapeHTML(n) + '</span>'
         )).join('');
       } else {
-        host.innerHTML = `<span class="text-muted">No children.</span>`;
+        host.innerHTML = '<span class="text-muted">No children.</span>';
       }
     }
 
-    // keywords header
     const kwHdr = $('kw-current-level');
     if (kwHdr) kwHdr.textContent = (p.length ? p.join(' / ') : '(All Categories)');
 
-    // NEW: render clickable breadcrumb
     renderBreadcrumb();
   }
 
@@ -165,12 +158,11 @@
     const rows = state.tx || [];
 
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="4" class="text-muted">No transactions.</td></tr>`;
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
       return;
     }
 
-    // Group by month key and compute NET only (signed sum)
-    const groups = new Map(); // key -> {label, items:[], net}
+    const groups = new Map();
     for (const t of rows) {
       const key = monthKeyFromDateStr(t.date);
       if (!groups.has(key)) groups.set(key, { label: monthLabelFromKey(key), items: [], net: 0 });
@@ -180,7 +172,6 @@
       g.net += amt;
     }
 
-    // Sort groups by month desc
     const keys = Array.from(groups.keys()).sort().reverse();
 
     const parts = [];
@@ -188,25 +179,22 @@
       const g = groups.get(k);
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
-      // Month divider row with NET only
       parts.push(
-        `<tr class="month-divider">
-          <td colspan="4">
-            ${escapeHTML(g.label)} — <span class="${netCls}">Net: ${fmtUSD(net)}</span>
-          </td>
-        </tr>`
+        '<tr class="month-divider">\n' +
+        '  <td colspan="4">' +
+           escapeHTML(g.label) + ' — <span class="' + netCls + '">Net: ' + fmtUSD(net) + '</span>' +
+        '  </td>\n' +
+        '</tr>'
       );
-
-      // The month's rows (show absolute value with color by sign)
       for (const t of g.items) {
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
         parts.push(
-          `<tr>
-            <td class="text-nowrap">${escapeHTML(fmtDate(t.date))}</td>
-            <td>${escapeHTML(t.description || '')}</td>
-            <td class="text-end ${cls}">${fmtUSD(Math.abs(t.amount||0))}</td>
-            <td>${escapeHTML((t.category||'') + (t.subcategory?(' / '+t.subcategory):''))}</td>
-          </tr>`
+          '<tr>\n' +
+          '  <td class="text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
+          '  <td>' + escapeHTML(t.description || '') + '</td>\n' +
+          '  <td class="text-end ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
+          '  <td>' + escapeHTML((t.category||"") + (t.subcategory?(" / "+t.subcategory):"")) + '</td>\n' +
+          '</tr>'
         );
       }
     }
@@ -224,36 +212,31 @@
     if (ctx.sss)  params.set('sss',  ctx.sss);
     if (ctx.month) params.set('month', ctx.month);
     params.set('months', '12');
-    // cache bust
     params.set('_', Date.now().toString());
 
-    const url = `${PATH_TXN_URL}?${params.toString()}`;
+    const url = PATH_TXN_URL + '?' + params.toString();
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       console.error('drawer fetchPathTx failed:', res.status, await res.text());
       return;
     }
-    const raw = await res.json();
-    const j = raw && typeof raw === 'object' && 'transactions' in raw ? raw : {};
+    const j = await res.json();
 
     state.months = j.months || [];
     state.tx = j.transactions || [];
     state.children = j.children || [];
     state.total = j.total || 0;
     state.magnitude_total = j.magnitude_total || 0;
-
-    // If no explicit month selected, default to server focus month
     state.ctx.month = ctx.month || j.month || '';
 
     renderPath();
     renderTx();
 
-    // Populate months dropdown
     const sel = $('drawer-months');
     if (sel) {
-      sel.innerHTML = (state.months || []).map(m => (
-        `<option value="${escapeHTML(m)}" ${m===state.ctx.month?'selected':''}>${escapeHTML(m)}</option>`
-      )).join('');
+      sel.innerHTML = (state.months || []).map(function(m){
+        return '<option value="' + escapeHTML(m) + '" ' + (m===state.ctx.month?'selected':'') + '>' + escapeHTML(m) + '</option>';
+      }).join('');
     }
   }
 
@@ -261,7 +244,7 @@
     if (!urls.KW_GET_URL) return { keywords: [] };
     const qp = new URLSearchParams(currentPathPayload());
     qp.set('_', Date.now().toString());
-    const res = await fetch(`${urls.KW_GET_URL}?${qp.toString()}`, { headers:{'Accept':'application/json'} });
+    const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
     try { return await res.json(); } catch { return { keywords: [] }; }
   }
 
@@ -272,20 +255,20 @@
     try {
       const data = await fetchKeywords();
       const arr = (data && (data.keywords || data.kw || data.items)) || [];
-      host.innerHTML = arr.length ? arr.map(k =>
-        `<span class="kw-chip" data-kw="${escapeHTML(k)}">
-          <span>${escapeHTML(k)}</span>
-          <span class="x" title="Remove" data-action="kw-remove" data-kw="${escapeHTML(k)}">&times;</span>
-        </span>`
-      ).join('') : `<span class="text-muted">No keywords yet.</span>`;
+      host.innerHTML = arr.length ? arr.map(function(k){
+        return '<span class="kw-chip" data-kw="' + escapeHTML(k) + '">' +
+               '  <span>' + escapeHTML(k) + '</span>' +
+               '  <span class="x" title="Remove" data-action="kw-remove" data-kw="' + escapeHTML(k) + '">&times;</span>' +
+               '</span>';
+      }).join('') : '<span class="text-muted">No keywords yet.</span>';
     } catch (e) {
-      host.innerHTML = `<span class="text-danger">Failed to load keywords: ${escapeHTML(e.message || String(e))}</span>`;
+      host.innerHTML = '<span class="text-danger">Failed to load keywords: ' + escapeHTML(e.message || String(e)) + '</span>';
     }
   }
 
   async function addKeyword(kw) {
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = { ...currentPathPayload(), keyword: kw };
+    const payload = Object.assign({}, currentPathPayload(), { keyword: kw });
     await fetch(urls.KW_ADD_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -295,7 +278,7 @@
 
   async function removeKeyword(kw) {
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = { ...currentPathPayload(), keyword: kw, remove: true };
+    const payload = Object.assign({}, currentPathPayload(), { keyword: kw, remove: true });
     await fetch(urls.KW_REMOVE_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -303,12 +286,10 @@
     });
   }
 
-  // --- Public open function ---
   function openCategoryManager(ctx) {
     ensureOC();
     if (offcanvas) offcanvas.show();
 
-    // Normalize ctx
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
       cat:   (ctx && ctx.cat)   || '',
@@ -318,22 +299,15 @@
       month: (ctx && ctx.month) || ''
     };
 
-    fetchPathTx(state.ctx).catch(err => {
-      console.error('drawer fetchPathTx failed:', err);
-    });
-
-    // refresh keywords for the current selection
+    fetchPathTx(state.ctx).catch(function(err){ console.error('drawer fetchPathTx failed:', err); });
     refreshKeywords();
   }
-  openCategoryManager.__cl_v2 = true; // <— important flag to defeat inline bootstrap
+  openCategoryManager.__cl_v2 = true;
 
-  // Export
   window.openCategoryManager = openCategoryManager;
-  // Also expose a tiny namespace for other scripts to call if needed
   window.DRAWER = window.DRAWER || {};
   window.DRAWER.open = openCategoryManager;
 
-  // Unified click handler used by layout.html's global [data-manage] listener
   window.dashManage = function (e, el) {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     const ctx = {
@@ -348,41 +322,34 @@
     return false;
   };
 
-  // --- Wire UI events inside the drawer ---
-  // Tabs: when switching to "keywords", refresh so you always see the current list
-  QSA('.drawer-tab').forEach(tab=>{
-    tab.addEventListener('click', (e)=>{
+  QSA('.drawer-tab').forEach(function(tab){
+    tab.addEventListener('click', function(e){
       e.preventDefault();
       const target = tab.getAttribute('data-tab');
-      QSA('.drawer-tab').forEach(t=>t.classList.remove('active'));
-      QSA('.drawer-pane').forEach(p=>p.style.display='none');
+      QSA('.drawer-tab').forEach(function(t){ t.classList.remove('active'); });
+      QSA('.drawer-pane').forEach(function(p){ p.style.display='none'; });
       tab.classList.add('active');
-      const pane = QS(`.drawer-pane[data-pane="${target}"]`);
+      const pane = QS('.drawer-pane[data-pane="' + target + '"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
     });
   });
 
-  // Month switch
   const monthSel = $('drawer-months');
   if (monthSel) {
-    monthSel.addEventListener('change', (e)=>{
+    monthSel.addEventListener('change', function(e){
       state.ctx.month = e.target.value || '';
-      fetchPathTx(state.ctx).catch(()=>{});
-      // keep keywords pane fresh if it's visible
+      fetchPathTx(state.ctx).catch(function(){});
       const active = QS('.drawer-tab.active');
       if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
     });
   }
 
-  // Click a child-pill to drill in one level
-  document.addEventListener('click', (e)=>{
+  document.addEventListener('click', function(e){
     const pill = e.target.closest('.child-pill');
     if (!pill) return;
     const name = pill.getAttribute('data-child') || '';
-    // Determine next level slot to fill
     if (state.ctx.sss) {
-      // already deepest; do nothing
       return;
     } else if (state.ctx.ssub) {
       state.ctx.sss = name;
@@ -397,16 +364,15 @@
       state.ctx.cat = name;
       state.ctx.level = 'category';
     }
-    fetchPathTx(state.ctx).catch(()=>{});
+    fetchPathTx(state.ctx).catch(function(){});
     refreshKeywords();
   });
 
-  // Keyword add/remove
   const kwInput = $('kw-add-input');
   const kwAddBtn = $('kw-add-btn');
 
   if (kwAddBtn) {
-    kwAddBtn.addEventListener('click', async ()=>{
+    kwAddBtn.addEventListener('click', async function(){
       const kw = (kwInput && kwInput.value || '').trim();
       if (!kw) return;
       await addKeyword(kw);
@@ -415,7 +381,7 @@
     });
   }
   if (kwInput) {
-    kwInput.addEventListener('keydown', async (e)=>{
+    kwInput.addEventListener('keydown', async function(e){
       if (e.key === 'Enter') {
         const kw = (kwInput.value || '').trim();
         if (!kw) return;
@@ -425,7 +391,7 @@
       }
     });
   }
-  document.addEventListener('click', async (e)=>{
+  document.addEventListener('click', async function(e){
     const x = e.target.closest('[data-action="kw-remove"]');
     if (!x) return;
     const kw = x.getAttribute('data-kw');
@@ -433,13 +399,12 @@
     refreshKeywords();
   });
 
-  // Inspect / Rename / Upsert buttons (optional APIs)
   const btnInspect = $('drawer-inspect');
   const btnRename  = $('drawer-rename');
   const btnUpsert  = $('drawer-upsert');
 
   if (btnInspect && urls.INSPECT_URL) {
-    btnInspect.addEventListener('click', async ()=>{
+    btnInspect.addEventListener('click', async function(){
       const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path }), { headers:{'Accept':'application/json'}});
       const j = await res.json();
       alert(JSON.stringify(j, null, 2));
@@ -447,28 +412,25 @@
   }
 
   if (btnRename && urls.RENAME_URL) {
-    btnRename.addEventListener('click', async ()=>{
+    btnRename.addEventListener('click', async function(){
       const p = currentPathPayload();
       if (!p.path) return;
       const oldName = p.name;
-      const newName = prompt(`Rename "${oldName}" to:`, oldName);
+      const newName = prompt('Rename "' + oldName + '" to:', oldName);
       if (!newName || newName.trim() === oldName) return;
       const payload = { path: p.path, new_name: newName.trim() };
       await fetch(urls.RENAME_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      fetchPathTx(state.ctx).catch(()=>{});
+      fetchPathTx(state.ctx).catch(function(){});
       alert('Rename attempted. If it didn’t take, the server may have rejected it.');
     });
   }
 
   if (btnUpsert && urls.UPSERT_URL) {
-    btnUpsert.addEventListener('click', async ()=>{
+    btnUpsert.addEventListener('click', async function(){
       const p = currentPathPayload();
-      const name = prompt('Enter a child name to create/attach under this path:');
-      if (!name || !p.path) return;
-      const payload = { parent_path: p.path, name: name.trim() };
+      const payload = { path: p.path };
       await fetch(urls.UPSERT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      fetchPathTx(state.ctx).catch(()=>{});
-      alert('Create/attach attempted.');
+      alert('Upsert attempted.');
     });
   }
 
