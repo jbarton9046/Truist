@@ -89,12 +89,16 @@ def load_cfg() -> Dict[str, Any]:
     # Find a seed file in the repo (either location)
     project_root = Path(__file__).resolve().parents[1]
     seed_candidates = [
-        project_root / "categories.json",            # repo root (your logs showed this path)
-        Path(__file__).with_name("categories.json"), # truist/categories.json
+        project_root / "categories.json",             # repo root (your logs showed this)
+        Path(__file__).with_name("categories.json"),  # truist/categories.json
     ]
-    pkg_categories = _first_existing(seed_candidates)
+    pkg_categories = None
+    for cand in seed_candidates:
+        if cand and cand.exists():
+            pkg_categories = cand
+            break
 
-    live_categories = cfg_dir / "categories.json"   # /var/data/config/categories.json
+    live_categories = cfg_dir / "categories.json"    # /var/data/config/categories.json
     if pkg_categories:
         _seed_if_missing(pkg_categories, live_categories)
 
@@ -123,6 +127,7 @@ def load_cfg() -> Dict[str, Any]:
             "KEYWORD_OVERRIDES_PATH": str(overrides_path),
         },
     }
+
 
 
 
