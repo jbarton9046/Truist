@@ -1,7 +1,7 @@
 # truist/debug_config.py
 from flask import Blueprint, jsonify, request
 from pathlib import Path
-import os, shutil, zipfile, io, json
+import os, shutil, zipfile, io, json, re
 from werkzeug.utils import secure_filename
 
 # Optional deeper debug imports
@@ -34,6 +34,59 @@ def _first_existing(paths):
             return pp
     return None
 
+def _clean_desc(s: str) -> str:
+    """Mirror parser cleaning: uppercase, strip hyphens, collapse spaces."""
+    s = (s or "").strip().upper().replace("-", "")
+    return re.sub(r"\s+", " ", s)
+
+def _load_overrides_and_categories():
+    """Load both JSON files from CONFIG_DIR; return (overrides, categories)."""
+    cfg_dir = _config_dir()
+    ovrd_path = cfg_dir / "filter_overrides.json"
+    cats_path = cfg_dir / "categories.json"
+    overrides = {}
+    categories = {}
+    try:
+        if ovrd_path.exists():
+            overrides = json.loads(ovrd_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        overrides = {}
+    try:
+        if cats_path.exists():
+            categories = json.loads(cats_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        categories = {}
+    return overrides, categories
+
+def _should_omit_debug(desc: str, amt: float, overrides: dict, categories: dict) -> bool:
+    """
+    Lightweight copy of the parser's omit logic:
+      - substring match against OMIT_KEYWORDS (from overrides first, then categories)
+      - amount-based rules in overrides: [{"contains":"AMZNCOMBILL","min":300, "max":optional}]
+    Uses ABS(amount) for threshold checks, same as parser.
+    """
+    U = _clean_desc(desc)
+    omit_keywords = list(overrides.get("OMIT_KEYWORDS") or []) or list(categories.get("OMIT_KEYWORDS") or [])
+    if any((k or "").upper() in U for k in omit_keywords):
+        return True
+
+    rules = list(overrides.get("AMOUNT_OMIT_RULES") or [])
+    try:
+        value = abs(float(amt))
+    except Exception:
+        value = 0.0
+    for r in rules:
+        contains = _clean_desc(r.get("contains") or "")
+        if not contains:
+            continue
+        min_v = float(r.get("min", 0))
+        max_raw = r.get("max", None)
+        max_v = float(max_raw) if max_raw is not None else None
+        if contains in U:
+            if value >= min_v and (max_v is None or value <= max_v):
+                return True
+    return False
+
 # ---------- routes ----------
 @debug_bp.route("/debug/config", methods=["GET"])
 def debug_config():
@@ -56,6 +109,41 @@ def debug_config():
             "filter_overrides.json": _read_first(ovrd_path),
         }
     })
+
+@debug_bp.route("/debug/effective_config", methods=["GET"])
+def effective_config():
+    """
+    Show sizes and small samples from merged/overlay data to sanity check config impact.
+    (Reads raw JSON files; your runtime merge still happens in code.)
+    """
+    overrides, categories = _load_overrides_and_categories()
+
+    def _size_and_sample(val):
+        if isinstance(val, dict):
+            keys = sorted(list(val.keys()))[:10]
+            return {"size": len(val), "sample_keys": keys}
+        if isinstance(val, list):
+            return {"size": len(val), "sample_first_10": val[:10]}
+        return {"size": 0, "sample": None}
+
+    out = {
+        "overrides": {
+            "CATEGORY_KEYWORDS": _size_and_sample(overrides.get("CATEGORY_KEYWORDS")),
+            "SUBCATEGORY_MAPS": _size_and_sample(overrides.get("SUBCATEGORY_MAPS")),
+            "SUBSUBCATEGORY_MAPS": _size_and_sample(overrides.get("SUBSUBCATEGORY_MAPS")),
+            "SUBSUBSUBCATEGORY_MAPS": _size_and_sample(overrides.get("SUBSUBSUBCATEGORY_MAPS")),
+            "OMIT_KEYWORDS": _size_and_sample(overrides.get("OMIT_KEYWORDS")),
+            "AMOUNT_OMIT_RULES": _size_and_sample(overrides.get("AMOUNT_OMIT_RULES")),
+        },
+        "categories_json": {
+            "CATEGORY_KEYWORDS": _size_and_sample(categories.get("CATEGORY_KEYWORDS")),
+            "SUBCATEGORY_MAPS": _size_and_sample(categories.get("SUBCATEGORY_MAPS")),
+            "SUBSUBCATEGORY_MAPS": _size_and_sample(categories.get("SUBSUBCATEGORY_MAPS")),
+            "SUBSUBSUBCATEGORY_MAPS": _size_and_sample(categories.get("SUBSUBSUBCATEGORY_MAPS")),
+            "OMIT_KEYWORDS": _size_and_sample(categories.get("OMIT_KEYWORDS")),
+        }
+    }
+    return jsonify({"ok": True, **out})
 
 @debug_bp.route("/debug/seed_categories", methods=["GET", "POST"])
 def seed_categories():
@@ -332,50 +420,71 @@ def upload_files():
 
     return jsonify({"ok": True, "saved": saved, "extracted_from_zip": extracted, "dest": str(dst_base)})
 
-# ---- EXTRA: effective config & omit tester (handy while tuning)
-@debug_bp.route("/debug/effective_config", methods=["GET"])
-def effective_config():
+# ---- NEW: amount-based omit rule add ----
+@debug_bp.route("/debug/add_amount_omit", methods=["GET", "POST"])
+def add_amount_omit():
     """
-    Show sizes and a few sample keys of the live merged configuration (load_cfg()).
+    Add an amount-based omit rule into $CONFIG_DIR/filter_overrides.json.
+    Params (query or form):
+      contains (str) - substring to search (case-insensitive; cleaned like parser)
+      min (float)    - minimum ABS(amount) inclusive (default 0)
+      max (float)    - optional maximum ABS(amount) inclusive
+    Example:
+      /debug/add_amount_omit?contains=AMZNCOMBILL&min=300.01
     """
-    if not load_cfg:
-        return jsonify({"ok": False, "error": "load_cfg not available"}), 500
-    try:
-        cfg = load_cfg()
-        out = {
-            "ok": True,
-            "paths": cfg.get("_PATHS", {}),
-            "sizes": {
-                "CATEGORY_KEYWORDS": len(cfg.get("CATEGORY_KEYWORDS", {})),
-                "SUBCATEGORY_MAPS": len(cfg.get("SUBCATEGORY_MAPS", {})),
-                "OMIT_KEYWORDS": len(cfg.get("OMIT_KEYWORDS", [])),
-                "CATEGORIES(top-level)": len((cfg.get("CATEGORIES") or {}).get("CATEGORY_KEYWORDS", {})) if isinstance(cfg.get("CATEGORIES"), dict) else 0,
-            },
-            "samples": {
-                "CATEGORY_KEYWORDS": list(cfg.get("CATEGORY_KEYWORDS", {}).keys())[:5],
-                "SUBCATEGORY_MAPS": list(cfg.get("SUBCATEGORY_MAPS", {}).keys())[:5],
-                "OMIT_KEYWORDS": cfg.get("OMIT_KEYWORDS", [])[:10],
-            }
-        }
-        return jsonify(out)
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    cfg_dir = _config_dir()
+    ovrd = cfg_dir / "filter_overrides.json"
+    ovrd.parent.mkdir(parents=True, exist_ok=True)
 
+    # read current
+    try:
+        cur = json.loads(ovrd.read_text(encoding="utf-8")) if ovrd.exists() else {}
+    except Exception:
+        cur = {}
+
+    contains = (request.values.get("contains") or "").strip()
+    if not contains:
+        return jsonify({"ok": False, "error": "missing 'contains'"}), 400
+
+    try:
+        min_v = float(request.values.get("min", 0))
+    except Exception:
+        min_v = 0.0
+    max_raw = request.values.get("max", None)
+    max_v = float(max_raw) if max_raw is not None else None
+
+    rules = list(cur.get("AMOUNT_OMIT_RULES", []))
+    rule = {"contains": contains, "min": min_v}
+    if max_v is not None:
+        rule["max"] = max_v
+    rules.append(rule)
+    cur["AMOUNT_OMIT_RULES"] = rules
+
+    ovrd.write_text(json.dumps(cur, indent=2), encoding="utf-8")
+    return jsonify({"ok": True, "added": rule, "total_rules": len(rules), "overrides_path": str(ovrd)})
+
+# ---- NEW: test whether a description/amount would be omitted ----
 @debug_bp.route("/debug/test_omit", methods=["GET"])
 def test_omit():
     """
-    Quick check: does a given description match current omit keywords?
-    Usage: /debug/test_omit?desc=Some+merchant+name
+    Test omit logic quickly.
+      /debug/test_omit?desc=YOUR+DESC&amount=2138.93
+    Returns omit_hit = true/false using overrides + categories.
     """
     desc = request.args.get("desc", "")
-    if not desc:
-        return jsonify({"ok": False, "error": "pass ?desc=..."}), 400
-    if not load_cfg:
-        return jsonify({"ok": False, "error": "load_cfg not available"}), 500
+    amount = request.args.get("amount", "0")
     try:
-        cfg = load_cfg()
-        omits = [str(x).upper() for x in (cfg.get("OMIT_KEYWORDS") or [])]
-        hit = any(x in desc.upper() for x in omits)
-        return jsonify({"ok": True, "desc": desc, "omit_hit": hit, "omit_keywords_size": len(omits)})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        amt = float(amount)
+    except Exception:
+        amt = 0.0
+
+    overrides, categories = _load_overrides_and_categories()
+    hit = _should_omit_debug(desc, amt, overrides, categories)
+    return jsonify({
+        "ok": True,
+        "desc_clean": _clean_desc(desc),
+        "amount_abs": abs(amt),
+        "omit_hit": bool(hit),
+        "rules_count": len(overrides.get("AMOUNT_OMIT_RULES", [])),
+        "omit_keywords_count": len(overrides.get("OMIT_KEYWORDS", []) or categories.get("OMIT_KEYWORDS", []) or []),
+    })
