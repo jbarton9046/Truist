@@ -11,24 +11,23 @@ import truist.filter_config as fc
 JSON_PATH = None  # set by _load_category_config()
 
 
-# === Load category config (JSON first, then fall back to filter_config.py) ===
+# === Load category config (JSON + overrides from CONFIG_DIR) ===
 def _load_category_config():
+    """
+    Merge order:
+      1) Python defaults in filter_config.py
+      2) categories.json (repo root or truist/)
+      3) CONFIG_DIR/filter_overrides.json (live overrides)
+    Returns:
+      (CATEGORY_KEYWORDS, SUBCATEGORY_MAPS, SUBSUBCATEGORY_MAPS, SUBSUBSUBCATEGORY_MAPS,
+       CUSTOM_TRANSACTION_KEYWORDS, OMIT_KEYWORDS, AMOUNT_OMIT_RULES, source_str)
+    """
     global JSON_PATH
 
     base_dir = Path(__file__).resolve().parent   # .../truist
     project_root = base_dir.parents[1]           # .../<repo_root>
 
-    # Prefer the same JSON the Category Builder uses (project root),
-    # but fall back to the local one if needed.
-    json_candidates = [
-        project_root / "categories.json",
-        base_dir / "categories.json",
-    ]
-    json_path = next((p for p in json_candidates if p.exists()), None)
-    JSON_PATH = json_path
-
-    source = "filter_config.py"  # default
-
+    # Defaults from code
     cfg = {
         "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
         "SUBCATEGORY_MAPS": getattr(fc, "SUBCATEGORY_MAPS", {}),
@@ -36,19 +35,60 @@ def _load_category_config():
         "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
         "CUSTOM_TRANSACTION_KEYWORDS": getattr(fc, "CUSTOM_TRANSACTION_KEYWORDS", {}),
         "OMIT_KEYWORDS": getattr(fc, "OMIT_KEYWORDS", []),
-        # TRANSFER/RETURN keywords are read directly from fc.*
+        "AMOUNT_OMIT_RULES": getattr(fc, "AMOUNT_OMIT_RULES", []),  # NEW
     }
 
+    # Prefer the same JSON the Category Builder uses (project root), else local.
+    json_candidates = [project_root / "categories.json", base_dir / "categories.json"]
+    json_path = next((p for p in json_candidates if p.exists()), None)
+    JSON_PATH = json_path
+    source = "filter_config.py"  # will be updated below
+
+    def _merge_dict(a, b):
+        out = dict(a or {})
+        out.update(b or {})
+        return out
+
+    def _merge_list(a, b):
+        # preserve order, remove dups
+        return list(dict.fromkeys((a or []) + (b or [])))
+
+    # Merge categories.json (if present)
     if json_path:
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 jcfg = json.load(f) or {}
-            for k in cfg.keys():
-                if k in jcfg and jcfg[k] is not None:
-                    cfg[k] = jcfg[k]
+            for k, v in jcfg.items():
+                if v is None:
+                    continue
+                if isinstance(v, dict):
+                    cfg[k] = _merge_dict(cfg.get(k, {}), v)
+                elif isinstance(v, list):
+                    cfg[k] = _merge_list(cfg.get(k, []), v)
+                else:
+                    cfg[k] = v
             source = f"categories.json ({json_path})"
         except Exception:
-            # If the JSON is malformed, silently fall back to filter_config
+            pass  # fall back silently
+
+    # Merge filter_overrides.json from CONFIG_DIR (if present)
+    cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
+    ovrd_path = cfg_dir / "filter_overrides.json"
+    if ovrd_path.exists():
+        try:
+            with open(ovrd_path, "r", encoding="utf-8") as f:
+                ocfg = json.load(f) or {}
+            for k, v in ocfg.items():
+                if v is None:
+                    continue
+                if isinstance(v, dict):
+                    cfg[k] = _merge_dict(cfg.get(k, {}), v)
+                elif isinstance(v, list):
+                    cfg[k] = _merge_list(cfg.get(k, []), v)
+                else:
+                    cfg[k] = v
+            source += f" + overrides ({ovrd_path})"
+        except Exception:
             pass
 
     return (
@@ -58,8 +98,10 @@ def _load_category_config():
         cfg["SUBSUBSUBCATEGORY_MAPS"],
         cfg["CUSTOM_TRANSACTION_KEYWORDS"],
         cfg["OMIT_KEYWORDS"],
+        cfg["AMOUNT_OMIT_RULES"],   # NEW
         source,
     )
+
 
 (
     category_keywords,
@@ -68,6 +110,7 @@ def _load_category_config():
     subsubsubcategory_maps,
     custom_tx_keywords,
     omit_keywords,
+    amount_omit_rules,   # NEW
     CONFIG_SOURCE,
 ) = _load_category_config()
 
@@ -120,20 +163,6 @@ def is_interest_income(desc, amt):
     return "INTEREST PAYMENT" in (desc or "").upper() and amt > 0
 
 
-# --- Omit helper (case-insensitive substring match) ---
-def _should_omit(desc: str, omit_list) -> bool:
-    """Return True if any omit keyword is a case-insensitive substring of desc."""
-    if not omit_list:
-        return False
-    U = (desc or "").upper()
-    for raw in omit_list:
-        if not raw:
-            continue
-        if str(raw).upper() in U:
-            return True
-    return False
-
-
 # --- Keyword hit helper (STRICT only) ---
 def _kw_hits(desc: str, kw: str) -> bool:
     """
@@ -175,6 +204,44 @@ def _expense_amount(raw_amount: float, is_return: bool) -> float:
     """
     base = abs(float(raw_amount))
     return -base if is_return else base
+
+
+# --- Simple omit helper for substring-based OMIT_KEYWORDS ---
+def _should_omit(desc: str, omit_list) -> bool:
+    if not omit_list:
+        return False
+    U = clean_description(desc)
+    return any((k or "").upper() in U for k in omit_list)
+
+
+# --- Omit helper (supports substring + amount rules) ---
+def _should_omit_tx(desc: str, amt_signed: float, omit_list, amount_rules) -> bool:
+    """
+    omit_list: list of substrings (case-insensitive)
+    amount_rules: list of {"contains": "TEXT", "min": float?, "max": float?}
+    Match is on UPPER(desc). Amount check uses abs(amt_signed).
+    """
+    if _should_omit(desc, omit_list):
+        return True
+
+    U = clean_description(desc)
+    try:
+        val = abs(float(amt_signed or 0.0))
+    except Exception:
+        val = 0.0
+
+    for rule in (amount_rules or []):
+        try:
+            contains = clean_description(rule.get("contains") or "")
+            if contains and contains not in U:
+                continue
+            mn = rule.get("min", None)
+            mx = rule.get("max", None)
+            if (mn is None or val >= float(mn)) and (mx is None or val <= float(mx)):
+                return True
+        except Exception:
+            continue
+    return False
 
 
 # === Statements discovery (disk first, then repo fallbacks) ===
@@ -329,7 +396,6 @@ def load_csv_transactions(file_path: Path):
                 "pending": False,
             })
     return rows
-
 
 
 def load_manual_transactions(file_path: Path):
@@ -553,6 +619,7 @@ def generate_summary(category_keywords, subcategory_maps):
         subsubsubcategory_maps_live,
         custom_tx_keywords_live,
         omit_keywords_live,
+        amount_omit_rules_live,   # NEW
         _src,
     ) = _load_category_config()
 
@@ -634,8 +701,8 @@ def generate_summary(category_keywords, subcategory_maps):
             amt_signed = float(tx["amount"])               # UI sign (+income, -purchase, +return)
             exp_amt = float(tx.get("expense_amount", 0.0)) # +spend, -return
 
-            # Global omit/skip rules
-            if _should_omit(desc, omit_keywords_live):
+            # Global omit/skip rules (now includes amount rules)
+            if _should_omit_tx(desc, amt_signed, omit_keywords_live, amount_omit_rules_live):
                 continue
             if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat == "Camera":
                 continue
@@ -824,7 +891,7 @@ def recent_activity_summary(
     """
     # Always build from latest config
     (
-        ck, sm, _ss, _sss, _custom, omit_live, _src
+        ck, sm, _ss, _sss, _custom, omit_live, amount_rules, _src
     ) = _load_category_config()
 
     try:
@@ -932,7 +999,7 @@ def recent_activity_summary(
         except Exception:
             amt = 0.0
 
-        if _should_omit(desc, omit_live):
+        if _should_omit_tx(desc, amt, omit_live, amount_rules):
             return False
         if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or cat == "Camera":
             return False
@@ -991,7 +1058,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
     Output rows: [{id,date,amount,desc,merchant}]
     """
     # Fresh config
-    ck, sm, ss, sss_map, _custom, omit_live, _src = _load_category_config()
+    ck, sm, ss, sss_map, _custom, omit_live, amount_rules, _src = _load_category_config()
 
     # Use discovered base for manual
     statements_base = get_statements_base_dir()
@@ -1055,7 +1122,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
         cat_r = r["category"]
         amt = float(r["amount"])
 
-        if _should_omit(desc, omit_live):
+        if _should_omit_tx(desc, amt, omit_live, amount_rules):
             continue
         if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300) or cat_r == "Camera":
             continue
