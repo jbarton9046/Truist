@@ -1,7 +1,7 @@
 # truist/debug_config.py
 from flask import Blueprint, jsonify, request
 from pathlib import Path
-import os
+import os, shutil
 
 # Optional deeper debug imports
 try:
@@ -25,6 +25,13 @@ def _read_first(path: Path, n: int = 500):
 
 def _config_dir() -> Path:
     return Path(os.environ.get("CONFIG_DIR", "config"))
+
+def _first_existing(paths):
+    for p in paths:
+        pp = Path(p)
+        if pp.exists():
+            return pp
+    return None
 
 # ---------- routes ----------
 @debug_bp.route("/debug/config", methods=["GET"])
@@ -84,6 +91,7 @@ def seed_categories():
     dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     return jsonify({"ok": True, "seeded": True, "from": str(src), "to": str(dst)})
 
+@debug_bp.route("/debug/init_overrides", methods=["GET", "POST"])
 def init_overrides():
     """
     Ensure $CONFIG_DIR/filter_overrides.json exists (create empty {} if missing).
@@ -96,6 +104,42 @@ def init_overrides():
         dst.write_text("{}\n", encoding="utf-8")
         created = True
     return jsonify({"ok": True, "path": str(dst), "created": created})
+
+@debug_bp.route("/debug/seed_statements", methods=["GET"])
+def seed_statements():
+    """
+    Copy any repo statements to the persistent disk at /var/data/statements.
+    Searches these repo locations:
+      - <repo_root>/statements
+      - <repo_root>/truist/statements
+    """
+    here = Path(__file__).resolve()
+    repo_root = here.parents[1]
+    candidates = [
+        repo_root / "statements",
+        here.parent / "statements",  # truist/statements
+    ]
+    src = None
+    for c in candidates:
+        if c.exists() and any(c.glob("**/*")):
+            src = c
+            break
+    if not src:
+        return jsonify({"ok": False, "error": "No statements folder found in repo_root or truist/"}), 404
+
+    dst = Path("/var/data/statements")
+    dst.mkdir(parents=True, exist_ok=True)
+
+    copied = 0
+    for f in src.rglob("*"):
+        if f.is_file():
+            rel = f.relative_to(src)
+            out = dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, out)
+            copied += 1
+
+    return jsonify({"ok": True, "from": str(src), "to": str(dst), "files_copied": copied})
 
 @debug_bp.route("/debug/summary", methods=["GET"])
 def debug_summary():
