@@ -473,19 +473,25 @@ def inject_helpers():
 
 # ------------------ ROUTES ------------------
 
+import subprocess, sys, os
+from flask import jsonify
+
 @app.post("/refresh_data")
 def refresh_data():
     try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(base_dir)
-        script = os.path.join(project_root, "truist", "plaid_fetch.py")
-        # Run plaid_fetch.py with the same interpreter that runs Flask
-        subprocess.run([sys.executable, script], check=True)
-        return jsonify({"ok": True, "msg": "Plaid fetch complete."})
-    except subprocess.CalledProcessError as e:
-        return jsonify({"ok": False, "error": f"Fetch script failed: {e}"}), 500
+        env = os.environ.copy()
+        env["NONINTERACTIVE"] = "1"              # <-- prevents input()
+        # (Optional) if you keep the token in Render Env Vars, it will already be in env
+        proc = subprocess.run(
+            [sys.executable, "-m", "truist.plaid_fetch"],
+            capture_output=True, text=True, env=env, timeout=180
+        )
+        if proc.returncode != 0:
+            return jsonify({"ok": False, "error": proc.stderr or proc.stdout}), 500
+        return jsonify({"ok": True, "out": proc.stdout})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 @app.route("/builder")
