@@ -2,6 +2,7 @@
 // Exposes:
 //   - window.openCategoryManager(ctx)
 //   - window.dashManage(e, el)
+//   - window.openDrawerForCategory(catOrCtx, opts)  // alias/convenience
 // and tags itself with __cl_v2 = true so inline fallbacks disable themselves.
 
 (function () {
@@ -14,10 +15,12 @@
   const QS = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
 
-  const ocEl = document.getElementById('dashCategoryManager');
+  // Offcanvas bootstrapper (tolerates late insertion of the DOM node)
+  let ocEl = document.getElementById('dashCategoryManager');
   let offcanvas = null;
   function ensureOC() {
-    if (!offcanvas && window.bootstrap && window.bootstrap.Offcanvas) {
+    if (!ocEl) ocEl = document.getElementById('dashCategoryManager');
+    if (!offcanvas && ocEl && window.bootstrap && window.bootstrap.Offcanvas) {
       offcanvas = new bootstrap.Offcanvas(ocEl);
     }
     return offcanvas;
@@ -74,7 +77,7 @@
     };
   }
 
-  // NEW: breadcrumb render + navigate
+  // --- Breadcrumb render + navigate ---
   function renderBreadcrumb() {
     const bc = $('drawer-breadcrumb');
     if (!bc) return;
@@ -128,7 +131,7 @@
   function renderPath() {
     const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
-    setText('drawer-month', state.ctx.month || (state.months[ state.months.length-1 ] || ''));
+    setText('drawer-month', state.ctx.month || (state.months[state.months.length-1] || ''));
     const net = Number(state.total || 0);
     const netStr = `${fmtUSD(net)} net`;
     setText('drawer-total', netStr);
@@ -145,7 +148,7 @@
     const kwHdr = $('kw-current-level');
     if (kwHdr) kwHdr.textContent = (p.length ? p.join(' / ') : '(All Categories)');
 
-    // NEW: render clickable breadcrumb
+    // render clickable breadcrumb
     renderBreadcrumb();
   }
 
@@ -309,6 +312,14 @@
 
   // Export
   window.openCategoryManager = openCategoryManager;
+  // Convenience alias used in some templates
+  window.openDrawerForCategory = function (catOrCtx, opts = {}) {
+    if (typeof catOrCtx === 'string') {
+      openCategoryManager({ level: 'category', cat: catOrCtx });
+    } else {
+      openCategoryManager(catOrCtx || {});
+    }
+  };
   // Also expose a tiny namespace for other scripts to call if needed
   window.DRAWER = window.DRAWER || {};
   window.DRAWER.open = openCategoryManager;

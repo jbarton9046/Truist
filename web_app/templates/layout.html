@@ -17,8 +17,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BartonTech">
-    <!-- (Optional) macOS Safari pinned tab -->
-    <!-- <link rel="mask-icon" href="{{ url_for('static', filename='icons/safari-pinned-tab.svg') }}" color="#0d6efd"> -->
 
     <!-- Bootstrap CSS (one time) -->
     <link
@@ -100,14 +98,40 @@
           if (window.dashManage) {
             window.dashManage(e, el); // dashManage will preventDefault and read el.dataset
           } else {
-            e.preventDefault();       // avoid navigation if handler hasn't loaded yet
+            // If the drawer script hasn't finished loading yet, just stop the click
+            // (prevents navigation or "#" jumps). Clicking again will work once loaded.
+            e.preventDefault();
           }
         });
       })();
     </script>
 
-    <!-- Register service worker at the ORIGIN ROOT for full-app scope.
-         Ensure you serve /service-worker.js at "/" (not under /static/) -->
+    <!-- Builder-only: ensure hidden categories are inspectable (allow_hidden=1) -->
+    <script>
+      (function(){
+        // Scope this fetch patch to the Builder page only.
+        if (location.pathname !== '/builder') return;
+
+        const origFetch = window.fetch;
+        window.fetch = function(input, init){
+          try {
+            let url = typeof input === 'string' ? input : (input && input.url) || '';
+            if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
+              const u = new URL(url, window.location.origin);
+              u.searchParams.set('allow_hidden', '1');
+              if (typeof input === 'string') {
+                input = u.toString();
+              } else {
+                input = new Request(u.toString(), input);
+              }
+            }
+          } catch(e) { /* swallow */ }
+          return origFetch(input, init);
+        };
+      })();
+    </script>
+
+    <!-- Register service worker at the ORIGIN ROOT for full-app scope -->
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
