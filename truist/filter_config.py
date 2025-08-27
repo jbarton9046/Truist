@@ -507,6 +507,10 @@ ONLINE_SHOPPING_SUBCATEGORIES = {
     "eBay": ["EBAY"],
 }
 
+HIDDEN_CATEGORIES = [
+    "Camera"
+]
+
 OMIT_KEYWORDS = [
     "GALLERY HEMP"
 ]
