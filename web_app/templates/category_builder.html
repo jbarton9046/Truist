@@ -1417,6 +1417,24 @@
 {% include "_drawer.html" %}
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
 
+{% include "_drawer.html" %}
+<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
+<script>
+  // Alias for this page: open the drawer by category name
+  if (!window.openDrawerForCategory && window.openDrawerForPath) {
+    window.openDrawerForCategory = function (cat, opts = {}) {
+      window.openDrawerForPath({
+        level: "category",
+        cat,
+        sub: "",
+        ssub: "",
+        sss: "",
+        allowHidden: !!opts.allowHidden
+      });
+    };
+  }
+</script>
+
 <!-- NEW: from this page only, ensure drawer data includes allow_hidden=1 -->
 <script>
 (function(){
@@ -1440,3 +1458,4 @@
 </script>
 
 {% endblock %}
+
