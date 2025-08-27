@@ -107,9 +107,11 @@ def load_cfg() -> Dict[str, Any]:
 
     # Keyword defaults from code + optional JSON overrides
     defaults = {
-        "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
-        "SUBCATEGORY_MAPS": getattr(fc, "SUBCATEGORY_MAPS", {}),
-        "OMIT_KEYWORDS": getattr(fc, "OMIT_KEYWORDS", []),
+        "CATEGORY_KEYWORDS":      getattr(fc, "CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS":       getattr(fc, "SUBCATEGORY_MAPS", {}),
+        "SUBSUBCATEGORY_MAPS":    getattr(fc, "SUBSUBCATEGORY_MAPS", {}),
+        "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
+        "OMIT_KEYWORDS":          getattr(fc, "OMIT_KEYWORDS", []),
         # "REFUND_KEYWORDS": getattr(fc, "REFUND_KEYWORDS", []),  # add if you expose in UI
     }
     overrides_path = cfg_dir / "filter_overrides.json"
@@ -118,15 +120,18 @@ def load_cfg() -> Dict[str, Any]:
 
     return {
         "CATEGORIES": categories,
-        "CATEGORY_KEYWORDS": merged.get("CATEGORY_KEYWORDS", {}),
-        "SUBCATEGORY_MAPS": merged.get("SUBCATEGORY_MAPS", {}),
-        "OMIT_KEYWORDS": merged.get("OMIT_KEYWORDS", []),
+        "CATEGORY_KEYWORDS":      merged.get("CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS":       merged.get("SUBCATEGORY_MAPS", {}),
+        "SUBSUBCATEGORY_MAPS":    merged.get("SUBSUBCATEGORY_MAPS", {}),
+        "SUBSUBSUBCATEGORY_MAPS": merged.get("SUBSUBSUBCATEGORY_MAPS", {}),
+        "OMIT_KEYWORDS":          merged.get("OMIT_KEYWORDS", []),
         "_PATHS": {
             "CONFIG_DIR": str(cfg_dir),
             "CATEGORIES_PATH": str(live_categories),
             "KEYWORD_OVERRIDES_PATH": str(overrides_path),
         },
     }
+
 
 
 
