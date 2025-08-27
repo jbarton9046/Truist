@@ -786,6 +786,11 @@ def _top_level_category_of(tx):
 
 # app.py (replace your existing /api/categories/monthly with this)
 
+@app.get("/debug/hidden-categories")
+def debug_hidden_categories():
+    from truist.parser_web import _hidden_categories
+    lst = sorted([str(x) for x in _hidden_categories()])
+    return jsonify({"hidden": lst})
 
 @app.route("/api/categories/monthly")
 def api_categories_monthly():
