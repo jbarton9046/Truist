@@ -252,7 +252,7 @@ def _should_omit_tx(desc: str, amt_signed: float, omit_list, amount_rules) -> bo
 
 # === Statements discovery (disk first, then repo fallbacks) ===
 def _candidate_statement_dirs():
-    \"\"\"Ordered search paths for statements (disk first, then repo fallbacks).\"\"\"
+    """Ordered search paths for statements (disk first, then repo fallbacks)."""
     here = Path(__file__).resolve()
     project_root = here.parents[1]
     env_dir = os.environ.get("STATEMENTS_DIR")
@@ -285,7 +285,7 @@ def _candidate_statement_dirs():
 
 
 def get_statements_base_dir() -> Path:
-    \"\"\"First existing candidate; falls back to /var/data/statements.\"\"\"
+    """First existing candidate; falls back to /var/data/statements."""
     for d in _candidate_statement_dirs():
         if d.exists():
             return d
@@ -293,7 +293,7 @@ def get_statements_base_dir() -> Path:
 
 
 def discover_statement_files():
-    \"\"\"Find CSV/JSON statements across candidate dirs (flat or nested).\"\"\"
+    """Find CSV/JSON statements across candidate dirs (flat or nested)."""
     exts = {\".csv\", \".json\"}
     files = []
     for base in _candidate_statement_dirs():
@@ -334,7 +334,7 @@ def _parse_money(s: str) -> float:
 
 
 def _extract_tx_from_json_payload(obj):
-    \"\"\"Return a list of tx dicts from a parsed JSON object, or [] if not a tx payload.\"\"\"
+    """Return a list of tx dicts from a parsed JSON object, or [] if not a tx payload."""
     try:
         # Plaid /transactions/get or general dumps
         if isinstance(obj, dict):
@@ -372,7 +372,7 @@ def load_json_transactions(file_path: Path):
 
 
 def load_csv_transactions(file_path: Path):
-    \"\"\"Robust CSV reader for common bank exports (Amount OR Debit/Credit forms).\"\"\"
+    """Robust CSV reader for common bank exports (Amount OR Debit/Credit forms)."""
     rows = []
     with open(file_path, \"r\", encoding=\"utf-8\", errors=\"replace\") as f:
         reader = csv.DictReader(f)
@@ -453,7 +453,7 @@ def load_csv_transactions(file_path: Path):
 
 
 def load_manual_transactions(file_path: Path):
-    \"\"\"Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description.\"\"\"
+    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
     transactions = []
     if not file_path.exists():
         return transactions
@@ -516,7 +516,7 @@ def categorize_transaction(desc, amount, category_keywords):
 
 
 def _iter_all_raw_transactions():
-    \"\"\"Yield raw transaction dicts from discovered CSV and JSON files (skipping non-tx JSON).\"\"\"
+    """Yield raw transaction dicts from discovered CSV and JSON files (skipping non-tx JSON)."""
     files = discover_statement_files()
     processed = 0
     for file in files:
@@ -552,7 +552,7 @@ def _iter_all_raw_transactions():
 
 
 def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
-    \"\"\"Normalize one raw row into our internal tx dict.\"\"\"
+    """Normalize one raw row into our internal tx dict."""
     # Skip pending
     if isinstance(raw, dict) and raw.get(\"pending\", False):
         return None
@@ -626,9 +626,9 @@ def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
 
 
 def _build_tree_from_categories(categories_dict):
-    \"\"\"
+    """
     Builds a generic tree with up to 4 levels for the recursive UI.
-    \"\"\"
+    """
     tree = []
 
     def make_node(name, total, txs, subcats, subsubs, subsubsubs):
@@ -674,7 +674,7 @@ def _build_tree_from_categories(categories_dict):
 
 
 def _hidden_categories():
-    \"\"\"Hidden categories from code (fc.HIDDEN_CATEGORIES) + JSON overrides in CONFIG_DIR/filter_overrides.json.\"\"\"
+    """Hidden categories from code (fc.HIDDEN_CATEGORIES) + JSON overrides in CONFIG_DIR/filter_overrides.json."""
     hidden = set()
     try:
         from truist import filter_config as _fc
@@ -696,15 +696,15 @@ def _hidden_categories():
 
 
 def list_hidden_categories():
-    \"\"\"Small helper to introspect effective hidden categories for debugging.\"\"\"
+    """Small helper to introspect effective hidden categories for debugging."""
     return sorted(_hidden_categories())
 
 
 def generate_summary(category_keywords, subcategory_maps):
-    \"\"\"
+    """
     Build monthly summaries using the *latest* config every call (so renames & deeper maps stay in sync).
     Returns offset spending within the same category via tx['expense_amount'].
-    \"\"\"
+    """
     # Pull fresh config for deeper maps & omit/custom rules
     (
         _ck,  # unused here (we take category_keywords from the arg)
@@ -979,12 +979,12 @@ def recent_activity_summary(
     include_income=False,
     max_recent=20
 ):
-    \"\"\"
+    """
     Dashboard-friendly activity snapshot:
       - recent_txs: most recent transactions (filtered), newest first
       - movers_abs: category movers (latest vs prev) by absolute $ delta
       - latest_totals: income/expense/net for latest month + deltas vs prev
-    \"\"\"
+    """
     # Always build from latest config
     (
         ck, sm, _ss, _sss, _custom, omit_live, amount_rules, _src
@@ -1149,13 +1149,13 @@ def recent_activity_summary(
 
 # ========= Manage Panel Support =========
 def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden: bool = False):
-    \"\"\"
+    """
     Return recent transactions that land on the given node.
     - level: 'category' | 'subcategory' | 'subsubcategory' | 'subsubsubcategory'
     - cat/sub/ssub/sss: labels; pass '' for unused deeper levels
     - allow_hidden: include rows whose category is in HIDDEN_CATEGORIES (default False)
     Output rows: [{id,date,amount,desc,merchant}]
-    \"\"\"
+    """
     # Fresh config
     ck, sm, ss, sss_map, _custom, omit_live, amount_rules, _src = _load_category_config()
 
