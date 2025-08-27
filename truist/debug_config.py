@@ -331,3 +331,51 @@ def upload_files():
         saved.append(str(target))
 
     return jsonify({"ok": True, "saved": saved, "extracted_from_zip": extracted, "dest": str(dst_base)})
+
+# ---- EXTRA: effective config & omit tester (handy while tuning)
+@debug_bp.route("/debug/effective_config", methods=["GET"])
+def effective_config():
+    """
+    Show sizes and a few sample keys of the live merged configuration (load_cfg()).
+    """
+    if not load_cfg:
+        return jsonify({"ok": False, "error": "load_cfg not available"}), 500
+    try:
+        cfg = load_cfg()
+        out = {
+            "ok": True,
+            "paths": cfg.get("_PATHS", {}),
+            "sizes": {
+                "CATEGORY_KEYWORDS": len(cfg.get("CATEGORY_KEYWORDS", {})),
+                "SUBCATEGORY_MAPS": len(cfg.get("SUBCATEGORY_MAPS", {})),
+                "OMIT_KEYWORDS": len(cfg.get("OMIT_KEYWORDS", [])),
+                "CATEGORIES(top-level)": len((cfg.get("CATEGORIES") or {}).get("CATEGORY_KEYWORDS", {})) if isinstance(cfg.get("CATEGORIES"), dict) else 0,
+            },
+            "samples": {
+                "CATEGORY_KEYWORDS": list(cfg.get("CATEGORY_KEYWORDS", {}).keys())[:5],
+                "SUBCATEGORY_MAPS": list(cfg.get("SUBCATEGORY_MAPS", {}).keys())[:5],
+                "OMIT_KEYWORDS": cfg.get("OMIT_KEYWORDS", [])[:10],
+            }
+        }
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@debug_bp.route("/debug/test_omit", methods=["GET"])
+def test_omit():
+    """
+    Quick check: does a given description match current omit keywords?
+    Usage: /debug/test_omit?desc=Some+merchant+name
+    """
+    desc = request.args.get("desc", "")
+    if not desc:
+        return jsonify({"ok": False, "error": "pass ?desc=..."}), 400
+    if not load_cfg:
+        return jsonify({"ok": False, "error": "load_cfg not available"}), 500
+    try:
+        cfg = load_cfg()
+        omits = [str(x).upper() for x in (cfg.get("OMIT_KEYWORDS") or [])]
+        hit = any(x in desc.upper() for x in omits)
+        return jsonify({"ok": True, "desc": desc, "omit_hit": hit, "omit_keywords_size": len(omits)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500

@@ -120,6 +120,20 @@ def is_interest_income(desc, amt):
     return "INTEREST PAYMENT" in (desc or "").upper() and amt > 0
 
 
+# --- Omit helper (case-insensitive substring match) ---
+def _should_omit(desc: str, omit_list) -> bool:
+    """Return True if any omit keyword is a case-insensitive substring of desc."""
+    if not omit_list:
+        return False
+    U = (desc or "").upper()
+    for raw in omit_list:
+        if not raw:
+            continue
+        if str(raw).upper() in U:
+            return True
+    return False
+
+
 # --- Keyword hit helper (STRICT only) ---
 def _kw_hits(desc: str, kw: str) -> bool:
     """
@@ -621,7 +635,7 @@ def generate_summary(category_keywords, subcategory_maps):
             exp_amt = float(tx.get("expense_amount", 0.0)) # +spend, -return
 
             # Global omit/skip rules
-            if omit_keywords_live and any(keyword in desc for keyword in omit_keywords_live):
+            if _should_omit(desc, omit_keywords_live):
                 continue
             if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat == "Camera":
                 continue
@@ -918,7 +932,7 @@ def recent_activity_summary(
         except Exception:
             amt = 0.0
 
-        if omit_live and any(keyword in desc for keyword in omit_live):
+        if _should_omit(desc, omit_live):
             return False
         if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or cat == "Camera":
             return False
@@ -1041,7 +1055,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
         cat_r = r["category"]
         amt = float(r["amount"])
 
-        if omit_live and any(keyword in desc for keyword in omit_live):
+        if _should_omit(desc, omit_live):
             continue
         if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300) or cat_r == "Camera":
             continue
