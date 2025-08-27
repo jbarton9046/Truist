@@ -5,374 +5,633 @@ import csv
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
+import truist.filter_config as fc
 
-from truist import filter_config as fc
+# Expose the effective JSON path for visibility/imports elsewhere (e.g., app/admin UI)
+JSON_PATH = None  # set by _load_category_config()
 
-# =========================================================
-# Helpers for config + paths
-# =========================================================
 
-def get_statements_base_dir() -> Path:
-    """
-    Discover the base folder that contains your bank statements + manual entries.
-    Looks for ./statements or ./data/statements, else falls back to repo root / statements.
-    """
-    here = Path(__file__).resolve().parent
-    candidates = [
-        here / "statements",
-        here / "data" / "statements",
-        here.parent / "statements",
-        Path.cwd() / "statements",
-    ]
-    for p in candidates:
-        if p.exists() and p.is_dir():
-            return p
-    return candidates[0]
-
-def _read_json(path: Path, fallback=None):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return fallback
-
-def _iter_all_raw_transactions():
-    """
-    Yield raw dict rows from all known sources under the statements base dir:
-      - combined.json
-      - any CSVs under ./statements (Chase/BoA/etc)
-    """
-    base = get_statements_base_dir()
-    combined = base / "combined.json"
-    if combined.exists():
-        data = _read_json(combined, fallback=[])
-        if isinstance(data, list):
-            for r in data:
-                if isinstance(r, dict):
-                    yield r
-
-    # CSVs
-    for p in base.glob("**/*.csv"):
-        try:
-            with p.open("r", encoding="utf-8-sig", newline="") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if isinstance(row, dict):
-                        yield row
-        except Exception:
-            continue
-
-# =========================================================
-# Normalization + categorization
-# =========================================================
-
-DATE_PATTERNS = [
-    "%Y-%m-%d",
-    "%m/%d/%Y",
-    "%Y/%m/%d",
-    "%m/%d/%y",
-    "%b %d, %Y",
-]
-
-def _parse_any_date(s):
-    s = (s or "").strip()
-    if not s:
-        return None
-    # Try substring YYYY-MM first
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
-        try:
-            return datetime.strptime(s, "%Y-%m-%d")
-        except Exception:
-            pass
-    for pat in DATE_PATTERNS:
-        try:
-            return datetime.strptime(s, pat)
-        except Exception:
-            continue
-    # Sometimes CSVs include time - strip time
-    m = re.match(r"^(\d{4}-\d{2}-\d{2})", s)
-    if m:
-        try:
-            return datetime.strptime(m.group(1), "%Y-%m-%d")
-        except Exception:
-            pass
-    return None
-
-def _safe_date_key(s):
-    dt = _parse_any_date(s)
-    return dt or datetime.min
-
-def clean_description(s):
-    s = (s or "").strip()
-    # Normalization rules
-    s = re.sub(r"\s+", " ", s)
-    s = s.replace("\u00A0", " ").strip()
-    return s
-
-def _kw_hits(desc, kw):
-    """
-    Case-insensitive simple substring match against cleaned desc.
-    """
-    if not kw:
-        return False
-    d = clean_description(desc).upper()
-    return (kw or "").upper() in d
-
-def _is_return(desc: str) -> bool:
-    d = clean_description(desc).upper()
-    # Basic return markers
-    for token in ["REFUND", "REVERSAL", "RETURN", "CREDIT", "ADJ"]:
-        if token in d:
-            return True
-    return False
-
-def _expense_amount(amount: float, is_return: bool) -> float:
-    """
-    Convert UI-signed amount to a positive "spend" measure.
-      - purchases => positive spend
-      - returns   => negative spend
-    """
-    try:
-        amt = float(amount or 0.0)
-    except Exception:
-        amt = 0.0
-    if amt >= 0:  # income or return
-        return -abs(amt) if is_return else 0.0  # income isn't "spend"
-    # amt < 0 means purchase in UI sign
-    return abs(amt)
-
-def _should_omit_tx(desc: str, signed_amount: float, omit_keywords, amount_rules) -> bool:
-    """
-    Global omit rules by keyword and by amount windows.
-    signed_amount is UI-signed (+income, -purchase, +return)
-    """
-    d = clean_description(desc)
-    # Keyword rules
-    for kw in (omit_keywords or []):
-        if _kw_hits(d, kw):
-            return True
-
-    # Amount omit rules: list of dicts {min_abs, max_abs, sign}
-    for rule in (amount_rules or []):
-        try:
-            min_abs = float(rule.get("min_abs", 0) or 0)
-            max_abs = float(rule.get("max_abs", 0) or 0)
-            sign    = str(rule.get("sign", "") or "").lower()   # 'pos' | 'neg' | ''
-        except Exception:
-            continue
-        a = float(signed_amount or 0.0)
-        ok_sign = (
-            (sign == "pos" and a > 0) or
-            (sign == "neg" and a < 0) or
-            (sign == "")
-        )
-        if ok_sign and (abs(a) >= min_abs) and (max_abs <= 0 or abs(a) <= max_abs):
-            return True
-
-    return False
-
-# =========================================================
-# Config + hidden categories
-# =========================================================
-
+# === Load category config (JSON + overrides from CONFIG_DIR) ===
 def _load_category_config():
     """
-    Return tuple:
+    Merge order:
+      1) Python defaults in filter_config.py
+      2) categories.json (repo root or truist/)
+      3) CONFIG_DIR/filter_overrides.json (live overrides)
+    Returns:
       (CATEGORY_KEYWORDS, SUBCATEGORY_MAPS, SUBSUBCATEGORY_MAPS, SUBSUBSUBCATEGORY_MAPS,
-       CUSTOM_TRANSACTION_KEYWORDS, OMIT_KEYWORDS, AMOUNT_OMIT_RULES, CONFIG_SOURCE)
+       CUSTOM_TRANSACTION_KEYWORDS, OMIT_KEYWORDS, AMOUNT_OMIT_RULES, source_str)
     """
-    # defaults from code
-    CATEGORY_KEYWORDS      = getattr(fc, "CATEGORY_KEYWORDS", {})
-    SUBCATEGORY_MAPS       = getattr(fc, "SUBCATEGORY_MAPS", {})
-    SUBSUBCATEGORY_MAPS    = getattr(fc, "SUBSUBCATEGORY_MAPS", {})
-    SUBSUBSUBCATEGORY_MAPS = getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {})
-    CUSTOM_TX              = getattr(fc, "CUSTOM_TRANSACTION_KEYWORDS", {})
-    OMIT_KEYWORDS          = getattr(fc, "OMIT_KEYWORDS", [])
-    AMOUNT_OMIT_RULES      = getattr(fc, "AMOUNT_OMIT_RULES", [])
-    src = "code"
+    global JSON_PATH
 
-    # overrides from CONFIG_DIR/filter_overrides.json if present
-    cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
-    ov_path = cfg_dir / "filter_overrides.json"
-    if ov_path.exists():
+    base_dir = Path(__file__).resolve().parent   # .../truist
+    project_root = base_dir.parents[1]           # .../<repo_root>
+
+    # Defaults from code
+    cfg = {
+        "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
+        "SUBCATEGORY_MAPS": getattr(fc, "SUBCATEGORY_MAPS", {}),
+        "SUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBCATEGORY_MAPS", {}),
+        "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
+        "CUSTOM_TRANSACTION_KEYWORDS": getattr(fc, "CUSTOM_TRANSACTION_KEYWORDS", {}),
+        "OMIT_KEYWORDS": getattr(fc, "OMIT_KEYWORDS", []),
+        "AMOUNT_OMIT_RULES": getattr(fc, "AMOUNT_OMIT_RULES", []),  # NEW
+    }
+
+    # Prefer the same JSON the Category Builder uses (project root), else local.
+    json_candidates = [project_root / "categories.json", base_dir / "categories.json"]
+    json_path = next((p for p in json_candidates if p.exists()), None)
+    JSON_PATH = json_path
+    source = "filter_config.py"  # will be updated below
+
+    def _merge_dict(a, b):
+        out = dict(a or {})
+        out.update(b or {})
+        return out
+
+    def _merge_list(a, b):
+        # preserve order, remove dups
+        return list(dict.fromkeys((a or []) + (b or [])))
+
+    # Merge categories.json (if present)
+    if json_path:
         try:
-            j = _read_json(ov_path, {})
-            CATEGORY_KEYWORDS      = j.get("CATEGORY_KEYWORDS", CATEGORY_KEYWORDS)
-            SUBCATEGORY_MAPS       = j.get("SUBCATEGORY_MAPS", SUBCATEGORY_MAPS)
-            SUBSUBCATEGORY_MAPS    = j.get("SUBSUBCATEGORY_MAPS", SUBSUBCATEGORY_MAPS)
-            SUBSUBSUBCATEGORY_MAPS = j.get("SUBSUBSUBCATEGORY_MAPS", SUBSUBSUBCATEGORY_MAPS)
-            CUSTOM_TX              = j.get("CUSTOM_TRANSACTION_KEYWORDS", CUSTOM_TX)
-            OMIT_KEYWORDS          = j.get("OMIT_KEYWORDS", OMIT_KEYWORDS)
-            AMOUNT_OMIT_RULES      = j.get("AMOUNT_OMIT_RULES", AMOUNT_OMIT_RULES)
-            src = "overrides"
+            with open(json_path, "r", encoding="utf-8") as f:
+                jcfg = json.load(f) or {}
+            for k, v in jcfg.items():
+                if v is None:
+                    continue
+                if isinstance(v, dict):
+                    cfg[k] = _merge_dict(cfg.get(k, {}), v)
+                elif isinstance(v, list):
+                    cfg[k] = _merge_list(cfg.get(k, []), v)
+                else:
+                    cfg[k] = v
+            source = f"categories.json ({json_path})"
+        except Exception:
+            pass  # fall back silently
+
+    # Merge filter_overrides.json from CONFIG_DIR (if present)
+    cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
+    ovrd_path = cfg_dir / "filter_overrides.json"
+    if ovrd_path.exists():
+        try:
+            with open(ovrd_path, "r", encoding="utf-8") as f:
+                ocfg = json.load(f) or {}
+            for k, v in ocfg.items():
+                if v is None:
+                    continue
+                if isinstance(v, dict):
+                    cfg[k] = _merge_dict(cfg.get(k, {}), v)
+                elif isinstance(v, list):
+                    cfg[k] = _merge_list(cfg.get(k, []), v)
+                else:
+                    cfg[k] = v
+            source += f" + overrides ({ovrd_path})"
         except Exception:
             pass
 
     return (
-        CATEGORY_KEYWORDS,
-        SUBCATEGORY_MAPS,
-        SUBSUBCATEGORY_MAPS,
-        SUBSUBSUBCATEGORY_MAPS,
-        CUSTOM_TX,
-        OMIT_KEYWORDS,
-        AMOUNT_OMIT_RULES,
-        src
+        cfg["CATEGORY_KEYWORDS"],
+        cfg["SUBCATEGORY_MAPS"],
+        cfg["SUBSUBCATEGORY_MAPS"],
+        cfg["SUBSUBSUBCATEGORY_MAPS"],
+        cfg["CUSTOM_TRANSACTION_KEYWORDS"],
+        cfg["OMIT_KEYWORDS"],
+        cfg["AMOUNT_OMIT_RULES"],   # NEW
+        source,
     )
 
-def _hidden_categories():
-    """
-    Union of default hidden categories + overrides (if any).
-    We also ALWAYS include "Camera" as a sentinel hidden category so it never
-    contributes to top-line expense totals (but it's still available in the
-    drawer/inspector which requests allow_hidden=1).
-    """
-    defaults = set(getattr(fc, "HIDDEN_CATEGORIES", []) or [])
-    cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
-    ov_path = cfg_dir / "filter_overrides.json"
-    hidden = set(defaults)
-    if ov_path.exists():
-        try:
-            j = _read_json(ov_path, {})
-            hidden.update(j.get("HIDDEN_CATEGORIES", []) or [])
-        except Exception:
-            pass
-    return hidden.union({"Camera"})
 
-def _is_path_hidden(cat, sub=None, ssub=None, sss=None):
-    """
-    Optional: allow hiding deeper paths by specifying exact labels in HIDDEN_PATHS override:
-      ["Rent/Utilities / Water", "Groceries / Costco", ...]
-    """
-    cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
-    ov_path = cfg_dir / "filter_overrides.json"
-    paths = set()
-    if ov_path.exists():
-        try:
-            j = _read_json(ov_path, {})
-            for p in j.get("HIDDEN_PATHS", []) or []:
-                if isinstance(p, str) and p.strip():
-                    paths.add(p.strip().lower())
-        except Exception:
-            pass
-    label = " / ".join([x for x in [cat, sub, ssub, sss] if x]).strip().lower()
-    return (label in paths)
+(
+    category_keywords,
+    subcategory_maps,
+    subsubcategory_maps,
+    subsubsubcategory_maps,
+    custom_tx_keywords,
+    omit_keywords,
+    amount_omit_rules,   # NEW
+    CONFIG_SOURCE,
+) = _load_category_config()
 
-# =========================================================
-# Transaction normalization from raw rows
-# =========================================================
+# Helpful trace in your Flask console
+print(f"[ClarityLedger] Category config source: {CONFIG_SOURCE}")
+if JSON_PATH:
+    print(f"[ClarityLedger] JSON_PATH = {JSON_PATH}")
 
-def _tx_from_raw(raw, category_keywords, custom_tx_keywords):
-    """
-    Normalize a raw row (json/csv row) into our app transaction format.
-    Returns dict with:
-      date, description, amount (UI-signed), category, subcategory?, is_return, expense_amount
-    """
-    if not isinstance(raw, dict):
+
+# === Date helpers ===
+def _parse_any_date(s: str):
+    if not s:
         return None
-    if raw.get("pending", False):
+    s = str(s).strip()
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
         return None
 
-    # Date
-    dt = _parse_any_date(raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED"))
+
+def _safe_date_key(s):
+    dt = _parse_any_date(s or "")
+    return dt if dt else datetime.min
+
+
+# === Utility Functions ===
+def clean_description(desc: str) -> str:
+    desc = (desc or "").strip().upper()
+    desc = desc.replace("-", "")
+    return re.sub(r"\s+", " ", desc)
+
+
+def deduplicate(transactions):
+    seen = set()
+    unique = []
+    for tx in transactions:
+        key = (tx.get("date"), round(float(tx.get("amount", 0.0)), 2), tx.get("category"))
+        if key not in seen:
+            seen.add(key)
+            unique.append(tx)
+    return unique
+
+
+def is_interest_income(desc, amt):
+    return "INTEREST PAYMENT" in (desc or "").upper() and amt > 0
+
+
+# --- Keyword hit helper (STRICT only) ---
+def _kw_hits(desc: str, kw: str) -> bool:
+    """
+    Keep partial substring behavior by default, but enforce whole-word matching
+    for a small curated set of 'troublemaker' keywords from fc.STRICT_BOUNDARY_KEYWORDS.
+    """
+    desc = (desc or "").upper()
+    kw = (kw or "").upper()
+    strict = set(getattr(fc, "STRICT_BOUNDARY_KEYWORDS", []))
+    if kw in strict:
+        return re.search(rf"\b{re.escape(kw)}\b", desc) is not None
+    return kw in desc  # default: partials keep working
+
+
+# --- Central transfer detector (uses fc.TRANSFER_KEYWORDS) ---
+def _looks_like_transfer(desc: str) -> bool:
+    U = (desc or "").upper()
+    for kw in getattr(fc, "TRANSFER_KEYWORDS", []):
+        if kw.upper() in U:
+            return True
+    return False
+
+
+# --- NEW: Return detection & normalized expense math ---
+def _is_return(desc: str) -> bool:
+    U = (desc or "").upper()
+    kws = getattr(fc, "RETURN_KEYWORDS", None)
+    if not kws:
+        kws = ("RETURN", "REFUND", "REVERSAL")
+    return any(k.upper() in U for k in kws)
+
+
+def _expense_amount(raw_amount: float, is_return: bool) -> float:
+    """
+    Convert a raw signed amount into 'expense space':
+      - Purchases: +abs(amount)
+      - Returns:   -abs(amount)
+    We DO NOT infer from bank sign; we use keywords to flip.
+    """
+    base = abs(float(raw_amount))
+    return -base if is_return else base
+
+
+# --- Simple omit helper for substring-based OMIT_KEYWORDS ---
+def _should_omit(desc: str, omit_list) -> bool:
+    if not omit_list:
+        return False
+    U = clean_description(desc)
+    return any((k or "").upper() in U for k in omit_list)
+
+
+# --- Omit helper (supports substring + amount rules) ---
+def _should_omit_tx(desc: str, amt_signed: float, omit_list, amount_rules) -> bool:
+    """
+    omit_list: list of substrings (case-insensitive)
+    amount_rules: list of {"contains": "TEXT", "min": float?, "max": float?}
+    Match is on UPPER(desc). Amount check uses abs(amt_signed).
+    """
+    if _should_omit(desc, omit_list):
+        return True
+
+    U = clean_description(desc)
+    try:
+        val = abs(float(amt_signed or 0.0))
+    except Exception:
+        val = 0.0
+
+    for rule in (amount_rules or []):
+        try:
+            contains = clean_description(rule.get("contains") or "")
+            if contains and contains not in U:
+                continue
+            mn = rule.get("min", None)
+            mx = rule.get("max", None)
+            if (mn is None or val >= float(mn)) and (mx is None or val <= float(mx)):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+# === Statements discovery (disk first, then repo fallbacks) ===
+def _candidate_statement_dirs():
+    """Ordered search paths for statements (disk first, then repo fallbacks)."""
+    here = Path(__file__).resolve()
+    project_root = here.parents[1]
+    env_dir = os.environ.get("STATEMENTS_DIR")
+    dirs = []
+    if env_dir:
+        dirs.append(Path(env_dir))
+    dirs.append(Path("/var/data/statements"))
+    dirs.append(project_root / "statements")
+    dirs.append(here.parent / "statements")   # truist/statements
+    dirs.append(Path.cwd() / "statements")
+    return dirs
+
+
+def get_statements_base_dir() -> Path:
+    """First existing candidate; falls back to /var/data/statements."""
+    for d in _candidate_statement_dirs():
+        if d.exists():
+            return d
+    return Path("/var/data/statements")
+
+
+def discover_statement_files():
+    """Find CSV/JSON statements across candidate dirs (flat or nested)."""
+    exts = {".csv", ".json"}
+    files = []
+    for base in _candidate_statement_dirs():
+        if base.exists():
+            files.extend(
+                p for p in base.rglob("*")
+                if p.is_file() and p.suffix.lower() in exts
+            )
+    return files
+
+
+# === File loaders ===
+def _parse_money(s: str) -> float:
+    if s is None:
+        return 0.0
+    t = str(s).strip()
+    if t == "":
+        return 0.0
+    # Handle parentheses for negatives and $/commas
+    neg = False
+    if t.startswith("(") and t.endswith(")"):
+        neg = True
+        t = t[1:-1]
+    t = t.replace("$", "").replace(",", "")
+    try:
+        v = float(t)
+    except Exception:
+        # Sometimes "1,234.56-" or "-1,234.56" or "CR"/"DR"
+        t2 = t.replace("-", "")
+        try:
+            v = float(t2)
+            if "-" in t:
+                neg = True
+        except Exception:
+            return 0.0
+    return -v if neg else v
+
+
+def load_json_transactions(file_path: Path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    # Some JSON dumps are {"transactions":[...]} — normalize
+    if isinstance(data, dict) and "transactions" in data and isinstance(data["transactions"], list):
+        return data["transactions"]
+    return data if isinstance(data, list) else []
+
+
+def load_csv_transactions(file_path: Path):
+    """Robust CSV reader for common bank exports (Amount OR Debit/Credit forms)."""
+    rows = []
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        reader = csv.DictReader(f)
+        headers = [h.strip().upper() for h in (reader.fieldnames or [])]
+
+        # Candidate columns
+        date_cols = ["DATE", "POSTED DATE", "TRANSACTION DATE", "DATE POSTED"]
+        desc_cols = ["DESCRIPTION", "MEMO", "NAME", "TRANSACTION DESCRIPTION", "DETAILS"]
+        amt_cols  = ["AMOUNT", "TRANSACTION AMOUNT", "AMT"]
+        debit_cols = ["DEBIT", "WITHDRAWAL"]
+        credit_cols = ["CREDIT", "DEPOSIT"]
+
+        def pick(colnames):
+            for c in colnames:
+                if c in headers:
+                    return c
+            return None
+
+        DATE = pick(date_cols)
+        DESC = pick(desc_cols)
+
+        # Amount logic
+        AMOUNT = pick(amt_cols)
+        DEBIT  = pick(debit_cols)
+        CREDIT = pick(credit_cols)
+
+        for raw in reader:
+            # Normalize keys to upper for safe access
+            row = { (k or "").strip().upper(): v for k, v in raw.items() }
+
+            # Date
+            ds = row.get(DATE or "", "") if DATE else ""
+            dt = _parse_any_date(ds)
+            if not dt:
+                # try alternative date columns ad-hoc
+                for alt in date_cols:
+                    ds = row.get(alt, "")
+                    dt = _parse_any_date(ds)
+                    if dt:
+                        break
+            if not dt:
+                continue  # skip if we can't parse a date
+
+            # Description
+            desc = clean_description(row.get(DESC or "", "")) if DESC else ""
+            if not desc:
+                for alt in desc_cols:
+                    v = row.get(alt, "")
+                    if v:
+                        desc = clean_description(v)
+                        break
+
+            # Amount
+            if AMOUNT:
+                raw_amt = _parse_money(row.get(AMOUNT, "0"))
+            elif DEBIT or CREDIT:
+                d = _parse_money(row.get(DEBIT or "", "0"))
+                c = _parse_money(row.get(CREDIT or "", "0"))
+                # Some exports use positive numbers; treat debit as negative, credit as positive
+                if d and c:
+                    raw_amt = c - d
+                elif d:
+                    raw_amt = -abs(d)
+                else:
+                    raw_amt = abs(c)
+            else:
+                # Fallback: look for any numeric-looking field named like *AMOUNT*
+                candidates = [k for k in row.keys() if "AMOUNT" in k]
+                raw_amt = _parse_money(row.get(candidates[0], "0")) if candidates else 0.0
+
+            rows.append({
+                "date": dt.strftime("%Y-%m-%d"),  # normalized later
+                "amount": raw_amt,
+                "description": desc,
+                "pending": False,
+            })
+    return rows
+
+
+def load_manual_transactions(file_path: Path):
+    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
+    transactions = []
+    if not file_path.exists():
+        return transactions
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            tx = json.loads(line)
+            tx["amount"] = float(tx["amount"])
+            tx["description"] = clean_description(tx.get("description", ""))
+            dt = _parse_any_date(tx.get("date", ""))
+            if dt:
+                tx["date"] = dt.strftime("%m/%d/%Y")
+            # mark return + compute expense_amount for manual rows too
+            tx["is_return"] = _is_return(tx["description"])
+            tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
+            transactions.append(tx)
+    return transactions
+
+
+def categorize_transaction(desc, amount, category_keywords):
+    amt_rounded = round(amount, 2)
+    desc = (desc or "").upper()
+
+    # Transfers FIRST so they never fall into Misc/Uncategorized
+    if _looks_like_transfer(desc):
+        return "Transfers"
+
+    # Hard-coded exceptions
+    if "CHECK" in desc:
+        if amt_rounded == 264.00:
+            return "Fees"
+        if amt_rounded == 2500.00:
+            return "Rent/Utilities"
+
+    if "TRANSFER" in desc:
+        return "Transfers"
+
+    if "COSTCO" in desc and amt_rounded == 65.00:
+        return "Subscriptions"
+
+    if "WALMART" in desc and amt_rounded == 212.93:
+        return "Phone"
+
+    if "SARASOTA COUNTY PU" in desc:
+        return "Rent/Utilities"
+
+    if "HARD ROCK" in desc and "CREDIT" in desc:
+        return "Income"
+
+    # Prioritize Income over other categories
+    priority_order = ["Income"] + [cat for cat in category_keywords if cat != "Income"]
+    for category in priority_order:
+        for keyword in category_keywords.get(category, []):
+            if _kw_hits(desc, keyword):
+                return category
+
+    return "Miscellaneous"
+
+
+def _iter_all_raw_transactions():
+    """Yield raw transaction dicts from discovered CSV and JSON files (skipping non-tx JSON)."""
+    files = discover_statement_files()
+    for file in files:
+        ext = file.suffix.lower()
+        if ext == ".json":
+            # Avoid clearly non-transaction JSON files
+            nm = file.name.lower()
+            if nm in {"access_token.json", "token.json"}:
+                continue
+            if not (nm.startswith(("plaid_", "transactions_")) or nm in {"all_transactions.json", "manual_transactions.json"}):
+                # only process known transaction dumps to avoid surprises
+                continue
+            try:
+                data = load_json_transactions(file)
+            except Exception:
+                continue
+            for tx in data:
+                yield tx
+        elif ext == ".csv":
+            try:
+                data = load_csv_transactions(file)
+            except Exception:
+                continue
+            for tx in data:
+                yield tx
+
+
+def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
+    """Normalize one raw row into our internal tx dict."""
+    # Skip pending
+    if isinstance(raw, dict) and raw.get("pending", False):
+        return None
+
+    # Extract date
+    date_str = None
+    if isinstance(raw, dict):
+        date_str = raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED")
+    dt = _parse_any_date(date_str)
     if not dt:
         return None
 
-    # Amount
+    # Extract amount
     try:
         raw_amt = float(raw.get("amount"))
     except Exception:
-        raw_amt = 0.0
+        # try common variants
+        for key in ["AMOUNT", "transaction_amount", "TRANSACTION AMOUNT"]:
+            if key in raw:
+                try:
+                    raw_amt = float(raw[key])
+                except Exception:
+                    raw_amt = 0.0
+                break
+        else:
+            raw_amt = 0.0
 
-    # Desc
+    # Description
     desc = clean_description(
-        raw.get("description") or raw.get("name", "") or raw.get("merchant_name", "") or raw.get("desc", "") or ""
+        raw.get("description")
+        or raw.get("name", "")
+        or raw.get("merchant_name", "")
+        or raw.get("desc", "")
+        or ""
     )
 
-    # Categorize
-    category = categorize_transaction(desc, raw_amt, category_keywords)
-
-    # Custom overrides?
-    for label, kws in (custom_tx_keywords or {}).items():
-        if any(_kw_hits(desc, k) for k in (kws or [])):
-            category = label
-            break
-
-    # Return?
-    is_ret = _is_return(desc)
-
-    # UI sign:
-    #  - income => +abs
-    #  - expense purchase => -abs
-    #  - expense return   => +abs
-    if category == "Income":
-        amount = abs(raw_amt)
+    # Custom exact-key override
+    custom_key = f"{desc} - ${round(raw_amt, 2)}"
+    if custom_tx_keywords_live and custom_key in custom_tx_keywords_live:
+        category = custom_tx_keywords_live[custom_key]["category"]
+        subcategory = custom_tx_keywords_live[custom_key].get("subcategory")
     else:
-        amount = abs(raw_amt) if is_ret else -abs(raw_amt)
+        category = categorize_transaction(desc, raw_amt, category_keywords)
+        subcategory = None  # matched later
+
+    # Return/expense math
+    is_return = _is_return(desc)
+    expense_amount = _expense_amount(raw_amt, is_return)
+
+    # UI sign logic
+    if category == "Income":
+        norm_amount = abs(raw_amt)
+    else:
+        norm_amount = abs(raw_amt) if is_return else -abs(raw_amt)
 
     tx = {
-        "date": dt.strftime("%Y-%m-%d"),
-        "description": desc,
-        "amount": amount,
+        "date": dt.strftime("%m/%d/%Y"),
+        "amount": norm_amount,            # UI/sign logic
         "category": category,
-        "is_return": is_ret,
-        "expense_amount": _expense_amount(amount, is_ret),
+        "description": desc,
+        "is_return": is_return,
+        "expense_amount": expense_amount  # category math
     }
+    if subcategory:
+        tx["subcategory"] = subcategory
+    if category == "Transfers":
+        tx["is_transfer"] = True
     return tx
 
-# Basic categorizer (top-level only)
-def categorize_transaction(desc, raw_amount, category_keywords):
-    d = clean_description(desc)
-    for cat, kws in (category_keywords or {}).items():
-        for k in (kws or []):
-            if _kw_hits(d, k):
-                return cat
-    # Default fallbacks
-    if float(raw_amount or 0.0) > 0:
-        return "Income"
-    return "Other"
 
-# =========================================================
-# Manual entries
-# =========================================================
-
-def load_manual_transactions(manual_path: Path):
+def _build_tree_from_categories(categories_dict):
     """
-    Load manual entries from manual_transactions.json if present.
-    Each row should already include: date, description, amount (UI-signed), category,
-    optional subcategory/sub_subcategory, is_return, expense_amount
+    Builds a generic tree with up to 4 levels for the recursive UI.
     """
-    if not manual_path.exists():
-        return []
-    data = _read_json(manual_path, [])
-    if isinstance(data, list):
-        out = []
-        for r in data:
-            if not isinstance(r, dict):
-                continue
-            # Keep date normalized
-            dt = _parse_any_date(r.get("date", ""))
-            if not dt:
-                continue
-            row = dict(r)
-            row["date"] = dt.strftime("%Y-%m-%d")
-            # Ensure expense_amount present
-            if "expense_amount" not in row:
-                is_ret = row.get("is_return", _is_return(row.get("description", "")))
-                row["expense_amount"] = _expense_amount(row.get("amount", 0.0), is_ret)
-            out.append(row)
-        return out
-    return []
+    tree = []
 
-# =========================================================
-# Monthly summaries (top-line dashboard)
-# =========================================================
+    def make_node(name, total, txs, subcats, subsubs, subsubsubs):
+        node = {"name": name, "total": round(total, 2), "transactions": txs, "children": []}
 
-CONFIG_SOURCE = "unknown"
+        for sub_name, sub_total in sorted((subcats or {}).items(), key=lambda x: -x[1]):
+            sub_txs = [t for t in txs if t.get("subcategory") == sub_name]
+            child = {"name": sub_name, "total": round(sub_total, 2), "transactions": sub_txs, "children": []}
+
+            if subsubs and sub_name in subsubs:
+                for ssub_name, ssub_total in sorted(subsubs[sub_name].items(), key=lambda x: -x[1]):
+                    ssub_txs = [t for t in sub_txs if t.get("subsubcategory") == ssub_name]
+                    grandchild = {"name": ssub_name, "total": round(ssub_total, 2), "transactions": ssub_txs, "children": []}
+
+                    if subsubsubs and sub_name in subsubsubs and ssub_name in subsubsubs[sub_name]:
+                        for sss_name, sss_total in sorted(subsubsubs[sub_name][ssub_name].items(), key=lambda x: -x[1]):
+                            sss_txs = [t for t in ssub_txs if t.get("subsubsubcategory") == sss_name]
+                            great = {"name": sss_name, "total": round(sss_total, 2), "transactions": sss_txs, "children": []}
+                            grandchild["children"].append(great)
+
+                    child["children"].append(grandchild)
+
+            node["children"].append(child)
+
+        node["children"].sort(key=lambda n: -n["total"])
+        return node
+
+    for cat_name, data in categories_dict.items():
+        node = make_node(
+            cat_name,
+            data.get("total", 0.0),
+            data.get("transactions", []),
+            data.get("subcategories", {}),
+            data.get("subsubcategories", {}),
+            data.get("subsubsubcategories", {}),
+        )
+        tree.append(node)
+
+    tree.sort(key=lambda n: -n["total"])
+    return tree
+
+
+def _hidden_categories():
+    """Hidden categories from code (fc.HIDDEN_CATEGORIES) + JSON overrides in CONFIG_DIR/filter_overrides.json."""
+    hidden = set()
+    try:
+        from truist import filter_config as _fc
+        hidden |= set(getattr(_fc, "HIDDEN_CATEGORIES", []) or [])
+    except Exception:
+        pass
+    try:
+        import os, json
+        from pathlib import Path
+        cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
+        ov_path = cfg_dir / "filter_overrides.json"
+        if ov_path.exists():
+            j = json.loads(ov_path.read_text(encoding="utf-8"))
+            for c in (j.get("HIDDEN_CATEGORIES") or []):
+                hidden.add(c)
+    except Exception:
+        pass
+    return hidden
+
 
 def generate_summary(category_keywords, subcategory_maps):
     """
     Build monthly summaries using the *latest* config every call (so renames & deeper maps stay in sync).
     Returns offset spending within the same category via tx['expense_amount'].
-    Hidden categories (including "Camera") do not contribute to top-line totals.
     """
     # Pull fresh config for deeper maps & omit/custom rules
     (
@@ -386,7 +645,7 @@ def generate_summary(category_keywords, subcategory_maps):
         _src,
     ) = _load_category_config()
 
-    hidden_cats = _hidden_categories()
+    hidden_cats = _hidden_categories()  # <-- NEW
 
     # Use discovered base dir for manual entries
     statements_base = get_statements_base_dir()
@@ -423,6 +682,7 @@ def generate_summary(category_keywords, subcategory_maps):
             tx["expense_amount"] = _expense_amount(tx.get("amount", 0.0), tx["is_return"])
 
         # Ensure UI sign convention for ALL rows (including manual):
+        # Income => +; Expense purchase => -; Expense return => +
         cat = tx.get("category", "")
         if cat == "Income":
             tx["amount"] = abs(float(tx.get("amount", 0.0)))
@@ -456,6 +716,7 @@ def generate_summary(category_keywords, subcategory_maps):
         income_total = 0.0
         expense_net = 0.0  # net of purchases minus returns
 
+        categorized = defaultdict(list)
         categorized_data = defaultdict(lambda: {"total": 0.0, "transactions": [], "subcategories": defaultdict(float)})
 
         for tx in month_tx:
@@ -467,7 +728,6 @@ def generate_summary(category_keywords, subcategory_maps):
             # Global omit/skip rules (now includes amount rules)
             if _should_omit_tx(desc, amt_signed, omit_keywords_live, amount_omit_rules_live):
                 continue
-            # Transfers/Venmo/CreditCard sentinel filters, and **hidden categories**
             if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat in hidden_cats:
                 continue
 
@@ -486,12 +746,15 @@ def generate_summary(category_keywords, subcategory_maps):
             else:
                 expense_net += exp_amt  # purchases add, returns subtract
 
+            categorized[cat].append(tx)
             cd = categorized_data[cat]
+
             # Category totals: Income uses income amounts; others use expense_amount
             if cat == "Income":
                 cd["total"] += abs(amt_signed)
             else:
                 cd["total"] += exp_amt
+
             cd["transactions"].append(tx)
 
             # Respect manual subcats first
@@ -500,6 +763,7 @@ def generate_summary(category_keywords, subcategory_maps):
             forced_subsub = tx.get("sub_subcategory")
 
             if forced_subcat:
+                # Subcategory totals: use expense_amount for expenses, income amount for income
                 if cat == "Income":
                     cd["subcategories"][forced_subcat] += abs(amt_signed)
                 else:
@@ -510,6 +774,7 @@ def generate_summary(category_keywords, subcategory_maps):
                 if forced_subsub:
                     if "subsubcategories" not in cd:
                         cd["subsubcategories"] = defaultdict(lambda: defaultdict(float))
+                    # Sub-sub also uses exp/income logic
                     if cat == "Income":
                         cd["subsubcategories"][forced_subcat][forced_subsub] += abs(amt_signed)
                     else:
@@ -517,61 +782,61 @@ def generate_summary(category_keywords, subcategory_maps):
                     tx["subsubcategory"] = forced_subsub
 
             # Keyword matching
-            if not matched:
-                sub_map = subcategory_maps.get(cat, {})
-                if sub_map:
-                    for subcat_label, keywords in sub_map.items():
-                        if any(_kw_hits(desc, k) for k in keywords):
-                            if cat == "Income":
-                                cd["subcategories"][subcat_label] += abs(amt_signed)
-                            else:
-                                cd["subcategories"][subcat_label] += exp_amt
-                            tx["subcategory"] = subcat_label
-                            matched = True
+            sub_map = subcategory_maps.get(cat, {})
+            if not matched and sub_map:
+                for subcat_label, keywords in sub_map.items():
+                    if any(_kw_hits(desc, k) for k in keywords):
+                        if cat == "Income":
+                            cd["subcategories"][subcat_label] += abs(amt_signed)
+                        else:
+                            cd["subcategories"][subcat_label] += exp_amt
+                        tx["subcategory"] = subcat_label
+                        matched = True
 
-                            # Sub-subcategory match
-                            subsub_map = subsubcategory_maps_live.get(cat, {}).get(subcat_label, {})
-                            subsub_matched = None
-                            for subsub_label, subsub_keywords in subsub_map.items():
-                                if any(_kw_hits(desc, ssub_kw) for ssub_kw in subsub_keywords):
-                                    subsub_matched = subsub_label
-                                    tx["subsubcategory"] = subsub_label
-                                    if "subsubcategories" not in cd:
-                                        cd["subsubcategories"] = defaultdict(lambda: defaultdict(float))
+                        # Sub-subcategory match
+                        subsub_map = subsubcategory_maps_live.get(cat, {}).get(subcat_label, {})
+                        subsub_matched = None
+                        for subsub_label, subsub_keywords in subsub_map.items():
+                            if any(_kw_hits(desc, ssub_kw) for ssub_kw in subsub_keywords):
+                                subsub_matched = subsub_label
+                                tx["subsubcategory"] = subsub_label
+                                if "subsubcategories" not in cd:
+                                    cd["subsubcategories"] = defaultdict(lambda: defaultdict(float))
+                                if cat == "Income":
+                                    cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
+                                else:
+                                    cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
+                                break
+
+                        # Sub-sub-subcategory match (requires a sub-sub match)
+                        if subsub_matched:
+                            subsubsub_map = (
+                                subsubsubcategory_maps_live
+                                .get(cat, {})
+                                .get(subcat_label, {})
+                                .get(subsub_matched, {})
+                            )
+                            for subsubsub_label, subsubsub_keywords in subsubsub_map.items():
+                                if any(_kw_hits(desc, k) for k in subsubsub_keywords):
+                                    tx["subsubsubcategory"] = subsubsub_label
+                                    if "subsubsubcategories" not in cd:
+                                        cd["subsubsubcategories"] = defaultdict(
+                                            lambda: defaultdict(lambda: defaultdict(float))
+                                        )
                                     if cat == "Income":
-                                        cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
+                                        cd["subsubsubcategories"][subcat_label][subsub_matched][subsubsub_label] += abs(amt_signed)
                                     else:
-                                        cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
+                                        cd["subsubsubcategories"][subcat_label][subsub_matched][subsubsub_label] += exp_amt
                                     break
+                        break
 
-                            # Sub-sub-subcategory match
-                            if subsub_matched:
-                                subsubsub_map = (
-                                    subsubsubcategory_maps_live
-                                    .get(cat, {})
-                                    .get(subcat_label, {})
-                                    .get(subsub_matched, {})
-                                )
-                                for subsubsub_label, subsubsub_keywords in subsubsub_map.items():
-                                    if any(_kw_hits(desc, k) for k in subsubsub_keywords):
-                                        tx["subsubsubcategory"] = subsubsub_label
-                                        if "subsubsubcategories" not in cd:
-                                            cd["subsubsubcategories"] = defaultdict(
-                                                lambda: defaultdict(lambda: defaultdict(float))
-                                            )
-                                        if cat == "Income":
-                                            cd["subsubsubcategories"][subcat_label][subsub_matched][subsubsub_label] += abs(amt_signed)
-                                        else:
-                                            cd["subsubsubcategories"][subcat_label][subsub_matched][subsubsub_label] += exp_amt
-                                        break
-                            break
-
-                if not matched and sub_map:
-                    if cat == "Income":
-                        cd["subcategories"]["🟡 Other/Uncategorized"] += abs(amt_signed)
-                    else:
-                        cd["subcategories"]["🟡 Other/Uncategorized"] += exp_amt
-                    tx["subcategory"] = "🟡 Other/Uncategorized"
+            if not matched and sub_map:
+                # Uncategorized bucket uses same exp/income logic
+                if cat == "Income":
+                    cd["subcategories"]["🟡 Other/Uncategorized"] += abs(amt_signed)
+                else:
+                    cd["subcategories"]["🟡 Other/Uncategorized"] += exp_amt
+                tx["subcategory"] = "🟡 Other/Uncategorized"
 
         # Compose month summary
         # Keep expense_total non-negative for UI sanity; returns reduce it.
@@ -587,16 +852,12 @@ def generate_summary(category_keywords, subcategory_maps):
         }
 
         for cat, data in sorted(categorized_data.items(), key=lambda x: -x[1]["total"]):
-            # skip writing hidden categories to the per-category breakdown (they've
-            # already been excluded from totals above, this just keeps the list tidy)
-            if cat in hidden_cats:
-                continue
-
             subcats = data["subcategories"]
             sub_map = subcategory_maps.get(cat, {})
             has_defined_subcats = bool(sub_map)
 
             if has_defined_subcats:
+                # For display, drop the 'Other/Uncategorized' line if you prefer (kept behavior)
                 filtered_subcats = {k: v for k, v in subcats.items() if k != "🟡 Other/Uncategorized"}
                 subcat_output = {k: round(v, 2) for k, v in sorted(filtered_subcats.items(), key=lambda x: -x[1])}
             else:
@@ -638,43 +899,6 @@ def generate_summary(category_keywords, subcategory_maps):
 
     return monthly_summaries
 
-def _build_tree_from_categories(cat_blob):
-    """
-    Build a tree structure the UI expects from the per-category blob.
-    """
-    tree = []
-    for cat, data in cat_blob.items():
-        node = {
-            "name": cat,
-            "total": data.get("total", 0.0),
-            "children": [],
-        }
-        for sub, v in (data.get("subcategories") or {}).items():
-            node["children"].append({
-                "name": sub,
-                "total": v,
-                "children": [],  # could add deeper if needed in UI
-            })
-        tree.append(node)
-    return tree
-
-def deduplicate(rows):
-    """
-    Drop duplicates on (date, amount, category, description) keeping the first.
-    """
-    seen = set()
-    out = []
-    for r in rows:
-        key = (r.get("date"), float(r.get("amount") or 0.0), r.get("category"), r.get("description"))
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(r)
-    return out
-
-# =========================================================
-# Recent activity summary (dashboard cards)
-# =========================================================
 
 def recent_activity_summary(
     days=30,
@@ -688,14 +912,13 @@ def recent_activity_summary(
       - recent_txs: most recent transactions (filtered), newest first
       - movers_abs: category movers (latest vs prev) by absolute $ delta
       - latest_totals: income/expense/net for latest month + deltas vs prev
-    Hidden categories are filtered from totals and recent lists.
     """
     # Always build from latest config
     (
         ck, sm, _ss, _sss, _custom, omit_live, amount_rules, _src
     ) = _load_category_config()
 
-    hidden_cats = _hidden_categories()
+    hidden_cats = _hidden_categories()  # <-- NEW
 
     try:
         monthly = generate_summary(ck, sm)
@@ -761,7 +984,7 @@ def recent_activity_summary(
 
     rows = []
     for name, data in latest_cats.items():
-        if (not include_income and name == "Income") or (name in hidden_cats):
+        if not include_income and name == "Income":
             continue
         latest_total = float(data.get("total") or 0.0)
         prev_total   = float((prev_cats.get(name, {}) or {}).get("total") or 0.0)
@@ -804,7 +1027,7 @@ def recent_activity_summary(
 
         if _should_omit_tx(desc, amt, omit_live, amount_rules):
             return False
-        if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or (cat in hidden_cats):
+        if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or cat in hidden_cats:
             return False
         if _is_hidden_amount(amt):
             return False
@@ -851,22 +1074,22 @@ def recent_activity_summary(
 
     return out
 
-# =========================================================
-# Manage Panel Support (drawer)
-# =========================================================
 
-def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden=False):
+# ========= Manage Panel Support =========
+def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden: bool = False):
     """
     Return recent transactions that land on the given node.
     - level: 'category' | 'subcategory' | 'subsubcategory' | 'subsubsubcategory'
     - cat/sub/ssub/sss: labels; pass '' for unused deeper levels
+    - allow_hidden: include rows whose category is in HIDDEN_CATEGORIES (default False)
     Output rows: [{id,date,amount,desc,merchant}]
-    If allow_hidden=True, hidden categories/paths are still returned (drawer use-case).
     """
     # Fresh config
     ck, sm, ss, sss_map, _custom, omit_live, amount_rules, _src = _load_category_config()
 
-    # Manual entries base
+    hidden_cats = _hidden_categories()  # <-- NEW
+
+    # Use discovered base for manual
     statements_base = get_statements_base_dir()
     manual_file = statements_base / "manual_transactions.json"
 
@@ -874,6 +1097,8 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
 
     # --- Load from discovered sources (JSON + CSV) ---
     for raw in _iter_all_raw_transactions():
+        # Basic normalize like generate_summary (but we don't need custom override here)
+        # We still use categorize_transaction to place into categories
         if isinstance(raw, dict) and raw.get("pending", False):
             continue
         dt = _parse_any_date(raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED"))
@@ -919,8 +1144,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
     # Deduplicate; keep rows (no offset matcher removal)
     rows = deduplicate(rows)
 
-    hidden_cats = _hidden_categories()
-
     # Global omit/skip rules
     kept = []
     for r in rows:
@@ -930,7 +1153,8 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
 
         if _should_omit_tx(desc, amt, omit_live, amount_rules):
             continue
-        if not allow_hidden and (cat_r in hidden_cats):
+        # respect hidden categories unless explicitly allowed
+        if (not allow_hidden) and (cat_r in hidden_cats):
             continue
         if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300):
             continue
@@ -1018,10 +1242,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
     out = [t for t in kept if match_path(t)]
     out = out[: max(1, int(limit))]
 
-    # If this exact path is hidden and allow_hidden=False, empty it (extra safety)
-    if (not allow_hidden) and (_is_path_hidden(cat, sub, ssub, sss) or (cat in hidden_cats)):
-        out = []
-
     return [
         {
             "id": None,
@@ -1032,3 +1252,14 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
         }
         for t in out
     ]
+
+
+
+if __name__ == "__main__":
+    # Quick test: just print a summary count
+    cfg = {
+        "CATEGORY_KEYWORDS": category_keywords,
+        "SUBCATEGORY_MAPS": subcategory_maps,
+    }
+    monthly = generate_summary(cfg["CATEGORY_KEYWORDS"], cfg["SUBCATEGORY_MAPS"])
+    print(f"Built {len(monthly)} months of summaries")
