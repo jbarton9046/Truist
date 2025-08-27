@@ -55,7 +55,7 @@ from truist.debug_config import debug_bp
 app.register_blueprint(debug_bp)
 
 # Optional: log where CONFIG_DIR points on boot
-app.logger.info(f"[Config] Using CONFIG_DIR={os.environ.get('CONFIG_DIR')}")
+app.logger.info("[Config] Using CONFIG_DIR=%s", os.environ.get("CONFIG_DIR"))
 
 # ---- Blueprints (admin UI + keyword APIs) ----
 from truist.admin_categories import admin_categories_bp, load_cfg
@@ -76,6 +76,7 @@ cfg = {
     "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
+
 
 def build_category_tree(cfg_in=None):
     cfg_local = cfg_in or load_cfg()
@@ -104,17 +105,16 @@ def build_category_tree(cfg_in=None):
 
 # ------------------ FILE HELPERS ------------------
 def _statements_dir() -> Path:
-    # Prefer an external data folder if provided (for cloud disks)
-    data_root = os.environ.get("TRUIST_DATA_DIR")
-    if data_root:
-        p = Path(data_root)
+    # Use the same env var the parser reads (preferred), then accept legacy TRUIST_DATA_DIR.
+    dir_env = os.environ.get("STATEMENTS_DIR") or os.environ.get("TRUIST_DATA_DIR")
+    if dir_env:
+        p = Path(dir_env)
         p.mkdir(parents=True, exist_ok=True)
         return p
-    # Fallback: repo-relative path (current behavior)
-    base_truist_dir = Path(__file__).resolve().parent.parent / "truist"
-    statements_dir = base_truist_dir / "statements"
-    statements_dir.mkdir(exist_ok=True)
-    return statements_dir
+    # Final fallback: persistent disk path
+    p = Path("/var/data/statements")
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 def _manual_file() -> Path:
     return _statements_dir() / "manual_transactions.json"
@@ -125,6 +125,10 @@ def load_manual_transactions():
             return [json.loads(line) for line in f]
     except FileNotFoundError:
         return []
+
+# Log chosen statements directory after helpers are defined
+app.logger.info("[Statements] Using dir: %s", str(_statements_dir()))
+
 
 def save_manual_transaction(tx: dict):
     with open(_manual_file(), "a", encoding="utf-8") as f:
