@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 # Import your live config + summary generator
 import truist.filter_config as fc
-from truist.parser_web import generate_summary
+from truist.parser_web import generate_summary, get_transactions_for_path  # <-- ADDED get_transactions_for_path
 
 # Blueprint lives under /admin
 admin_categories_bp = Blueprint("admin_categories", __name__, url_prefix="/admin")
@@ -195,18 +195,22 @@ def save_cfg(cfg):
     }
 
     # Backup if existing
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     if overrides_path.exists():
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         (backups_dir / f"filter_overrides.{ts}.json").write_text(
             overrides_path.read_text(encoding="utf-8"), encoding="utf-8"
         )
 
     overrides_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    shutil.copy(JSON_PATH, BACKUP_DIR / f"categories.{ts}.json")
+    # Backup current categories.json if present
+    if JSON_PATH.exists():
+        shutil.copy(JSON_PATH, BACKUP_DIR / f"categories.{ts}.json")
+
     # save pretty
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False, sort_keys=True)
+
 
 # -------------------------
 # Helpers for edit/delete
@@ -649,6 +653,38 @@ def categories_page():
 @admin_categories_bp.route("/categories", methods=["GET"], endpoint="index")
 def categories_index():
     return categories_page()
+
+# -------------------------
+# NEW: Drawer data endpoint (allows hidden when asked)
+# -------------------------
+@admin_categories_bp.get("/categories/inspect")
+def categories_inspect():
+    """
+    Return drawer rows for the requested path.
+    From the Category Builder we append allow_hidden=1 so hidden categories (e.g., Camera)
+    can be opened from there without changing visibility elsewhere.
+    """
+    level = request.args.get("level", "category")
+    cat   = request.args.get("cat", "")
+    sub   = request.args.get("sub", "")
+    ssub  = request.args.get("ssub", "")
+    sss   = request.args.get("sss", "")
+    limit = int(request.args.get("limit", 5000))
+
+    allow_hidden = str(request.args.get("allow_hidden", "0")).lower() in {"1", "true", "yes", "on"}
+
+    rows = get_transactions_for_path(
+        level=level,
+        cat=cat,
+        sub=sub,
+        ssub=ssub,
+        sss=sss,
+        limit=limit,
+        allow_hidden=allow_hidden,  # <-- key addition
+    )
+    # Return plain rows for compatibility with existing drawer.js
+    return jsonify(rows)
+
 
 # ----- JSON editor actions -----
 @admin_categories_bp.route("/categories/validate", methods=["POST"])

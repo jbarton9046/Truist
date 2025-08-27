@@ -270,6 +270,9 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Category</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
+                  <!-- NEW: View drawer -->
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="category">View drawer</button>
                 </label>
                 <div class="onebar" data-level="cat">
                   <select id="selCategory" class="form-select onebar-select"></select>
@@ -285,6 +288,9 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
+                  <!-- NEW: View drawer -->
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="sub">
                   <select id="selSub" class="form-select onebar-select"></select>
@@ -300,6 +306,9 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
+                  <!-- NEW: View drawer -->
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="ssub">
                   <select id="selSubSub" class="form-select onebar-select"></select>
@@ -315,6 +324,9 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
+                  <!-- NEW: View drawer -->
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubsubcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="sss">
                   <select id="selSubSubSub" class="form-select onebar-select"></select>
@@ -899,6 +911,31 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
+  /* ---------- NEW: “View drawer” buttons wiring ---------- */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.drawer-link');
+    if (!btn) return;
+    e.preventDefault();
+
+    const level = btn.dataset.level; // category | subcategory | subsubcategory | subsubsubcategory
+    const { cat, sub, ssub, sss } = readValues();
+
+    if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
+    if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
+    if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
+    if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
+
+    const state = { level, cat, sub, ssub, sss, allowHidden: true };
+
+    if (typeof window.openDrawerForPath === 'function') {
+      window.openDrawerForPath(state);
+    } else if (typeof window.openDrawerForCategory === 'function' && level === 'category') {
+      window.openDrawerForCategory(cat, { allowHidden: true });
+    } else {
+      alert('Drawer UI not loaded yet.');
+    }
+  });
+
   /* ---------- Misc panel wiring ---------- */
   function miscLabelsParam(){
     const labs = [];
@@ -1373,6 +1410,32 @@
     }
   });
   obs.observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
+
+<!-- NEW: include drawer UI + JS (safe to include here) -->
+{% include "_drawer.html" %}
+<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
+
+<!-- NEW: from this page only, ensure drawer data includes allow_hidden=1 -->
+<script>
+(function(){
+  const origFetch = window.fetch;
+  window.fetch = function(input, init){
+    try {
+      let url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
+        const u = new URL(url, window.location.origin);
+        u.searchParams.set('allow_hidden', '1');
+        if (typeof input === 'string') {
+          input = u.toString();
+        } else {
+          input = new Request(u.toString(), input);
+        }
+      }
+    } catch(e) {}
+    return origFetch(input, init);
+  };
 })();
 </script>
 

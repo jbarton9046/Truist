@@ -606,6 +606,28 @@ def _build_tree_from_categories(categories_dict):
     return tree
 
 
+def _hidden_categories():
+    """Hidden categories from code (fc.HIDDEN_CATEGORIES) + JSON overrides in CONFIG_DIR/filter_overrides.json."""
+    hidden = set()
+    try:
+        from truist import filter_config as _fc
+        hidden |= set(getattr(_fc, "HIDDEN_CATEGORIES", []) or [])
+    except Exception:
+        pass
+    try:
+        import os, json
+        from pathlib import Path
+        cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
+        ov_path = cfg_dir / "filter_overrides.json"
+        if ov_path.exists():
+            j = json.loads(ov_path.read_text(encoding="utf-8"))
+            for c in (j.get("HIDDEN_CATEGORIES") or []):
+                hidden.add(c)
+    except Exception:
+        pass
+    return hidden
+
+
 def generate_summary(category_keywords, subcategory_maps):
     """
     Build monthly summaries using the *latest* config every call (so renames & deeper maps stay in sync).
@@ -622,6 +644,8 @@ def generate_summary(category_keywords, subcategory_maps):
         amount_omit_rules_live,   # NEW
         _src,
     ) = _load_category_config()
+
+    hidden_cats = _hidden_categories()  # <-- NEW
 
     # Use discovered base dir for manual entries
     statements_base = get_statements_base_dir()
@@ -704,7 +728,7 @@ def generate_summary(category_keywords, subcategory_maps):
             # Global omit/skip rules (now includes amount rules)
             if _should_omit_tx(desc, amt_signed, omit_keywords_live, amount_omit_rules_live):
                 continue
-            if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat == "Camera":
+            if cat == "Transfers" or (cat == "Venmo" and round(abs(amt_signed), 2) != 200.00) or (cat == "Credit Card" and abs(amt_signed) > 300) or cat in hidden_cats:
                 continue
 
             # Withdrawals owner tagging
@@ -894,6 +918,8 @@ def recent_activity_summary(
         ck, sm, _ss, _sss, _custom, omit_live, amount_rules, _src
     ) = _load_category_config()
 
+    hidden_cats = _hidden_categories()  # <-- NEW
+
     try:
         monthly = generate_summary(ck, sm)
     except Exception:
@@ -1001,7 +1027,7 @@ def recent_activity_summary(
 
         if _should_omit_tx(desc, amt, omit_live, amount_rules):
             return False
-        if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or cat == "Camera":
+        if cat == "Transfers" or (cat == "Venmo" and round(abs(amt), 2) != 200.00) or (cat == "Credit Card" and abs(amt) > 300) or cat in hidden_cats:
             return False
         if _is_hidden_amount(amt):
             return False
@@ -1050,15 +1076,18 @@ def recent_activity_summary(
 
 
 # ========= Manage Panel Support =========
-def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
+def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden: bool = False):
     """
     Return recent transactions that land on the given node.
     - level: 'category' | 'subcategory' | 'subsubcategory' | 'subsubsubcategory'
     - cat/sub/ssub/sss: labels; pass '' for unused deeper levels
+    - allow_hidden: include rows whose category is in HIDDEN_CATEGORIES (default False)
     Output rows: [{id,date,amount,desc,merchant}]
     """
     # Fresh config
     ck, sm, ss, sss_map, _custom, omit_live, amount_rules, _src = _load_category_config()
+
+    hidden_cats = _hidden_categories()  # <-- NEW
 
     # Use discovered base for manual
     statements_base = get_statements_base_dir()
@@ -1124,7 +1153,10 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
 
         if _should_omit_tx(desc, amt, omit_live, amount_rules):
             continue
-        if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300) or cat_r == "Camera":
+        # respect hidden categories unless explicitly allowed
+        if (not allow_hidden) and (cat_r in hidden_cats):
+            continue
+        if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300):
             continue
 
         # Owner tagging (for Withdrawals)
@@ -1220,6 +1252,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50):
         }
         for t in out
     ]
+
 
 
 if __name__ == "__main__":
