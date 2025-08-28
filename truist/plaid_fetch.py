@@ -163,19 +163,34 @@ def create_link_token() -> str:
 # Main fetch logic
 # --------------------
 
+# put this near the top (below imports)
 def _to_tx_list(obj):
-    """
-    Normalize JSON to a list[dict] of transactions.
-    Accepts either {"transactions":[...]} or a raw list, ignores junk.
-    """
     if isinstance(obj, dict):
-        arr = obj.get("transactions", [])
+        arr = obj.get("transactions") or obj.get("items") or []
     elif isinstance(obj, list):
         arr = obj
     else:
         arr = []
+    # keep only dict transactions; drop strings/garbage safely
     return [t for t in arr if isinstance(t, dict)]
 
+# in main(), replace the block that loads master with this:
+master_file = OUT_DIR / "all_transactions.json"
+if master_file.exists():
+    try:
+        raw = json.loads(master_file.read_text(encoding="utf-8"))
+    except Exception:
+        raw = []
+    master_data = _to_tx_list(raw)
+else:
+    master_data = []
+
+# use master_data as before:
+cleared = [txn for txn in all_fetched if not txn.get("pending")]
+existing_keys = {(t.get("name"), t.get("amount"), t.get("date")) for t in master_data}
+new_txns = [t for t in cleared if (t.get("name"), t.get("amount"), t.get("date")) not in existing_keys]
+updated = master_data + new_txns
+master_file.write_text(json.dumps(updated, indent=2, default=str), encoding="utf-8")
 
 def main():
     parser = argparse.ArgumentParser()
