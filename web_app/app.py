@@ -430,19 +430,23 @@ def inject_helpers():
 def refresh_data():
     try:
         env = os.environ.copy()
-        env["NONINTERACTIVE"] = "1"  # prevents input()
+        env["NONINTERACTIVE"] = "1"
         proc = subprocess.run(
             [sys.executable, "-m", "truist.plaid_fetch"],
             capture_output=True,
             text=True,
             env=env,
-            timeout=180
+            timeout=180,
         )
+        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
         if proc.returncode != 0:
-            return jsonify({"ok": False, "error": proc.stderr or proc.stdout}), 500
-        return jsonify({"ok": True, "out": proc.stdout})
+            app.logger.error("plaid_fetch failed rc=%s\n%s", proc.returncode, out)
+            return jsonify({"ok": False, "rc": proc.returncode, "out": out}), 500
+        return jsonify({"ok": True, "rc": 0, "out": out})
     except Exception as e:
+        app.logger.exception("refresh_data error")
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/builder")
 def category_builder():
