@@ -983,5 +983,13 @@ def all_items_explorer():
     return render_template("all_items_explorer.html", cat_monthly=cat_monthly)
 
 # Entrypoint for gunicorn
+# --- compatibility alias for old navbar link ---
+@app.get("/transactions")
+@app.get("/all-transactions")
+@app.get("/all_transactions")
+def all_transactions_page():
+    # Keeps old endpoint name used in templates; points to Category Builder
+    return redirect("/admin/categories", code=302)
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=True)
