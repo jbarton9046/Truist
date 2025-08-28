@@ -20,23 +20,22 @@ from plaid.model.country_code import CountryCode
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 
+
 # --------------------
 # Env & configuration
 # --------------------
 load_dotenv()
 PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
-PLAID_SECRET = os.getenv("PLAID_SECRET")
-PLAID_ENV = os.getenv("PLAID_ENV")
+PLAID_SECRET    = os.getenv("PLAID_SECRET")
+PLAID_ENV       = os.getenv("PLAID_ENV")
 
-# Output locations
-# Prefer a production-friendly directory first, then fall back for local dev.
+# Prefer /var/data/plaid in prod; fall back to repo-local for dev
 OUT_DIR = Path(os.environ.get("PLAID_DIR") or "/var/data/plaid")
 if not OUT_DIR.exists():
-    # local fallback inside repo if /var/data/plaid is not available
     OUT_DIR = Path(__file__).resolve().parent / "statements"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Where to store/read a token on disk (legacy path kept for compat)
+# Legacy/local token path
 ACCESS_TOKEN_PATH = OUT_DIR / "access_token.json"
 
 LOGS_DIR = Path(__file__).resolve().parent / "logs"
@@ -49,68 +48,84 @@ logging.basicConfig(
 )
 
 PLAID_ENV_HOSTS = {
-    "sandbox": "https://sandbox.plaid.com",
+    "sandbox":     "https://sandbox.plaid.com",
     "development": "https://development.plaid.com",
-    "production": "https://production.plaid.com",
+    "production":  "https://production.plaid.com",
 }
+
 
 def _die(msg: str, code: int = 1):
     print(f"❌ {msg}", file=sys.stderr)
     logging.error(msg)
     sys.exit(code)
 
+
 # Validate env vars early
 if not all([PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV]):
-    _die("One or more Plaid environment variables are missing (PLAID_CLIENT_ID / PLAID_SECRET / PLAID_ENV).")
-
+    _die("One or more Plaid env vars are missing (PLAID_CLIENT_ID / PLAID_SECRET / PLAID_ENV).")
 if PLAID_ENV not in PLAID_ENV_HOSTS:
-    _die(f"Invalid PLAID_ENV value: {PLAID_ENV}")
+    _die(f"Invalid PLAID_ENV: {PLAID_ENV}")
 
 configuration = Configuration(
     host=PLAID_ENV_HOSTS[PLAID_ENV],
-    api_key={"clientId": PLAID_CLIENT_ID, "secret": PLAID_SECRET}
+    api_key={"clientId": PLAID_CLIENT_ID, "secret": PLAID_SECRET},
 )
 api_client = ApiClient(configuration)
 client = plaid_api.PlaidApi(api_client)
+
+
+# --------------------
+# Small helpers
+# --------------------
+def _to_tx_list(obj):
+    """Normalize any JSON into list[dict] of transactions."""
+    if isinstance(obj, dict):
+        arr = obj.get("transactions") or obj.get("items") or []
+    elif isinstance(obj, list):
+        arr = obj
+    else:
+        arr = []
+    return [t for t in arr if isinstance(t, dict)]
+
+
+def _key(tx: dict):
+    """Stable dedupe key: prefer Plaid id; else name/amount/date."""
+    tid = tx.get("transaction_id")
+    return ("id", tid) if tid else ("nad", tx.get("name"), tx.get("amount"), tx.get("date"))
+
 
 # --------------------
 # Token utilities
 # --------------------
 def _exchange_public_for_access(public_token: str) -> str:
-    """Exchange a Plaid Link public_token for a long-lived access_token."""
-    resp = client.item_public_token_exchange(
+    resp  = client.item_public_token_exchange(
         ItemPublicTokenExchangeRequest(public_token=public_token)
     )
     token = resp.access_token
-    # Persist where our parser & future runs can find it
     try:
         ACCESS_TOKEN_PATH.write_text(json.dumps({"access_token": token}), encoding="utf-8")
     except Exception as e:
         logging.warning(f"Could not write {ACCESS_TOKEN_PATH}: {e}")
     return token
 
+
 def load_access_token(noninteractive: bool | None = None) -> str:
     """
-    Load Plaid access token without interactive prompts in server environments.
-
     Resolution order:
       1) env PLAID_ACCESS_TOKEN
-      2) JSON files under CONFIG_DIR or /var/data/config:
-         - plaid_access_token.json
-         - access_token.json
-      3) local file OUT_DIR/access_token.json (legacy compat)
-      4) interactive prompt (only if noninteractive=False)
+      2) CONFIG_DIR (/var/data/config) -> plaid_access_token.json / access_token.json
+      3) STATEMENT_DIR (/var/data/statements) -> access_token.json  (legacy)
+      4) OUT_DIR (/var/data/plaid or repo) -> access_token.json     (legacy)
+      5) interactive prompt (only if allowed)
     """
     if noninteractive is None:
-        # Default to headless on servers (no TTY) or when NONINTERACTIVE=1.
         noninteractive = (os.environ.get("NONINTERACTIVE", "1") == "1") or (not sys.stdin.isatty())
 
-    # 1) Environment
     tok = os.environ.get("PLAID_ACCESS_TOKEN")
     if tok:
         return tok.strip()
 
-    # 2) Config dir files
+    # Config dir
     cfg_dir = Path(os.environ.get("CONFIG_DIR", "/var/data/config"))
     for cand in (cfg_dir / "plaid_access_token.json", cfg_dir / "access_token.json"):
         try:
@@ -122,7 +137,19 @@ def load_access_token(noninteractive: bool | None = None) -> str:
         except Exception:
             pass
 
-    # 3) Legacy file in OUT_DIR
+    # Legacy: STATEMENT_DIR (your earlier token lived here)
+    stmt_dir = Path(os.environ.get("STATEMENT_DIR", "/var/data/statements"))
+    cand = stmt_dir / "access_token.json"
+    try:
+        if cand.exists():
+            j = json.loads(cand.read_text(encoding="utf-8"))
+            tok = (j.get("access_token") or "").strip()
+            if tok:
+                return tok
+    except Exception:
+        pass
+
+    # Legacy: OUT_DIR
     try:
         if ACCESS_TOKEN_PATH.exists():
             j = json.loads(ACCESS_TOKEN_PATH.read_text(encoding="utf-8"))
@@ -132,18 +159,18 @@ def load_access_token(noninteractive: bool | None = None) -> str:
     except Exception:
         pass
 
-    # 4) Interactive (local dev only)
     if noninteractive:
         raise RuntimeError(
-            "Missing Plaid access token. Provide PLAID_ACCESS_TOKEN env var or "
-            "place {'access_token':'...'} in CONFIG_DIR/plaid_access_token.json "
-            "or in /var/data/config/plaid_access_token.json."
+            "Missing Plaid access token. Use PLAID_ACCESS_TOKEN env or "
+            "put {'access_token':'...'} in /var/data/config/plaid_access_token.json "
+            "or STATEMENT_DIR/access_token.json."
         )
 
     public_token = input("Enter public_token from Plaid Link: ").strip()
     if not public_token:
         raise RuntimeError("No public_token provided.")
     return _exchange_public_for_access(public_token)
+
 
 # --------------------
 # Link token creator
@@ -159,39 +186,10 @@ def create_link_token() -> str:
     response = client.link_token_create(request)
     return response.link_token
 
+
 # --------------------
 # Main fetch logic
 # --------------------
-
-# put this near the top (below imports)
-def _to_tx_list(obj):
-    if isinstance(obj, dict):
-        arr = obj.get("transactions") or obj.get("items") or []
-    elif isinstance(obj, list):
-        arr = obj
-    else:
-        arr = []
-    # keep only dict transactions; drop strings/garbage safely
-    return [t for t in arr if isinstance(t, dict)]
-
-# in main(), replace the block that loads master with this:
-master_file = OUT_DIR / "all_transactions.json"
-if master_file.exists():
-    try:
-        raw = json.loads(master_file.read_text(encoding="utf-8"))
-    except Exception:
-        raw = []
-    master_data = _to_tx_list(raw)
-else:
-    master_data = []
-
-# use master_data as before:
-cleared = [txn for txn in all_fetched if not txn.get("pending")]
-existing_keys = {(t.get("name"), t.get("amount"), t.get("date")) for t in master_data}
-new_txns = [t for t in cleared if (t.get("name"), t.get("amount"), t.get("date")) not in existing_keys]
-updated = master_data + new_txns
-master_file.write_text(json.dumps(updated, indent=2, default=str), encoding="utf-8")
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--since", help="Start date (YYYY-MM-DD)")
@@ -202,35 +200,19 @@ def main():
 
     today = date.today()
     start_date = datetime.strptime(args.since, "%Y-%m-%d").date() if args.since else today - timedelta(days=args.days)
-    end_date = datetime.strptime(args.end, "%Y-%m-%d").date() if args.end else today
+    end_date   = datetime.strptime(args.end,   "%Y-%m-%d").date() if args.end   else today
 
     print(f"📆 Fetching transactions from {start_date} to {end_date}...")
     logging.info(f"Fetching transactions from {start_date} to {end_date}")
 
-    # Small helpers kept local so this is self-contained
-    def _to_tx_list(obj):
-        if isinstance(obj, dict):
-            arr = obj.get("transactions") or obj.get("items") or []
-        elif isinstance(obj, list):
-            arr = obj
-        else:
-            arr = []
-        return [t for t in arr if isinstance(t, dict)]
-
-    def _key(tx):
-        tid = tx.get("transaction_id")
-        return ("id", tid) if tid else ("nad", tx.get("name"), tx.get("amount"), tx.get("date"))
-
     try:
-        # Enforce headless on servers
-        ni_default = (os.environ.get("NONINTERACTIVE", "1") == "1") or (not sys.stdin.isatty())
+        ni_default   = (os.environ.get("NONINTERACTIVE", "1") == "1") or (not sys.stdin.isatty())
         access_token = load_access_token(noninteractive=args.noninteractive or ni_default)
     except Exception as e:
         _die(str(e))
 
-    all_fetched = []
-    offset = 0
-    count = 100
+    all_fetched: list[dict] = []
+    offset, count = 0, 100
 
     try:
         while True:
@@ -243,18 +225,18 @@ def main():
             )
             response = client.transactions_get(request)
 
-            transactions = []
+            batch = []
             for t in response.transactions:
                 tx = t.to_dict()
                 tx["description"] = tx.get("name") or tx.get("merchant_name") or ""
-                transactions.append(tx)
+                batch.append(tx)
 
-            all_fetched.extend(transactions)
-            print(f"📦 Fetched {len(transactions)} (Total: {len(all_fetched)}/{response.total_transactions})")
+            all_fetched.extend(batch)
+            print(f"📦 Fetched {len(batch)} (Total: {len(all_fetched)}/{response.total_transactions})")
 
             if len(all_fetched) >= response.total_transactions:
                 break
-            offset += len(transactions)
+            offset += len(batch)
     except ApiException as e:
         _die(f"API Error: {e}")
 
@@ -265,27 +247,27 @@ def main():
     print(f"✅ Saved {len(all_fetched)} transactions to {dump_path.name}")
     logging.info(f"Saved {len(all_fetched)} transactions to {dump_path}")
 
-    # Load existing master in any shape
+    # Load existing master robustly
     master_file = OUT_DIR / "all_transactions.json"
     if master_file.exists():
         try:
-            raw = json.loads(master_file.read_text(encoding="utf-8"))
-            master = _to_tx_list(raw)
+            raw     = json.loads(master_file.read_text(encoding="utf-8"))
+            master  = _to_tx_list(raw)
         except Exception:
             master = []
     else:
         master = []
 
-    # Use only cleared items; dedupe against existing cleared
+    # Only cleared; dedupe vs existing cleared
     fetched_cleared = [t for t in all_fetched if not t.get("pending", False)]
-    existing_keys = {_key(t) for t in master if not t.get("pending", False)}
-    new_txns = [t for t in fetched_cleared if _key(t) not in existing_keys]
+    existing_keys   = {_key(t) for t in master if not t.get("pending", False)}
+    new_txns        = [t for t in fetched_cleared if _key(t) not in existing_keys]
 
     updated = master + new_txns
-    # keep newest first for convenience
+    # newest first
     updated.sort(key=lambda t: (t.get("date") or "", str(t.get("transaction_id") or "")), reverse=True)
 
-    # Write master back in stable dict shape
+    # Write master back in a stable dict shape
     master_file.write_text(json.dumps({"transactions": updated}, indent=2, default=str), encoding="utf-8")
     print(f"✅ Master file updated: {len(new_txns)} new cleared transactions added to all_transactions.json")
     logging.info(f"{len(new_txns)} new transactions added to {master_file}")
