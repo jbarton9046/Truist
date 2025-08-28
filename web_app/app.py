@@ -2192,7 +2192,6 @@ def api_manual_add():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
 
-break
 # ------------------ FORECAST / RUNWAY ------------------
 @app.get("/api/forecast")
 def api_forecast():
