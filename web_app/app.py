@@ -41,7 +41,12 @@ EXEMPT_PATHS = {
 }
 EXEMPT_PREFIXES = ("/static/",)
 
-@app.post("/admin/rebuild_master")
+# --- Admin: rebuild master file from /var/data/{plaid,statements} ---
+import os, json
+from pathlib import Path
+from flask import request, abort, jsonify
+
+@app.route("/admin/rebuild_master", methods=["POST","GET"])
 def admin_rebuild_master():
     # Same password gate as /refresh_data (uses APP_PASSWORD)
     want = os.environ.get("APP_PASSWORD")
@@ -51,7 +56,8 @@ def admin_rebuild_master():
             abort(401)
         import base64
         try:
-            supplied = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8","ignore").split(":",1)[1]
+            supplied = base64.b64decode(auth.split(" ", 1)[1]) \
+                              .decode("utf-8","ignore").split(":",1)[1]
         except Exception:
             abort(401)
         if supplied != want:
@@ -64,16 +70,17 @@ def admin_rebuild_master():
 
     def load(fp: Path):
         try:
-            data = json.load(fp.open("r", encoding="utf-8"))
+            with fp.open("r", encoding="utf-8") as f:
+                data = json.load(f)
         except Exception:
             return []
-        return (data.get("transactions", [])
-                if isinstance(data, dict)
-                else (data if isinstance(data, list) else []))
+        if isinstance(data, dict):
+            return data.get("transactions", [])
+        return data if isinstance(data, list) else []
 
     seen, out = set(), []
     for root in (PLAID, STMTS):
-        if not root.exists(): 
+        if not root.exists():
             continue
         for fp in sorted(root.glob("*.json")):
             if fp == MASTER:
@@ -81,16 +88,20 @@ def admin_rebuild_master():
             for t in load(fp):
                 if t.get("pending") is True:
                     continue  # master is cleared-only
-                key = t.get("transaction_id") or (t.get("account_id"), t.get("date"), t.get("name"), t.get("amount"))
-                if key in seen: 
+                key = t.get("transaction_id") or (
+                    t.get("account_id"), t.get("date"), t.get("name"), t.get("amount")
+                )
+                if key in seen:
                     continue
                 seen.add(key)
                 out.append(t)
 
     out.sort(key=lambda x: (x.get("date") or "", str(x.get("transaction_id") or "")), reverse=True)
     MASTER.parent.mkdir(parents=True, exist_ok=True)
-    json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
+    with MASTER.open("w", encoding="utf-8") as f:
+        json.dump({"transactions": out}, f, indent=2)
     return jsonify(ok=True, count=len(out), master=str(MASTER))
+
 
 @app.before_request
 def password_gate():
