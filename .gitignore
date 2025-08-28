@@ -22,3 +22,4 @@ truist/statements/*
 .DS_Store
 Thumbs.db
 .vscode/
+web_app/templates/upload_bundle/
