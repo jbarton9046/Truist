@@ -12,8 +12,6 @@
       {% set p = request.path %}
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-        {# Removed the Dashboard li entirely #}
-
         <li class="nav-item">
           <a class="nav-link {% if p.startswith('/cash') %}active{% endif %}"
              href="{{ url_for('cash_page') }}">
@@ -42,9 +40,10 @@
           </a>
         </li>
 
+        <!-- Use endpoint_url helper to avoid BuildError if 'recurring_page' doesn't exist -->
         <li class="nav-item">
           <a class="nav-link {% if p.startswith('/recurring') %}active{% endif %}"
-             href="{{ url_for('recurring_page') }}">
+             href="{{ endpoint_url('recurring_page', 'charts_page') }}">
             Recurring
           </a>
         </li>

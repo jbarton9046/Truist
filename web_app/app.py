@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 # Standard library
@@ -66,13 +65,11 @@ app.register_blueprint(admin_categories_bp)
 
 # ------------------ FILE HELPERS ------------------
 def _statements_dir() -> Path:
-    # Use the same env var the parser reads (preferred), then accept legacy TRUIST_DATA_DIR.
     dir_env = os.environ.get("STATEMENTS_DIR") or os.environ.get("TRUIST_DATA_DIR")
     if dir_env:
         p = Path(dir_env)
         p.mkdir(parents=True, exist_ok=True)
         return p
-    # Final fallback: persistent disk path
     p = Path("/var/data/statements")
     p.mkdir(parents=True, exist_ok=True)
     return p
@@ -118,11 +115,6 @@ def save_manual_form_transaction(form, tx_type: str):
 
 # ------------------ HIDE/PRUNE + MONTHLY BUILD ------------------
 def _apply_hide_rules_to_summary(summary_data):
-    """
-    Prune hidden/sentinel transfers (±10002.02) and the specific Robinhood -$450.00
-    from the monthly tree, recompute node totals, and recompute per-month
-    income/expense/net totals. Also removes now-empty categories.
-    """
     EPS = 0.005
     HIDE_SENTINELS = (10002.02, -10002.02)
 
@@ -237,10 +229,6 @@ def _apply_hide_rules_to_summary(summary_data):
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
 
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
-    """
-    Rebuild month['categories'] from already-pruned month['tree'] so pages that
-    read categories (not the tree) include the same data as the dashboard cards.
-    """
     if not summary_data:
         return
 
@@ -307,8 +295,8 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
 def build_monthly():
     cfg_live = load_cfg()
     monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
-    _apply_hide_rules_to_summary(monthly)   # prunes/hides + computes income/expense/net
-    _rebuild_categories_from_tree(monthly)  # rebuild categories from the pruned tree
+    _apply_hide_rules_to_summary(monthly)
+    _rebuild_categories_from_tree(monthly)
     return monthly, cfg_live
 
 def _norm_month(k):
@@ -383,7 +371,6 @@ def index():
 @app.route("/categories")
 def categories():
     cfg_live = load_cfg()
-    # Build a static tree from cfg so the UI can show defined structure even without data
     cats = set()
     cats.update((cfg_live.get("SUBCATEGORY_MAPS") or {}).keys())
     cats.update((cfg_live.get("CATEGORY_KEYWORDS") or {}).keys())
@@ -514,7 +501,6 @@ def api_recent_activity():
         "pct_net": _pct(net, pnet),
     }
 
-    # Movers (sum positive outflow per category)
     def _month_outflows_for(month_key_val):
         if not month_key_val:
             return {}
@@ -612,7 +598,7 @@ def api_recent_activity():
 # ------------------ CATEGORY MOVERS WRAPPER ------------------
 @app.route("/api/category_movers", methods=["GET"])
 def api_category_movers():
-    ra_resp = api_recent_activity()  # returns Flask Response
+    ra_resp = api_recent_activity()
     try:
         data = ra_resp.get_json() or {}
     except Exception:
@@ -694,7 +680,6 @@ def api_path_transactions():
     since = (request.args.get("since") or "").strip()
     since_date = (request.args.get("since_date") or "").strip()
 
-    # Unified monthly build (pruned + categories rebuilt)
     monthly, cfg_live = build_monthly()
 
     months_all_sorted = sorted(monthly.keys(), key=_norm_month)
@@ -705,7 +690,6 @@ def api_path_transactions():
             "magnitude_total": 0.0
         })
 
-    # Clip by since / since_date if provided
     since_month_key = None
     if since:
         since_month_key = since[:7]
@@ -720,7 +704,6 @@ def api_path_transactions():
     months_sel = months_all_sorted[-max(1, months_back):]
     months_norm = [_norm_month(k) for k in months_sel]
 
-    # Focus month (default to latest)
     focus_key = None
     if month_req:
         for k in months_sel:
@@ -731,7 +714,6 @@ def api_path_transactions():
         focus_key = months_sel[-1]
     focus_norm = _norm_month(focus_key)
 
-    # Build path parts from query
     parts = []
     if cat:
         parts.append(cat)
@@ -742,7 +724,6 @@ def api_path_transactions():
     if level in {"subsubsubcategory"} and sss:
         parts.append(sss)
 
-    # Hide only the special transfer amounts (±10002.02)
     HIDE_AMOUNTS = [10002.02, -10002.02]
     EPS = 0.005
     def _hidden(a: float) -> bool:
@@ -762,7 +743,6 @@ def api_path_transactions():
         node = _find_node_by_path(tree, parts) if parts else None
 
         if node:
-            # collect children names for UI drill
             for ch in (node.get("children") or []):
                 nm = (ch.get("name") or "").strip()
                 if nm:
@@ -790,7 +770,6 @@ def api_path_transactions():
                         })
             gather(node)
         else:
-            # No exact node match; if no parts, list top-level children and gather all leaf txs
             if not parts:
                 for top in (tree or []):
                     nm = (top.get("name") or "").strip()
@@ -821,13 +800,11 @@ def api_path_transactions():
                 for top in (tree or []):
                     gather_all(top)
 
-    # Merge cfg-defined children with those seen in the tree
     cfg_children = _cfg_children_for(level, cat, sub, ssub, cfg_live)
     children_set = set(cfg_children)
     children_set.update(children_from_tree)
     children = sorted(c for c in children_set if c)
 
-    # Sort transactions (newest first, tie-breaker by abs amount)
     def _key_tx(t):
         dt = _parse_any_date(t.get("date", "")) or datetime(1970, 1, 1)
         return (dt, abs(float(t.get("amount", 0.0))))
