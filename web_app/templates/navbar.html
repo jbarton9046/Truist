@@ -1,44 +1,67 @@
-<!-- web_app/templates/navbar.html -->
-<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\">
-  <div class=\"container-fluid\">
-    <a class=\"navbar-brand fw-bold\" href=\"{{ url_for('index') }}\">ClarityLedger</a>
+<nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top border-bottom">
+  <div class="container-fluid">
+    <!-- Brand = home/dashboard link -->
+    <a class="navbar-brand fw-semibold" href="{{ url_for('index') }}">BartonTech</a>
 
-    <button class=\"navbar-toggler\" type=\"button\" data-bs-toggle=\"collapse\" data-bs-target=\"#mainNav\"
-            aria-controls=\"mainNav\" aria-expanded=\"false\" aria-label=\"Toggle navigation\">
-      <span class=\"navbar-toggler-icon\"></span>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav"
+            aria-controls="topnav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
     </button>
 
-    <div class=\"collapse navbar-collapse\" id=\"mainNav\">
-      <ul class=\"navbar-nav me-auto mb-2 mb-lg-0\">
+    <div class="collapse navbar-collapse" id="topnav">
+      {% set p = request.path %}
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('all_items_explorer') }}\">Explorer</a>
+        {# Removed the Dashboard li entirely #}
+
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/cash') %}active{% endif %}"
+             href="{{ url_for('cash_page') }}">
+            Cash
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('all_categories_page') }}\">All Categories</a>
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/transactions') %}active{% endif %}"
+             href="{{ url_for('all_transactions_page') }}">
+            Transactions
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('recurring_page') }}\">Recurring</a>
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/charts') %}active{% endif %}"
+             href="{{ url_for('charts_page') }}">
+            Charts
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('goals_page') }}\">Goals</a>
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/goals') %}active{% endif %}"
+             href="{{ url_for('goals_page') }}">
+            Goals
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('charts_page') }}\">Charts</a>
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/recurring') %}active{% endif %}"
+             href="{{ url_for('recurring_page') }}">
+            Recurring
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('all_transactions_page') }}\">Transactions</a>
+        <li class="nav-item">
+          <a class="nav-link {% if p.startswith('/builder') %}active{% endif %}"
+             href="{{ url_for('category_builder') }}">
+            Category Builder
+          </a>
         </li>
 
-        <li class=\"nav-item\">
-          <a class=\"nav-link\" href=\"{{ url_for('category_builder') }}\">Builder</a>
-        </li>
       </ul>
+
+      <!-- right side (optional) -->
+      <div class="d-flex align-items-center gap-2">
+        <!-- add user/profile/help here if you want -->
+      </div>
     </div>
   </div>
 </nav>
