@@ -10,7 +10,7 @@ import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -40,6 +40,57 @@ EXEMPT_PATHS = {
     "/service-worker.js",
 }
 EXEMPT_PREFIXES = ("/static/",)
+
+@app.post("/admin/rebuild_master")
+def admin_rebuild_master():
+    # Same password gate as /refresh_data (uses APP_PASSWORD)
+    want = os.environ.get("APP_PASSWORD")
+    if want:
+        auth = request.headers.get("Authorization", "")
+        if not (auth and auth.startswith("Basic ")):
+            abort(401)
+        import base64
+        try:
+            supplied = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8","ignore").split(":",1)[1]
+        except Exception:
+            abort(401)
+        if supplied != want:
+            abort(401)
+
+    DATA = Path(os.environ.get("DATA_DIR", "/var/data"))
+    PLAID = DATA / "plaid"
+    STMTS = DATA / "statements"
+    MASTER = PLAID / "all_transactions.json"
+
+    def load(fp: Path):
+        try:
+            data = json.load(fp.open("r", encoding="utf-8"))
+        except Exception:
+            return []
+        return (data.get("transactions", [])
+                if isinstance(data, dict)
+                else (data if isinstance(data, list) else []))
+
+    seen, out = set(), []
+    for root in (PLAID, STMTS):
+        if not root.exists(): 
+            continue
+        for fp in sorted(root.glob("*.json")):
+            if fp == MASTER:
+                continue
+            for t in load(fp):
+                if t.get("pending") is True:
+                    continue  # master is cleared-only
+                key = t.get("transaction_id") or (t.get("account_id"), t.get("date"), t.get("name"), t.get("amount"))
+                if key in seen: 
+                    continue
+                seen.add(key)
+                out.append(t)
+
+    out.sort(key=lambda x: (x.get("date") or "", str(x.get("transaction_id") or "")), reverse=True)
+    MASTER.parent.mkdir(parents=True, exist_ok=True)
+    json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
+    return jsonify(ok=True, count=len(out), master=str(MASTER))
 
 @app.before_request
 def password_gate():
