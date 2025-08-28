@@ -489,12 +489,20 @@ def refresh_data():
     try:
         env = os.environ.copy()
         env["NONINTERACTIVE"] = "1"
+
+        args = [sys.executable, "-m", "truist.plaid_fetch"]
+        d = (request.args.get("days") or "").strip()
+        s = (request.args.get("start") or "").strip()
+        e = (request.args.get("end") or "").strip()
+        if d.isdigit():
+            args += ["--days", d]
+        if s:
+            args += ["--since", s]
+        if e:
+            args += ["--end", e]
+
         proc = subprocess.run(
-            [sys.executable, "-m", "truist.plaid_fetch"],
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=180,
+            args, capture_output=True, text=True, env=env, timeout=180
         )
         out = (proc.stdout or "") + "\n" + (proc.stderr or "")
         if proc.returncode != 0:
@@ -504,6 +512,7 @@ def refresh_data():
     except Exception as e:
         app.logger.exception("refresh_data error")
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 @app.route("/builder")

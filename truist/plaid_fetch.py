@@ -221,12 +221,19 @@ def main():
     print(f"✅ Saved {len(all_fetched)} transactions to {dump_path.name}")
     logging.info(f"Saved {len(all_fetched)} transactions to {dump_path}")
 
-    # Update or create master file (cleared-only, dedup by (name, amount, date))
+    # NEW (accept list OR {"transactions": [...]})
     master_file = OUT_DIR / "all_transactions.json"
     if master_file.exists():
-        master_data = json.loads(master_file.read_text(encoding="utf-8"))
+        raw = json.loads(master_file.read_text(encoding="utf-8"))
+        if isinstance(raw, list):
+            master_data = raw
+        elif isinstance(raw, dict):
+            master_data = raw.get("transactions") or raw.get("items") or []
+        else:
+            master_data = []
     else:
         master_data = []
+
 
     cleared = [txn for txn in all_fetched if not txn.get("pending")]
     existing_keys = {(txn.get("name"), txn.get("amount"), txn.get("date")) for txn in master_data}
