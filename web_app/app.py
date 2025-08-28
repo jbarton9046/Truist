@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-
+from truist.parser_web import MANUAL_FILE
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
 # ---- Flask app ----
@@ -142,6 +142,32 @@ cfg = {
     "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
+
+def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
+    # validate + normalize
+    if "amount" not in tx:
+        raise ValueError("Missing 'amount'")
+    norm = {
+        "date": tx.get("date") or date.today().isoformat(),
+        "name": (tx.get("name") or tx.get("description") or "Manual").strip(),
+        "amount": float(tx["amount"]),
+        "pending": False,
+        "source": "manual",
+    }
+    for k in ("category", "subcategory", "memo", "transaction_id"):
+        if k in tx:
+            norm[k] = tx[k]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
+
+    # Always surround with newlines to avoid glued JSON
+    with path.open("ab") as f:
+        f.write(b"\n")
+        f.write(line)
+        f.write(b"\n")
+
+    return norm
 
 def build_category_tree(cfg_in=None):
     cfg_local = cfg_in or load_cfg()
@@ -2154,6 +2180,16 @@ def api_recurrents():
         "projected_month": projected_month,
         "changes": {"month": None, "new": [], "stopped": [], "price_changes": []},
     })
+
+@app.post("/api/manual")
+def api_manual_add():
+    data = request.get_json(silent=True) or {}
+    try:
+        saved = append_manual_tx(data)
+        return jsonify({"ok": True, "saved": saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
 
 # ------------------ FORECAST / RUNWAY ------------------
 @app.get("/api/forecast")
