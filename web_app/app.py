@@ -41,27 +41,22 @@ EXEMPT_PATHS = {
 }
 EXEMPT_PREFIXES = ("/static/",)
 
-# --- Admin: rebuild master file from /var/data/{plaid,statements} ---
-import os, json
-from pathlib import Path
-from flask import request, abort, jsonify
 
-@app.route("/admin/rebuild_master", methods=["POST","GET"])
+@app.post("/admin/rebuild_master")
 def admin_rebuild_master():
-    # Same password gate as /refresh_data (uses APP_PASSWORD)
+    # Basic auth using APP_PASSWORD (same pattern as /refresh_data)
     want = os.environ.get("APP_PASSWORD")
     if want:
         auth = request.headers.get("Authorization", "")
         if not (auth and auth.startswith("Basic ")):
-            abort(401)
-        import base64
+            return abort(401)
         try:
             supplied = base64.b64decode(auth.split(" ", 1)[1]) \
-                              .decode("utf-8","ignore").split(":",1)[1]
+                              .decode("utf-8", "ignore").split(":", 1)[1]
         except Exception:
-            abort(401)
+            return abort(401)
         if supplied != want:
-            abort(401)
+            return abort(401)
 
     DATA = Path(os.environ.get("DATA_DIR", "/var/data"))
     PLAID = DATA / "plaid"
@@ -70,13 +65,14 @@ def admin_rebuild_master():
 
     def load(fp: Path):
         try:
-            with fp.open("r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = json.load(fp.open("r", encoding="utf-8"))
         except Exception:
             return []
         if isinstance(data, dict):
             return data.get("transactions", [])
-        return data if isinstance(data, list) else []
+        if isinstance(data, list):
+            return data
+        return []
 
     seen, out = set(), []
     for root in (PLAID, STMTS):
@@ -86,8 +82,8 @@ def admin_rebuild_master():
             if fp == MASTER:
                 continue
             for t in load(fp):
-                if t.get("pending") is True:
-                    continue  # master is cleared-only
+                if t.get("pending") is True:  # master is cleared-only
+                    continue
                 key = t.get("transaction_id") or (
                     t.get("account_id"), t.get("date"), t.get("name"), t.get("amount")
                 )
@@ -98,9 +94,9 @@ def admin_rebuild_master():
 
     out.sort(key=lambda x: (x.get("date") or "", str(x.get("transaction_id") or "")), reverse=True)
     MASTER.parent.mkdir(parents=True, exist_ok=True)
-    with MASTER.open("w", encoding="utf-8") as f:
-        json.dump({"transactions": out}, f, indent=2)
+    json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
     return jsonify(ok=True, count=len(out), master=str(MASTER))
+
 
 
 @app.before_request
