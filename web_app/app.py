@@ -478,6 +478,8 @@ def _month_key(dt_str):
             return datetime.strptime(dt_str, "%m/%d/%Y").strftime("%Y-%m")
         except Exception:
             return None
+        
+
 
 # ------------------ MIDDLEWARE ------------------
 @app.after_request
