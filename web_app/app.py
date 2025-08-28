@@ -44,35 +44,32 @@ EXEMPT_PREFIXES = ("/static/",)
 
 @app.post("/admin/rebuild_master")
 def admin_rebuild_master():
-    # Basic auth using APP_PASSWORD (same pattern as /refresh_data)
     want = os.environ.get("APP_PASSWORD")
     if want:
         auth = request.headers.get("Authorization", "")
         if not (auth and auth.startswith("Basic ")):
-            return abort(401)
+            abort(401)
+        import base64
         try:
-            supplied = base64.b64decode(auth.split(" ", 1)[1]) \
-                              .decode("utf-8", "ignore").split(":", 1)[1]
+            supplied = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8","ignore").split(":",1)[1]
         except Exception:
-            return abort(401)
+            abort(401)
         if supplied != want:
-            return abort(401)
+            abort(401)
 
+    from pathlib import Path
     DATA = Path(os.environ.get("DATA_DIR", "/var/data"))
     PLAID = DATA / "plaid"
     STMTS = DATA / "statements"
     MASTER = PLAID / "all_transactions.json"
 
-    def load(fp: Path):
+    def load(fp):
         try:
             data = json.load(fp.open("r", encoding="utf-8"))
         except Exception:
             return []
-        if isinstance(data, dict):
-            return data.get("transactions", [])
-        if isinstance(data, list):
-            return data
-        return []
+        return (data.get("transactions", []) if isinstance(data, dict)
+                else (data if isinstance(data, list) else []))
 
     seen, out = set(), []
     for root in (PLAID, STMTS):
@@ -82,11 +79,9 @@ def admin_rebuild_master():
             if fp == MASTER:
                 continue
             for t in load(fp):
-                if t.get("pending") is True:  # master is cleared-only
-                    continue
-                key = t.get("transaction_id") or (
-                    t.get("account_id"), t.get("date"), t.get("name"), t.get("amount")
-                )
+                if t.get("pending") is True:
+                    continue  # cleared only
+                key = t.get("transaction_id") or (t.get("account_id"), t.get("date"), t.get("name"), t.get("amount"))
                 if key in seen:
                     continue
                 seen.add(key)
@@ -96,6 +91,7 @@ def admin_rebuild_master():
     MASTER.parent.mkdir(parents=True, exist_ok=True)
     json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
     return jsonify(ok=True, count=len(out), master=str(MASTER))
+
 
 
 
@@ -491,6 +487,7 @@ def refresh_data():
         env["NONINTERACTIVE"] = "1"
 
         args = [sys.executable, "-m", "truist.plaid_fetch"]
+
         d = (request.args.get("days") or "").strip()
         s = (request.args.get("start") or "").strip()
         e = (request.args.get("end") or "").strip()
@@ -501,17 +498,16 @@ def refresh_data():
         if e:
             args += ["--end", e]
 
-        proc = subprocess.run(
-            args, capture_output=True, text=True, env=env, timeout=180
-        )
-        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        proc = subprocess.run(args, capture_output=True, text=True, env=env, timeout=300)
+        out = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
         if proc.returncode != 0:
             app.logger.error("plaid_fetch failed rc=%s\n%s", proc.returncode, out)
-            return jsonify({"ok": False, "rc": proc.returncode, "out": out}), 500
-        return jsonify({"ok": True, "rc": 0, "out": out})
+            return jsonify(ok=False, rc=proc.returncode, out=out), 500
+        return jsonify(ok=True, rc=0, out=out)
     except Exception as e:
         app.logger.exception("refresh_data error")
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return jsonify(ok=False, error=str(e)), 500
+
 
 
 
