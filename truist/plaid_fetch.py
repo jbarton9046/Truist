@@ -162,6 +162,21 @@ def create_link_token() -> str:
 # --------------------
 # Main fetch logic
 # --------------------
+
+def _to_tx_list(obj):
+    """
+    Normalize JSON to a list[dict] of transactions.
+    Accepts either {"transactions":[...]} or a raw list, ignores junk.
+    """
+    if isinstance(obj, dict):
+        arr = obj.get("transactions", [])
+    elif isinstance(obj, list):
+        arr = obj
+    else:
+        arr = []
+    return [t for t in arr if isinstance(t, dict)]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--since", help="Start date (YYYY-MM-DD)")
@@ -176,6 +191,20 @@ def main():
 
     print(f"📆 Fetching transactions from {start_date} to {end_date}...")
     logging.info(f"Fetching transactions from {start_date} to {end_date}")
+
+    # Small helpers kept local so this is self-contained
+    def _to_tx_list(obj):
+        if isinstance(obj, dict):
+            arr = obj.get("transactions") or obj.get("items") or []
+        elif isinstance(obj, list):
+            arr = obj
+        else:
+            arr = []
+        return [t for t in arr if isinstance(t, dict)]
+
+    def _key(tx):
+        tid = tx.get("transaction_id")
+        return ("id", tid) if tid else ("nad", tx.get("name"), tx.get("amount"), tx.get("date"))
 
     try:
         # Enforce headless on servers
@@ -214,35 +243,38 @@ def main():
     except ApiException as e:
         _die(f"API Error: {e}")
 
-    # Save fresh dump
+    # Save raw dump (list is fine; readers handle both shapes)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dump_path = OUT_DIR / f"plaid_{timestamp}.json"
     dump_path.write_text(json.dumps(all_fetched, indent=2, default=str), encoding="utf-8")
     print(f"✅ Saved {len(all_fetched)} transactions to {dump_path.name}")
     logging.info(f"Saved {len(all_fetched)} transactions to {dump_path}")
 
-    # NEW (accept list OR {"transactions": [...]})
+    # Load existing master in any shape
     master_file = OUT_DIR / "all_transactions.json"
     if master_file.exists():
-        raw = json.loads(master_file.read_text(encoding="utf-8"))
-        if isinstance(raw, list):
-            master_data = raw
-        elif isinstance(raw, dict):
-            master_data = raw.get("transactions") or raw.get("items") or []
-        else:
-            master_data = []
+        try:
+            raw = json.loads(master_file.read_text(encoding="utf-8"))
+            master = _to_tx_list(raw)
+        except Exception:
+            master = []
     else:
-        master_data = []
+        master = []
 
+    # Use only cleared items; dedupe against existing cleared
+    fetched_cleared = [t for t in all_fetched if not t.get("pending", False)]
+    existing_keys = {_key(t) for t in master if not t.get("pending", False)}
+    new_txns = [t for t in fetched_cleared if _key(t) not in existing_keys]
 
-    cleared = [txn for txn in all_fetched if not txn.get("pending")]
-    existing_keys = {(txn.get("name"), txn.get("amount"), txn.get("date")) for txn in master_data}
-    new_txns = [txn for txn in cleared if (txn.get("name"), txn.get("amount"), txn.get("date")) not in existing_keys]
-    updated = master_data + new_txns
-    master_file.write_text(json.dumps(updated, indent=2, default=str), encoding="utf-8")
+    updated = master + new_txns
+    # keep newest first for convenience
+    updated.sort(key=lambda t: (t.get("date") or "", str(t.get("transaction_id") or "")), reverse=True)
 
+    # Write master back in stable dict shape
+    master_file.write_text(json.dumps({"transactions": updated}, indent=2, default=str), encoding="utf-8")
     print(f"✅ Master file updated: {len(new_txns)} new cleared transactions added to all_transactions.json")
     logging.info(f"{len(new_txns)} new transactions added to {master_file}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "link":

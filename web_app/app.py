@@ -943,6 +943,7 @@ def build_cat_monthly_somehow():
     categories.sort(key=lambda c: sum(c["monthly"]), reverse=True)
     return {"months": months, "categories": categories}
 
+
 # ------------------ Deep monthly builder (for All Categories) ------------------
 def build_cat_monthly_from_summary(
     summary: Dict[str, Any],
