@@ -25,7 +25,8 @@
     tx: [],
     children: [],
     total: 0,
-    magnitude_total: 0
+    magnitude_total: 0,
+    showAll: false
   };
 
   // -------- helpers --------
@@ -130,7 +131,11 @@
   function renderPath(){
     const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
-    setText('drawer-month', state.ctx.month || (state.months[state.months.length-1] || ''));
+
+    const latest = state.months[state.months.length-1] || '';
+    const monthDisplay = state.showAll ? 'All months' : (state.ctx.month || latest);
+    setText('drawer-month', monthDisplay);
+
     const net = Number(state.total || 0);
     setText('drawer-total', fmtUSD(net) + ' net');
 
@@ -206,6 +211,7 @@
   }
   function scrollToMonth(key, smooth=true){
     if (!key) return;
+    if (String(key).toLowerCase() === 'all') return; // nothing to scroll to
     const host = scrollHost();
     const row = document.getElementById(monthId(key));
     if (!host || !row) return;
@@ -215,6 +221,7 @@
     host.scrollTo({ top: host.scrollTop + delta, behavior: smooth ? 'smooth' : 'auto' });
   }
   function scrollToPreferredMonth(preferredKey, smooth) {
+    if (!preferredKey || String(preferredKey).toLowerCase() === 'all') return;
     const key = nearestMonth(preferredKey, state.months);
     if (key && key !== state.ctx.month) {
       state.ctx.month = key;
@@ -235,8 +242,17 @@
     if (ctx.sub)  params.set('sub',  ctx.sub);
     if (ctx.ssub) params.set('ssub', ctx.ssub);
     if (ctx.sss)  params.set('sss',  ctx.sss);
-    if (ctx.month) params.set('month', ctx.month);
-    params.set('months', 'all');                    // full history
+
+    // month param: support specific month *or* "all"
+    const monthLower = String(ctx.month || '').toLowerCase();
+    if (monthLower === 'all') {
+      params.set('month', 'all');
+    } else if (ctx.month) {
+      params.set('month', ctx.month);
+    }
+
+    // full history window on drawer
+    params.set('months', 'all');
     params.set('_', Date.now().toString());
 
     const url = PATH_TXN_URL + '?' + params.toString();
@@ -254,23 +270,41 @@
     state.total = j.total || 0;
     state.magnitude_total = j.magnitude_total || 0;
 
-    // Prefer the month we were asked to open to; otherwise use server focus or latest
-    const preferred = ctx.month || j.month || (state.months[state.months.length-1] || '');
-    state.ctx.month = nearestMonth(preferred, state.months);
+    // Detect "all months" mode from server or caller
+    const serverMonth = String(j.month || '').toLowerCase();
+    state.showAll = (serverMonth === 'all') || (monthLower === 'all');
+
+    // Determine selected month for state
+    if (!state.showAll) {
+      const preferred = ctx.month || j.month || (state.months[state.months.length-1] || '');
+      state.ctx.month = nearestMonth(preferred, state.months);
+    } else {
+      state.ctx.month = 'all';
+    }
 
     renderPath();
     renderTx();
 
+    // Build month <select> with an "All months" option at the top
     const sel = $('drawer-months');
     if (sel){
-      sel.innerHTML = (state.months || []).map(function(m){
-        return '<option value="'+escapeHTML(m)+'" '+(m===state.ctx.month?'selected':'')+'>'+escapeHTML(m)+'</option>';
-      }).join('');
+      const opts = [];
+      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
+      (state.months || []).forEach(function(m){
+        const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
+        // nice label could be used here if desired:
+        // const label = monthLabelFromKey(m);
+        const label = m;
+        opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(label) + '</option>');
+      });
+      sel.innerHTML = opts.join('');
     }
 
-    // Jump to the preferred/nearest month (no re-fetch, just scroll)
+    // Jump to the preferred/nearest month (no re-fetch, just scroll) when a specific month is selected
     setTimeout(function(){
-      scrollToPreferredMonth(preferred, false);
+      if (!state.showAll && state.ctx.month) {
+        scrollToPreferredMonth(state.ctx.month, false);
+      }
     }, 0);
   }
 
@@ -323,6 +357,7 @@
       sss:   (ctx && ctx.sss)   || '',
       month: (ctx && ctx.month) || ''
     };
+    state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
     fetchPathTx(state.ctx).catch(function(err){ console.error('drawer fetchPathTx failed:', err); });
     refreshKeywords();
@@ -361,18 +396,26 @@
     });
   });
 
-// Month selector: re-fetch the drawer for the selected month
-const monthSel = $('drawer-months');
-if (monthSel){
-  monthSel.addEventListener('change', async function(e){
-    state.ctx.month = e.target.value || '';
-    await fetchPathTx(state.ctx);                 // << re-fetch from server for that month
-    setTimeout(() => scrollToPreferredMonth(state.ctx.month, false), 0); // optional: jump to header
-    const active = QS('.drawer-tab.active');
-    if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
-  });
-}
+  // Month selector: re-fetch the drawer for the selected month (supports "All months")
+  const monthSel = $('drawer-months');
+  if (monthSel){
+    monthSel.addEventListener('change', async function(e){
+      const val = (e.target.value || '').toLowerCase();
+      state.ctx.month = val || '';
+      state.showAll = (val === 'all');
 
+      await fetchPathTx(state.ctx);
+
+      // Only scroll when a specific month is chosen
+      if (!state.showAll && state.ctx.month) {
+        scrollToPreferredMonth(state.ctx.month, true);
+      }
+
+      // If Keywords tab is active, refresh it
+      const active = QS('.drawer-tab.active');
+      if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
+    });
+  }
 
   // Drill deeper by clicking a child pill
   document.addEventListener('click', function(e){

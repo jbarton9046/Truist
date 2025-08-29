@@ -1414,7 +1414,8 @@ def api_path_transactions():
     ssub = request.args.get("ssub") or ""
     sss = request.args.get("sss") or ""
 
-    month_req = (request.args.get("month") or "").strip()         # "YYYY-MM" or ""
+    month_raw = (request.args.get("month") or "").strip().lower()   # "YYYY-MM", "all", or ""
+    show_all_months = month_raw in {"all", "*"}
     months_param = (request.args.get("months") or "").strip().lower()
     if months_param == "all":
         months_back = 10**9
@@ -1435,7 +1436,7 @@ def api_path_transactions():
         return jsonify({
             "ok": True,
             "path": [],
-            "month": month_req,
+            "month": ("all" if show_all_months else ""),
             "months": [],
             "transactions": [],
             "children": _cfg_top_names(cfg_live),
@@ -1457,16 +1458,17 @@ def api_path_transactions():
     months_sel = months_all_sorted[-max(1, months_back):]
     months_norm = [_norm_month(k) for k in months_sel]
 
-    # Focus month (default to the latest in selection)
+    # Focus month (default to latest) unless showing all
     focus_key = None
-    if month_req:
-        for k in months_sel:
-            if _norm_month(k) == month_req[:7]:
-                focus_key = k
-                break
-    if not focus_key:
-        focus_key = months_sel[-1]
-    focus_norm = _norm_month(focus_key)
+    if not show_all_months:
+        if month_raw:
+            for k in months_sel:
+                if _norm_month(k) == month_raw[:7]:
+                    focus_key = k
+                    break
+        if not focus_key:
+            focus_key = months_sel[-1]
+    focus_norm = _norm_month(focus_key) if focus_key else None
 
     # Build path parts from query
     parts = []
@@ -1479,13 +1481,11 @@ def api_path_transactions():
     HIDE_AMOUNTS = [10002.02, -10002.02]
     EPS = 0.005
     def _hidden(a: float) -> bool:
-        try:
-            aa = float(a)
-        except Exception:
-            return False
+        try: aa = float(a)
+        except Exception: return False
         return any(abs(aa - h) < EPS for h in HIDE_AMOUNTS)
 
-    # Collect transactions across the selected window (we'll filter to the focus month after)
+    # Collect transactions across the selected window (filter to focus later if needed)
     txs = []
     children_from_tree = set()
 
@@ -1495,13 +1495,13 @@ def api_path_transactions():
         node = _find_node_by_path(tree, parts) if parts else None
 
         if node:
-            # collect children names for UI drill
+            # children for drill UI
             for ch in (node.get("children") or []):
                 nm = (ch.get("name") or "").strip()
                 if nm:
                     children_from_tree.add(nm)
 
-            def gather(n: Dict[str, Any]):
+            def gather(n):
                 ch = n.get("children") or []
                 if ch:
                     for c in ch:
@@ -1512,8 +1512,7 @@ def api_path_transactions():
                             amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
                         except Exception:
                             amt = 0.0
-                        if _hidden(amt):
-                            continue
+                        if _hidden(amt): continue
                         txs.append({
                             "date": t.get("date", ""),
                             "description": t.get("description", t.get("desc", "")),
@@ -1523,15 +1522,15 @@ def api_path_transactions():
                         })
             gather(node)
         else:
-            # No exact node match.
+            # No exact node match
             if not parts:
-                # Top-level view: list top-level children and gather ALL txs (for this month set).
+                # Top-level: list top-level children and gather ALL txs (for the window)
                 for top in (tree or []):
                     nm = (top.get("name") or "").strip()
                     if nm:
                         children_from_tree.add(nm)
 
-                def gather_all(n: Dict[str, Any]):
+                def gather_all(n):
                     ch = n.get("children") or []
                     if ch:
                         for c in ch:
@@ -1542,8 +1541,7 @@ def api_path_transactions():
                                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
                             except Exception:
                                 amt = 0.0
-                            if _hidden(amt):
-                                continue
+                            if _hidden(amt): continue
                             txs.append({
                                 "date": t.get("date", ""),
                                 "description": t.get("description", t.get("desc", "")),
@@ -1554,27 +1552,27 @@ def api_path_transactions():
                 for top in (tree or []):
                     gather_all(top)
             else:
-                # Path is specified (category/sub/...), but it doesn't exist in this month:
-                # Do not gather "all transactions" for this month.
+                # Path specified but doesn’t exist in this month — don’t gather “all” here.
                 pass
 
-    # Keep a copy of "all-months" for the path before we focus-filter
+    # Keep a copy before focus-filtering
     txs_all_months_for_path = list(txs)
 
-    # ---------- Filter to the selected (focus) month ----------
+    # Focus filter (skip if showing all months)
     def _month_key(datestr: str) -> str:
         dt = _parse_any_date(datestr or "")
         return dt.strftime("%Y-%m") if dt else ""
 
-    txs = [t for t in txs if _month_key(t.get("date")) == focus_norm]
+    if not show_all_months:
+        txs = [t for t in txs if _month_key(t.get("date")) == (focus_norm or "")]
 
-    # ---------- Fallback: if path selected and month has zero rows, show all rows for that path (window) ----------
+    # Fallback: if path selected and focused month is empty, show all-months for that path
     used_fallback = False
-    if parts and not txs:
+    if (parts and not show_all_months and not txs):
         txs = txs_all_months_for_path
         used_fallback = True
 
-    # ---------- Backfill category/subcategory from the requested path ----------
+    # Backfill category/subcategory from requested path
     if cat:
         for t in txs:
             if not (t.get("category") or "").strip():
@@ -1584,13 +1582,13 @@ def api_path_transactions():
             if not (t.get("subcategory") or "").strip():
                 t["subcategory"] = sub
 
-    # Merge cfg-defined children with those seen in the tree
+    # Merge cfg-derived children with tree-observed children
     cfg_children = _cfg_children_for(level, cat, sub, ssub, cfg_live)
     children_set = set(cfg_children)
     children_set.update(children_from_tree)
     children = sorted(c for c in children_set if c)
 
-    # Sort transactions (newest first, tie-breaker by abs amount)
+    # Sort newest-first
     def _key_tx(t):
         dt = _parse_any_date(t.get("date", "")) or datetime(1970, 1, 1)
         return (dt, abs(float(t.get("amount", 0.0))))
@@ -1602,14 +1600,15 @@ def api_path_transactions():
     return jsonify({
         "ok": True,
         "path": parts,
-        "month": focus_norm,
+        "month": ("all" if show_all_months else (focus_norm or "")),
         "months": months_norm,
         "transactions": txs,
         "children": children,
-        "total": total,                # net (neg for expense categories)
-        "magnitude_total": magnitude_total,  # absolute total for UI bars/pills
+        "total": total,
+        "magnitude_total": magnitude_total,
         "fallback_all_months_for_path": used_fallback
     })
+
 
 
 
