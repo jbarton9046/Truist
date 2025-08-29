@@ -451,28 +451,40 @@ def load_csv_transactions(file_path: Path):
             })
     return rows
 
+MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
 
-def load_manual_transactions(file_path: Path):
-    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
-    transactions = []
-    if not file_path.exists():
-        return transactions
-    with open(file_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            tx = json.loads(line)
-            tx["amount"] = float(tx["amount"])
-            tx["description"] = clean_description(tx.get("description", ""))
-            dt = _parse_any_date(tx.get("date", ""))
-            if dt:
-                tx["date"] = dt.strftime("%m/%d/%Y")
-            # mark return + compute expense_amount for manual rows too
-            tx["is_return"] = _is_return(tx["description"])
-            tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
-            transactions.append(tx)
-    return transactions
+def load_manual_transactions(path: Path = MANUAL_FILE) -> list[dict]:
+    out: list[dict] = []
+    if not path.exists():
+        return out
 
+    text = path.read_text(encoding="utf-8", errors="ignore").strip()
+    if not text:
+        return out
+
+    # Case 1: whole-file JSON array
+    try:
+        arr = json.loads(text)
+        if isinstance(arr, list):
+            return [x for x in arr if isinstance(x, dict)]
+    except Exception:
+        pass
+
+    # Case 2: NDJSON or concatenated objects (split }{ safely)
+    text = re.sub(r'}\s*{', '}\n{', text)
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+            if isinstance(obj, dict):
+                out.append(obj)
+        except Exception:
+            # ignore bad lines – don’t crash the app
+            continue
+
+    return out
 
 def categorize_transaction(desc, amount, category_keywords):
     amt_rounded = round(amount, 2)
