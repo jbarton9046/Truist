@@ -1339,12 +1339,15 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
         {
             "id": None,
             "date": t.get("date", ""),
-            "amount": float(t.get("amount", 0.0)),  # UI sign
-            "desc": t.get("description", ""),
+            "amount": float(t.get("amount", 0.0)),   # UI sign
+            "description": t.get("description", ""),
+            "category": t.get("category", ""),
+            "subcategory": t.get("subcategory", ""),
             "merchant": None,
         }
         for t in out
     ]
+
 
 
 if __name__ == "__main__":

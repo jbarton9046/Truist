@@ -1377,7 +1377,7 @@ def api_path_transactions():
     ssub = request.args.get("ssub") or ""
     sss = request.args.get("sss") or ""
 
-    month_req = (request.args.get("month") or "").strip()
+    month_req = (request.args.get("month") or "").strip()         # "YYYY-MM" or ""
     months_param = (request.args.get("months") or "").strip().lower()
     if months_param == "all":
         months_back = 10**9
@@ -1390,7 +1390,7 @@ def api_path_transactions():
     since = (request.args.get("since") or "").strip()
     since_date = (request.args.get("since_date") or "").strip()
 
-    # Unified monthly build (pruned + categories rebuilt)
+    # Build all months (already pruned/categorized)
     monthly, cfg_live = build_monthly()
     months_all_sorted = sorted(monthly.keys(), key=_norm_month)
 
@@ -1420,7 +1420,7 @@ def api_path_transactions():
     months_sel = months_all_sorted[-max(1, months_back):]
     months_norm = [_norm_month(k) for k in months_sel]
 
-    # Focus month (default to latest)
+    # Focus month (default to the latest in selection)
     focus_key = None
     if month_req:
         for k in months_sel:
@@ -1438,20 +1438,25 @@ def api_path_transactions():
     if level in {"subsubcategory", "subsubsubcategory"} and ssub: parts.append(ssub)
     if level in {"subsubsubcategory"} and sss: parts.append(sss)
 
-    # Hide only the special transfer amounts (±10002.02)
+    # Hide only special transfer amounts (±10002.02)
     HIDE_AMOUNTS = [10002.02, -10002.02]
     EPS = 0.005
     def _hidden(a: float) -> bool:
-        try: aa = float(a)
-        except Exception: return False
+        try:
+            aa = float(a)
+        except Exception:
+            return False
         return any(abs(aa - h) < EPS for h in HIDE_AMOUNTS)
 
+    # Collect transactions (we’ll filter to the focus month after)
     txs = []
     children_from_tree = set()
+
     for mk in months_sel:
         blob = monthly.get(mk, {}) or {}
         tree = blob.get("tree") or []
         node = _find_node_by_path(tree, parts) if parts else None
+
         if node:
             # collect children names for UI drill
             for ch in (node.get("children") or []):
@@ -1485,7 +1490,8 @@ def api_path_transactions():
             if not parts:
                 for top in (tree or []):
                     nm = (top.get("name") or "").strip()
-                    if nm: children_from_tree.add(nm)
+                    if nm:
+                        children_from_tree.add(nm)
 
             def gather_all(n: Dict[str, Any]):
                 ch = n.get("children") or []
@@ -1510,6 +1516,23 @@ def api_path_transactions():
             for top in (tree or []):
                 gather_all(top)
 
+    # ---------- NEW: filter to the selected (focus) month ----------
+    def _month_key(datestr: str) -> str:
+        dt = _parse_any_date(datestr or "")
+        return dt.strftime("%Y-%m") if dt else ""
+
+    txs = [t for t in txs if _month_key(t.get("date")) == focus_norm]
+
+    # ---------- NEW: backfill category/subcategory from the requested path ----------
+    if cat:
+        for t in txs:
+            if not (t.get("category") or "").strip():
+                t["category"] = cat
+    if sub and level in {"subcategory", "subsubcategory", "subsubsubcategory"}:
+        for t in txs:
+            if not (t.get("subcategory") or "").strip():
+                t["subcategory"] = sub
+
     # Merge cfg-defined children with those seen in the tree
     cfg_children = _cfg_children_for(level, cat, sub, ssub, cfg_live)
     children_set = set(cfg_children)
@@ -1532,7 +1555,7 @@ def api_path_transactions():
         "months": months_norm,
         "transactions": txs,
         "children": children,
-        "total": total,              # net (neg for expense categories)
+        "total": total,                # net (neg for expense categories)
         "magnitude_total": magnitude_total  # absolute total for UI bars/pills
     })
 
