@@ -9,9 +9,19 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-from truist.parser_web import MANUAL_FILE, load_manual_transactions, _parse_any_date, get_statements_base_dir, get_transactions_for_path, _parse_any_date
+
+from truist.parser_web import (
+    MANUAL_FILE,
+    load_manual_transactions,
+    _parse_any_date,
+    JSON_PATH,
+    get_statements_base_dir,
+    get_transactions_for_path,
+    generate_summary,
+)
 
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
+
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -155,7 +165,7 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
     norm = {
         "date": tx.get("date") or date.today().isoformat(),
         "name": desc,
-        "description": desc,   # <-- important for keyword matching
+        "description": desc,   # important for keyword matching
         "amount": float(tx["amount"]),
         "pending": False,
         "source": "manual",
@@ -174,17 +184,10 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
 
     return norm
 
+# simple in-memory cache for monthly summaries
+_MONTHLY_CACHE = {"monthly": None, "ts": 0}
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
 
-    # Always surround with newlines to avoid glued JSON
-    with path.open("ab") as f:
-        f.write(b"\n")
-        f.write(line)
-        f.write(b"\n")
-
-    return norm
 
 def build_category_tree(cfg_in=None):
     cfg_local = cfg_in or load_cfg()
@@ -435,11 +438,45 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
             walk(top_node, [])
         month["categories"] = cats
 
-def build_monthly():
+_MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
+_CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
+
+def _cache_fingerprint() -> tuple:
+    """A tuple that changes when manual tx or config files change."""
+    try:
+        manual_m = MANUAL_FILE.stat().st_mtime if MANUAL_FILE.exists() else 0
+    except Exception:
+        manual_m = 0
+    try:
+        cfg_dir = Path(os.environ.get("CONFIG_DIR", "config"))
+        ovrd = cfg_dir / "filter_overrides.json"
+        ov_m = ovrd.stat().st_mtime if ovrd.exists() else 0
+    except Exception:
+        ov_m = 0
+    try:
+        json_m = JSON_PATH.stat().st_mtime if JSON_PATH else 0
+    except Exception:
+        json_m = 0
+    return (manual_m, ov_m, json_m)
+
+def build_monthly(force: bool = False):
+    """
+    Returns (monthly, cfg_live). Cached for a short TTL and invalidated
+    automatically if manual transactions or config files change.
+    """
+    fp = _cache_fingerprint()
+    now = time()  # you already import: from time import time
+    c = _MONTHLY_CACHE
+
+    if (not force) and c["monthly"] is not None and c["key"] == fp and (now - c["built_at"] < _CACHE_TTL_SEC):
+        return c["monthly"], c["cfg"]
+
     cfg_live = load_cfg()
     monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
     _apply_hide_rules_to_summary(monthly)      # prunes/hides + computes income/expense/net
     _rebuild_categories_from_tree(monthly)     # rebuild categories from the pruned tree
+
+    c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
 
 def _norm_month(k):
@@ -2307,11 +2344,31 @@ def api_recurrents():
 @app.post("/api/manual")
 def api_manual_add():
     data = request.get_json(silent=True) or {}
+    kind = str(data.get("kind") or data.get("type") or "").lower()  # optional
+
     try:
+        # optional: coerce sign if UI sends kind/type
+        if "amount" in data:
+            data["amount"] = float(data["amount"])
+            if kind == "expense" and data["amount"] > 0:
+                data["amount"] = -data["amount"]
+            elif kind == "income" and data["amount"] < 0:
+                data["amount"] = -data["amount"]
+
         saved = append_manual_tx(data)
-        return jsonify({"ok": True, "saved": saved})
+
+        # 🔧 bust cached monthly summary so drawer/overview pick up the new entry
+        try:
+            _MONTHLY_CACHE["monthly"] = None
+            _MONTHLY_CACHE["ts"] = time()
+        except Exception:
+            pass
+
+        return jsonify({"ok": True, "saved": saved}), 201
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
+
+
 
 # ------------------ FORECAST / RUNWAY ------------------
 @app.get("/api/forecast")
