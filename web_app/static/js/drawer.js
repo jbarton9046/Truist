@@ -1,4 +1,3 @@
-
 // static/js/drawer.js — single source of truth for the drawer behavior.
 // Exposes:
 //   - window.openCategoryManager(ctx)
@@ -8,14 +7,14 @@
 (function () {
   'use strict';
 
+  // prevent double-initialize if hot-reloaded
   if (window.openCategoryManager && window.openCategoryManager.__cl_v2 === true) {
     return;
   }
 
+  // Allow template override via window.CL_URLS; fall back to our defaults
   const urls = (window.CL_URLS || {});
- const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
-
-
+  const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
 
   const QS = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
@@ -132,6 +131,7 @@
   function renderPath() {
     const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
     setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
+    // Month label shows the server's focus month (latest by default), but we list *all* months below.
     setText('drawer-month', state.ctx.month || (state.months[ state.months.length-1 ] || ''));
     const net = Number(state.total || 0);
     const netStr = fmtUSD(net) + ' net';
@@ -206,6 +206,9 @@
 
   // --- API calls ---
   async function fetchPathTx(ctx) {
+    const body = $('drawer-tx-body');
+    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
     if (ctx.cat)  params.set('cat',  ctx.cat);
@@ -213,13 +216,15 @@
     if (ctx.ssub) params.set('ssub', ctx.ssub);
     if (ctx.sss)  params.set('sss',  ctx.sss);
     if (ctx.month) params.set('month', ctx.month);
-    params.set('months', '12');
+    // Always show every month in the drawer
+    params.set('months', 'all');
     params.set('_', Date.now().toString());
 
     const url = PATH_TXN_URL + '?' + params.toString();
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       console.error('drawer fetchPathTx failed:', res.status, await res.text());
+      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
       return;
     }
     const j = await res.json();
@@ -324,6 +329,7 @@
     return false;
   };
 
+  // Tabs switcher
   QSA('.drawer-tab').forEach(function(tab){
     tab.addEventListener('click', function(e){
       e.preventDefault();
@@ -337,6 +343,7 @@
     });
   });
 
+  // Month selector (server returns all months; this just switches the "focus label")
   const monthSel = $('drawer-months');
   if (monthSel) {
     monthSel.addEventListener('change', function(e){
@@ -347,6 +354,7 @@
     });
   }
 
+  // Clicking a child pill drills deeper
   document.addEventListener('click', function(e){
     const pill = e.target.closest('.child-pill');
     if (!pill) return;
@@ -370,6 +378,7 @@
     refreshKeywords();
   });
 
+  // Keyword add/remove
   const kwInput = $('kw-add-input');
   const kwAddBtn = $('kw-add-btn');
 
@@ -401,6 +410,7 @@
     refreshKeywords();
   });
 
+  // Optional admin buttons (hooked up if provided in template)
   const btnInspect = $('drawer-inspect');
   const btnRename  = $('drawer-rename');
   const btnUpsert  = $('drawer-upsert');
