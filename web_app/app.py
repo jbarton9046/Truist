@@ -9,8 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-from truist.parser_web import MANUAL_FILE, load_manual_transactions, _parse_any_date, get_statements_base_dir
-
+from truist.parser_web import MANUAL_FILE, load_manual_transactions, _parse_any_date, get_statements_base_dir, get_transactions_for_path, _parse_any_date
 
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
@@ -1295,6 +1294,80 @@ def _find_node_by_path(tree: List[Dict[str, Any]], path: List[str]) -> Optional[
         node = found
         curr_list = node.get("children") or []
     return node
+
+# Make sure these are imported somewhere near the top of app.py:
+# from flask import request, jsonify
+# from truist.admin_categories import load_cfg
+# from truist.parser_web import generate_summary, get_transactions_for_path, _parse_any_date
+
+@app.get("/api/txns_for_path")
+def api_txns_for_path():
+    q = request.args
+    level = (q.get("level") or "category").strip()
+    cat   = (q.get("cat")   or "").strip()
+    sub   = (q.get("sub")   or "").strip()
+    ssub  = (q.get("ssub")  or "").strip()
+    sss   = (q.get("sss")   or "").strip()
+    want_months = max(1, int(q.get("months") or 12))
+    req_month   = (q.get("month") or "").strip()   # "YYYY-MM" or ""
+
+    # Fresh config + month list for selector
+    cfg_live = load_cfg()
+    monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
+    months_sorted = sorted(monthly.keys())
+    if len(months_sorted) > want_months:
+        months_sorted = months_sorted[-want_months:]
+
+    cur_month = req_month if req_month in months_sorted else (months_sorted[-1] if months_sorted else "")
+
+    # Pull rows for the requested path (server-side filtered already)
+    rows = get_transactions_for_path(level, cat, sub, ssub, sss, limit=5000, allow_hidden=False)
+
+    def month_key(datestr: str) -> str:
+        dt = _parse_any_date(datestr or "")
+        return dt.strftime("%Y-%m") if dt else ""
+
+    # Filter to the selected month
+    if cur_month:
+        rows = [r for r in rows if month_key(r.get("date")) == cur_month]
+
+    # Normalize rows to what drawer.js expects
+    norm_rows = []
+    for r in rows:
+        norm_rows.append({
+            "date": r.get("date", ""),
+            "description": r.get("description") or r.get("desc", ""),
+            "amount": float(r.get("amount") or 0.0),
+            "category": r.get("category", ""),
+            "subcategory": r.get("subcategory", ""),
+        })
+
+    # Totals
+    total = round(sum(x["amount"] for x in norm_rows), 2)
+    magnitude_total = round(sum(abs(x["amount"]) for x in norm_rows), 2)
+
+    # Children (next-level names) from config maps
+    sm   = cfg_live["SUBCATEGORY_MAPS"]
+    ssm  = cfg_live.get("SUBSUBCATEGORY_MAPS", {})
+    sssm = cfg_live.get("SUBSUBSUBCATEGORY_MAPS", {})
+
+    children = []
+    if level == "category" and cat:
+        children = sorted((sm.get(cat) or {}).keys())
+    elif level == "subcategory" and cat and sub:
+        children = sorted(((ssm.get(cat) or {}).get(sub) or {}).keys())
+    elif level == "subsubcategory" and cat and sub and ssub:
+        children = sorted((((sssm.get(cat) or {}).get(sub) or {}).get(ssub) or {}).keys())
+
+    return jsonify({
+        "ok": True,
+        "month": cur_month,
+        "months": months_sorted,
+        "transactions": norm_rows,
+        "children": children,
+        "total": total,
+        "magnitude_total": magnitude_total
+    })
 
 @app.get("/api/path/transactions")
 def api_path_transactions():
