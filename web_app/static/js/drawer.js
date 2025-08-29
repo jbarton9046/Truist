@@ -13,7 +13,8 @@
   }
 
   const urls = (window.CL_URLS || {});
-  const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/txns_for_path';
+ const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
+
 
 
   const QS = s => document.querySelector(s);

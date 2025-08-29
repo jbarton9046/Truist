@@ -88,3 +88,10 @@
     </div>
   </div>
 </div>
+
+<!-- Tell drawer.js to use the unified endpoint, then load it -->
+<script>
+  window.CL_URLS = window.CL_URLS || {};
+  window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
+</script>
+<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
