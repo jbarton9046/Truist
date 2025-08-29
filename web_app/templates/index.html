@@ -299,7 +299,7 @@
 
 <!-- Per-month summary + category tree -->
 <div class="container mt-2">
-  {% macro render_node(node, ancestors=[], depth=1) %}
+  {% macro render_node(node, ancestors=[], depth=1, month='') %}
     {% set cat  = (ancestors[0] if ancestors|length > 0 else (node.name if depth == 1 else '')) %}
     {% set sub  = (ancestors[1] if ancestors|length > 1 else (node.name if depth == 2 else '')) %}
     {% set ssub = (ancestors[2] if ancestors|length > 2 else (node.name if depth == 3 else '')) %}
@@ -324,6 +324,7 @@
               data-sub="{{ sub }}"
               data-ssub="{{ ssub }}"
               data-sss="{{ sss }}"
+              data-month="{{ month }}"
               href="#"
               onclick="return dashManage(event, this);">
               {{ node.name }}
@@ -337,7 +338,7 @@
       {% if node.children and node.children|length > 0 %}
         <ul class="list-unstyled ms-3 mt-1">
           {% for child in node.children %}
-            <li>{{ render_node(child, ancestors + [node.name], depth + 1) }}</li>
+            <li>{{ render_node(child, ancestors + [node.name], depth + 1, month) }}</li>
           {% endfor %}
         </ul>
       {% else %}
@@ -385,7 +386,7 @@
           {% if summary.tree and summary.tree|length > 0 %}
             <div class="ms-1">
               {% for top in summary.tree %}
-                {{ render_node(top) }}
+                {{ render_node(top, [], 1, norm) }}
               {% endfor %}
             </div>
           {% else %}
