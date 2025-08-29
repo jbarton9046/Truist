@@ -9,7 +9,8 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-from truist.parser_web import MANUAL_FILE, _parse_any_date
+from truist.parser_web import MANUAL_FILE, load_manual_transactions, _parse_any_date, get_statements_base_dir
+
 
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
@@ -212,38 +213,9 @@ def _statements_dir() -> Path:
 def _manual_file() -> Path:
     return _statements_dir() / "manual_transactions.json"
 
-def load_manual_transactions(path: Path = MANUAL_FILE):
-    """Read newline-delimited JSON; skip blanks; normalize fields."""
-    txs = []
-    if not path.exists():
-        return txs
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            s = line.strip()
-            if not s:
-                continue  # skip blank lines
-            try:
-                tx = json.loads(s)
-            except Exception:
-                # optionally log s for diagnostics; skip bad line
-                continue
-            # normalize
-            try:
-                tx["amount"] = float(tx.get("amount", 0.0))
-            except Exception:
-                tx["amount"] = 0.0
-            desc_raw = tx.get("description") or tx.get("name") or tx.get("memo") or ""
-            tx["description"] = (desc_raw or "").strip()
-            dt = _parse_any_date(tx.get("date", ""))
-            if dt:
-                tx["date"] = dt.strftime("%m/%d/%Y")
-            tx.setdefault("pending", False)
-            tx.setdefault("source", "manual")
-            txs.append(tx)
-    return txs
 
 # Log chosen statements directory after helpers are defined
-app.logger.info("[Statements] Using dir: %s", str(_statements_dir()))
+app.logger.info("[Statements] Using dir: %s", str(get_statements_base_dir()))
 
 def save_manual_transaction(tx: dict):
     with open(_manual_file(), "a", encoding="utf-8") as f:
@@ -571,18 +543,31 @@ def category_builder():
 @app.route("/")
 def index():
     cfg_live = load_cfg()
-    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
+
+    # apply any hide rules you have
     _apply_hide_rules_to_summary(summary_data)
-    transactions = load_manual_transactions()
-    income_total = sum(t.get("amount", 0) for t in transactions if t.get("amount", 0) > 0)
-    expense_total = sum(-t.get("amount", 0) for t in transactions if t.get("amount", 0) < 0)
+
+    # pull totals + transactions from the latest month the parser built
+    if summary_data:
+        latest_key = sorted(summary_data.keys())[-1]
+        latest = summary_data.get(latest_key, {}) or {}
+        transactions = latest.get("all_transactions", []) or []
+        income_total = float(latest.get("income_total", 0.0))
+        expense_total = float(latest.get("expense_total", 0.0))
+    else:
+        transactions = []
+        income_total = 0.0
+        expense_total = 0.0
+
     return render_template(
         "index.html",
         summary_data=summary_data,
         transactions=transactions,
         income=income_total,
-        expense=expense_total
+        expense=expense_total,
     )
+
 
 @app.route("/categories")
 def categories():

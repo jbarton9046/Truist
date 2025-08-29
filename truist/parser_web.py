@@ -457,7 +457,7 @@ def load_csv_transactions(file_path: Path):
 
 
 def load_manual_transactions(file_path: Path):
-    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
+    """Read newline-delimited JSON; skip blanks; normalize date & fields."""
     transactions = []
     if not file_path.exists():
         return transactions
@@ -466,19 +466,35 @@ def load_manual_transactions(file_path: Path):
             s = line.strip()
             if not s:
                 continue
-            tx = json.loads(s)
-            tx["amount"] = float(tx["amount"])
-            # accept description/name/memo in that order
-            desc_raw = tx.get("description") or tx.get("name") or tx.get("memo") or ""
-            tx["description"] = clean_description(desc_raw)
+            try:
+                tx = json.loads(s)
+            except Exception:
+                continue  # skip malformed lines safely
+
+            # normalize amount
+            try:
+                tx["amount"] = float(tx.get("amount", 0.0))
+            except Exception:
+                tx["amount"] = 0.0
+
+            # prefer description, else name/memo
+            desc = tx.get("description") or tx.get("name") or tx.get("memo") or ""
+            tx["description"] = clean_description(desc)
+
+            # normalize date to MM/DD/YYYY
             dt = _parse_any_date(tx.get("date", ""))
             if dt:
                 tx["date"] = dt.strftime("%m/%d/%Y")
-            # mark return + compute expense_amount for manual rows too
+
+            # flags used elsewhere
             tx["is_return"] = _is_return(tx["description"])
             tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
+            tx.setdefault("pending", False)
+            tx.setdefault("source", "manual")
+
             transactions.append(tx)
     return transactions
+
 
 
 
