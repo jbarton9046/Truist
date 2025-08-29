@@ -3,7 +3,7 @@ import re
 import os
 import csv
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from collections import defaultdict
 import truist.filter_config as fc
 
@@ -451,40 +451,53 @@ def load_csv_transactions(file_path: Path):
             })
     return rows
 
-MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
+MANUAL_FILE = Path("/var/data/statements/manual_transactions.json")
 
 def load_manual_transactions(path: Path = MANUAL_FILE) -> list[dict]:
-    out: list[dict] = []
+    items: list[dict] = []
     if not path.exists():
-        return out
+        return items
 
-    text = path.read_text(encoding="utf-8", errors="ignore").strip()
-    if not text:
-        return out
-
-    # Case 1: whole-file JSON array
     try:
-        arr = json.loads(text)
-        if isinstance(arr, list):
-            return [x for x in arr if isinstance(x, dict)]
+        lines = path.read_text(encoding="utf-8").splitlines()
     except Exception:
-        pass
+        return items
 
-    # Case 2: NDJSON or concatenated objects (split }{ safely)
-    text = re.sub(r'}\s*{', '}\n{', text)
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
+    for i, raw in enumerate(lines, 1):
+        s = raw.strip()
+        if not s:
             continue
+
+        # common repair: split accidental "}{"
+        s = re.sub(r'}\s*{', '}\n{', s).split('\n')[0]
+
+        obj = None
         try:
-            obj = json.loads(line)
-            if isinstance(obj, dict):
-                out.append(obj)
+            obj = json.loads(s)
+        except json.JSONDecodeError:
+            # last-ditch: add a closing brace if clearly missing
+            if s.count('{') > s.count('}'):
+                try:
+                    obj = json.loads(s + '}')
+                except Exception:
+                    obj = None
         except Exception:
-            # ignore bad lines – don’t crash the app
+            obj = None
+
+        if not isinstance(obj, dict):
+            # skip invalid line, don’t crash the app
             continue
 
-    return out
+        # normalize minimal fields
+        obj.setdefault("pending", False)
+        obj.setdefault("source", "manual")
+        obj["name"] = (obj.get("name") or obj.get("description") or "Manual").strip()
+        if "date" not in obj or not obj["date"]:
+            obj["date"] = date.today().isoformat()
+
+        items.append(obj)
+
+    return items
 
 def categorize_transaction(desc, amount, category_keywords):
     amt_rounded = round(amount, 2)
