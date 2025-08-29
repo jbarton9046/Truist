@@ -9,8 +9,8 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-
-from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from truist.parser_web import MANUAL_FILE
+from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -40,6 +40,60 @@ EXEMPT_PATHS = {
     "/service-worker.js",
 }
 EXEMPT_PREFIXES = ("/static/",)
+
+
+@app.post("/admin/rebuild_master")
+def admin_rebuild_master():
+    want = os.environ.get("APP_PASSWORD")
+    if want:
+        auth = request.headers.get("Authorization", "")
+        if not (auth and auth.startswith("Basic ")):
+            abort(401)
+        import base64
+        try:
+            supplied = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8","ignore").split(":",1)[1]
+        except Exception:
+            abort(401)
+        if supplied != want:
+            abort(401)
+
+    from pathlib import Path
+    DATA = Path(os.environ.get("DATA_DIR", "/var/data"))
+    PLAID = DATA / "plaid"
+    STMTS = DATA / "statements"
+    MASTER = PLAID / "all_transactions.json"
+
+    def load(fp):
+        try:
+            data = json.load(fp.open("r", encoding="utf-8"))
+        except Exception:
+            return []
+        return (data.get("transactions", []) if isinstance(data, dict)
+                else (data if isinstance(data, list) else []))
+
+    seen, out = set(), []
+    for root in (PLAID, STMTS):
+        if not root.exists():
+            continue
+        for fp in sorted(root.glob("*.json")):
+            if fp == MASTER:
+                continue
+            for t in load(fp):
+                if t.get("pending") is True:
+                    continue  # cleared only
+                key = t.get("transaction_id") or (t.get("account_id"), t.get("date"), t.get("name"), t.get("amount"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(t)
+
+    out.sort(key=lambda x: (x.get("date") or "", str(x.get("transaction_id") or "")), reverse=True)
+    MASTER.parent.mkdir(parents=True, exist_ok=True)
+    json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
+    return jsonify(ok=True, count=len(out), master=str(MASTER))
+
+
+
 
 @app.before_request
 def password_gate():
@@ -88,6 +142,32 @@ cfg = {
     "SUBSUBSUBCATEGORY_MAPS": getattr(fc, "SUBSUBSUBCATEGORY_MAPS", {}),
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
+
+def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
+    # validate + normalize
+    if "amount" not in tx:
+        raise ValueError("Missing 'amount'")
+    norm = {
+        "date": tx.get("date") or date.today().isoformat(),
+        "name": (tx.get("name") or tx.get("description") or "Manual").strip(),
+        "amount": float(tx["amount"]),
+        "pending": False,
+        "source": "manual",
+    }
+    for k in ("category", "subcategory", "memo", "transaction_id"):
+        if k in tx:
+            norm[k] = tx[k]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
+    
+    # Always surround with newlines to avoid glued JSON
+    with path.open("ab") as f:
+        f.write(b"\n")
+        f.write(line)
+        f.write(b"\n")
+
+    return norm
 
 def build_category_tree(cfg_in=None):
     cfg_local = cfg_in or load_cfg()
@@ -398,6 +478,8 @@ def _month_key(dt_str):
             return datetime.strptime(dt_str, "%m/%d/%Y").strftime("%Y-%m")
         except Exception:
             return None
+        
+
 
 # ------------------ MIDDLEWARE ------------------
 @app.after_request
@@ -430,19 +512,32 @@ def inject_helpers():
 def refresh_data():
     try:
         env = os.environ.copy()
-        env["NONINTERACTIVE"] = "1"  # prevents input()
-        proc = subprocess.run(
-            [sys.executable, "-m", "truist.plaid_fetch"],
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=180
-        )
+        env["NONINTERACTIVE"] = "1"
+
+        args = [sys.executable, "-m", "truist.plaid_fetch"]
+
+        d = (request.args.get("days") or "").strip()
+        s = (request.args.get("start") or "").strip()
+        e = (request.args.get("end") or "").strip()
+        if d.isdigit():
+            args += ["--days", d]
+        if s:
+            args += ["--since", s]
+        if e:
+            args += ["--end", e]
+
+        proc = subprocess.run(args, capture_output=True, text=True, env=env, timeout=300)
+        out = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
         if proc.returncode != 0:
-            return jsonify({"ok": False, "error": proc.stderr or proc.stdout}), 500
-        return jsonify({"ok": True, "out": proc.stdout})
+            app.logger.error("plaid_fetch failed rc=%s\n%s", proc.returncode, out)
+            return jsonify(ok=False, rc=proc.returncode, out=out), 500
+        return jsonify(ok=True, rc=0, out=out)
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        app.logger.exception("refresh_data error")
+        return jsonify(ok=False, error=str(e)), 500
+
+
+
 
 @app.route("/builder")
 def category_builder():
@@ -875,6 +970,7 @@ def build_cat_monthly_somehow():
     categories = [{"name": n, "monthly": arr} for n, arr in bucket.items()]
     categories.sort(key=lambda c: sum(c["monthly"]), reverse=True)
     return {"months": months, "categories": categories}
+
 
 # ------------------ Deep monthly builder (for All Categories) ------------------
 def build_cat_monthly_from_summary(
@@ -2086,6 +2182,15 @@ def api_recurrents():
         "projected_month": projected_month,
         "changes": {"month": None, "new": [], "stopped": [], "price_changes": []},
     })
+
+@app.post("/api/manual")
+def api_manual_add():
+    data = request.get_json(silent=True) or {}
+    try:
+        saved = append_manual_tx(data)
+        return jsonify({"ok": True, "saved": saved})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 # ------------------ FORECAST / RUNWAY ------------------
 @app.get("/api/forecast")
