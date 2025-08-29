@@ -239,6 +239,22 @@
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+  // Hide useless "(0.0%)" while keeping meaningful secondary %
+  const pctCellText = (row) => {
+    if (typeof row.delta_pct === 'string') {
+      // Strip trailing (0%) or (0.0%) etc.
+      const trimmed = row.delta_pct.replace(/\s*\(0(?:\.0+)?%\)\s*$/,'').trim();
+      return trimmed || '—';
+    }
+    const main = Number(row.delta_pct);
+    const aux  = Number(row.delta_pct2 ?? row.share_pct ?? row.pct2);
+    const base = fmtPct(main);
+    if (isFinite(aux) && Math.abs(aux) >= 0.005) { // ~0.5% threshold
+      return `${base} (${fmtPct(aux)})`;
+    }
+    return base;
+  };
+
   // Category Movers
   const cmBody = $('cmBody'), cmSub = $('cmSubtitle');
   async function loadCategoryMovers(){
@@ -265,7 +281,7 @@
             '<td class="text-end">' + fmtMoney(row.prev) + '</td>' +
             '<td class="text-end">' + fmtMoney(row.latest) + '</td>' +
             '<td class="text-end">' + deltaHtml + '</td>' +
-            '<td class="text-end">' + fmtPct(row.delta_pct) + '</td>' +
+            '<td class="text-end">' + pctCellText(row) + '</td>' +
           '</tr>'
         );
       }).join('');
