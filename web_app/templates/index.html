@@ -61,14 +61,12 @@
   .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
   .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
 
-  /* depth padding (replaces inline style="padding-left: {{ (depth-1) * 16 }}px") */
+  /* depth padding (replaces inline style attr) */
   .depth-1 { padding-left: 0px; }
   .depth-2 { padding-left: 16px; }
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
 </style>
-
-
 
 <!-- Header -->
 <div class="container mt-3 mb-2">
@@ -92,9 +90,7 @@
           <div class="fw-bold">
             📈 Category Movers <span class="text-muted small" id="cmSubtitle"></span>
           </div>
-          <!-- Removed individual movers refresh button -->
         </div>
-
         <div class="card-body p-0">
           <div class="table-responsive" style="max-height: 42vh; overflow:auto;">
             <table class="table table-sm align-middle mb-0">
@@ -171,8 +167,6 @@
           <div class="text-muted small mt-2" id="ra-windows"></div>
         </div>
       </div>
-
-      <!-- (Runway removed) -->
     </div>
   </div>
 </div>
@@ -180,18 +174,13 @@
 <!-- One consolidated loader for Movers & Recent -->
 <script>
 (function(){
-  // ---------- helpers ----------
   const $ = id => document.getElementById(id);
-  const fmtMoney = (n) => {
-    const v = Number(n||0);
-    const sign = v < 0 ? '-' : '';
-    return sign + '$' + Math.abs(v).toFixed(2);
-  };
+  const fmtMoney = (n) => { const v = Number(n||0); const sign = v < 0 ? '-' : ''; return sign + '$' + Math.abs(v).toFixed(2); };
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // ---------- Category Movers ----------
-  const cmBody = $('cmBody'), cmSub = $('cmSubtitle'); // no cmRefresh button anymore
+  // Category Movers
+  const cmBody = $('cmBody'), cmSub = $('cmSubtitle');
   async function loadCategoryMovers(){
     if (!cmBody) return;
     cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Loading…</td></tr>';
@@ -226,7 +215,7 @@
   }
   window.loadCategoryMovers = loadCategoryMovers;
 
-  // ---------- Recent Activity (totals + recent table) ----------
+  // Recent Activity
   const raAsOf=$('ra-asof'), raInc=$('ra-inc'), raExp=$('ra-exp'), raNet=$('ra-net');
   const raIncD=$('ra-inc-delta'), raExpD=$('ra-exp-delta'), raNetD=$('ra-net-delta'), raMonths=$('ra-months');
   const raWin=$('ra-windows'), raBody=$('ra-recent-body');
@@ -279,7 +268,7 @@
   }
   window.loadRecentActivity = loadRecentActivity;
 
-  // ---------- Global Refresh (single button) ----------
+  // Global refresh
   const raRefreshBtn = $('refresh-btn');
   if (raRefreshBtn){
     raRefreshBtn.addEventListener('click', async () => {
@@ -287,19 +276,15 @@
       raRefreshBtn.disabled = true;
       raRefreshBtn.textContent = '⏳ Refreshing…';
       try {
-        // Kick the backend refresh
         await fetch('/refresh_data', { method:'POST' }).catch(()=>{});
-        // Reload the whole app to ensure server-rendered sections (like month cards) update too
         window.location.reload();
       } finally {
-        // In case reload is blocked, restore button state
         raRefreshBtn.disabled = false;
         raRefreshBtn.textContent = original;
       }
     });
   }
 
-  // ---------- initial loads ----------
   loadCategoryMovers();
   loadRecentActivity();
 })();
