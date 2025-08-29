@@ -9,7 +9,8 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-from truist.parser_web import MANUAL_FILE
+from truist.parser_web import MANUAL_FILE, _parse_any_date
+
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
 
 # ---- Flask app ----
@@ -160,7 +161,7 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
-    
+
     # Always surround with newlines to avoid glued JSON
     with path.open("ab") as f:
         f.write(b"\n")
