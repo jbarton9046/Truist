@@ -149,16 +149,32 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
     # validate + normalize
     if "amount" not in tx:
         raise ValueError("Missing 'amount'")
+
+    # derive a single description and use it for both fields
+    desc = (tx.get("description") or tx.get("name") or tx.get("memo") or "Manual").strip()
+
     norm = {
         "date": tx.get("date") or date.today().isoformat(),
-        "name": (tx.get("name") or tx.get("description") or "Manual").strip(),
+        "name": desc,
+        "description": desc,   # <-- important for keyword matching
         "amount": float(tx["amount"]),
         "pending": False,
         "source": "manual",
     }
-    for k in ("category", "subcategory", "memo", "transaction_id"):
-        if k in tx:
+    for k in ("category", "subcategory", "sub_subcategory", "memo", "transaction_id"):
+        if k in tx and tx[k] not in (None, ""):
             norm[k] = tx[k]
+
+    # append as NDJSON with surrounding newlines (prevents glued JSON / decode errors)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
+    with path.open("ab") as f:
+        f.write(b"\n")
+        f.write(line)
+        f.write(b"\n")
+
+    return norm
+
 
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
