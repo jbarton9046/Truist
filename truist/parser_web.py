@@ -997,7 +997,7 @@ def recent_activity_summary(
     days=30,
     large_threshold=500,   # kept for compatibility
     max_items=5,
-    include_income=False,
+    include_income=True,
     max_recent=20
 ):
     """
