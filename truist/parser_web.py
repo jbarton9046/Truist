@@ -10,6 +10,10 @@ import truist.filter_config as fc
 # Expose the effective JSON path for visibility/imports elsewhere (e.g., app/admin UI)
 JSON_PATH = None  # set by _load_category_config()
 
+# Manual transactions file location (used by app.py)
+MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
+
+
 def _debug(msg: str):
     if os.environ.get("CL_DEBUG"):
         try:
@@ -451,53 +455,32 @@ def load_csv_transactions(file_path: Path):
             })
     return rows
 
-MANUAL_FILE = Path("/var/data/statements/manual_transactions.json")
 
-def load_manual_transactions(path: Path = MANUAL_FILE) -> list[dict]:
-    items: list[dict] = []
-    if not path.exists():
-        return items
+def load_manual_transactions(file_path: Path):
+    """Read newline-delimited JSON; normalize date to MM/DD/YYYY and clean description."""
+    transactions = []
+    if not file_path.exists():
+        return transactions
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            s = line.strip()
+            if not s:
+                continue
+            tx = json.loads(s)
+            tx["amount"] = float(tx["amount"])
+            # accept description/name/memo in that order
+            desc_raw = tx.get("description") or tx.get("name") or tx.get("memo") or ""
+            tx["description"] = clean_description(desc_raw)
+            dt = _parse_any_date(tx.get("date", ""))
+            if dt:
+                tx["date"] = dt.strftime("%m/%d/%Y")
+            # mark return + compute expense_amount for manual rows too
+            tx["is_return"] = _is_return(tx["description"])
+            tx["expense_amount"] = _expense_amount(tx["amount"], tx["is_return"])
+            transactions.append(tx)
+    return transactions
 
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except Exception:
-        return items
 
-    for i, raw in enumerate(lines, 1):
-        s = raw.strip()
-        if not s:
-            continue
-
-        # common repair: split accidental "}{"
-        s = re.sub(r'}\s*{', '}\n{', s).split('\n')[0]
-
-        obj = None
-        try:
-            obj = json.loads(s)
-        except json.JSONDecodeError:
-            # last-ditch: add a closing brace if clearly missing
-            if s.count('{') > s.count('}'):
-                try:
-                    obj = json.loads(s + '}')
-                except Exception:
-                    obj = None
-        except Exception:
-            obj = None
-
-        if not isinstance(obj, dict):
-            # skip invalid line, don’t crash the app
-            continue
-
-        # normalize minimal fields
-        obj.setdefault("pending", False)
-        obj.setdefault("source", "manual")
-        obj["name"] = (obj.get("name") or obj.get("description") or "Manual").strip()
-        if "date" not in obj or not obj["date"]:
-            obj["date"] = date.today().isoformat()
-
-        items.append(obj)
-
-    return items
 
 def categorize_transaction(desc, amount, category_keywords):
     amt_rounded = round(amount, 2)
