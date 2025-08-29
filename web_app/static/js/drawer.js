@@ -19,6 +19,50 @@
     return offcanvas;
   }
 
+  // Inject drawer-specific styles (child pills etc.)
+  function ensureDrawerStyles() {
+    if (document.getElementById('drawer-extra-styles')) return;
+    const css = `
+#dashCategoryManager #drawer-children{
+  display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+}
+#dashCategoryManager .child-pill{
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.38rem .6rem; border-radius:999px;
+  border:1px solid var(--bs-border-color, #dee2e6);
+  background:var(--bs-body-bg, #fff);
+  color:var(--bs-body-color, #212529);
+  cursor:pointer; line-height:1; font-size:.875rem;
+  transition: background .15s ease, color .15s ease,
+              border-color .15s ease, box-shadow .15s ease, transform .05s ease;
+}
+#dashCategoryManager .child-pill:hover{
+  background: var(--bs-primary-bg-subtle, #e7f1ff);
+  border-color: var(--bs-primary, #0d6efd);
+  color: var(--bs-primary, #0d6efd);
+}
+#dashCategoryManager .child-pill:active{
+  transform: translateY(1px);
+}
+#dashCategoryManager .child-pill:focus{
+  outline:0;
+  box-shadow: 0 0 0 .2rem rgba(13,110,253,.25);
+}
+#dashCategoryManager .child-pill .dot{
+  width:6px; height:6px; border-radius:50%;
+  background: currentColor; opacity:.65; display:inline-block;
+}
+#dashCategoryManager .child-pill .chev{
+  font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px);
+}
+    `;
+    const style = document.createElement('style');
+    style.id = 'drawer-extra-styles';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+  ensureDrawerStyles();
+
   const state = {
     ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '' },
     months: [],
@@ -142,9 +186,15 @@
     const host = $('drawer-children');
     if (host){
       if (state.children.length) {
-        host.innerHTML = state.children.map(n =>
-          '<span class="child-pill" data-child="'+escapeHTML(n)+'">'+escapeHTML(n)+'</span>'
-        ).join('');
+        host.innerHTML = state.children.map(function(n){
+          const label = escapeHTML(n);
+          return '' +
+            '<button type="button" class="child-pill" data-child="'+label+'" title="Drill into '+label+'" aria-label="Drill into '+label+'">' +
+            '  <span class="dot" aria-hidden="true"></span>' +
+            '  <span class="label">'+label+'</span>' +
+            '  <span class="chev" aria-hidden="true">›</span>' +
+            '</button>';
+        }).join('');
       } else {
         host.innerHTML = '<span class="text-muted">No children.</span>';
       }
@@ -293,8 +343,7 @@
       const monthsDesc = (state.months || []).slice().sort().reverse();
       monthsDesc.forEach(function(m){
         const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        // If you prefer a friendlier label, swap to: const label = monthLabelFromKey(m);
-        const label = m;
+        const label = m; // or: monthLabelFromKey(m)
         opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(label) + '</option>');
       });
       sel.innerHTML = opts.join('');
