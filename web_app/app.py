@@ -160,7 +160,7 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     line = json.dumps(norm, separators=(",", ":")).encode("utf-8")
-b
+    
     # Always surround with newlines to avoid glued JSON
     with path.open("ab") as f:
         f.write(b"\n")
