@@ -1523,44 +1523,49 @@ def api_path_transactions():
                         })
             gather(node)
         else:
-            # No exact node match; if no parts, list top-level children and gather all leaf txs
+            # No exact node match.
             if not parts:
+                # Top-level view: list top-level children and gather ALL txs (for this month set).
                 for top in (tree or []):
                     nm = (top.get("name") or "").strip()
                     if nm:
                         children_from_tree.add(nm)
 
-            def gather_all(n: Dict[str, Any]):
-                ch = n.get("children") or []
-                if ch:
-                    for c in ch:
-                        gather_all(c)
-                else:
-                    for t in (n.get("transactions") or []):
-                        try:
-                            amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
-                        except Exception:
-                            amt = 0.0
-                        if _hidden(amt):
-                            continue
-                        txs.append({
-                            "date": t.get("date", ""),
-                            "description": t.get("description", t.get("desc", "")),
-                            "amount": amt,
-                            "category": t.get("category", ""),
-                            "subcategory": t.get("subcategory", ""),
-                        })
-            for top in (tree or []):
-                gather_all(top)
+                def gather_all(n: Dict[str, Any]):
+                    ch = n.get("children") or []
+                    if ch:
+                        for c in ch:
+                            gather_all(c)
+                    else:
+                        for t in (n.get("transactions") or []):
+                            try:
+                                amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
+                            except Exception:
+                                amt = 0.0
+                            if _hidden(amt):
+                                continue
+                            txs.append({
+                                "date": t.get("date", ""),
+                                "description": t.get("description", t.get("desc", "")),
+                                "amount": amt,
+                                "category": t.get("category", ""),
+                                "subcategory": t.get("subcategory", ""),
+                            })
+                for top in (tree or []):
+                    gather_all(top)
+            else:
+                # Path is specified (category/sub/...), but it doesn't exist for this month:
+                # DO NOT fall back to "all transactions". Leave it empty for this path/month.
+                pass
 
-    # ---------- NEW: filter to the selected (focus) month ----------
+    # ---------- Filter to the selected (focus) month ----------
     def _month_key(datestr: str) -> str:
         dt = _parse_any_date(datestr or "")
         return dt.strftime("%Y-%m") if dt else ""
 
     txs = [t for t in txs if _month_key(t.get("date")) == focus_norm]
 
-    # ---------- NEW: backfill category/subcategory from the requested path ----------
+    # ---------- Backfill category/subcategory from the requested path ----------
     if cat:
         for t in txs:
             if not (t.get("category") or "").strip():
@@ -1594,7 +1599,9 @@ def api_path_transactions():
         "children": children,
         "total": total,                # net (neg for expense categories)
         "magnitude_total": magnitude_total  # absolute total for UI bars/pills
+        # "empty_for_selected_path": (len(txs) == 0 and bool(parts))  # optional UI hint
     })
+
 
 # ------------------ SUBSCRIPTIONS API ------------------
 @app.get("/api/subscriptions")
