@@ -361,16 +361,18 @@
     });
   });
 
-  // Month selector: just scroll, don't refetch
-  const monthSel = $('drawer-months');
-  if (monthSel){
-    monthSel.addEventListener('change', function(e){
-      state.ctx.month = e.target.value || '';
-      scrollToPreferredMonth(state.ctx.month, true);
-      const active = QS('.drawer-tab.active');
-      if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
-    });
-  }
+// Month selector: re-fetch the drawer for the selected month
+const monthSel = $('drawer-months');
+if (monthSel){
+  monthSel.addEventListener('change', async function(e){
+    state.ctx.month = e.target.value || '';
+    await fetchPathTx(state.ctx);                 // << re-fetch from server for that month
+    setTimeout(() => scrollToPreferredMonth(state.ctx.month, false), 0); // optional: jump to header
+    const active = QS('.drawer-tab.active');
+    if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
+  });
+}
+
 
   // Drill deeper by clicking a child pill
   document.addEventListener('click', function(e){
