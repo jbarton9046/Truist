@@ -58,8 +58,8 @@
   .subs-table thead th { position:sticky; top:0; background:#fff; }
 
   .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
-  .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
   .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
+  .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
 
   /* depth padding (replaces inline style attr) */
   .depth-1 { padding-left: 0px; }
@@ -292,6 +292,12 @@
 
 <!-- Per-month summary + category tree -->
 <div class="container mt-2">
+  {# Currency macro: renders -$ for negatives #}
+  {% macro usd(val) -%}
+    {%- set n = (val or 0)|float -%}
+    {{ '-' if n < 0 else '' }}${{ '%.2f'|format(n|abs) }}
+  {%- endmacro %}
+
   {% macro render_node(node, ancestors=[], depth=1, month_key='') %}
     {% set cat  = (ancestors[0] if ancestors|length > 0 else (node.name if depth == 1 else '')) %}
     {% set sub  = (ancestors[1] if ancestors|length > 1 else (node.name if depth == 2 else '')) %}
@@ -323,7 +329,7 @@
               {{ node.name }}
             </a>
 
-            <span class="node-total">${{ '%.2f'|format(node.total) }}</span>
+            <span class="node-total">{{ usd(node.total) }}</span>
           </div>
         </div>
       </summary>
@@ -342,7 +348,7 @@
                 <span class="text-dark">{{ tx.date }}</span>:
                 {{ tx.description }}
                 <span class="fw-bold {% if tx.amount>=0 %}text-success{% else %}text-danger{% endif %}">
-                  ${{ '%.2f'|format(tx.amount) }}
+                  {{ usd(tx.amount) }}
                 </span>
               </li>
             {% endfor %}
@@ -365,13 +371,13 @@
 
       <div id="section-{{ month_key }}" class="card-body" style="display: none;">
         <p><strong>Total Income:</strong>
-          <span class="text-success">${{ '%.2f'|format(summary.income_total) }}</span>
+          <span class="text-success">{{ usd(summary.income_total) }}</span>
         </p>
         <p><strong>Total Expenses:</strong>
-          <span class="text-danger">${{ '%.2f'|format(summary.expense_total) }}</span>
+          <span class="text-danger">{{ usd(summary.expense_total) }}</span>
         </p>
         <p><strong>Net Cash Flow:</strong>
-          <span class="fw-bold {{ net_class }}">${{ '%.2f'|format(summary.net_cash_flow) }}</span>
+          <span class="fw-bold {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
         </p>
 
         <h5 class="mt-3 highlight-inline" onclick="toggleCategoryList('{{ month_key }}')">Categories</h5>
