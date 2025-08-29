@@ -97,7 +97,6 @@
   .card.open .clickable-card-header .chev{
     transform: rotate(90deg); opacity:.95;
   }
-  /* Make the label inherit the header color for stronger emphasis */
   .clickable-card-header .summary-label{
     color: inherit !important; font-weight: 600;
   }
@@ -117,6 +116,15 @@
   .toggle-link[aria-expanded="true"] .chev{
     transform: rotate(90deg); opacity:.9;
   }
+
+  /* NEW: Latest Month Totals KPI polish */
+  .kpi-card { border:1px solid #e9ecef; border-radius:.65rem; padding:.6rem .65rem; background:#fff; }
+  .kpi-amount { font-variant-numeric: tabular-nums; font-size:1.05rem; }
+  .kpi-inc { color:#1e7e34; }
+  .kpi-exp { color:#c0392b; }
+  .kpi-net-pos { color:#1e7e34; }
+  .kpi-net-neg { color:#c0392b; }
+  .kpi-sub { font-size:.82rem; opacity:.8; }
 </style>
 
 <!-- Header -->
@@ -168,24 +176,24 @@
           <h6 class="card-title mb-2">Latest Month Totals</h6>
           <div class="row g-3">
             <div class="col-4">
-              <div class="border rounded p-2">
+              <div class="kpi-card">
                 <div class="text-muted small">Income</div>
-                <div class="fw-semibold" id="ra-inc"></div>
-                <div class="small" id="ra-inc-delta"></div>
+                <div class="fw-semibold kpi-amount kpi-inc mono" id="ra-inc"></div>
+                <div class="kpi-sub" id="ra-inc-delta"></div>
               </div>
             </div>
             <div class="col-4">
-              <div class="border rounded p-2">
+              <div class="kpi-card">
                 <div class="text-muted small">Expense</div>
-                <div class="fw-semibold" id="ra-exp"></div>
-                <div class="small" id="ra-exp-delta"></div>
+                <div class="fw-semibold kpi-amount kpi-exp mono" id="ra-exp"></div>
+                <div class="kpi-sub" id="ra-exp-delta"></div>
               </div>
             </div>
             <div class="col-4">
-              <div class="border rounded p-2">
+              <div class="kpi-card">
                 <div class="text-muted small">Net</div>
-                <div class="fw-semibold" id="ra-net"></div>
-                <div class="small" id="ra-net-delta"></div>
+                <div class="fw-semibold kpi-amount mono" id="ra-net"></div>
+                <div class="kpi-sub" id="ra-net-delta"></div>
               </div>
             </div>
           </div>
@@ -227,6 +235,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const fmtMoney = (n) => { const v = Number(n||0); const sign = v < 0 ? '-' : ''; return sign + '$' + Math.abs(v).toFixed(2); };
+  const fmtExpense = (n) => fmtMoney(-Math.abs(Number(n||0))); // always render as negative
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -283,9 +292,23 @@
       if (raMonths) raMonths.textContent = (d.prev_month && d.latest_month) ? `${d.prev_month} → ${d.latest_month}` : '';
 
       const lt = d.latest_totals || {};
-      if (raInc)   raInc.textContent   = fmtMoney(lt.income);
-      if (raExp)   raExp.textContent   = fmtMoney(lt.expense);
-      if (raNet)   raNet.textContent   = fmtMoney(lt.net);
+      if (raInc) {
+        raInc.textContent = fmtMoney(lt.income);
+        raInc.classList.add('tx-pos','mono');
+      }
+      if (raExp) {
+        raExp.textContent = fmtExpense(lt.expense);      // force "-$"
+        raExp.classList.add('tx-neg','mono');
+      }
+      if (raNet) {
+        const netVal = Number(lt.net || 0);
+        raNet.textContent = fmtMoney(netVal);
+        raNet.classList.add('mono');
+        raNet.classList.toggle('kpi-net-pos', netVal >= 0);
+        raNet.classList.toggle('kpi-net-neg', netVal < 0);
+        raNet.classList.toggle('tx-pos', netVal >= 0);
+        raNet.classList.toggle('tx-neg', netVal < 0);
+      }
 
       const mkDelta = (val, posGood=true) => {
         const d = Number(val||0);
