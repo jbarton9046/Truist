@@ -1485,7 +1485,7 @@ def api_path_transactions():
             return False
         return any(abs(aa - h) < EPS for h in HIDE_AMOUNTS)
 
-    # Collect transactions (we’ll filter to the focus month after)
+    # Collect transactions across the selected window (we'll filter to the focus month after)
     txs = []
     children_from_tree = set()
 
@@ -1554,9 +1554,12 @@ def api_path_transactions():
                 for top in (tree or []):
                     gather_all(top)
             else:
-                # Path is specified (category/sub/...), but it doesn't exist for this month:
-                # DO NOT fall back to "all transactions". Leave it empty for this path/month.
+                # Path is specified (category/sub/...), but it doesn't exist in this month:
+                # Do not gather "all transactions" for this month.
                 pass
+
+    # Keep a copy of "all-months" for the path before we focus-filter
+    txs_all_months_for_path = list(txs)
 
     # ---------- Filter to the selected (focus) month ----------
     def _month_key(datestr: str) -> str:
@@ -1564,6 +1567,12 @@ def api_path_transactions():
         return dt.strftime("%Y-%m") if dt else ""
 
     txs = [t for t in txs if _month_key(t.get("date")) == focus_norm]
+
+    # ---------- Fallback: if path selected and month has zero rows, show all rows for that path (window) ----------
+    used_fallback = False
+    if parts and not txs:
+        txs = txs_all_months_for_path
+        used_fallback = True
 
     # ---------- Backfill category/subcategory from the requested path ----------
     if cat:
@@ -1598,9 +1607,10 @@ def api_path_transactions():
         "transactions": txs,
         "children": children,
         "total": total,                # net (neg for expense categories)
-        "magnitude_total": magnitude_total  # absolute total for UI bars/pills
-        # "empty_for_selected_path": (len(txs) == 0 and bool(parts))  # optional UI hint
+        "magnitude_total": magnitude_total,  # absolute total for UI bars/pills
+        "fallback_all_months_for_path": used_fallback
     })
+
 
 
 # ------------------ SUBSCRIPTIONS API ------------------
