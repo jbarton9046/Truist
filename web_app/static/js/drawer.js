@@ -285,15 +285,15 @@
     renderPath();
     renderTx();
 
-    // Build month <select> with an "All months" option at the top
+    // Build month <select> with "All months" at top, then months in DESC order (e.g., 2025-08, 2025-07, ...)
     const sel = $('drawer-months');
     if (sel){
       const opts = [];
       opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
-      (state.months || []).forEach(function(m){
+      const monthsDesc = (state.months || []).slice().sort().reverse();
+      monthsDesc.forEach(function(m){
         const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        // nice label could be used here if desired:
-        // const label = monthLabelFromKey(m);
+        // If you prefer a friendlier label, swap to: const label = monthLabelFromKey(m);
         const label = m;
         opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(label) + '</option>');
       });
