@@ -212,12 +212,35 @@ def _statements_dir() -> Path:
 def _manual_file() -> Path:
     return _statements_dir() / "manual_transactions.json"
 
-def load_manual_transactions():
-    try:
-        with open(_manual_file(), "r", encoding="utf-8") as f:
-            return [json.loads(line) for line in f]
-    except FileNotFoundError:
-        return []
+def load_manual_transactions(path: Path = MANUAL_FILE):
+    """Read newline-delimited JSON; skip blanks; normalize fields."""
+    txs = []
+    if not path.exists():
+        return txs
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            s = line.strip()
+            if not s:
+                continue  # skip blank lines
+            try:
+                tx = json.loads(s)
+            except Exception:
+                # optionally log s for diagnostics; skip bad line
+                continue
+            # normalize
+            try:
+                tx["amount"] = float(tx.get("amount", 0.0))
+            except Exception:
+                tx["amount"] = 0.0
+            desc_raw = tx.get("description") or tx.get("name") or tx.get("memo") or ""
+            tx["description"] = (desc_raw or "").strip()
+            dt = _parse_any_date(tx.get("date", ""))
+            if dt:
+                tx["date"] = dt.strftime("%m/%d/%Y")
+            tx.setdefault("pending", False)
+            tx.setdefault("source", "manual")
+            txs.append(tx)
+    return txs
 
 # Log chosen statements directory after helpers are defined
 app.logger.info("[Statements] Using dir: %s", str(_statements_dir()))
