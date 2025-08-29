@@ -66,6 +66,35 @@
   .depth-2 { padding-left: 16px; }
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
+
+  /* NEW: clickable summary header + categories toggle styles */
+  .clickable-card-header{
+    display:flex; align-items:center; gap:.5rem; cursor:pointer; user-select:none;
+    transition: background .15s ease, color .15s ease;
+  }
+  .clickable-card-header:hover{ background:#f8f9fa; }
+  .clickable-card-header:active{ background:#f1f3f5; }
+  .clickable-card-header .chev{
+    font-weight:700; opacity:.65; transition: transform .15s ease, opacity .15s ease;
+  }
+  .card.open .clickable-card-header .chev{
+    transform: rotate(90deg); opacity:.9;
+  }
+
+  .toggle-link{
+    display:inline-flex; align-items:center; gap:.45rem; cursor:pointer; user-select:none;
+    padding:.25rem .55rem; border-radius:.5rem; transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .toggle-link:hover{ background:#f8f9fa; color:#0d6efd; }
+  .toggle-link:focus, .toggle-link:focus-visible{
+    outline:0; box-shadow: 0 0 0 .2rem rgba(13,110,253,.25);
+  }
+  .toggle-link .chev{
+    font-weight:700; opacity:.65; transition: transform .15s ease, opacity .15s ease;
+  }
+  .toggle-link[aria-expanded="true"] .chev{
+    transform: rotate(90deg); opacity:.9;
+  }
 </style>
 
 <!-- Header -->
@@ -364,8 +393,9 @@
     {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
     {% set net_class = 'tx-pos' if summary.net_cash_flow >= 0 else 'tx-neg' %}
 
-    <div class="card mb-4" id="card-{{ month_key }}">
-      <div class="card-header" onclick="toggleSection('{{ month_key }}')">
+    <div class="card mb-4 open-{{ 'true' if false else 'false' }}" id="card-{{ month_key }}">
+      <div class="card-header clickable-card-header" onclick="toggleSection('{{ month_key }}')" id="header-{{ month_key }}">
+        <span class="chev" aria-hidden="true">▸</span>
         <span class="summary-label">{{ formatted_month_key }} Summary</span>
       </div>
 
@@ -380,7 +410,10 @@
           <span class="fw-bold {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
         </p>
 
-        <h5 class="mt-3 highlight-inline" onclick="toggleCategoryList('{{ month_key }}')">Categories</h5>
+        <h5 class="mt-3 highlight-inline toggle-link" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false">
+          <span class="chev" aria-hidden="true">▸</span>
+          Categories
+        </h5>
         <div id="category-list-{{ month_key }}" style="display:none;">
           {% if summary.tree and summary.tree|length > 0 %}
             <div class="ms-1">
@@ -403,14 +436,26 @@ window.toggleSection = function(key){
   const el = document.getElementById('section-' + key);
   if (!el) return false;
   const v = el.style.display;
-  el.style.display = (v === 'none' || !v) ? 'block' : 'none';
+  const willOpen = (v === 'none' || !v);
+  el.style.display = willOpen ? 'block' : 'none';
+
+  // rotate chevron and style header via card "open" class
+  const card = document.getElementById('card-' + key);
+  if (card) card.classList.toggle('open', willOpen);
+
   return false;
 };
 window.toggleCategoryList = function(key){
   const el = document.getElementById('category-list-' + key);
   if (!el) return false;
   const v = el.style.display;
-  el.style.display = (v === 'none' || !v) ? 'block' : 'none';
+  const willOpen = (v === 'none' || !v);
+  el.style.display = willOpen ? 'block' : 'none';
+
+  // update aria-expanded for chevron rotation & a11y
+  const hdr = document.getElementById('cats-toggle-' + key);
+  if (hdr) hdr.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
   return false;
 };
 </script>
