@@ -28,11 +28,12 @@
     magnitude_total: 0
   };
 
+  // -------- helpers --------
   function $(id) { return document.getElementById(id); }
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
   function fmtUSD(n) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(n||0); } catch { return '$'+Number(n||0).toFixed(2); } }
   function fmtDate(s) { return s || ''; }
-  function escapeHTML(s){ return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  function escapeHTML(s){ return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -50,6 +51,21 @@
     return dt.toLocaleString(undefined, {month:'short', year:'numeric'});
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
+
+  // Find nearest available month (<= preferred, else next greater)
+  function nearestMonth(preferred, available) {
+    if (!available || !available.length) return '';
+    const set = new Set(available);
+    if (preferred && set.has(preferred)) return preferred;
+
+    // try earlier months first (lexicographic works with YYYY-MM)
+    const earlier = available.filter(m => m <= preferred).sort().reverse();
+    if (earlier.length) return earlier[0];
+
+    // otherwise, next later month
+    const later = available.filter(m => m > preferred).sort();
+    return later[0] || available[available.length - 1];
+  }
 
   function currentPathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
   function currentPathPayload(){
@@ -198,6 +214,16 @@
     const delta   = (rowTop - hostTop) - 8; // small padding
     host.scrollTo({ top: host.scrollTop + delta, behavior: smooth ? 'smooth' : 'auto' });
   }
+  function scrollToPreferredMonth(preferredKey, smooth) {
+    const key = nearestMonth(preferredKey, state.months);
+    if (key && key !== state.ctx.month) {
+      state.ctx.month = key;
+      const sel = $('drawer-months');
+      if (sel) sel.value = key;
+      setText('drawer-month', key);
+    }
+    if (state.ctx.month) scrollToMonth(state.ctx.month, smooth);
+  }
 
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
@@ -227,7 +253,10 @@
     state.children = j.children || [];
     state.total = j.total || 0;
     state.magnitude_total = j.magnitude_total || 0;
-    state.ctx.month = ctx.month || j.month || (state.months[state.months.length-1] || '');
+
+    // Prefer the month we were asked to open to; otherwise use server focus or latest
+    const preferred = ctx.month || j.month || (state.months[state.months.length-1] || '');
+    state.ctx.month = nearestMonth(preferred, state.months);
 
     renderPath();
     renderTx();
@@ -239,13 +268,9 @@
       }).join('');
     }
 
-    // Jump to the chosen month (no re-fetch, just scroll)
+    // Jump to the preferred/nearest month (no re-fetch, just scroll)
     setTimeout(function(){
-      if (!state.ctx.month || state.months.indexOf(state.ctx.month) === -1) {
-        // if the requested month isn't in the list, default to latest
-        state.ctx.month = state.months[state.months.length-1] || '';
-      }
-      scrollToMonth(state.ctx.month, false);
+      scrollToPreferredMonth(preferred, false);
     }, 0);
   }
 
@@ -341,7 +366,7 @@
   if (monthSel){
     monthSel.addEventListener('change', function(e){
       state.ctx.month = e.target.value || '';
-      scrollToMonth(state.ctx.month, true);
+      scrollToPreferredMonth(state.ctx.month, true);
       const active = QS('.drawer-tab.active');
       if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
     });
@@ -406,7 +431,7 @@
 
   if (btnInspect && urls.INSPECT_URL){
     btnInspect.addEventListener('click', async function(){
-      const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path }), { headers:{'Accept':'application/json'}});
+      const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path }), { headers:{'Accept':'application/json'} });
       const j = await res.json();
       alert(JSON.stringify(j, null, 2));
     });

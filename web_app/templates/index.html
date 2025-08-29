@@ -1,5 +1,3 @@
-{% extends "layout.html" %}
-{% block content %}
 <style>
   .budget-title { color: #2c3e50 !important; }
   .summary-label { color: #adb5bd !important; }
@@ -60,7 +58,15 @@
   .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
   .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
   .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
+
+  /* depth padding (replaces inline style="padding-left: {{ (depth-1) * 16 }}px") */
+  .depth-1 { padding-left: 0px; }
+  .depth-2 { padding-left: 16px; }
+  .depth-3 { padding-left: 32px; }
+  .depth-4 { padding-left: 48px; }
 </style>
+
+
 
 <!-- Header -->
 <div class="container mt-3 mb-2">
@@ -299,7 +305,7 @@
 
 <!-- Per-month summary + category tree -->
 <div class="container mt-2">
-  {% macro render_node(node, ancestors=[], depth=1, month='') %}
+  {% macro render_node(node, ancestors=[], depth=1, month_key='') %}
     {% set cat  = (ancestors[0] if ancestors|length > 0 else (node.name if depth == 1 else '')) %}
     {% set sub  = (ancestors[1] if ancestors|length > 1 else (node.name if depth == 2 else '')) %}
     {% set ssub = (ancestors[2] if ancestors|length > 2 else (node.name if depth == 3 else '')) %}
@@ -313,7 +319,7 @@
     <details>
       <summary>
         <div class="node-line">
-          <div class="node-main" style="padding-left: {{ (depth-1) * 16 }}px">
+          <div class="node-main depth-{{ depth }}">
             <span class="caret">▸</span>
 
             <a
@@ -324,7 +330,7 @@
               data-sub="{{ sub }}"
               data-ssub="{{ ssub }}"
               data-sss="{{ sss }}"
-              data-month="{{ month }}"
+              data-month="{{ month_key }}"
               href="#"
               onclick="return dashManage(event, this);">
               {{ node.name }}
@@ -338,7 +344,7 @@
       {% if node.children and node.children|length > 0 %}
         <ul class="list-unstyled ms-3 mt-1">
           {% for child in node.children %}
-            <li>{{ render_node(child, ancestors + [node.name], depth + 1, month) }}</li>
+            <li>{{ render_node(child, ancestors + [node.name], depth + 1, month_key) }}</li>
           {% endfor %}
         </ul>
       {% else %}
@@ -386,7 +392,7 @@
           {% if summary.tree and summary.tree|length > 0 %}
             <div class="ms-1">
               {% for top in summary.tree %}
-                {{ render_node(top, [], 1, norm) }}
+                {{ render_node(top, [], 1, norm[:7]) }}
               {% endfor %}
             </div>
           {% else %}
