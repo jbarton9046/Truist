@@ -26,7 +26,7 @@
 
     /* Table & Section headers (unified light header + dark text) */
     --header-bg: #eef3fb;     /* light cool */
-    --header-fg: #1f2937;     /* gray-800 */
+    --header-fg: #1f2937;     /* gray-800 (not black) */
     --header-muted: #4b5563;  /* gray-600 */
     --header-border: #d8e2f0;
 
@@ -59,33 +59,9 @@
     border-bottom: 1px solid var(--header-border) !important;
     font-weight: 600;
   }
-
-  /* FORCE all text inside colored headers (cards & table heads) to match Summary colors */
-  .section-header,
-  .clickable-card-header,
-  .table-modern thead{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-  }
-  /* Super-specific selectors to override any theme overrides */
-  .table.table-modern thead th,
-  .table.table-modern thead th *,
-  .table-modern thead tr,
-  .table-modern thead th,
-  .table-modern thead td{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-    border-bottom: 1px solid var(--header-border) !important;
-  }
-  .section-header *:not(.badge),
-  .clickable-card-header *:not(.badge){
-    color: var(--header-fg) !important;
-  }
-  .section-header .muted, .section-header small,
-  .clickable-card-header .muted, .clickable-card-header small,
-  .table-modern thead .muted, .table-modern thead small{
-    color: var(--header-muted) !important;
-  }
+  /* Ensure any text nested in section headers picks header-fg (not black) */
+  .section-header *:not(.badge){ color: var(--header-fg) !important; }
+  .section-header .muted, .section-header small{ color: var(--header-muted) !important; }
 
   /* Buttons */
   .btn-outline-primary{
@@ -98,6 +74,28 @@
 
   /* ======= UNIFIED TABLE STYLE (all tables match) ======= */
   .table-modern { width:100%; border-collapse: separate; border-spacing:0; }
+
+  /* HARD RESET for table headers so they match “Summary”
+     (beats Bootstrap .table-primary, .thead-*, and bg-* utilities) */
+  .table-modern thead,
+  .table-modern thead tr,
+  .table-modern thead th,
+  .table-modern thead td{
+    background: var(--header-bg) !important;
+    color: var(--header-fg) !important;
+    border-bottom: 1px solid var(--header-border) !important;
+  }
+  .table-modern thead th[class*="bg-"],
+  .table-modern thead tr[class*="bg-"]{
+    background: var(--header-bg) !important;
+    color: var(--header-fg) !important;
+  }
+  .table-modern thead th a,
+  .table-modern thead th span,
+  .table-modern thead th small{
+    color: var(--header-fg) !important;
+  }
+
   .table-modern thead th{
     font-weight:700;
     position: sticky; top: 0; z-index: 2;
@@ -119,6 +117,9 @@
     cursor:pointer; user-select:none;
     padding:.575rem .875rem; margin:-.5rem;
     border-radius:12px 12px 0 0;
+    background: var(--header-bg);
+    color: var(--header-fg);
+    border-bottom:1px solid var(--header-border);
     transition: background .15s ease, color .15s ease;
   }
   .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease; }
