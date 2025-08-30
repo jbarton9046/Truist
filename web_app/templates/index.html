@@ -51,7 +51,7 @@
   .card { border:1px solid var(--card-border); border-radius:14px; box-shadow:var(--shadow-1); background:var(--surface); }
   .card-header { background: var(--surface); border-bottom: 1px solid var(--hairline); }
 
-  /* Unified “light header + dark text” section header (applies to all top card headers you add the class to) */
+  /* Unified “light header + dark text” section header */
   .section-header{
     background: var(--header-bg) !important;
     color: var(--header-fg) !important;
@@ -151,8 +151,7 @@
   .depth-4 { padding-left: 48px; }
 
   /* ======= KPI SECTION (Latest Month Totals) ======= */
-  /* Header uses the same unified light header; body stays neutral. */
-  .kpi-section .card-header{ composes: section-header; } /* if composes unsupported, it’ll just be ignored */
+  /* Remove CSS Modules 'composes'; directly apply unified header style */
   .kpi-section .card-header{ background: var(--header-bg); color: var(--header-fg); border-bottom:1px solid var(--header-border); }
   .kpi-section .card-body{ background: var(--surface); border-top: 1px solid var(--hairline); }
 
