@@ -1,0 +1,23 @@
+{
+  "SUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": ["JL PAY", "JLPAY", "J L PAY"]
+    }
+  },
+  "SUBSUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": {
+        "Cash Tips": ["CASH TIPS", "CASH TIP", "TIPS CASH"]
+      }
+    }
+  },
+  "SUBSUBSUBCATEGORY_MAPS": {
+    "Income": {
+      "JL Pay": {
+        "Cash Tips": {
+          "Element Tips": ["ELEMENT TIPS", "ELEMENT TIP", "ELEMENT"]
+        }
+      }
+    }
+  }
+}
