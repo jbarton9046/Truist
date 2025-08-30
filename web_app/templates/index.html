@@ -2,49 +2,53 @@
 {% block content %}
 <style>
   /* ===========================
-     AURORA DESIGN SYSTEM
+     ORCHID DESIGN SYSTEM (new scheme)
      =========================== */
   :root{
     /* Neutrals & Surfaces */
-    --bg: #f5f7fb;
+    --bg: #f6f5fa;           /* soft lilac gray */
     --surface: #ffffff;
-    --surface-2: #f0f4f9;
-    --hairline: #e6eaf0;
-    --card-border: #dfe6ee;
+    --surface-2: #f1eff7;    /* light neutral for rows/hover */
+    --hairline: #e7e4ef;
+    --card-border: #e4e0ee;
 
     /* Text */
-    --text: #0f172a;          /* slate-900 */
-    --muted: #64748b;         /* slate-500 */
-    --muted-strong: #334155;  /* slate-700 */
+    --text: #111827;         /* gray-900 */
+    --muted: #6b7280;        /* gray-500 */
 
-    /* Brand */
-    --primary: #143b6c;       /* deep navy */
-    --primary-600: #1f4f92;
-    --primary-100: #e7effa;
+    /* Brand (fresh, distinct from earlier) */
+    --primary: #6d28d9;      /* royal purple 700 */
+    --primary-600: #7c3aed;  /* royal purple 600 */
+    --primary-500: #8b5cf6;  /* royal purple 500 */
+    --primary-100: #f3e8ff;  /* lavender tint */
 
-    /* Accent */
-    --accent: #0ea5a4;        /* teal */
-    --accent-100: #e6fbfb;
+    /* Accent (plum) */
+    --accent: #db2777;       /* fuchsia-600 */
+    --accent-100: #fce7f3;
 
     /* States */
-    --success: #16a34a;
-    --danger:  #dc2626;
-    --warning: #d97706;
+    --success: #16a34a;      /* green-600 */
+    --danger:  #dc2626;      /* red-600 */
+    --warning: #d97706;      /* amber-600 */
 
     /* Tables */
-    --table-head-bg: #f2f6fb;
-    --table-head-fg: #334155;
-    --table-row-alt: #fafbfd;
-    --table-row-hover: #eef3f9;
+    --table-head-bg: #f5f3ff; /* very light lavender */
+    --table-head-fg: #4c1d95; /* purple-900 */
+    --table-row-alt: #fbfaff;
+    --table-row-hover: #efecfb;
 
     /* Shadows */
-    --shadow-1: 0 1px 2px rgba(16,24,40,.06);
-    --shadow-2: 0 8px 24px rgba(16,24,40,.08);
+    --shadow-1: 0 1px 2px rgba(17, 24, 39, .06);
+    --shadow-2: 0 10px 28px rgba(17, 24, 39, .08);
 
-    /* Section tints */
+    /* Section header tints (Summary cards) */
     --section-tint-bg: var(--primary-100);
     --section-tint-fg: var(--primary);
-    --section-tint-border: #d7e3f6;
+    --section-tint-border: #e8dcff;
+
+    /* KPI header (Latest Month Totals) — header only! */
+    --kpi-header-bg: var(--primary);
+    --kpi-header-fg: #ffffff;
   }
 
   html, body { background: var(--bg); color: var(--text); }
@@ -68,7 +72,7 @@
   }
   .btn-outline-primary:hover{
     background: var(--primary-600); color:#fff; border-color: var(--primary-600);
-    box-shadow: 0 6px 16px rgba(31,79,146,.22);
+    box-shadow: 0 6px 16px rgba(124,58,237,.22);
   }
 
   /* ======= UNIFIED TABLE STYLE ======= */
@@ -91,7 +95,7 @@
   .table-modern .amount-neg{ color: var(--danger); font-weight:600; }
   .table-modern .amount-pos{ color: var(--success); font-weight:600; }
 
-  /* ======= INTERACTIVE SECTION HEADERS ======= */
+  /* ======= INTERACTIVE SECTION HEADERS (Summary) ======= */
   .summary-label { color: var(--section-tint-fg) !important; }
   .clickable-card-header{
     display:flex; align-items:center; gap:.6rem;
@@ -103,7 +107,7 @@
     border-bottom:1px solid var(--section-tint-border);
     transition: background .15s ease, color .15s ease, box-shadow .15s ease;
   }
-  .clickable-card-header:hover{ background:#dfebfb; }
+  .clickable-card-header:hover{ background:#ede1ff; }
   .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease, opacity .15s ease; }
   .card.open .clickable-card-header .chev{ transform: rotate(90deg); opacity:.95; }
 
@@ -140,10 +144,10 @@
   }
   .link-manage:hover{
     background: var(--accent-100); color: var(--accent);
-    border-color:#c7eef5; text-decoration:none;
+    border-color:#f7c9e3; text-decoration:none;
   }
   .link-manage:focus, .link-manage:focus-visible{
-    outline:0; box-shadow:0 0 0 .2rem rgba(14,165,164,.18);
+    outline:0; box-shadow:0 0 0 .2rem rgba(219,39,119,.18);
   }
 
   .transaction-entry { padding:.15rem 0; }
@@ -156,15 +160,16 @@
   .depth-4 { padding-left: 48px; }
 
   /* ======= KPI SECTION (Latest Month Totals) ======= */
+  /* Only the HEADER is colored; body stays white/neutral. */
   .kpi-section .card-header{
-    background: var(--section-tint-bg);
-    color: var(--section-tint-fg);
-    border-bottom: 1px solid var(--section-tint-border);
+    background: var(--kpi-header-bg);
+    color: var(--kpi-header-fg);
+    border-bottom: 1px solid rgba(0,0,0,.05);
     font-weight: 600;
   }
   .kpi-section .card-body{
-    background: var(--section-tint-bg);
-    border-top: 1px solid var(--section-tint-border);
+    background: var(--surface);
+    border-top: 1px solid var(--hairline);
   }
   .kpi-card {
     border:1px solid var(--card-border);
