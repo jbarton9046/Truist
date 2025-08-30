@@ -1,135 +1,177 @@
 {% extends "layout.html" %}
 {% block content %}
 <style>
-  .budget-title { color: #2c3e50 !important; }
-  .summary-label { color: #adb5bd !important; }
+  /* ===========================
+     DESIGN SYSTEM (Light UI)
+     =========================== */
+  :root{
+    /* Core palette */
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --text: #0f172a;           /* slate-900 */
+    --muted: #64748b;          /* slate-500 */
 
+    --primary: #1e3a8a;        /* indigo-800 */
+    --primary-600: #4f46e5;    /* indigo-600 */
+    --primary-500: #6366f1;    /* indigo-500 */
+    --primary-100: #eef2ff;    /* indigo-100 */
+
+    --accent: #0891b2;         /* cyan-700 */
+    --accent-100: #ecfeff;     /* cyan-50 */
+
+    --success: #16a34a;        /* green-600 */
+    --danger:  #dc2626;        /* red-600 */
+    --warning: #d97706;        /* amber-600 */
+
+    --card-border: #e5e7eb;    /* gray-200 */
+    --hairline: #e6eaf0;       /* subtle separators */
+
+    --shadow-1: 0 1px 2px rgba(16, 24, 40, .06);
+    --shadow-2: 0 8px 24px rgba(16, 24, 40, .08);
+
+    /* Summary / section tints */
+    --section-tint-bg: var(--primary-100);
+    --section-tint-fg: var(--primary);
+    --section-tint-border: #dfe6ff;
+  }
+
+  html, body { background: var(--bg); color: var(--text); }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+  /* Headline */
+  .budget-title { color: var(--primary) !important; letter-spacing: .2px; }
+
+  /* Small utilities */
+  .mono { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .tx-neg { color: var(--danger); font-weight: 600; }
+  .tx-pos { color: var(--success); font-weight: 600; }
+
+  /* Card polish */
+  .card { border: 1px solid var(--card-border); border-radius: 14px; box-shadow: var(--shadow-1); background: var(--surface); }
+  .card-header { background: var(--surface); border-bottom: 1px solid var(--hairline); }
+  .shadow-sm { box-shadow: var(--shadow-1); }
+  .card .table thead th { background: var(--surface); }
+
+  /* Clickable section headers (Summary) */
+  .summary-label { color: var(--section-tint-fg) !important; }
+  .clickable-card-header{
+    display:flex; align-items:center; gap:.6rem;
+    cursor:pointer; user-select:none;
+    padding:.575rem .875rem; margin:-.5rem;
+    border-radius:12px 12px 0 0;
+    background: var(--section-tint-bg);
+    color: var(--section-tint-fg);
+    border-bottom:1px solid var(--section-tint-border);
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .clickable-card-header:hover{ background:#e7ecff; }
+  .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease, opacity .15s ease; }
+  .card.open .clickable-card-header .chev{ transform: rotate(90deg); opacity:.95; }
+
+  /* “Categories” toggle link */
+  .toggle-link{
+    display:inline-flex; align-items:center; gap:.45rem; cursor:pointer; user-select:none;
+    padding:.3rem .65rem; border-radius:10px;
+    color: var(--primary);
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .toggle-link:hover{ background: var(--surface-2); }
+  .toggle-link .chev{ font-weight:700; opacity:.7; transition: transform .2s ease, opacity .15s ease; }
+  .toggle-link[aria-expanded="true"] .chev{ transform: rotate(90deg); opacity:.95; }
+
+  /* Category tree rows */
   details > summary { list-style: none; cursor: pointer; user-select: none; }
   details > summary::-webkit-details-marker { display: none; }
-  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.6; }
-  details[open] .caret { transform:rotate(90deg); opacity:.85; }
+  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.65; color: var(--muted); }
+  details[open] .caret { transform:rotate(90deg); opacity:.9; color: var(--primary); }
 
-  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.25rem .35rem; border-radius:.5rem; transition: background .15s ease; }
-  .node-line:hover { background:#f8f9fa; }
-  .node-main { display:flex; align-items:center; gap:.5rem; }
-  .node-total { opacity:.8; font-variant-numeric: tabular-nums; transition: opacity .15s ease; }
+  .node-line {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:.75rem; padding:.35rem .45rem; border-radius:10px;
+    transition: background .15s ease;
+  }
+  .node-line:hover { background: var(--surface-2); }
+  .node-main { display:flex; align-items:center; gap:.55rem; }
+  .node-total { opacity:.85; font-variant-numeric: tabular-nums; transition: opacity .15s ease; }
   .node-line:hover .node-total { opacity:1; }
 
-  /* Category links: clearer clickable style */
+  /* Category link: make it clearly clickable */
   .link-manage{
-    color:#212529; text-decoration:none; border:1px solid transparent;
-    padding:.1rem .4rem; border-radius:.45rem; cursor:pointer;
+    color: var(--text); text-decoration:none; border:1px solid transparent;
+    padding:.12rem .5rem; border-radius:10px; cursor:pointer;
     transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
   .link-manage:hover{
-    background:#eef5ff; color:#0d6efd; border-color:#cfe2ff; text-decoration:none;
+    background: var(--accent-100); color: var(--accent);
+    border-color:#c7eef5; text-decoration:none;
   }
   .link-manage:focus, .link-manage:focus-visible{
-    outline:0; box-shadow:0 0 0 .2rem rgba(13,110,253,.25);
+    outline:0; box-shadow:0 0 0 .2rem rgba(8,145,178,.18);
   }
 
   .transaction-entry { padding:.15rem 0; }
 
-  .mono { font-variant-numeric: tabular-nums; }
-  .tx-neg { color:#c0392b; font-weight:600; }
-  .tx-pos { color:#1e7e34; font-weight:600; }
-  .muted { color:#6c757d; }
-  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.75rem; }
-  .sticky-subheader { position:sticky; top:0; background:#fff; z-index:1; padding:.25rem 0; border-bottom:1px solid #f1f3f5; }
+  /* Sticky subtle subheaders */
+  .sticky-subheader { position:sticky; top:0; background:var(--surface); z-index:1; padding:.25rem 0; border-bottom:1px solid var(--hairline); }
 
+  /* Crumbs (unused here but retained) */
   .crumbs { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin-bottom:.25rem; }
-  .crumb { display:inline-flex; align-items:center; gap:.35rem; background:#e7f1ff; color:#0a58ca; border:1px solid #cfe2ff; padding:.25rem .6rem; border-radius:999px; text-decoration:none; font-weight:600; }
+  .crumb { display:inline-flex; align-items:center; gap:.35rem; background:#e7f2ff; color:var(--primary);
+           border:1px solid #cfe2ff; padding:.25rem .6rem; border-radius:999px; text-decoration:none; font-weight:600; }
   .crumb:hover { background:#dbe9ff; border-color:#b6d4fe; }
   .sep { color:#9ab8f7; margin:0 .1rem; }
 
-  .pill { display:inline-block; padding:.25rem .6rem; background:#f1f3f5; border-radius:999px; margin:.15rem .25rem 0 0; font-size:.85rem; text-decoration:none; color:#212529; }
-  .pill:hover { background:#e9ecef; }
-
+  /* Keyword chips */
   .kw-chip { display:inline-flex; align-items:center; gap:.35rem; background:#eef7ee; color:#1b6e22; border:1px solid #cfe9d1; padding:.2rem .55rem; border-radius:999px; margin:.15rem .25rem 0 0; font-size:.85rem; }
   .kw-chip .x { font-weight:700; cursor:pointer; opacity:.7; }
   .kw-chip .x:hover { opacity:1; }
-
   .kw-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
   .kw-add input { max-width:220px; }
 
-  .add-child { display:flex; gap:.4rem; align-items:center; margin-top:.5rem; }
-  .thin-hr { margin:.6rem 0; }
-
-  .trend-row { display:flex; align-items:center; gap:.5rem; margin:.25rem 0; }
-  .trend-label { width:72px; color:#6c757d; font-size:.85rem; }
-  .trend-bar { height:8px; border-radius:4px; background:#e9ecef; overflow:hidden; flex:1; }
-  .trend-fill { height:100%; background:#cfe2ff; }
-  .trend-val { width:90px; text-align:right; font-variant-numeric: tabular-nums; color:#495057; font-size:.85rem; }
-
-  .pareto-wrap { margin-top:.25rem; }
-  .pareto-row { display:grid; grid-template-columns:auto 1fr 70px 70px; gap:.5rem; align-items:center; padding:.15rem 0; }
-  .pareto-bar { height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; }
-  .pareto-fill { height:100%; background:#ffe8cc; }
-  .pareto-head { font-size:.8rem; color:#6c757d; }
-
-  .subs-table thead th { position:sticky; top:0; background:#fff; }
-
-  .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
-  .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
-  .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
-
-  /* depth padding (replaces inline style attr) */
+  /* Depth padding for category tree (replaces inline attrs) */
   .depth-1 { padding-left: 0px; }
   .depth-2 { padding-left: 16px; }
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
 
-  /* Clickable Summary header – refreshed style */
-  .clickable-card-header{
-    display:flex; align-items:center; gap:.6rem; cursor:pointer; user-select:none;
-    padding:.5rem .75rem; margin:-.5rem; border-radius:.75rem .75rem 0 0;
-    background:#eef4ff; color:#0b5ed7; border-bottom:1px solid #e1e7ff;
-    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
-  }
-  .clickable-card-header:hover{ background:#e4efff; color:#0a58ca; }
-  .clickable-card-header:active{ background:#dbe9ff; }
-  .clickable-card-header:focus, .clickable-card-header:focus-visible{
-    outline:0; box-shadow:0 0 0 .2rem rgba(13,110,253,.25);
-  }
-  .clickable-card-header .chev{
-    font-weight:700; opacity:.75; transition: transform .2s ease, opacity .15s ease;
-  }
-  .card.open .clickable-card-header .chev{
-    transform: rotate(90deg); opacity:.95;
-  }
-  .clickable-card-header .summary-label{
-    color: inherit !important; font-weight: 600;
-  }
+  /* Category Movers table tweaks */
+  #catMoversCard thead th { color: var(--muted); font-weight: 600; }
+  #catMoversCard tbody tr:hover { background: var(--surface-2); }
 
-  /* Categories toggle (“Categories” h5) */
-  .toggle-link{
-    display:inline-flex; align-items:center; gap:.45rem; cursor:pointer; user-select:none;
-    padding:.25rem .55rem; border-radius:.5rem; transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+  /* Latest Month Totals – KPI-like tiles with section tint background */
+  .kpi-section .card-header{
+    background: var(--section-tint-bg);
+    color: var(--section-tint-fg);
+    border-bottom: 1px solid var(--section-tint-border);
+    font-weight: 600;
   }
-  .toggle-link:hover{ background:#f8f9fa; color:#0d6efd; }
-  .toggle-link:focus, .toggle-link:focus-visible{
-    outline:0; box-shadow: 0 0 0 .2rem rgba(13,110,253,.25);
+  .kpi-section .card-body{
+    background: var(--section-tint-bg);
+    border-top: 1px solid var(--section-tint-border);
   }
-  .toggle-link .chev{
-    font-weight:700; opacity:.65; transition: transform .2s ease, opacity .15s ease;
+  .kpi-card {
+    border:1px solid var(--card-border);
+    border-radius:12px;
+    padding:.65rem .7rem;
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
   }
-  .toggle-link[aria-expanded="true"] .chev{
-    transform: rotate(90deg); opacity:.9;
-  }
+  .kpi-amount { font-variant-numeric: tabular-nums; font-size:1.06rem; letter-spacing:.1px; }
+  .kpi-inc { color: var(--success); }
+  .kpi-exp { color: var(--danger); }
+  .kpi-net-pos { color: var(--success); }
+  .kpi-net-neg { color: var(--danger); }
+  .kpi-sub { font-size:.83rem; color: var(--muted); }
 
-  /* NEW: Latest Month Totals KPI polish */
-  .kpi-card { border:1px solid #e9ecef; border-radius:.65rem; padding:.6rem .65rem; background:#fff; }
-  .kpi-amount { font-variant-numeric: tabular-nums; font-size:1.05rem; }
-  .kpi-inc { color:#1e7e34; }
-  .kpi-exp { color:#c0392b; }
-  .kpi-net-pos { color:#1e7e34; }
-  .kpi-net-neg { color:#c0392b; }
-  .kpi-sub { font-size:.82rem; opacity:.8; }
-
-  /* Match Latest Month Totals to Summary styles */
-  .kpi-section .card-body{ background:#eef4ff; border-top:1px solid #e1e7ff; }
-  .summary-like-header{
-    background:#eef4ff; color:#0b5ed7; border-bottom:1px solid #e1e7ff; font-weight:600;
+  /* Buttons */
+  .btn-outline-primary{
+    color: var(--primary-600); border-color: var(--primary-600);
+  }
+  .btn-outline-primary:hover{
+    background: var(--primary-600); color: #fff; border-color: var(--primary-600);
+    box-shadow: 0 6px 16px rgba(79,70,229,.22);
   }
 </style>
 
@@ -143,8 +185,8 @@
 <!-- Recent Activity -->
 <div class="container my-4" id="recent-activity">
   <div class="d-flex align-items-center justify-content-between mb-2">
-    <h5 class="m-0">Recent Activity</h5>
-    <small class="text-muted" id="ra-asof"></small>
+    <h5 class="m-0" style="color:var(--primary);">Recent Activity</h5>
+    <small class="muted" id="ra-asof"></small>
   </div>
 
   <div class="row g-3">
@@ -152,14 +194,14 @@
       <!-- 📈 Category Movers -->
       <div class="card shadow-sm" id="catMoversCard">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <div class="fw-bold">
-            📈 Category Movers <span class="text-muted small" id="cmSubtitle"></span>
+          <div class="fw-bold" style="color:var(--text);">
+            📈 Category Movers <span class="muted small" id="cmSubtitle"></span>
           </div>
         </div>
         <div class="card-body p-0">
           <div class="table-responsive" style="max-height: 42vh; overflow:auto;">
             <table class="table table-sm align-middle mb-0">
-              <thead class="small text-muted">
+              <thead class="small">
                 <tr>
                   <th>Category</th>
                   <th class="text-end">Prev</th>
@@ -169,7 +211,7 @@
                 </tr>
               </thead>
               <tbody id="cmBody">
-                <tr><td colspan="5" class="text-center py-4 text-muted">Loading…</td></tr>
+                <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
               </tbody>
             </table>
           </div>
@@ -178,32 +220,32 @@
 
       <!-- Latest Month Totals -->
       <div class="card shadow-sm mt-3 kpi-section">
-        <div class="card-header summary-like-header">Latest Month Totals</div>
+        <div class="card-header">Latest Month Totals</div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-4">
               <div class="kpi-card">
-                <div class="text-muted small">Income</div>
+                <div class="muted small">Income</div>
                 <div class="fw-semibold kpi-amount kpi-inc mono" id="ra-inc"></div>
                 <div class="kpi-sub" id="ra-inc-delta"></div>
               </div>
             </div>
             <div class="col-4">
               <div class="kpi-card">
-                <div class="text-muted small">Expense</div>
+                <div class="muted small">Expense</div>
                 <div class="fw-semibold kpi-amount kpi-exp mono" id="ra-exp"></div>
                 <div class="kpi-sub" id="ra-exp-delta"></div>
               </div>
             </div>
             <div class="col-4">
               <div class="kpi-card">
-                <div class="text-muted small">Net</div>
+                <div class="muted small">Net</div>
                 <div class="fw-semibold kpi-amount mono" id="ra-net"></div>
                 <div class="kpi-sub" id="ra-net-delta"></div>
               </div>
             </div>
           </div>
-          <div class="text-muted small mt-2" id="ra-months"></div>
+          <div class="muted small mt-2" id="ra-months"></div>
         </div>
       </div>
     </div>
@@ -212,7 +254,7 @@
       <!-- Most Recent Transactions -->
       <div class="card shadow-sm">
         <div class="card-body">
-          <h6 class="card-title mb-2 d-flex justify-content-between align-items-center">
+          <h6 class="card-title mb-2 d-flex justify-content-between align-items-center" style="color:var(--text);">
             Most Recent Transactions
             <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-primary">🔄 Refresh</button>
           </h6>
@@ -229,7 +271,7 @@
               <tbody id="ra-recent-body"></tbody>
             </table>
           </div>
-          <div class="text-muted small mt-2" id="ra-windows"></div>
+          <div class="muted small mt-2" id="ra-windows"></div>
         </div>
       </div>
     </div>
@@ -241,23 +283,20 @@
 (function(){
   const $ = id => document.getElementById(id);
   const fmtMoney = (n) => { const v = Number(n||0); const sign = v < 0 ? '-' : ''; return sign + '$' + Math.abs(v).toFixed(2); };
-  const fmtExpense = (n) => fmtMoney(-Math.abs(Number(n||0))); // always render as negative
+  const fmtExpense = (n) => fmtMoney(-Math.abs(Number(n||0))); // force “-$”
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Hide useless "(0.0%)" while keeping meaningful secondary %
+  // Δ% text without useless "(0.0%)"
   const pctCellText = (row) => {
     if (typeof row.delta_pct === 'string') {
-      // Strip trailing (0%) or (0.0%) etc.
       const trimmed = row.delta_pct.replace(/\s*\(0(?:\.0+)?%\)\s*$/,'').trim();
       return trimmed || '—';
     }
     const main = Number(row.delta_pct);
     const aux  = Number(row.delta_pct2 ?? row.share_pct ?? row.pct2);
     const base = fmtPct(main);
-    if (isFinite(aux) && Math.abs(aux) >= 0.005) { // ~0.5% threshold
-      return `${base} (${fmtPct(aux)})`;
-    }
+    if (isFinite(aux) && Math.abs(aux) >= 0.005) { return `${base} (${fmtPct(aux)})`; }
     return base;
   };
 
@@ -265,7 +304,7 @@
   const cmBody = $('cmBody'), cmSub = $('cmSubtitle');
   async function loadCategoryMovers(){
     if (!cmBody) return;
-    cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Loading…</td></tr>';
+    cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>';
     try{
       const r = await fetch('/api/category_movers');
       if (!r.ok) throw new Error(await r.text());
@@ -273,12 +312,12 @@
       if (cmSub) cmSub.textContent = (j.prev_month && j.latest_month) ? `(${j.prev_month} → ${j.latest_month})` : '';
       const rows = j.rows || [];
       if (!rows.length){
-        cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No category movement yet.</td></tr>';
+        cmBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 muted">No category movement yet.</td></tr>';
         return;
       }
       cmBody.innerHTML = rows.map(row => {
         const d = Number(row.delta || 0);
-        const cls = d > 0 ? 'text-danger' : d < 0 ? 'text-success' : 'text-muted';
+        const cls = d > 0 ? 'tx-neg' : d < 0 ? 'tx-pos' : 'muted';
         const arrow = d > 0 ? '▲' : d < 0 ? '▼' : '—';
         const deltaHtml = '<span class="'+cls+'">'+arrow+' '+fmtMoney(Math.abs(d))+'</span>';
         return (
@@ -314,14 +353,8 @@
       if (raMonths) raMonths.textContent = (d.prev_month && d.latest_month) ? `${d.prev_month} → ${d.latest_month}` : '';
 
       const lt = d.latest_totals || {};
-      if (raInc) {
-        raInc.textContent = fmtMoney(lt.income);
-        raInc.classList.add('tx-pos','mono');
-      }
-      if (raExp) {
-        raExp.textContent = fmtExpense(lt.expense);      // force "-$"
-        raExp.classList.add('tx-neg','mono');
-      }
+      if (raInc) { raInc.textContent = fmtMoney(lt.income); raInc.classList.add('mono'); }
+      if (raExp) { raExp.textContent = fmtExpense(lt.expense); raExp.classList.add('mono'); }
       if (raNet) {
         const netVal = Number(lt.net || 0);
         raNet.textContent = fmtMoney(netVal);
@@ -334,7 +367,7 @@
 
       const mkDelta = (val, posGood=true) => {
         const d = Number(val||0);
-        const cls = (posGood ? (d>0) : (d<0)) ? 'text-success' : d===0 ? 'text-muted' : 'text-danger';
+        const cls = (posGood ? (d>0) : (d<0)) ? 'tx-pos' : d===0 ? 'muted' : 'tx-neg';
         const arrow = d>0 ? '▲' : d<0 ? '▼' : '—';
         return '<span class="'+cls+'">'+arrow+' '+fmtMoney(Math.abs(d))+'</span>';
       };
@@ -356,7 +389,7 @@
           '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
           '<td>' + safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') + '</td>' +
         '</tr>'
-      )).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">No recent transactions.</td></tr>';
+      )).join('') : '<tr><td colspan="4" class="text-center muted py-3">No recent transactions.</td></tr>';
     }catch(err){
       console.error('Recent activity error:', err);
       raBody.innerHTML = '<tr><td colspan="4" class="text-danger text-center py-3">Couldn’t load recent activity: ' + safe(err?.message||err) + '</td></tr>';
@@ -388,7 +421,6 @@
 
 <!-- Per-month summary + category tree -->
 <div class="container mt-2">
-  {# Currency macro: renders -$ for negatives #}
   {% macro usd(val) -%}
     {%- set n = (val or 0)|float -%}
     {{ '-' if n < 0 else '' }}${{ '%.2f'|format(n|abs) }}
@@ -443,7 +475,7 @@
               <li class="transaction-entry">
                 <span class="text-dark">{{ tx.date }}</span>:
                 {{ tx.description }}
-                <span class="fw-bold {% if tx.amount>=0 %}text-success{% else %}text-danger{% endif %}">
+                <span class="fw-bold {% if tx.amount>=0 %}tx-pos{% else %}tx-neg{% endif %}">
                   {{ usd(tx.amount) }}
                 </span>
               </li>
@@ -460,7 +492,7 @@
     {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
     {% set net_class = 'tx-pos' if summary.net_cash_flow >= 0 else 'tx-neg' %}
 
-    <div class="card mb-4 open-{{ 'true' if false else 'false' }}" id="card-{{ month_key }}">
+    <div class="card mb-4" id="card-{{ month_key }}">
       <div class="card-header clickable-card-header" onclick="toggleSection('{{ month_key }}')" id="header-{{ month_key }}">
         <span class="chev" aria-hidden="true">▸</span>
         <span class="summary-label">{{ formatted_month_key }} Summary</span>
@@ -468,16 +500,16 @@
 
       <div id="section-{{ month_key }}" class="card-body" style="display: none;">
         <p><strong>Total Income:</strong>
-          <span class="text-success">{{ usd(summary.income_total) }}</span>
+          <span class="tx-pos">{{ usd(summary.income_total) }}</span>
         </p>
         <p><strong>Total Expenses:</strong>
-          <span class="text-danger">{{ usd(summary.expense_total) }}</span>
+          <span class="tx-neg">{{ usd(summary.expense_total) }}</span>
         </p>
         <p><strong>Net Cash Flow:</strong>
           <span class="fw-bold {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
         </p>
 
-        <h5 class="mt-3 highlight-inline toggle-link" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false">
+        <h5 class="mt-3 toggle-link" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false">
           <span class="chev" aria-hidden="true">▸</span>
           Categories
         </h5>
@@ -489,7 +521,7 @@
               {% endfor %}
             </div>
           {% else %}
-            <div class="text-muted">No category data for this month.</div>
+            <div class="muted">No category data for this month.</div>
           {% endif %}
         </div>
       </div>
@@ -506,7 +538,6 @@ window.toggleSection = function(key){
   const willOpen = (v === 'none' || !v);
   el.style.display = willOpen ? 'block' : 'none';
 
-  // rotate chevron and style header via card "open" class
   const card = document.getElementById('card-' + key);
   if (card) card.classList.toggle('open', willOpen);
 
@@ -519,7 +550,6 @@ window.toggleCategoryList = function(key){
   const willOpen = (v === 'none' || !v);
   el.style.display = willOpen ? 'block' : 'none';
 
-  // update aria-expanded for chevron rotation & a11y
   const hdr = document.getElementById('cats-toggle-' + key);
   if (hdr) hdr.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
 
