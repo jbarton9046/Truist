@@ -27,6 +27,7 @@
     /* Table & Section headers (unified light header + dark text) */
     --header-bg: #eef3fb;     /* light cool */
     --header-fg: #1f2937;     /* gray-800 */
+    --header-muted: #4b5563;  /* gray-600 */
     --header-border: #d8e2f0;
 
     /* Table rows */
@@ -88,7 +89,7 @@
   .table-modern .amount-pos{ color: var(--success); font-weight:600; }
 
   /* ======= INTERACTIVE (Per-month “Summary” cards) ======= */
-  .summary-label { color: var(--primary) !important; }
+  .summary-label { color: var(--header-fg) !important; }
   .clickable-card-header{
     display:flex; align-items:center; gap:.6rem;
     cursor:pointer; user-select:none;
@@ -151,10 +152,8 @@
   .depth-4 { padding-left: 48px; }
 
   /* ======= KPI SECTION (Latest Month Totals) ======= */
-  /* Remove CSS Modules 'composes'; directly apply unified header style */
   .kpi-section .card-header{ background: var(--header-bg); color: var(--header-fg); border-bottom:1px solid var(--header-border); }
   .kpi-section .card-body{ background: var(--surface); border-top: 1px solid var(--hairline); }
-
   .kpi-card {
     border:1px solid var(--card-border);
     border-radius:12px;
@@ -168,6 +167,23 @@
   .kpi-net-pos { color: var(--success); }
   .kpi-net-neg { color: var(--danger); }
   .kpi-sub { font-size:.83rem; color: var(--muted); }
+
+  /* ======= TEXT COLOR NORMALIZATION ON TINTED BACKGROUNDS =======
+     Ensure *all* text sitting on colored/tinted headers matches the
+     “summary” header coloring (dark text + slightly lighter muted). */
+  .section-header,
+  .clickable-card-header,
+  .table-modern thead{ color: var(--header-fg) !important; }
+  .section-header *:not(.badge),
+  .clickable-card-header *:not(.badge),
+  .table-modern thead *{
+    color: var(--header-fg) !important;
+  }
+  .section-header .muted, .section-header small,
+  .clickable-card-header .muted, .clickable-card-header small,
+  .table-modern thead .muted, .table-modern thead small{
+    color: var(--header-muted) !important;
+  }
 </style>
 
 <!-- Header -->
