@@ -308,14 +308,23 @@
     return { cat, sub, ssub, sss:'', label: (ssub || sub || cat || 'Category') };
   }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+  // UPDATED: always return a colored chip class (deterministic fallback palette)
   function chipColorClass(label){
     const L = String(label||'').toLowerCase();
+    // explicit mappings first
     if (L.includes('utility') || L.includes('rent') || L.includes('mortgage')) return 'chip-blue';
     if (L.includes('insurance')) return 'chip-green';
     if (L.includes('subscription') || L.includes('xbox') || L.includes('netflix') || L.includes('spotify')) return 'chip-amber';
     if (L.includes('internet') || L.includes('phone') || L.includes('mobile')) return 'chip-indigo';
-    return '';
+    // fallback palette so every chip is colored
+    const palette = ['chip-blue','chip-green','chip-amber','chip-indigo'];
+    let hash = 0;
+    for (let i = 0; i < L.length; i++) hash = ((hash << 5) - hash + L.charCodeAt(i)) | 0;
+    const idx = Math.abs(hash) % palette.length;
+    return palette[idx];
   }
+
   function catChipBtn(label, key, path){
     const cls = chipColorClass(label);
     const txt = escapeHtml(label || 'Category');
