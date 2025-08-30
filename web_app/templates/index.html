@@ -60,6 +60,29 @@
     font-weight: 600;
   }
 
+  /* Ensure ANY text inside colored headers (card headers & table heads)
+     matches the Summary header color scheme */
+  .section-header,
+  .clickable-card-header,
+  .table-modern thead{
+    background: var(--header-bg) !important;
+    color: var(--header-fg) !important;
+  }
+  .section-header *:not(.badge),
+  .clickable-card-header *:not(.badge),
+  .table-modern thead *,                     /* th/td/span/small etc. */
+  .table-modern thead tr,
+  .table-modern thead th,
+  .table-modern thead td{
+    color: var(--header-fg) !important;
+  }
+  /* Subtext inside colored headers uses the header-muted tone */
+  .section-header .muted, .section-header small,
+  .clickable-card-header .muted, .clickable-card-header small,
+  .table-modern thead .muted, .table-modern thead small{
+    color: var(--header-muted) !important;
+  }
+
   /* Buttons */
   .btn-outline-primary{
     color: var(--primary-600); border-color: var(--primary-600);
@@ -167,23 +190,6 @@
   .kpi-net-pos { color: var(--success); }
   .kpi-net-neg { color: var(--danger); }
   .kpi-sub { font-size:.83rem; color: var(--muted); }
-
-  /* ======= TEXT COLOR NORMALIZATION ON TINTED BACKGROUNDS =======
-     Ensure *all* text sitting on colored/tinted headers matches the
-     “summary” header coloring (dark text + slightly lighter muted). */
-  .section-header,
-  .clickable-card-header,
-  .table-modern thead{ color: var(--header-fg) !important; }
-  .section-header *:not(.badge),
-  .clickable-card-header *:not(.badge),
-  .table-modern thead *{
-    color: var(--header-fg) !important;
-  }
-  .section-header .muted, .section-header small,
-  .clickable-card-header .muted, .clickable-card-header small,
-  .table-modern thead .muted, .table-modern thead small{
-    color: var(--header-muted) !important;
-  }
 </style>
 
 <!-- Header -->
