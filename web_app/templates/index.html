@@ -2,53 +2,39 @@
 {% block content %}
 <style>
   /* ===========================
-     ORCHID DESIGN SYSTEM (new scheme)
+     SKYLINE DESIGN SYSTEM
      =========================== */
   :root{
     /* Neutrals & Surfaces */
-    --bg: #f6f5fa;           /* soft lilac gray */
+    --bg: #f7f9fc;
     --surface: #ffffff;
-    --surface-2: #f1eff7;    /* light neutral for rows/hover */
-    --hairline: #e7e4ef;
-    --card-border: #e4e0ee;
+    --surface-2: #f1f5f9;
+    --hairline: #e5eaf1;
+    --card-border: #dee5ee;
 
     /* Text */
-    --text: #111827;         /* gray-900 */
-    --muted: #6b7280;        /* gray-500 */
+    --text: #0f172a;          /* slate-900 */
+    --muted: #64748b;         /* slate-500 */
 
-    /* Brand (fresh, distinct from earlier) */
-    --primary: #6d28d9;      /* royal purple 700 */
-    --primary-600: #7c3aed;  /* royal purple 600 */
-    --primary-500: #8b5cf6;  /* royal purple 500 */
-    --primary-100: #f3e8ff;  /* lavender tint */
+    /* Brand */
+    --primary: #143a6e;       /* deep navy */
+    --primary-600: #1d4d97;   /* mid navy */
 
-    /* Accent (plum) */
-    --accent: #db2777;       /* fuchsia-600 */
-    --accent-100: #fce7f3;
+    /* Accents / States */
+    --success: #16a34a;
+    --danger:  #dc2626;
 
-    /* States */
-    --success: #16a34a;      /* green-600 */
-    --danger:  #dc2626;      /* red-600 */
-    --warning: #d97706;      /* amber-600 */
+    /* Table & Section headers (unified light header + dark text) */
+    --header-bg: #eef3fb;     /* light cool */
+    --header-fg: #1f2937;     /* gray-800 */
+    --header-border: #d8e2f0;
 
-    /* Tables */
-    --table-head-bg: #f5f3ff; /* very light lavender */
-    --table-head-fg: #4c1d95; /* purple-900 */
-    --table-row-alt: #fbfaff;
-    --table-row-hover: #efecfb;
+    /* Table rows */
+    --row-alt: #fbfdff;
+    --row-hover: #eef3f9;
 
     /* Shadows */
-    --shadow-1: 0 1px 2px rgba(17, 24, 39, .06);
-    --shadow-2: 0 10px 28px rgba(17, 24, 39, .08);
-
-    /* Section header tints (Summary cards) */
-    --section-tint-bg: var(--primary-100);
-    --section-tint-fg: var(--primary);
-    --section-tint-border: #e8dcff;
-
-    /* KPI header (Latest Month Totals) — header only! */
-    --kpi-header-bg: var(--primary);
-    --kpi-header-fg: #ffffff;
+    --shadow-1: 0 1px 2px rgba(16,24,40,.06);
   }
 
   html, body { background: var(--bg); color: var(--text); }
@@ -64,7 +50,14 @@
   /* Cards */
   .card { border:1px solid var(--card-border); border-radius:14px; box-shadow:var(--shadow-1); background:var(--surface); }
   .card-header { background: var(--surface); border-bottom: 1px solid var(--hairline); }
-  .shadow-sm { box-shadow: var(--shadow-1); }
+
+  /* Unified “light header + dark text” section header (applies to all top card headers you add the class to) */
+  .section-header{
+    background: var(--header-bg) !important;
+    color: var(--header-fg) !important;
+    border-bottom: 1px solid var(--header-border) !important;
+    font-weight: 600;
+  }
 
   /* Buttons */
   .btn-outline-primary{
@@ -72,43 +65,41 @@
   }
   .btn-outline-primary:hover{
     background: var(--primary-600); color:#fff; border-color: var(--primary-600);
-    box-shadow: 0 6px 16px rgba(124,58,237,.22);
+    box-shadow: 0 6px 16px rgba(29,77,151,.18);
   }
 
-  /* ======= UNIFIED TABLE STYLE ======= */
+  /* ======= UNIFIED TABLE STYLE (all tables match) ======= */
   .table-modern { width:100%; border-collapse: separate; border-spacing:0; }
   .table-modern thead th{
-    background: var(--table-head-bg);
-    color: var(--table-head-fg);
+    background: var(--header-bg);
+    color: var(--header-fg);
     font-weight:700;
-    border-bottom: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--header-border);
     position: sticky; top: 0; z-index: 2;
-    text-transform: none;
     letter-spacing:.2px;
   }
   .table-modern tbody td{
     border-top: 1px solid var(--hairline);
     vertical-align: middle;
   }
-  .table-modern tbody tr:nth-child(odd){ background: var(--table-row-alt); }
-  .table-modern tbody tr:hover { background: var(--table-row-hover); }
+  .table-modern tbody tr:nth-child(odd){ background: var(--row-alt); }
+  .table-modern tbody tr:hover { background: var(--row-hover); }
   .table-modern .amount-neg{ color: var(--danger); font-weight:600; }
   .table-modern .amount-pos{ color: var(--success); font-weight:600; }
 
-  /* ======= INTERACTIVE SECTION HEADERS (Summary) ======= */
-  .summary-label { color: var(--section-tint-fg) !important; }
+  /* ======= INTERACTIVE (Per-month “Summary” cards) ======= */
+  .summary-label { color: var(--primary) !important; }
   .clickable-card-header{
     display:flex; align-items:center; gap:.6rem;
     cursor:pointer; user-select:none;
     padding:.575rem .875rem; margin:-.5rem;
     border-radius:12px 12px 0 0;
-    background: var(--section-tint-bg);
-    color: var(--section-tint-fg);
-    border-bottom:1px solid var(--section-tint-border);
-    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    background: var(--header-bg);
+    color: var(--header-fg);
+    border-bottom:1px solid var(--header-border);
+    transition: background .15s ease, color .15s ease;
   }
-  .clickable-card-header:hover{ background:#ede1ff; }
-  .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease, opacity .15s ease; }
+  .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease; }
   .card.open .clickable-card-header .chev{ transform: rotate(90deg); opacity:.95; }
 
   /* “Categories” toggle link */
@@ -119,7 +110,7 @@
     transition: background .15s ease, color .15s ease, box-shadow .15s ease;
   }
   .toggle-link:hover{ background: var(--surface-2); }
-  .toggle-link .chev{ font-weight:700; opacity:.7; transition: transform .2s ease, opacity .15s ease; }
+  .toggle-link .chev{ font-weight:700; opacity:.7; transition: transform .2s ease; }
   .toggle-link[aria-expanded="true"] .chev{ transform: rotate(90deg); opacity:.95; }
 
   /* ======= CATEGORY TREE ======= */
@@ -143,11 +134,11 @@
     transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
   .link-manage:hover{
-    background: var(--accent-100); color: var(--accent);
-    border-color:#f7c9e3; text-decoration:none;
+    background: #eaf6ff; color: #0a6abf;
+    border-color:#cfe7ff; text-decoration:none;
   }
   .link-manage:focus, .link-manage:focus-visible{
-    outline:0; box-shadow:0 0 0 .2rem rgba(219,39,119,.18);
+    outline:0; box-shadow:0 0 0 .2rem rgba(10,106,191,.18);
   }
 
   .transaction-entry { padding:.15rem 0; }
@@ -160,17 +151,11 @@
   .depth-4 { padding-left: 48px; }
 
   /* ======= KPI SECTION (Latest Month Totals) ======= */
-  /* Only the HEADER is colored; body stays white/neutral. */
-  .kpi-section .card-header{
-    background: var(--kpi-header-bg);
-    color: var(--kpi-header-fg);
-    border-bottom: 1px solid rgba(0,0,0,.05);
-    font-weight: 600;
-  }
-  .kpi-section .card-body{
-    background: var(--surface);
-    border-top: 1px solid var(--hairline);
-  }
+  /* Header uses the same unified light header; body stays neutral. */
+  .kpi-section .card-header{ composes: section-header; } /* if composes unsupported, it’ll just be ignored */
+  .kpi-section .card-header{ background: var(--header-bg); color: var(--header-fg); border-bottom:1px solid var(--header-border); }
+  .kpi-section .card-body{ background: var(--surface); border-top: 1px solid var(--hairline); }
+
   .kpi-card {
     border:1px solid var(--card-border);
     border-radius:12px;
@@ -204,8 +189,8 @@
     <div class="col-lg-6">
       <!-- 📈 Category Movers -->
       <div class="card shadow-sm" id="catMoversCard">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <div class="fw-bold" style="color:var(--text);">
+        <div class="card-header d-flex justify-content-between align-items-center section-header">
+          <div class="fw-bold">
             📈 Category Movers <span class="muted small" id="cmSubtitle"></span>
           </div>
         </div>
@@ -229,9 +214,9 @@
         </div>
       </div>
 
-      <!-- Latest Month Totals -->
+      <!-- Latest Month Totals (header: light; body neutral) -->
       <div class="card shadow-sm mt-3 kpi-section">
-        <div class="card-header">Latest Month Totals</div>
+        <div class="card-header section-header">Latest Month Totals</div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-4">
@@ -264,11 +249,11 @@
     <div class="col-lg-6">
       <!-- Most Recent Transactions -->
       <div class="card shadow-sm">
+        <div class="card-header section-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0">Most Recent Transactions</h6>
+          <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-primary">🔄 Refresh</button>
+        </div>
         <div class="card-body">
-          <h6 class="card-title mb-2 d-flex justify-content-between align-items-center" style="color:var(--text);">
-            Most Recent Transactions
-            <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-primary">🔄 Refresh</button>
-          </h6>
           <div class="table-responsive" style="max-height: 420px; overflow:auto;">
             <table class="table table-sm table-modern align-middle mb-0" id="ra-recent">
               <thead>
