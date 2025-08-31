@@ -87,13 +87,13 @@
   <div class="row g-3">
     <div class="col-12 col-lg-7">
 
-      <!-- Detected Streams -->
+      <!-- Recurring Charges -->
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center section-header">
           <span>Recurring Charges</span>
         </div>
         <div class="table-responsive">
-          <table class="table table-sm table-hover mb-0" id="streamsTable">
+          <table class="table table-sm table-hover mb-0 table-modern" id="streamsTable">
             <thead>
               <tr>
                 <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
@@ -113,9 +113,9 @@
     </div>
 
     <div class="col-12 col-lg-5">
-      <!-- Predictive (Projected Month) -->
+      <!-- Projected Month -->
       <div class="card mt-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center section-header">
           <span>Projected month</span>
           <small class="text-muted" id="pmNote"></small>
         </div>
@@ -146,9 +146,9 @@
 
       <!-- Due soon (next 7 days) -->
       <div class="card mt-3">
-        <div class="card-header">Due next 7 days</div>
+        <div class="card-header section-header">Due next 7 days</div>
         <div class="table-responsive">
-          <table class="table table-sm mb-0" id="dueSoonTable">
+          <table class="table table-sm mb-0 table-modern" id="dueSoonTable">
             <thead>
               <tr>
                 <th>Date</th>
@@ -309,15 +309,13 @@
   }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-  // UPDATED: always return a colored chip class (deterministic fallback palette)
+  // Always return a colored chip class (deterministic fallback palette)
   function chipColorClass(label){
     const L = String(label||'').toLowerCase();
-    // explicit mappings first
     if (L.includes('utility') || L.includes('rent') || L.includes('mortgage')) return 'chip-blue';
     if (L.includes('insurance')) return 'chip-green';
     if (L.includes('subscription') || L.includes('xbox') || L.includes('netflix') || L.includes('spotify')) return 'chip-amber';
     if (L.includes('internet') || L.includes('phone') || L.includes('mobile')) return 'chip-indigo';
-    // fallback palette so every chip is colored
     const palette = ['chip-blue','chip-green','chip-amber','chip-indigo'];
     let hash = 0;
     for (let i = 0; i < L.length; i++) hash = ((hash << 5) - hash + L.charCodeAt(i)) | 0;
@@ -636,6 +634,64 @@
 </script>
 
 <style>
+/* =========================
+   Skyline variables (light)
+   ========================= */
+:root{
+  --bg: #f7f9fc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --hairline: #e5eaf1;
+  --card-border: #dee5ee;
+
+  --text: #0f172a;
+  --muted: #64748b;
+
+  --primary: #143a6e;
+  --primary-600: #1d4d97;
+
+  --success: #16a34a;
+  --danger:  #dc2626;
+
+  /* Unified headers */
+  --header-bg: #eef3fb;
+  --header-fg: #1f2937;
+  --header-muted: #4b5563;
+  --header-border: #d8e2f0;
+}
+
+/* Card/header unification */
+.card { border:1px solid var(--card-border); border-radius:14px; background:var(--surface); }
+.section-header{
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
+  font-weight: 600;
+}
+.section-header *:not(.badge){ color: var(--header-fg) !important; }
+.section-header .text-muted, .section-header .muted, .section-header small { color: var(--header-muted) !important; }
+
+/* ======= TABLES (match Summary headers) ======= */
+.table-modern { width:100%; border-collapse: separate; border-spacing:0; }
+.table-modern thead,
+.table-modern thead tr,
+.table-modern thead th,
+.table-modern thead td{
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
+}
+.table-modern thead th{
+  font-weight:700; letter-spacing:.2px;
+  position: sticky; top: 0; z-index: 2;
+}
+.table-modern tbody td{
+  border-top: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+.table-modern tbody tr:nth-child(odd){ background: #fbfdff; }
+.table-modern tbody tr:hover { background: var(--surface-2); }
+
 /* --- KPI strip styles --- */
 .kpi-grid{
   display:grid;
@@ -679,7 +735,7 @@
 .kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
 #tile-floor.over .kpi-meter .fill{ background:#dc2626; }
 
-/* chips (bigger & clickable) */
+/* chips (always colored) */
 .chip{
   display:inline-block;
   border:1px solid #e5e7eb;
@@ -705,8 +761,7 @@
 .chip-amber{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
 .chip-indigo{ background:#eef2ff; color:#4338ca; border-color:#e0e7ff; }
 
-/* tables */
-#streamsTable thead th { position: sticky; top: 0; background: #fff; z-index: 2; box-shadow: inset 0 -1px 0 #e5e7eb; }
+/* Streams table UX */
 #streamsTable thead th.sortable { cursor: pointer; user-select: none; }
 #streamsTable thead th .sort { opacity: .4; margin-left: 4px; font-size: 10px; }
 #streamsTable thead th.sorted-asc .sort::after  { content: "▲"; }
@@ -715,12 +770,7 @@
 
 #streamsTable svg{ display:block; margin:0 auto; color:#64748b; }
 .trend-cell { white-space: nowrap; min-width: 190px; }
-.trend-delta { text-align:center; opacity:.85; }
-.trend-delta.up { color:#166534; }
-.trend-delta.down { color:#b91c1c; }
-.trend-delta.flat { color:#6b7280; }
 
-/* Category cell badge */
 .streams-category .badge.variance-badge {
   background: #fff8e1; color: #92400e; border: 1px solid #fde68a; font-weight: 600;
 }

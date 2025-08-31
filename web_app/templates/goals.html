@@ -2,59 +2,128 @@
 {% block content %}
 
 <style>
+  /* ===========================
+     SKYLINE LIGHT THEME VARS
+     (same palette used on index)
+     =========================== */
+  :root{
+    /* Neutrals & Surfaces */
+    --bg: #f7f9fc;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --hairline: #e5eaf1;
+    --card-border: #dee5ee;
+
+    /* Text */
+    --text: #0f172a;          /* slate-900 */
+    --muted: #64748b;         /* slate-500 */
+
+    /* Brand */
+    --primary: #143a6e;       /* deep navy */
+    --primary-600: #1d4d97;   /* mid navy */
+
+    /* Accents / States */
+    --success: #16a34a;
+    --danger:  #dc2626;
+
+    /* Table & Section headers */
+    --header-bg: #eef3fb;
+    --header-fg: #1f2937;
+    --header-muted: #4b5563;
+    --header-border: #d8e2f0;
+  }
+
   :root { --sticky-top: 0px; } /* offset for fixed navbars, set via JS below */
+
+  html, body { background: var(--bg); color: var(--text); }
+  .muted { color: var(--muted); }
+  .mono { font-variant-numeric: tabular-nums; }
 
   .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
   .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
-  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.9rem; position: relative; overflow: visible; }
-  .muted { color:#6c757d; }
-  .mono { font-variant-numeric: tabular-nums; }
 
-  /* align numeric cells in main table footer and body */
+  /* Cards */
+  .stat-card {
+    border:1px solid var(--card-border);
+    border-radius:.75rem;
+    padding:.9rem;
+    position: relative;
+    overflow: visible;
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(16,24,40,.06);
+  }
+
+  /* KPI panels inside summary */
+  .panel {
+    border:1px solid var(--card-border);
+    border-radius:.65rem;
+    padding:.75rem;
+    background:#fff;
+  }
+  .panel-title { font-weight:600; margin-bottom:.5rem; }
+
+  .small-note { font-size:.9rem; color:var(--muted); }
+  .pill { padding:.15rem .5rem; border:1px solid var(--hairline); border-radius:999px; font-size:.85rem; background: var(--surface-2); }
+
+  /* Manage link keeps theme colors */
+  .name-link { text-decoration: none; color: inherit; cursor: pointer; }
+  .name-link:hover { text-decoration: underline; }
+
+  /* ======= UNIFIED TABLE STYLE (matches index) ======= */
+  .table-modern { width:100%; border-collapse: separate; border-spacing:0; }
+
+  .table-modern thead,
+  .table-modern thead tr,
+  .table-modern thead th,
+  .table-modern thead td{
+    background: var(--header-bg) !important;
+    color: var(--header-fg) !important;
+    border-bottom: 1px solid var(--header-border) !important;
+  }
+  .table-modern thead th a,
+  .table-modern thead th span,
+  .table-modern thead th small{
+    color: var(--header-fg) !important;
+  }
+  .table-modern thead th{
+    font-weight:700;
+    position: sticky;
+    top: var(--sticky-top);
+    z-index: 20;
+    letter-spacing:.2px;
+  }
+  .table-modern tbody td{
+    border-top: 1px solid var(--hairline);
+    vertical-align: middle;
+  }
+  .table-modern tbody tr:nth-child(odd){ background: #fbfdff; }
+  .table-modern tbody tr:hover { background: var(--surface-2); }
+
+  /* ======= Goals table specifics (kept your layout) ======= */
+  .goals-table { table-layout: fixed; }
+  .goals-table th, .goals-table td { padding:.55rem .6rem; }
+  .goals-table th { text-align:left; font-weight:600; }
   .goals-table td.mono, .goals-table tfoot th.mono { text-align: left; }
 
-  /* Sticky header + fixed layout for perfect column alignment */
-  .goals-table { width:100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-  .goals-table thead th {
-    position: sticky;
-    top: var(--sticky-top); /* respects any fixed navbar height */
-    z-index: 20;
-    background: #fafbfc;
-    box-shadow: 0 1px 0 #edf2f7;
-  }
-  .goals-table th, .goals-table td { padding:.55rem .6rem; border-bottom:1px solid #edf2f7; }
-  .goals-table th { text-align:left; font-weight:600; }
-
-  /* Goal / month input sizing (compact, aligned) */
+  /* Inputs compact/aligned */
   .goals-table .input-group { width:auto !important; max-width:160px !important; flex-wrap:nowrap; }
   .goals-table .goal-input { width:auto !important; min-width:0; }
 
-  .ok { color:#1e7e34; font-weight:600; }
-  .bad { color:#c0392b; font-weight:600; }
+  /* Variance coloring */
+  .ok { color: var(--success); font-weight:600; }
+  .bad { color: var(--danger); font-weight:600; }
+
+  /* Tiny spark bars */
   .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
   .spark > i { display:block; width:6px; background:#cfe2ff; border-radius:2px 2px 0 0; }
-  .small-note { font-size:.9rem; color:#6c757d; }
-  .pill { padding:.15rem .5rem; border:1px solid #e9ecef; border-radius:999px; font-size:.85rem; }
-
-  /* Category name acts as manage link */
-  .name-link { text-decoration: none; color: inherit; cursor: pointer; }
-  .name-link:hover { text-decoration: underline; }
 
   /* Summary grid */
   .summary-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
   @media (max-width: 992px){ .summary-grid { grid-template-columns: 1fr; } }
 
-  .panel { border:1px solid #e9ecef; border-radius:.65rem; padding:.75rem; background:#fff; }
-  .panel-title { font-weight:600; margin-bottom:.5rem; }
-
-  .mini-table { width: 100%; border-collapse: collapse; }
-  .mini-table th, .mini-table td { padding:.4rem .5rem; border-bottom:1px dashed #f0f2f5; }
-  .mini-table th { text-align:left; font-size:.9rem; color:#6c757d; font-weight:600; }
-  .mini-table td.val { text-align:right; font-variant-numeric: tabular-nums; }
-
   /* Goal progress meter */
-  .meter { width: 100%; height: 12px; border-radius: 999px; background: #f1f3f5; overflow: hidden; margin: .35rem 0 .25rem; border: 1px solid #e9ecef; }
-  .meter > .fill { height: 100%; width: 0%; background: #74c69d; transition: width .25s ease; }
+  .meter { width: 100%; height: 12px; border-radius: 999px; background: #f1f3f5; overflow: hidden; margin: .35rem 0 .25rem; border: 1px solid var(--hairline); }
+  .meter > .fill { height: 100%; width: 0%; background: #16a34a; transition: width .25s ease; }
   .meter.over > .fill { background: #e57373; }
 </style>
 
@@ -123,7 +192,7 @@
   <!-- Table -->
   <div class="stat-card">
     <div class="mb-2 fw-semibold">Goals</div>
-    <table id="goalsTable" class="goals-table">
+    <table id="goalsTable" class="goals-table table-modern table table-sm align-middle">
       <!-- Fixed column widths for perfect header/body/footer alignment -->
       <colgroup>
         <col style="width:22%">

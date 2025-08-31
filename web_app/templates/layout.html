@@ -31,14 +31,22 @@
       .mono { font-variant-numeric: tabular-nums; }
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
-      .table thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
+
+      /* Make header colors theme-overridable via CSS vars */
+      .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--table-head-bg, #fff);
+        color: var(--table-head-fg, inherit);
+      }
       .table.sticky-offset thead th, .sticky-offset .table thead th { top: var(--sticky-top); }
     </style>
 
     <!-- THEME (this is the file you created) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-2">
   </head>
-  <body>
+  <body class="theme-neo">
     {% include "navbar.html" %}
 
     <main class="container-fluid">

@@ -2,6 +2,7 @@
 (function () {
   'use strict';
 
+  // Avoid double-loading
   if (window.openCategoryManager && window.openCategoryManager.__cl_v2 === true) return;
 
   const urls = (window.CL_URLS || {});
@@ -13,7 +14,7 @@
 
   let offcanvas = null;
   function ensureOC() {
-    if (!offcanvas && window.bootstrap && window.bootstrap.Offcanvas) {
+    if (!offcanvas && window.bootstrap && window.bootstrap.Offcanvas && ocEl) {
       offcanvas = new bootstrap.Offcanvas(ocEl);
     }
     return offcanvas;
@@ -64,7 +65,7 @@
   ensureDrawerStyles();
 
   const state = {
-    ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '' },
+    ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '', allowHidden: false },
     months: [],
     tx: [],
     children: [],
@@ -78,7 +79,14 @@
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
   function fmtUSD(n) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(n||0); } catch { return '$'+Number(n||0).toFixed(2); } }
   function fmtDate(s) { return s || ''; }
-  function escapeHTML(s){ return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  function escapeHTML(s){
+    return String(s||'').replace(/[&<>"']/g, c => (
+      c === '&' ? '&amp;' :
+      c === '<' ? '&lt;'  :
+      c === '>' ? '&gt;'  :
+      c === '"' ? '&quot;': '&#39;'
+    ));
+  }
 
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -103,11 +111,9 @@
     const set = new Set(available);
     if (preferred && set.has(preferred)) return preferred;
 
-    // try earlier months first (lexicographic works with YYYY-MM)
     const earlier = available.filter(m => m <= preferred).sort().reverse();
     if (earlier.length) return earlier[0];
 
-    // otherwise, next later month
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
@@ -123,7 +129,8 @@
       ssub: state.ctx.ssub || '',
       sss: state.ctx.sss || '',
       path: parts.join(' / '),
-      name: last
+      name: last,
+      allow_hidden: state.ctx.allowHidden ? 1 : 0
     };
   }
 
@@ -188,8 +195,10 @@
       if (state.children.length) {
         host.innerHTML = state.children.map(function(n){
           const label = escapeHTML(n);
+          // Store raw value safely via URL encoding; decode when reading.
+          const rawAttr = encodeURIComponent(String(n||''));
           return '' +
-            '<button type="button" class="child-pill" data-child="'+label+'" title="Drill into '+label+'" aria-label="Drill into '+label+'">' +
+            '<button type="button" class="child-pill" data-child="'+rawAttr+'" title="Drill into '+label+'" aria-label="Drill into '+label+'">' +
             '  <span class="dot" aria-hidden="true"></span>' +
             '  <span class="label">'+label+'</span>' +
             '  <span class="chev" aria-hidden="true">›</span>' +
@@ -248,7 +257,7 @@
           '  <td>' + escapeHTML(t.description || '') + '</td>\n' +
           '  <td class="text-end ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
           '  <td>' + escapeHTML((t.category||"") + (t.subcategory?(" / "+t.subcategory):"")) + '</td>\n' +
-          '</tr>'
+          '  </tr>'
         );
       }
     }
@@ -292,6 +301,7 @@
     if (ctx.sub)  params.set('sub',  ctx.sub);
     if (ctx.ssub) params.set('ssub', ctx.ssub);
     if (ctx.sss)  params.set('sss',  ctx.sss);
+    if (ctx.allowHidden) params.set('allow_hidden', '1');
 
     // month param: support specific month *or* "all"
     const monthLower = String(ctx.month || '').toLowerCase();
@@ -373,9 +383,10 @@
       const data = await fetchKeywords();
       const arr = (data && (data.keywords || data.kw || data.items)) || [];
       host.innerHTML = arr.length ? arr.map(function(k){
-        return '<span class="kw-chip" data-kw="'+escapeHTML(k)+'">' +
+        const raw = encodeURIComponent(String(k||''));
+        return '<span class="kw-chip" data-kw="'+raw+'">' +
                '  <span>'+escapeHTML(k)+'</span>' +
-               '  <span class="x" title="Remove" data-action="kw-remove" data-kw="'+escapeHTML(k)+'">&times;</span>' +
+               '  <span class="x" title="Remove" data-action="kw-remove" data-kw="'+raw+'">&times;</span>' +
                '</span>';
       }).join('') : '<span class="text-muted">No keywords yet.</span>';
     } catch (e) {
@@ -404,7 +415,8 @@
       sub:   (ctx && ctx.sub)   || '',
       ssub:  (ctx && ctx.ssub)  || '',
       sss:   (ctx && ctx.sss)   || '',
-      month: (ctx && ctx.month) || ''
+      month: (ctx && ctx.month) || '',
+      allowHidden: !!(ctx && ctx.allowHidden)
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
@@ -413,10 +425,22 @@
   }
   openCategoryManager.__cl_v2 = true;
 
+  // Public exports (back-compat + new aliases used by pages)
   window.openCategoryManager = openCategoryManager;
   window.DRAWER = window.DRAWER || {};
   window.DRAWER.open = openCategoryManager;
 
+  // New lightweight aliases so pages can just call openDrawerForPath / openDrawerForCategory
+  if (!window.openDrawerForPath) {
+    window.openDrawerForPath = function (state) { openCategoryManager(state || {}); };
+  }
+  if (!window.openDrawerForCategory) {
+    window.openDrawerForCategory = function (cat, opts) {
+      openCategoryManager({ level: 'category', cat: cat || '', allowHidden: !!(opts && opts.allowHidden) });
+    };
+  }
+
+  // Handle links created in other templates
   window.dashManage = function (e, el) {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
     const ctx = {
@@ -425,7 +449,8 @@
       sub:   el.getAttribute('data-sub')   || '',
       ssub:  el.getAttribute('data-ssub')  || '',
       sss:   el.getAttribute('data-sss')   || '',
-      month: el.getAttribute('data-month') || ''
+      month: el.getAttribute('data-month') || '',
+      allowHidden: !!(el.getAttribute('data-allow-hidden') || '')
     };
     openCategoryManager(ctx);
     return false;
@@ -470,7 +495,7 @@
   document.addEventListener('click', function(e){
     const pill = e.target.closest('.child-pill');
     if (!pill) return;
-    const name = pill.getAttribute('data-child') || '';
+    const name = decodeURIComponent(pill.getAttribute('data-child') || '');
     if (state.ctx.sss) {
       return;
     } else if (state.ctx.ssub) {
@@ -513,7 +538,7 @@
   document.addEventListener('click', async function(e){
     const x = e.target.closest('[data-action="kw-remove"]');
     if (!x) return;
-    const kw = x.getAttribute('data-kw');
+    const kw = decodeURIComponent(x.getAttribute('data-kw') || '');
     await removeKeyword(kw);
     refreshKeywords();
   });
@@ -525,7 +550,7 @@
 
   if (btnInspect && urls.INSPECT_URL){
     btnInspect.addEventListener('click', async function(){
-      const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path }), { headers:{'Accept':'application/json'} });
+      const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path, allow_hidden: state.ctx.allowHidden ? 1 : 0 }), { headers:{'Accept':'application/json'} });
       const j = await res.json();
       alert(JSON.stringify(j, null, 2));
     });
@@ -537,7 +562,7 @@
       const oldName = p.name;
       const newName = prompt('Rename "'+oldName+'" to:', oldName);
       if (!newName || newName.trim() === oldName) return;
-      const payload = { path: p.path, new_name: newName.trim() };
+      const payload = { path: p.path, new_name: newName.trim(), allow_hidden: state.ctx.allowHidden ? 1 : 0 };
       await fetch(urls.RENAME_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       fetchPathTx(state.ctx).catch(function(){});
       alert('Rename attempted. If it didn’t take, the server may have rejected it.');
@@ -546,7 +571,7 @@
   if (btnUpsert && urls.UPSERT_URL){
     btnUpsert.addEventListener('click', async function(){
       const p = currentPathPayload();
-      const payload = { path: p.path };
+      const payload = { path: p.path, allow_hidden: state.ctx.allowHidden ? 1 : 0 };
       await fetch(urls.UPSERT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       alert('Upsert attempted.');
     });

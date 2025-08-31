@@ -478,13 +478,9 @@
   }, window.CL_URLS || {});
 </script>
 
-<script id="cfg-json" type="application/json">
-  {{ cfg | default({}) | tojson | safe }}
-</script>
 <script>
-  // Injected config + make it global for other scripts
-  const CFG = JSON.parse(document.getElementById('cfg-json').textContent);
-  window.CFG = CFG;
+  // Injected config is already in window.CFG from the top block
+  const CFG = window.CFG || {};
 
   /* ---------- data access ---------- */
   function getAllCategories() {
@@ -1413,10 +1409,6 @@
 })();
 </script>
 
-<!-- NEW: include drawer UI + JS (safe to include here) -->
-{% include "_drawer.html" %}
-<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
-
 {% include "_drawer.html" %}
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
 <script>
@@ -1458,4 +1450,3 @@
 </script>
 
 {% endblock %}
-

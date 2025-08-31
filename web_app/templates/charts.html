@@ -4,14 +4,14 @@
 <style>
   .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
   .controls { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
+
   .stat-card {
     border:1px solid #e9ecef;
     border-radius:.75rem;
     padding:.9rem;
     background:#fff;
     position:relative;
-    /* was overflow:hidden; which clipped right edges of plots */
-    overflow:visible;
+    overflow:visible; /* avoid clipping plotly hover / axes */
   }
   .stat-card .chart,
   .stat-card .plot-container,
@@ -19,19 +19,24 @@
 
   .muted { color:#6c757d; }
   .mono { font-variant-numeric: tabular-nums; }
+
   .grid { display:grid; gap:1rem; grid-template-columns: 1fr; }
   @media (min-width: 1200px){ .grid { grid-template-columns: 1fr 1fr; } }
+
   .chart { width:100%; height:420px; }
   .chart.tall { height:520px; }
+
   .chip { padding:.15rem .5rem; border-radius:999px; border:1px solid #e9ecef; font-size:.85rem; }
   .tabs { display:flex; gap:.4rem; flex-wrap:wrap; }
   .tab { padding:.3rem .6rem; border:1px solid #e9ecef; border-radius:.5rem; background:#f8f9fa; cursor:pointer; user-select:none; }
   .tab.active { background:#fff; border-color:#dfe3e7; box-shadow:0 1px 0 rgba(16,24,40,.04); }
 
-  /* Respect the fixed navbar height set in layout.html */
+  /* Respect fixed navbar height from layout.html */
   .table thead th { position:sticky; top:var(--sticky-top); background:#fff; z-index:1; }
+  /* Slight header polish inside cards */
+  .stat-card .table thead th { background:#f8fafc; box-shadow: inset 0 -1px 0 #e5e7eb; }
 
-  /* Income KPIs (used on Income tab) */
+  /* Income KPIs (Income tab) */
   .kpi-grid { display:grid; gap:.8rem; grid-template-columns: 1fr 1fr; }
   @media (min-width: 992px){ .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
   .kval { font-size:1.25rem; font-weight:600; }
@@ -229,7 +234,7 @@
             <div class="fw-semibold">Income Heatmap (Top N)</div>
             <div class="muted small">Intensity by month</div>
           </div>
-          <div id="in_heatmap" class="chart"></div>
+        <div id="in_heatmap" class="chart"></div>
         </div>
       </div>
 
@@ -422,7 +427,6 @@
   const kpiAvg3  = document.getElementById('inc_kpi_avg3');
   const kpiNext  = document.getElementById('inc_kpi_next30');
   const kpiMed   = document.getElementById('inc_kpi_medpay');
-  const upcHost  = document.getElementById('in_upcoming');
 
   /* ------------ data ------------ */
   let months=[], categoriesTop=[], categoriesDeep=[];
@@ -536,18 +540,25 @@
     }, {responsive:true, displayModeBar:false});
   }
 
-  function treemap(targetEl, nodes, focusIdx){
-    const data = [{
-      type:'treemap',
-      labels: nodes.map(n=>n.label),
-      parents:nodes.map(n=>n.parent),
-      values: nodes.map(n=>toNum(n.value[focusIdx]||0)),
-      ids:    nodes.map(n=>n.id),
-      branchvalues:'total',
-      hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
-    }];
-    Plotly.react(targetEl, data, {margin:{l:10,r:10,t:0,b:0}}, {responsive:true, displayModeBar:false});
-  }
+function treemap(targetEl, nodes, focusIdx){
+  const data = [{
+    type: 'treemap',
+    labels:  nodes.map(n => n.label),
+    parents: nodes.map(n => n.parent),
+    values:  nodes.map(n => toNum((n.value && n.value[focusIdx]) || 0)),
+    ids:     nodes.map(n => n.id),
+    branchvalues: 'total',
+    hovertemplate: '%{label}<br>%{value:,.0f}<extra></extra>'
+  }];
+  Plotly.react(
+    targetEl,
+    data,
+    { margin: { l:10, r:10, t:0, b:0 } },
+    { responsive: true, displayModeBar: false }
+  );
+}
+
+
 
   // No synthetic "All"; skip root and optionally skip Income branch
   function buildTreemapNodes(rootNode, includeIncome){
@@ -641,6 +652,7 @@
   function incomeTable(targetEl, months, entries){
     const host = targetEl;
     const grand = sum(entries.map(([,arr]) => sum(arr)));
+    const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
     const rows = entries.map(([name,arr])=>{
       const total = sum(arr);
       const avg   = months.length ? total / months.length : 0;
@@ -648,7 +660,7 @@
       const pct   = grand ? (total/grand)*100 : 0;
       return `
         <tr>
-          <td>${name}</td>
+          <td>${esc(name)}</td>
           <td class="text-end mono">${total.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
           <td class="text-end mono">${avg.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
           <td class="text-end mono">${last.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
@@ -694,8 +706,9 @@
 
       const streams = (data.streams||[]);
       const incomeMerchants = new Set(
-        streams.filter(s => (s.categories||[]).some(c => String(c).toUpperCase()==='INCOME'))
-               .map(s => s.merchant)
+        streams
+          .filter(s => (s.categories||[]).some(c => String(c).toLowerCase() === 'income'))
+          .map(s => s.merchant)
       );
 
       // KPIs (recurrents)
@@ -757,9 +770,8 @@
       });
     }
 
-    // NOTE: Removed ex_treemap drawer navigation on click.
-    // The treemap remains interactive for zooming/drilling within the chart,
-    // but it will NOT call window.openCategoryManager anymore.
+    // Treemap remains interactive for zooming/drilling,
+    // but will NOT call window.openCategoryManager.
   }
 
   /* ------------ orchestrate ------------ */
@@ -768,7 +780,7 @@
     topNLabel.textContent = N;
     monthsWindow.textContent = months.length ? (months[0] + ' … ' + months[months.length-1]) : '—';
 
-    // OVERVIEW (now includes new charts)
+    // OVERVIEW
     renderOverview();
 
     // EXPENSES
@@ -785,7 +797,6 @@
     if (treeDeep && (treeDeep.children||[]).length){
       nodes = buildTreemapNodes(treeDeep, false);
     } else {
-      // Fallback: each top-level expense category is its own root (no "All")
       nodes = exEntries.map(([name,arr]) => ({ label: name, parent: '', value: arr, id: name }));
     }
     treemap(ex_treemap, nodes, focusIdx);
@@ -806,10 +817,10 @@
 
     // KPIs from monthly totals (income tab)
     const lastMonthIncome = incomeByMonth.length ? incomeByMonth[incomeByMonth.length-1] : 0;
-    document.getElementById('inc_kpi_30d').textContent = incomeByMonth.length ? money(lastMonthIncome) : '—';
+    kpi30d.textContent = incomeByMonth.length ? money(lastMonthIncome) : '—';
     const last3 = incomeByMonth.slice(-3);
     const avg3 = last3.length ? sum(last3)/last3.length : 0;
-    document.getElementById('inc_kpi_avg3').textContent = last3.length ? money(avg3) : '—';
+    kpiAvg3.textContent = last3.length ? money(avg3) : '—';
 
     // ensure plots use final widths
     resizeAllPlots();
