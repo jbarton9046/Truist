@@ -1,0 +1,196 @@
+/* ===== Neon Tech Theme (glass + gradient) ===== */
+
+/* Optional Google Font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+  /* Core brand gradient (purple → cyan) */
+  --brand-1: #6a5cff;
+  --brand-2: #00c2ff;
+
+  /* Surfaces */
+  --bg:        #0d1016;             /* page */
+  --surface:   rgba(255,255,255,0.06);
+  --surface-2: rgba(255,255,255,0.08);
+  --hairline:  rgba(255,255,255,0.12);
+
+  /* Text */
+  --fg:        #e9eef7;
+  --fg-muted:  #a7b0c3;
+
+  /* Accents (status) */
+  --success:   #2dd4bf;   /* teal */
+  --danger:    #ff6b6b;   /* coral */
+  --warning:   #ffd166;   /* warm */
+
+  /* Effects */
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --shadow:    0 10px 30px rgba(0,0,0,0.35);
+  --glass-blur: saturate(140%) blur(8px);
+
+  /* Header strip (used for card/table headers) */
+  --header-grad: linear-gradient(90deg, rgba(106,92,255,.95), rgba(0,194,255,.95));
+  --header-fg:   #ffffff;
+  --header-border: rgba(255,255,255,0.2);
+}
+
+/* Page base */
+html, body{
+  background:
+    radial-gradient(1000px 600px at 10% -10%, rgba(106,92,255,.25), transparent 60%),
+    radial-gradient(900px 500px at 90% 10%, rgba(0,194,255,.22), transparent 55%),
+    var(--bg);
+  color: var(--fg);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+}
+
+/* Title w/ gradient text */
+.budget-title{
+  background: linear-gradient(90deg, var(--brand-1), var(--brand-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+
+/* Cards: glass + hover lift */
+.card{
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.card:hover{ transform: translateY(-2px); transition: transform .18s ease; }
+
+/* Unified card header style (Summary, Movers, Recent, etc.) */
+.card .card-header{
+  background: var(--header-grad);
+  color: var(--header-fg);
+  border-bottom: 1px solid var(--header-border);
+  font-weight: 700;
+  letter-spacing: .25px;
+}
+
+/* Small “section labels” that look like pro banners */
+.summary-label{
+  color: var(--header-fg) !important;
+  font-weight: 700;
+}
+
+/* Tables – universal look (headers match card header) */
+.table{
+  color: var(--fg);
+}
+.table thead th{
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+  color: var(--header-fg);
+  border-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.card .table thead th{
+  background: var(--header-grad);
+}
+.table tbody tr{
+  border-color: var(--hairline);
+}
+.table tbody tr:hover{
+  background: var(--surface-2);
+}
+
+/* Numbers (consistent) */
+.mono{ font-variant-numeric: tabular-nums; }
+.tx-neg{ color: var(--danger) !important; font-weight: 700; }
+.tx-pos{ color: var(--success) !important; font-weight: 700; }
+
+/* KPI panel (Latest Month Totals) – header colored, body subtle */
+.kpi-section .card-body{
+  background: rgba(255,255,255,0.04);
+}
+.kpi-section .border{
+  border-color: var(--hairline) !important;
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-md);
+}
+
+/* Buttons – brand gradient */
+.btn-primary, .btn-outline-primary:hover{
+  color: #0b1220 !important;
+  background: linear-gradient(90deg, #7a6cff, #33d1ff);
+  border: none;
+}
+.btn-outline-primary{
+  color: var(--fg);
+  border-color: rgba(255,255,255,0.35);
+}
+.btn-outline-primary:hover{ filter: brightness(1.05); }
+
+/* Chips / Pills (children in drawer, keywords, etc.) */
+.child-pill,
+.pill,
+.kw-chip{
+  display:inline-flex; align-items:center; gap:.35rem;
+  padding:.35rem .7rem;
+  background: rgba(255,255,255,0.06);
+  color: var(--fg);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .18s ease;
+  text-decoration: none;
+  user-select:none;
+}
+.child-pill:hover,
+.pill:hover,
+.kw-chip:hover{
+  background: rgba(255,255,255,0.1);
+  box-shadow: 0 0 0 2px rgba(122,108,255,.35), 0 8px 22px rgba(0,0,0,.25);
+  transform: translateY(-1px);
+}
+.child-pill::after{
+  content: "↗";
+  font-size: .85em;
+  opacity: .7;
+  margin-left: .25rem;
+}
+
+/* Tabs (drawer) */
+.drawer-tabs{
+  border-bottom: 1px solid var(--hairline);
+}
+.drawer-tab{
+  color: var(--fg-muted);
+  background: transparent;
+}
+.drawer-tab.active{
+  color: var(--fg);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--hairline);
+  border-bottom-color: rgba(255,255,255,0.06);
+}
+
+/* Sticky subheader strip */
+.sticky-subheader{
+  background: rgba(13,16,22,.85) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Links */
+a, .link-manage{
+  color: #9ecbff;
+  text-decoration: none;
+}
+a:hover, .link-manage:hover{
+  color: #cfe6ff;
+  text-decoration: underline;
+}
+
+/* Small utilities */
+.muted{ color: var(--fg-muted) !important; }
+.thin-hr{ border-color: var(--hairline); }
