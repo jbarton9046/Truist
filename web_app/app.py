@@ -970,7 +970,12 @@ def api_categories_monthly():
 # -------- Charts --------
 @app.route("/charts")
 def charts_page():
-    return render_template("charts.html")
+    cfg_live = load_cfg()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    _apply_hide_rules_to_summary(summary)
+    cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12)
+    return render_template("charts.html", cat_monthly=cat_monthly)
+
 
 # -------- Goals --------
 @app.route("/goals")
