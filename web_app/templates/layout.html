@@ -4,78 +4,51 @@
     <meta charset="utf-8" />
     <title>{{ title if title else "BartonTech" }}</title>
 
-    <!-- Viewport: include safe-area for iPhone notch -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-    <!-- PWA: manifest + theme + icons -->
+    <!-- PWA -->
     <link rel="manifest" type="application/manifest+json" href="{{ url_for('static', filename='manifest.webmanifest') }}">
     <meta name="theme-color" content="#0d6efd">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='icons/favicon-16.png') }}">
-    <!-- iOS home screen icon -->
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/icon-180-apple.png') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="BartonTech">
 
-    <!-- Bootstrap CSS (one time) -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
 
     <style>
-      /* Defaults; JS below will measure and set --nav-h / --sticky-top precisely */
-      :root {
-        --nav-h: 56px;                  /* measured navbar height */
-        --sticky-top: var(--nav-h);     /* used by opt-in sticky table headers */
-      }
-
-      /* Space for fixed navbar + iPhone safe-area */
+      :root { --nav-h: 56px; --sticky-top: var(--nav-h); }
       body {
         padding-top: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
-        padding-left: env(safe-area-inset-left, 0px);
+        padding-left:  env(safe-area-inset-left, 0px);
         padding-right: env(safe-area-inset-right, 0px);
       }
-
-      /* Width for global Category Manager drawer */
-      .offcanvas.manage-drawer,
-      #dashCategoryManager.offcanvas { width: 480px; }
-
-      /* Optional helpers used around the app */
+      .offcanvas.manage-drawer, #dashCategoryManager.offcanvas { width: 480px; }
       .muted { color:#6c757d; }
       .mono { font-variant-numeric: tabular-nums; }
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
-
-      /*
-        Sticky table headers:
-        - Default: top: 0 (correct inside .table-responsive or any inner scroller)
-        - Opt-in .sticky-offset: use navbar offset for page-level sticky tables
-      */
       .table thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
-      .table.sticky-offset thead th,
-      .sticky-offset .table thead th { top: var(--sticky-top); }
+      .table.sticky-offset thead th, .sticky-offset .table thead th { top: var(--sticky-top); }
     </style>
 
-    <!-- App theme (modern, colorful) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}">
+    <!-- THEME (this is the file you created) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/non-tech.css') }}">
   </head>
   <body>
-    <!-- Top navbar -->
     {% include "navbar.html" %}
 
     <main class="container-fluid">
       {% block content %}{% endblock %}
     </main>
 
-    <!-- Bootstrap bundle (one time, before drawer logic) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Drawer markup (must be present before drawer.js runs) -->
     {% include "_drawer.html" %}
 
-    <!-- Endpoints consumed by /static/js/drawer.js -->
     <script>
       window.CL_URLS = {
         INSPECT_URL: "{{ url_for('admin_categories.inspect_path') }}",
@@ -84,37 +57,28 @@
         KW_GET_URL: "{{ url_for('admin_categories.keyword_list_api') }}",
         KW_ADD_URL: "{{ url_for('admin_categories.keyword_add_api') }}",
         KW_REMOVE_URL: "{{ url_for('admin_categories.keyword_remove_api') }}",
-        // Optional unified path txns API if you add one later:
         PATH_TXN_URL: "{{ url_for('api_path_transactions') }}"
       };
     </script>
-
-    <!-- Drawer logic (expects CL_URLS and the drawer markup to be present) -->
     <script src="{{ url_for('static', filename='js/drawer.js') }}" defer></script>
 
-    <!-- Global hook: any element with [data-manage] opens the drawer with its dataset context -->
     <script>
       (function(){
         document.addEventListener('click', function (e) {
           const el = e.target.closest('[data-manage]');
           if (!el) return;
           if (window.dashManage) {
-            window.dashManage(e, el); // dashManage will preventDefault and read el.dataset
+            window.dashManage(e, el);
           } else {
-            // If the drawer script hasn't finished loading yet, just stop the click
-            // (prevents navigation or "#" jumps). Clicking again will work once loaded.
             e.preventDefault();
           }
         });
       })();
     </script>
 
-    <!-- Builder-only: ensure hidden categories are inspectable (allow_hidden=1) -->
     <script>
       (function(){
-        // Scope this fetch patch to the Builder page only.
         if (location.pathname !== '/builder') return;
-
         const origFetch = window.fetch;
         window.fetch = function(input, init){
           try {
@@ -122,19 +86,14 @@
             if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
               const u = new URL(url, window.location.origin);
               u.searchParams.set('allow_hidden', '1');
-              if (typeof input === 'string') {
-                input = u.toString();
-              } else {
-                input = new Request(u.toString(), input);
-              }
+              input = typeof input === 'string' ? u.toString() : new Request(u.toString(), input);
             }
-          } catch(e) { /* swallow */ }
+          } catch(e) {}
           return origFetch(input, init);
         };
       })();
     </script>
 
-    <!-- Register service worker at the ORIGIN ROOT for full-app scope -->
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
@@ -143,7 +102,6 @@
       }
     </script>
 
-    <!-- Keep sticky headers aligned under the actual fixed navbar height -->
     <script>
       (function(){
         function setStickyOffsets(){
@@ -157,7 +115,6 @@
       })();
     </script>
 
-    <!-- (Optional) other app scripts -->
     <script src="{{ url_for('static', filename='js/movers_weekly.js') }}" defer></script>
   </body>
 </html>

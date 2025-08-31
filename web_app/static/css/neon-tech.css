@@ -33,6 +33,9 @@
   --header-grad: linear-gradient(90deg, rgba(106,92,255,.95), rgba(0,194,255,.95));
   --header-fg:   #ffffff;
   --header-border: rgba(255,255,255,0.2);
+
+  /* Alias so pages that expect --header-bg use the same gradient */
+  --header-bg: var(--header-grad);
 }
 
 /* Page base */
@@ -82,7 +85,7 @@ html, body{
   font-weight: 700;
 }
 
-/* Tables – universal look (headers match card header) */
+/* Tables – universal look (headers match card/header gradient) */
 .table{
   color: var(--fg);
 }
@@ -96,6 +99,13 @@ html, body{
 }
 .card .table thead th{
   background: var(--header-grad);
+}
+/* Force ALL table headers (card or not) to use the same readable strip */
+.table thead th,
+.table thead td{
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
 }
 .table tbody tr{
   border-color: var(--hairline);
