@@ -304,47 +304,84 @@
       })();
     </script>
 
-    <!-- Chart.js defaults: transparent bg, dark grids, ACCENT ticks/legend (global) -->
+    <!-- 🔷 Force Trend-blue text on ALL Chart.js instances (new and existing) -->
     <script>
-      (function(){
-        function setChartDefaults(){
-          if (!window.Chart || !Chart.defaults) return;
-          const cs   = getComputedStyle(document.documentElement);
-          const accent = cs.getPropertyValue('--accent-ink').trim() || '#9ecbff';
-          const hair   = cs.getPropertyValue('--hair').trim()       || 'rgba(255,255,255,.12)';
-          const gridC  = 'rgba(255,255,255,.14)';
-
-          Chart.defaults.color = accent;
-          Chart.defaults.backgroundColor = 'transparent';
-          Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
-          Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
-
-          ['category','linear','time','logarithmic'].forEach(k=>{
-            Chart.defaults.scales[k] = Chart.defaults.scales[k] || {};
-            Chart.defaults.scales[k].grid  = Object.assign({}, Chart.defaults.scales[k].grid,  { color: gridC, borderColor: hair, drawBorder: true });
-            Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: accent });
-          });
-
-          Chart.defaults.plugins = Chart.defaults.plugins || {};
-          Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
-          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: accent });
-          Chart.defaults.plugins.tooltip = Object.assign({}, Chart.defaults.plugins.tooltip, {
-            backgroundColor: 'rgba(15,23,42,.92)',
-            borderColor: hair,
-            borderWidth: 1,
-            titleColor: accent,
-            bodyColor: accent
-          });
+      (function () {
+        function cssVar(name, fallback) {
+          const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+          return v || fallback;
         }
 
-        if (window.Chart) setChartDefaults();
-        let tries = 0;
-        const i = setInterval(function(){
-          if (window.Chart){ setChartDefaults(); clearInterval(i); }
-          if (++tries > 20) clearInterval(i);
-        }, 250);
+        function applyAccentToChart(chart) {
+          const accent = cssVar('--accent-ink', '#9ecbff');                // Trend-bar blue
+          const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
+          const gridC  = 'rgba(255,255,255,.14)';
 
-        window.addEventListener('bt:charts-init', setChartDefaults);
+          const opts = chart.options || (chart.config && chart.config.options) || {};
+          opts.color = accent;
+
+          // Scales: ticks + grid
+          opts.scales = opts.scales || {};
+          Object.values(opts.scales).forEach((s) => {
+            s.ticks = Object.assign({}, s.ticks, { color: accent });
+            s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair, drawBorder: true });
+          });
+
+          // Legend + Title
+          opts.plugins = opts.plugins || {};
+          opts.plugins.legend = opts.plugins.legend || {};
+          opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
+          opts.plugins.title = Object.assign({}, opts.plugins.title, { color: accent });
+
+          // Tooltips
+          opts.plugins.tooltip = Object.assign({}, opts.plugins.tooltip, {
+            titleColor: accent,
+            bodyColor:  accent,
+            borderColor: hair,
+            backgroundColor: 'rgba(15,23,42,.92)',
+            borderWidth: 1
+          });
+
+          chart.update('none');
+        }
+
+        function themeAllCharts() {
+          if (!window.Chart) return;
+
+          // Register once to theme any NEW charts automatically
+          if (!Chart._btAccentRegistered) {
+            const btAccentPlugin = {
+              id: 'btAccentTheme',
+              beforeInit(chart) { applyAccentToChart(chart); }
+            };
+            Chart.register(btAccentPlugin);
+            Chart._btAccentRegistered = true;
+          }
+
+          // Also theme charts that already exist
+          let instances = [];
+          if (Chart.instances) {
+            if (typeof Chart.instances.forEach === 'function') {
+              // v4 Map
+              instances = Array.from(Chart.instances.values());
+            } else {
+              // v3 object
+              instances = Object.values(Chart.instances);
+            }
+          }
+          instances.forEach((c) => { try { applyAccentToChart(c); } catch(e){} });
+        }
+
+        // Run now or as soon as Chart loads
+        if (window.Chart) themeAllCharts();
+        let tries = 0;
+        const i = setInterval(function () {
+          if (window.Chart) { themeAllCharts(); clearInterval(i); }
+          if (++tries > 40) clearInterval(i); // ~6s
+        }, 150);
+
+        // Allow pages to re-run after async loads
+        window.addEventListener('bt:charts-init', themeAllCharts);
       })();
     </script>
 
