@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-7">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-8">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -67,7 +67,7 @@
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
-        /* Trend-bar blue */
+        /* Trend-bar blue used as “accent ink” on Goals page */
         --accent-ink:#9ecbff;
       }
 
@@ -213,7 +213,7 @@
         opacity: .85;
       }
 
-      /* ▶ FULL left-align across the Goals table (headers + all cells) */
+      /* FULL left-align across the Goals table (headers + all cells) */
       body[data-route="/goals"] .table th,
       body[data-route="/goals"] .table td{
         text-align: left !important;
@@ -295,6 +295,49 @@
         }
         window.addEventListener('load', setStickyOffsets, { once: true });
         window.addEventListener('resize', setStickyOffsets);
+      })();
+    </script>
+
+    <!-- Make “Current vs Last Month” match the Goals table -->
+    <script>
+      (function () {
+        function upgradeCvslmTables() {
+          // Find any card with a header/title that says "Current vs Last Month"
+          const cards = Array.from(document.querySelectorAll('.card'));
+          cards.forEach(card => {
+            const header = card.querySelector('.card-header, .card-title, h1, h2, h3, h4, h5');
+            if (!header) return;
+            if (!/current\s*vs\s*last\s*month/i.test((header.textContent || '').trim())) return;
+
+            const table = card.querySelector('table');
+            if (!table) return;
+
+            // Add floating look
+            table.classList.add('table', 'table-hover', 'table-striped', 'table-floating');
+
+            // If there is no thead, promote first tbody row into thead so sticky/tint works
+            if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
+              const firstRow = table.tBodies[0].rows[0];
+              const thead = document.createElement('thead');
+              const tr = document.createElement('tr');
+              Array.from(firstRow.cells).forEach(td => {
+                const th = document.createElement('th');
+                th.innerHTML = td.innerHTML;
+                tr.appendChild(th);
+              });
+              thead.appendChild(tr);
+              table.insertBefore(thead, table.tBodies[0]);
+              firstRow.parentNode.removeChild(firstRow);
+            }
+
+            // Left-align like Goals
+            table.querySelectorAll('th, td').forEach(c => { c.style.textAlign = 'left'; });
+          });
+        }
+
+        // Run after page load; also re-run if content is swapped in
+        window.addEventListener('load', upgradeCvslmTables);
+        document.addEventListener('bt:page-ready', upgradeCvslmTables);
       })();
     </script>
 
