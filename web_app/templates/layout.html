@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-12">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-13">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -222,8 +222,8 @@
 
     <!-- Make “Current vs Last Month” MATCH Goals (table or grid), remove blue fills -->
     <style id="bt-cvslm-match-css">
-      /* card tagged via JS */
-      body[data-route="/goals"] .bt-cvslm-match { --cell-pad: .6rem .9rem; }
+      /* compact cell padding to match Expense Goal height */
+      body[data-route="/goals"] .bt-cvslm-match { --cell-pad: .48rem .70rem; }
 
       /* TABLE case */
       body[data-route="/goals"] .bt-cvslm-match table{ width:100%; }
