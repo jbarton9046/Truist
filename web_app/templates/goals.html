@@ -21,8 +21,10 @@
     --good:#34d399;
     --bad:#f87171;
 
-    /* table header tint for “floating” look */
+    /* table header tint / gradient */
     --thead-bg:rgba(255,255,255,.06);
+    --grad-a:#60a5fa;  /* blue-400 */
+    --grad-b:#7c3aed;  /* violet-600 */
   }
 
   :root { --sticky-top: 0px; } /* offset for fixed navbars, set via JS below */
@@ -63,8 +65,7 @@
   .name-link { text-decoration: none; color: inherit; cursor: pointer; }
   .name-link:hover { text-decoration: underline; }
 
-  /* ======= FLOATING TABLE STYLE ======= */
-  /* Wrap tables in .table-responsive for rounded container */
+  /* ======= FLOATING TABLE CONTAINER ======= */
   .table-responsive{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -95,14 +96,48 @@
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* ======= Goals table specifics (kept layout) ======= */
+  /* ======= GRADIENT HEADER (matches your screenshot) ======= */
+  .thead-gradient th{
+    background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
+    color:#f8fbff !important;
+    text-shadow:0 1px 0 rgba(0,0,0,.35);
+    border-color: transparent !important;
+  }
+  .thead-gradient th + th{ box-shadow: inset 1px 0 0 rgba(255,255,255,.18); }
+  .thead-gradient th:first-child{ border-top-left-radius:12px; }
+  .thead-gradient th:last-child{ border-top-right-radius:12px; }
+
+  /* ======= Goals table specifics ======= */
   .goals-table { table-layout: fixed; }
   .goals-table th, .goals-table td { padding:.55rem .6rem; text-align:left; }
-  .goals-table td.mono, .goals-table tfoot th.mono { text-align: left; }
 
-  /* Inputs compact/aligned */
-  .goals-table .input-group { width:auto !important; max-width:160px !important; flex-wrap:nowrap; }
-  .goals-table .goal-input { width:auto !important; min-width:0; }
+  /* Right-align money columns to match the charts vibe */
+  #goalsTable td:nth-child(3),
+  #goalsTable td:nth-child(4),
+  #goalsTable td:nth-child(5),
+  #goalsTable td:nth-child(6),
+  #goalsTable td:nth-child(7),
+  #goalsTable td:nth-child(8),
+  #goalsTable tfoot th.mono{
+    text-align:right;
+  }
+
+  /* Dark input group to “pill” with the $ prefix */
+  .input-dark .input-group-text{
+    background:rgba(255,255,255,.10);
+    border-color:var(--hair);
+    color:#cfe5ff;
+  }
+  .input-dark .form-control{
+    background:rgba(0,0,0,.25);
+    border-color:var(--hair);
+    color:var(--text);
+  }
+  .input-dark .form-control:focus{
+    background:rgba(0,0,0,.35);
+    box-shadow:0 0 0 .2rem rgba(124,58,237,.25);
+    color:var(--text);
+  }
 
   /* Variance coloring */
   .ok  { color: var(--good); font-weight:600; }
@@ -156,7 +191,7 @@
       <div class="panel">
         <div class="panel-title">Current vs Last Month</div>
         <table class="mini-table table-floating">
-          <thead>
+          <thead class="thead-gradient">
             <tr><th></th><th class="text-end">Current</th><th class="text-end">Last Full</th></tr>
           </thead>
           <tbody>
@@ -209,7 +244,7 @@
           <col style="width:10%">
         </colgroup>
 
-        <thead>
+        <thead class="thead-gradient">
           <tr>
             <th>Categories</th>
             <th>Goal</th>
@@ -529,7 +564,7 @@
             </a>
           </td>
           <td>
-            <div class="input-group input-group-sm">
+            <div class="input-group input-group-sm input-dark">
               <span class="input-group-text">$</span>
               <input type="number" class="form-control goal-input" step="1" data-cat="${cat}" value="${goal}">
             </div>
@@ -586,8 +621,8 @@
     for (const cat of Object.keys(topSeries)){
       const current = goalAbs(cat);
       if (!overwriteAll && current !== 0) continue;
-      const guess = roundNice(avgLastK(topSeries[cat]||[], k));
-      goalsByCat[cat] = Math.abs(guess);
+      const guess = Math.abs(roundNice(avgLastK(topSeries[cat]||[], k)));
+      goalsByCat[cat] = guess;
     }
     render();
   }
