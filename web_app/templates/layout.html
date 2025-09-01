@@ -21,6 +21,7 @@
 
     <style>
       :root { --nav-h: 56px; --sticky-top: var(--nav-h); }
+      html, body { min-height: 100%; }
       body {
         padding-top: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
         padding-left:  env(safe-area-inset-left, 0px);
@@ -32,7 +33,7 @@
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
 
-      /* Make header colors theme-overridable via CSS vars */
+      /* Sticky table head base (values overridden by theme vars below) */
       .table thead th {
         position: sticky;
         top: 0;
@@ -43,10 +44,130 @@
       .table.sticky-offset thead th, .sticky-offset .table thead th { top: var(--sticky-top); }
     </style>
 
-    <!-- THEME (this is the file you created) -->
+    <!-- Your existing site CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-2">
+
+    <!-- >>> SITE-WIDE DARK / FLOATING THEME (applies to every page) <<< -->
+    <style id="app-theme">
+      /* Theme tokens */
+      :root{
+        --page-bg-1:#0b1220;
+        --page-bg-2:#0f172a;
+        --glow-1:#243b55;
+        --glow-2:#1b3a6b;
+
+        --text:#e6edf6;
+        --muted:#9fb3c8;
+
+        --card-bg:rgba(255,255,255,.045);
+        --card-border:rgba(255,255,255,.10);
+        --hair:rgba(255,255,255,.08);
+
+        --thead-bg:rgba(255,255,255,.06);
+        --thead-fg:#eaf2ff;
+        --grad-a:#60a5fa;   /* header gradient left */
+        --grad-b:#7c3aed;   /* header gradient right */
+
+        /* default table head colors (used by base .table rule above) */
+        --table-head-bg: var(--thead-bg);
+        --table-head-fg: var(--thead-fg);
+      }
+
+      /* Apply dark gradient background app-wide */
+      html.theme-dark, body.theme-dark {
+        background:
+          radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
+          radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
+          linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%) !important;
+        color: var(--text);
+      }
+
+      /* Navbar to match glass look (even if navbar.html uses bg-light) */
+      .navbar {
+        background: var(--card-bg) !important;
+        border-bottom: 1px solid var(--card-border) !important;
+        backdrop-filter: saturate(120%) blur(6px);
+      }
+      .navbar, .navbar .navbar-brand, .navbar .nav-link, .navbar .navbar-text {
+        color: var(--text) !important;
+      }
+      .navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
+
+      /* Cards / panels / stat blocks */
+      .card, .stat-card, .panel, .list-group, .offcanvas, .modal-content {
+        background: var(--card-bg) !important;
+        border: 1px solid var(--card-border) !important;
+        color: var(--text);
+        box-shadow:
+          0 12px 28px rgba(0,0,0,.35),
+          inset 0 1px 0 rgba(255,255,255,.05);
+        border-radius: 16px;
+        backdrop-filter: saturate(120%) blur(4px);
+      }
+
+      /* Inputs (so Goals/Recurring inline controls match) */
+      .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
+        background: rgba(255,255,255,.06) !important;
+        border-color: var(--card-border) !important;
+        color: var(--text) !important;
+      }
+      .form-control::placeholder { color: rgba(230,237,246,.6); }
+      .btn-outline-light { color: var(--text) !important; }
+      .btn-primary { background: #2563eb; border-color: #2563eb; }
+
+      /* Floating table wrapper */
+      .table-responsive{
+        border:1px solid var(--card-border);
+        border-radius:14px;
+        overflow:hidden;
+        background:var(--card-bg);
+        box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+      }
+
+      /* Floating table look */
+      .table-floating{
+        width:100%;
+        border-collapse:separate;
+        border-spacing:0;
+        color:var(--text);
+        background:transparent;
+      }
+      .table-floating thead th{
+        background: var(--thead-bg);
+        color: var(--thead-fg);
+        border-bottom:1px solid var(--hair);
+        font-weight:700; letter-spacing:.2px;
+      }
+      .table-floating tbody td{
+        border-top:1px solid var(--hair);
+        vertical-align:middle;
+      }
+      .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+      .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+
+      /* Optional gradient header row for premium tables */
+      .thead-gradient th{
+        background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
+        color:#f8fbff !important;
+        text-shadow:0 1px 0 rgba(0,0,0,.35);
+        border-color: transparent !important;
+      }
+
+      /* Chart canvases transparent by default */
+      canvas { background: transparent !important; }
+
+      /* Make default “muted” read well on dark */
+      .muted { color: var(--muted) !important; }
+    </style>
+
+    <!-- Ensure <html> also has the theme class -->
+    <script>
+      document.documentElement.classList.add('theme-dark');
+    </script>
   </head>
-  <body class="theme-neo">
+
+  <!-- add theme-dark to body so background always applies -->
+  <body class="theme-neo theme-dark">
     {% include "navbar.html" %}
 
     <main class="container-fluid">
@@ -56,19 +177,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     {% include "_drawer.html" %}
-
-    <script>
-      window.CL_URLS = {
-        INSPECT_URL: "{{ url_for('admin_categories.inspect_path') }}",
-        RENAME_URL: "{{ url_for('admin_categories.rename_path') }}",
-        UPSERT_URL: "{{ url_for('admin_categories.upsert_path_and_keyword') }}",
-        KW_GET_URL: "{{ url_for('admin_categories.keyword_list_api') }}",
-        KW_ADD_URL: "{{ url_for('admin_categories.keyword_add_api') }}",
-        KW_REMOVE_URL: "{{ url_for('admin_categories.keyword_remove_api') }}",
-        PATH_TXN_URL: "{{ url_for('api_path_transactions') }}"
-      };
-    </script>
-    <script src="{{ url_for('static', filename='js/drawer.js') }}" defer></script>
 
     <script>
       (function(){
