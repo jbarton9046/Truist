@@ -502,6 +502,68 @@
       })();
     </script>
 
+    <!-- Plotly grid/tick theming — /charts only (safe for other pages) -->
+    <script id="bt-plotly-dark">
+      (function () {
+        if (location.pathname !== '/charts') return;
+
+        function cssVar(n, f){ const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v||f; }
+        const accent = cssVar('--accent-ink', '#9ecbff');
+        const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
+        const grid   = 'rgba(255,255,255,.14)';
+
+        function apply(gd){
+          try {
+            if (!window.Plotly) return;
+            // Gentle relayout patch; leaves series colors etc. untouched
+            Plotly.relayout(gd, {
+              'paper_bgcolor': 'rgba(0,0,0,0)',
+              'plot_bgcolor' : 'rgba(0,0,0,0)',
+              'font.color'   : accent,
+              'legend.font.color': accent,
+
+              'xaxis.gridcolor'        : grid,
+              'xaxis.zerolinecolor'    : grid,
+              'xaxis.linecolor'        : hair,
+              'xaxis.tickfont.color'   : accent,
+              'xaxis.title.font.color' : accent,
+
+              'yaxis.gridcolor'        : grid,
+              'yaxis.zerolinecolor'    : grid,
+              'yaxis.linecolor'        : hair,
+              'yaxis.tickfont.color'   : accent,
+              'yaxis.title.font.color' : accent
+            });
+          } catch(e){}
+        }
+
+        function sweep(){
+          document.querySelectorAll('.js-plotly-plot').forEach(apply);
+        }
+
+        function start(){
+          // try a few times in case charts render lazily
+          let tries = 0;
+          const t = setInterval(function(){
+            if (window.Plotly) { sweep(); if (++tries > 6) clearInterval(t); }
+            else if (++tries > 40) clearInterval(t);
+          }, 200);
+
+          // react to charts added/updated
+          const mo = new MutationObserver(sweep);
+          try { mo.observe(document.body, { childList:true, subtree:true }); } catch(e){}
+
+          document.addEventListener('plotly_afterplot', function(e){
+            if (e && e.target && e.target.classList && e.target.classList.contains('js-plotly-plot')) apply(e.target);
+          });
+          window.addEventListener('resize', sweep);
+        }
+
+        if (document.readyState === 'complete') start();
+        else window.addEventListener('load', start);
+      })();
+    </script>
+
     <script src="{{ url_for('static', filename='js/movers_weekly.js') }}" defer></script>
   </body>
 </html>
