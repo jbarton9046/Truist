@@ -650,97 +650,150 @@
 </script>
 
 <style>
-/* ==== Dark Skyline (page-scoped) ==== */
+/* =========================
+   Skyline variables (light)
+   ========================= */
 :root{
-  --page-bg-1:#0b1220;  /* deep navy */
-  --page-bg-2:#0f172a;  /* slate */
-  --glow-1:#243b55;
-  --glow-2:#1b3a6b;
+  --bg: #f7f9fc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --hairline: #e5eaf1;
+  --card-border: #dee5ee;
 
-  --text:#e6edf6;
-  --muted:#9fb3c8;
+  --text: #0f172a;
+  --muted: #64748b;
 
-  --card-bg:rgba(255,255,255,.045);
-  --card-border:rgba(255,255,255,.10);
-  --hair:rgba(255,255,255,.08);
+  --primary: #143a6e;
+  --primary-600: #1d4d97;
 
-  --good:#34d399;
-  --bad:#f87171;
+  --success: #16a34a;
+  --danger:  #dc2626;
 
-  /* table header tint (slightly brighter for the “floating” effect) */
-  --thead-bg:rgba(255,255,255,.06);
+  /* Unified headers */
+  --header-bg: #eef3fb;
+  --header-fg: #1f2937;
+  --header-muted: #4b5563;
+  --header-border: #d8e2f0;
 }
 
-/* Full-page gradient background (page only) */
-body{
-  background:
-    radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
-    radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
-    linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%);
-  color:var(--text);
-}
-
-/* Headings / small mute tweaks */
-h1,h2,h3,h4,h5,h6{ color:var(--text); }
-.small,.text-muted,.muted{ color:var(--muted) !important; }
-
-/* “Glass” cards that float */
-.card, .stat-card{
-  background:var(--card-bg) !important;
-  border:1px solid var(--card-border) !important;
-  border-radius:16px !important;
-  box-shadow:
-    0 12px 28px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.05);
-  backdrop-filter:saturate(120%) blur(4px);
-}
-
-/* Section headers */
+/* Card/header unification */
+.card { border:1px solid var(--card-border); border-radius:14px; background:var(--surface); }
 .section-header{
-  background:var(--thead-bg) !important;
-  border-bottom:1px solid var(--hair) !important;
-  color:var(--text) !important;
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
+  font-weight: 600;
 }
+.section-header *:not(.badge){ color: var(--header-fg) !important; }
+.section-header .text-muted, .section-header .muted, .section-header small { color: var(--header-muted) !important; }
 
-/* Progress bars / positive-negative text accents */
-.progress, .progress-bar{ background-color:var(--card-border); }
-.progress-bar{ background-image:none; }
-.text-success{ color:var(--good) !important; }
-.text-danger{ color:var(--bad) !important; }
+/* ======= TABLES (match Summary headers) ======= */
+.table-modern { width:100%; border-collapse: separate; border-spacing:0; }
+.table-modern thead,
+.table-modern thead tr,
+.table-modern thead th,
+.table-modern thead td{
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
+}
+.table-modern thead th{
+  font-weight:700; letter-spacing:.2px;
+  position: sticky; top: 0; z-index: 2;
+}
+.table-modern tbody td{
+  border-top: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+.table-modern tbody tr:nth-child(odd){ background: #fbfdff; }
+.table-modern tbody tr:hover { background: var(--surface-2); }
 
-/* ========== Floating tables ========== */
-/* Add class="table table-sm table-floating" to any table you want to match */
-.table-floating{
-  width:100%;
-  border-collapse:separate;
-  border-spacing:0;
-  color:var(--text);
-  background:transparent;
+/* --- KPI strip styles --- */
+.kpi-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap:12px;
 }
-.table-floating thead th{
-  background:var(--thead-bg);
-  color:var(--text);
-  border-bottom:1px solid var(--hair);
-  position:sticky; top:var(--sticky-top, 56px); z-index:2; /* keeps header visible under fixed nav */
-  font-weight:700;
+@media (max-width: 992px){
+  .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
-.table-floating tbody td{
-  border-top:1px solid var(--hair);
+@media (max-width: 576px){
+  .kpi-grid{ grid-template-columns: 1fr; }
 }
-.table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-.table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
-
-/* round corners via responsive wrapper */
-.table-responsive{
-  border:1px solid var(--card-border);
+.kpi-tile{
+  border:1px solid #e5e7eb;
   border-radius:14px;
-  overflow:hidden;
-  background:var(--card-bg);
-  box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+  padding:12px 14px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(16,24,40,.04);
+}
+.kpi-top{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.kpi-icon{
+  display:grid; place-items:center;
+  width:28px; height:28px; border-radius:999px;
+  color:#344054; background:#f3f4f6; border:1px solid #eceff1;
+}
+.kpi-label{ font-size:12px; color:#6b7280; font-weight:600; }
+.kpi-value{ font-size:22px; font-weight:700; line-height:1.1; margin-top:2px; }
+.kpi-sub{ font-size:12px; color:#6b7280; margin-top:2px; }
+
+/* color accents */
+.accent-red .kpi-icon{ background:#fff1f2; color:#b91c1c; border-color:#fde2e4; }
+.accent-green .kpi-icon{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
+.accent-blue .kpi-icon{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
+.accent-amber .kpi-icon{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+
+/* meter (Floor vs Income) */
+.kpi-meter{
+  width:100%; height:10px; border-radius:999px; background:#f3f4f6;
+  border:1px solid #e5e7eb; overflow:hidden; margin-top:6px;
+}
+.kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
+#tile-floor.over .kpi-meter .fill{ background:#dc2626; }
+
+/* chips (always colored) */
+.chip{
+  display:inline-block;
+  border:1px solid #e5e7eb;
+  background:#f9fafb;
+  color:#334155;
+  border-radius:999px;
+  padding:8px 16px;
+  font-size:14px;
+  font-weight:600;
+  line-height:1.1;
+  transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
+}
+.chip-btn{
+  cursor:pointer;
+  box-shadow:0 1px 0 rgba(16,24,40,.05);
+}
+.chip-btn:hover{ background:#f3f4f6; transform:translateY(-1px); }
+.chip-btn:active{ transform:translateY(0); }
+.chip-btn:focus{ outline:0; box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+
+.chip-blue{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
+.chip-green{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
+.chip-amber{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+.chip-indigo{ background:#eef2ff; color:#4338ca; border-color:#e0e7ff; }
+
+/* Streams table UX */
+#streamsTable thead th.sortable { cursor: pointer; user-select: none; }
+#streamsTable thead th .sort { opacity: .4; margin-left: 4px; font-size: 10px; }
+#streamsTable thead th.sorted-asc .sort::after  { content: "▲"; }
+#streamsTable thead th.sorted-desc .sort::after { content: "▼"; }
+#streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content: "↕"; }
+
+#streamsTable svg{ display:block; margin:0 auto; color:#64748b; }
+.trend-cell { white-space: nowrap; min-width: 190px; }
+
+.streams-category .badge.variance-badge {
+  background: #fff8e1; color: #92400e; border: 1px solid #fde68a; font-weight: 600;
 }
 
-/* Plotly: let charts float (transparent paper/plot backgrounds) */
-.js-plotly-plot .plotly .bg { fill: transparent !important; }
+/* Drawer fallback content styling */
+.kv{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
+.kv .k{ color:#64748b; }
+.kv .v{ color:#111827; }
 </style>
-
 {% endblock %}
