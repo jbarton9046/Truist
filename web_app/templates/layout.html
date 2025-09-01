@@ -33,7 +33,7 @@
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
 
-      /* Sticky table head base (values overridden by theme vars below) */
+      /* Sticky table head base (exact colors come from theme vars below) */
       .table thead th {
         position: sticky;
         top: 0;
@@ -41,15 +41,16 @@
         background: var(--table-head-bg, #fff);
         color: var(--table-head-fg, inherit);
       }
-      .table.sticky-offset thead th, .sticky-offset .table thead th { top: var(--sticky-top); }
+      .table.sticky-offset thead th,
+      .sticky-offset .table thead th { top: var(--sticky-top); }
     </style>
 
     <!-- Your existing site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-3">
 
-    <!-- >>> SITE-WIDE DARK / FLOATING THEME (applies to every page) <<< -->
+    <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
-      /* Theme tokens */
+      /* ===== Theme tokens ===== */
       :root{
         --page-bg-1:#0b1220;
         --page-bg-2:#0f172a;
@@ -68,12 +69,12 @@
         --grad-a:#60a5fa;   /* header gradient left */
         --grad-b:#7c3aed;   /* header gradient right */
 
-        /* default table head colors (used by base .table rule above) */
+        /* feed the sticky header base rule */
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
       }
 
-      /* Apply dark gradient background app-wide */
+      /* ===== App background + base text ===== */
       html.theme-dark, body.theme-dark {
         background:
           radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
@@ -82,7 +83,7 @@
         color: var(--text);
       }
 
-      /* Navbar to match glass look (even if navbar.html uses bg-light) */
+      /* ===== Navbar (glassy) ===== */
       .navbar {
         background: var(--card-bg) !important;
         border-bottom: 1px solid var(--card-border) !important;
@@ -93,7 +94,7 @@
       }
       .navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
 
-      /* Cards / panels / stat blocks */
+      /* ===== Panels / Cards / Drawers / Modals ===== */
       .card, .stat-card, .panel, .list-group, .offcanvas, .modal-content {
         background: var(--card-bg) !important;
         border: 1px solid var(--card-border) !important;
@@ -105,7 +106,7 @@
         backdrop-filter: saturate(120%) blur(4px);
       }
 
-      /* Inputs (so Goals/Recurring inline controls match) */
+      /* ===== Inputs (so inline controls match) ===== */
       .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
         background: rgba(255,255,255,.06) !important;
         border-color: var(--card-border) !important;
@@ -115,43 +116,80 @@
       .btn-outline-light { color: var(--text) !important; }
       .btn-primary { background: #2563eb; border-color: #2563eb; }
 
-      /* Floating table wrapper */
+      /* ===== Floating table wrapper ===== */
       .table-responsive{
         border:1px solid var(--card-border);
         border-radius:14px;
-        overflow:hidden;
         background:var(--card-bg);
         box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+        overflow:auto; /* allow sticky heads to work */
+        position: relative;
       }
 
-      /* Floating table look */
-      .table-floating{
+      /* ===== Global Bootstrap table variable overrides (kills white cells) ===== */
+      .theme-dark .table{
+        --bs-table-bg: transparent;
+        --bs-table-color: var(--text);
+        --bs-table-border-color: var(--hair);
+        --bs-table-striped-bg: rgba(255,255,255,.02);
+        --bs-table-striped-color: var(--text);
+        --bs-table-hover-bg: rgba(255,255,255,.05);
+        --bs-table-hover-color: var(--text);
+      }
+      .theme-dark .table > :not(caption) > * > *{
+        background-color: transparent !important;
+        box-shadow: none !important;
+      }
+      /* If someone tagged cells as bg-white/light, neutralize inside tables */
+      .theme-dark .table td.bg-white, .theme-dark .table th.bg-white,
+      .theme-dark .table td.bg-light, .theme-dark .table th.bg-light{
+        background-color: transparent !important;
+      }
+
+      /* ===== Floating table look (works if class is on table OR wrapper) ===== */
+      .table-floating,
+      .table-floating .table{
         width:100%;
         border-collapse:separate;
         border-spacing:0;
         color:var(--text);
         background:transparent;
       }
-
-      /* --- CRITICAL: remove Bootstrap's white cell background --- */
-      .table-floating > :not(caption) > tbody > * > *,
-      .table-floating > :not(caption) > tfoot > * > *{
-        background-color: transparent !important;
-        box-shadow: none !important;
-      }
-
-      .table-floating thead th{
+      .table-floating > :not(caption) > thead > tr > th,
+      .table-floating .table > :not(caption) > thead > tr > th{
         background: var(--thead-bg) !important;
         color: var(--thead-fg) !important;
         border-bottom:1px solid var(--hair);
         font-weight:700; letter-spacing:.2px;
       }
-      .table-floating tbody td{
+      .table-floating > :not(caption) > tbody > tr > td,
+      .table-floating .table > :not(caption) > tbody > tr > td{
         border-top:1px solid var(--hair);
         vertical-align:middle;
       }
-      .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-      .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+      .table-floating > :not(caption) > tbody > tr:nth-child(odd),
+      .table-floating .table > :not(caption) > tbody > tr:nth-child(odd){
+        background:rgba(255,255,255,.015);
+      }
+      .table-floating > :not(caption) > tbody > tr:hover,
+      .table-floating .table > :not(caption) > tbody > tr:hover{
+        background:rgba(255,255,255,.05);
+      }
+
+      /* Optional gradient header style (opt-in with .thead-gradient) */
+      .thead-gradient th{
+        background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
+        color:#f8fbff !important;
+        text-shadow:0 1px 0 rgba(0,0,0,.35);
+        border-color: transparent !important;
+      }
+
+      /* Default sticky header tint across all tables */
+      .theme-dark .table thead th{
+        background: var(--thead-bg) !important;
+        color: var(--thead-fg) !important;
+        border-bottom:1px solid var(--hair);
+      }
 
       /* Inputs inside floating tables */
       .table-floating .input-group-text,
@@ -162,28 +200,17 @@
       }
       .table-floating .form-control::placeholder { color: rgba(230,237,246,.6); }
 
-      /* Optional gradient header row for premium tables */
-      .thead-gradient th{
-        background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
-        color:#f8fbff !important;
-        text-shadow:0 1px 0 rgba(0,0,0,.35);
-        border-color: transparent !important;
-      }
-
       /* Chart canvases transparent by default */
       canvas { background: transparent !important; }
 
-      /* Make default “muted” read well on dark */
+      /* Muted text on dark */
       .muted { color: var(--muted) !important; }
     </style>
 
     <!-- Ensure <html> also has the theme class -->
-    <script>
-      document.documentElement.classList.add('theme-dark');
-    </script>
+    <script> document.documentElement.classList.add('theme-dark'); </script>
   </head>
 
-  <!-- add theme-dark to body so background always applies -->
   <body class="theme-neo theme-dark">
     {% include "navbar.html" %}
 
@@ -195,6 +222,7 @@
 
     {% include "_drawer.html" %}
 
+    <!-- Click-to-manage hook -->
     <script>
       (function(){
         document.addEventListener('click', function (e) {
@@ -209,6 +237,7 @@
       })();
     </script>
 
+    <!-- Allow hidden in /builder inspector -->
     <script>
       (function(){
         if (location.pathname !== '/builder') return;
@@ -227,6 +256,7 @@
       })();
     </script>
 
+    <!-- PWA service worker -->
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
@@ -235,16 +265,68 @@
       }
     </script>
 
+    <!-- Compute sticky offsets from navbar height -->
     <script>
       (function(){
         function setStickyOffsets(){
-          const nav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top');
+          const nav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top, .navbar');
           const h = nav ? Math.ceil(nav.getBoundingClientRect().height) : 56;
           document.documentElement.style.setProperty('--nav-h', h + 'px');
           document.documentElement.style.setProperty('--sticky-top', h + 'px');
         }
         window.addEventListener('load', setStickyOffsets, { once: true });
         window.addEventListener('resize', setStickyOffsets);
+      })();
+    </script>
+
+    <!-- Chart.js dark defaults: transparent bg, dark grid/labels -->
+    <script>
+      (function(){
+        function setChartDefaults(){
+          if (!window.Chart || !Chart.defaults) return;
+          const cs   = getComputedStyle(document.documentElement);
+          const text = cs.getPropertyValue('--text').trim()   || '#e6edf6';
+          const mutd = cs.getPropertyValue('--muted').trim()  || '#9fb3c8';
+          const hair = cs.getPropertyValue('--hair').trim()   || 'rgba(255,255,255,.12)';
+
+          Chart.defaults.color = mutd;
+          Chart.defaults.backgroundColor = 'transparent';
+          Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
+          Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
+
+          // Grid/ticks for common scales
+          const grids = 'rgba(255,255,255,.14)';
+          Chart.defaults.scales.category = Chart.defaults.scales.category || {};
+          Chart.defaults.scales.linear   = Chart.defaults.scales.linear   || {};
+          Chart.defaults.scales.time     = Chart.defaults.scales.time     || {};
+          ['category','linear','time'].forEach(k=>{
+            Chart.defaults.scales[k].grid  = Object.assign({}, Chart.defaults.scales[k].grid,  { color: grids, borderColor: hair, drawBorder: true });
+            Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: mutd });
+          });
+
+          // Legend/tooltip
+          Chart.defaults.plugins = Chart.defaults.plugins || {};
+          Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
+          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: mutd });
+          Chart.defaults.plugins.tooltip = Object.assign({}, Chart.defaults.plugins.tooltip, {
+            backgroundColor: 'rgba(15,23,42,.92)',
+            borderColor: hair,
+            borderWidth: 1,
+            titleColor: text,
+            bodyColor: text
+          });
+        }
+
+        // Run now if Chart already loaded, or shortly after if it loads later
+        if (window.Chart) setChartDefaults();
+        let tries = 0;
+        const i = setInterval(function(){
+          if (window.Chart){ setChartDefaults(); clearInterval(i); }
+          if (++tries > 20) clearInterval(i); // ~5s max
+        }, 250);
+
+        // Allow pages to force a refresh if they swap themes dynamically
+        window.addEventListener('bt:charts-init', setChartDefaults);
       })();
     </script>
 
