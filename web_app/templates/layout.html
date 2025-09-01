@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-2">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -62,7 +62,7 @@
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
-        /* Unified header strip (tables + card headers) */
+        /* Header strip (neutral/tinted) */
         --thead-bg:rgba(255,255,255,.06);
         --thead-fg:#eaf2ff;
 
@@ -70,7 +70,7 @@
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
-        /* Accent ink (matches Trend bars / links) */
+        /* Accent ink (Trend-bar blue) */
         --accent-ink:#9ecbff;
       }
 
@@ -106,15 +106,14 @@
         backdrop-filter: saturate(120%) blur(4px);
       }
 
-      /* NEW: Card headers now match table headers (no bright gradient) */
+      /* Card headers match table headers (subtle glass) */
       .card .card-header{
         background: var(--thead-bg) !important;
-        color: var(--accent-ink) !important;
+        color: var(--text) !important;
         border-bottom: 1px solid var(--hair) !important;
         font-weight: 700;
         letter-spacing: .2px;
       }
-      .card .card-header *{ color: var(--accent-ink) !important; }
 
       /* Inputs */
       .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
@@ -183,11 +182,11 @@
         background:rgba(255,255,255,.05);
       }
 
-      /* Table headers: subtle glass + accent text (matches card headers) */
+      /* Table headers: subtle glass + accent text (unified) */
       .table thead th,
       .table thead td{
         background: var(--thead-bg) !important;
-        color: var(--accent-ink) !important;
+        color: var(--table-head-fg, var(--text)) !important;
         border-bottom:1px solid var(--hair) !important;
       }
       .table thead th:first-child { border-top-left-radius: 12px; }
@@ -209,7 +208,36 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
+    <!-- 🎯 FORCE ACCENT INK ACROSS ENTIRE GOALS PAGE (cards, tables, inputs, headers) -->
+    <style id="bt-goals-accent-all">
+      /* 1) Flip the theme tokens on /goals so any var()-based color becomes accent */
+      body[data-route="/goals"]{
+        --text: var(--accent-ink) !important;
+        --muted: var(--accent-ink) !important;
+        --thead-fg: var(--accent-ink) !important;
+        --table-head-fg: var(--accent-ink) !important;
+      }
+
+      /* 2) Belt-and-suspenders: explicitly color all text-y things accent */
+      body[data-route="/goals"] *,
+      body[data-route="/goals"] .card,
+      body[data-route="/goals"] .table,
+      body[data-route="/goals"] .table > :not(caption) > * > *{
+        color: var(--accent-ink) !important;
+      }
+      body[data-route="/goals"] .form-control::placeholder{
+        color: var(--accent-ink) !important;
+        opacity: .85;
+      }
+    </style>
+
     <script> document.documentElement.classList.add('theme-dark'); </script>
+    <!-- mark route for scoped CSS -->
+    <script>
+      (function(){ document.addEventListener('DOMContentLoaded', function(){
+        document.body.setAttribute('data-route', location.pathname || '');
+      });})();
+    </script>
   </head>
 
   <body class="theme-neo theme-dark">
