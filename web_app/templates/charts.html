@@ -62,6 +62,22 @@
   .kval{font-size:1.25rem;font-weight:600}
 </style>
 
+<!-- Soft Plotly grid/tick theming scoped ONLY to /charts (no JS, won't touch Goals) -->
+<style id="bt-plotly-softgrid">
+  body[data-route="/charts"] .js-plotly-plot .main-svg{background:transparent!important}
+  body[data-route="/charts"] .js-plotly-plot .gridlayer path,
+  body[data-route="/charts"] .js-plotly-plot .gridlayer .xgrid,
+  body[data-route="/charts"] .js-plotly-plot .gridlayer .ygrid{stroke:rgba(255,255,255,.14)!important}
+  body[data-route="/charts"] .js-plotly-plot .zerolinelayer path{stroke:rgba(255,255,255,.14)!important}
+  body[data-route="/charts"] .js-plotly-plot .axislayer-above path,
+  body[data-route="/charts"] .js-plotly-plot .axislayer-above line{stroke:rgba(255,255,255,.12)!important}
+  body[data-route="/charts"] .js-plotly-plot .xtick text,
+  body[data-route="/charts"] .js-plotly-plot .ytick text,
+  body[data-route="/charts"] .js-plotly-plot .legend text,
+  body[data-route="/charts"] .js-plotly-plot .colorbar .cbtitle,
+  body[data-route="/charts"] .js-plotly-plot .colorbar .tick text{fill:var(--accent-ink)!important}
+</style>
+
 <div class="container mt-4">
   <div class="page-header">
     <h3 class="m-0">Charts &amp; Insights</h3>
