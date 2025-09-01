@@ -2,59 +2,49 @@
 {% block title %}Charts & Insights{% endblock %}
 {% block content %}
 <style>
-  .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
-  .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+  .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .controls { display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; }
 
-  .stat-card{position:relative;overflow:visible}
-  .stat-card .chart,.stat-card .plot-container,.stat-card .js-plotly-plot{overflow:visible}
-
-  .muted{color:var(--muted)!important}
-  .mono{font-variant-numeric:tabular-nums}
-
-  .grid{display:grid;gap:1rem;grid-template-columns:1fr}
-  @media (min-width:1200px){.grid{grid-template-columns:1fr 1fr}}
-
-  .chart{width:100%;height:420px}
-  .chart.tall{height:520px}
-
-  .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
-  .tabs{display:flex;gap:.4rem;flex-wrap:wrap}
-  .tab{padding:.3rem .6rem;border:1px solid var(--card-border);border-radius:.5rem;background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
-  .tab.active{background:var(--card-bg);box-shadow:0 1px 0 rgba(16,24,40,.06)}
-
-  /* Charts page adopts Goals accent, but only on /charts */
-  body[data-route="/charts"]{
-    --text:var(--accent-ink)!important;
-    --muted:var(--accent-ink)!important;
-    --thead-fg:var(--accent-ink)!important;
-    --table-head-fg:var(--accent-ink)!important;
+  .stat-card {
+    border:1px solid #e9ecef;
+    border-radius:.75rem;
+    padding:.9rem;
+    background:#fff;
+    position:relative;
+    overflow:visible; /* avoid clipping plotly hover / axes */
   }
-  body[data-route="/charts"] .table th,
-  body[data-route="/charts"] .table td{ text-align:left!important }
-  body[data-route="/charts"] .table .text-end,
-  body[data-route="/charts"] .table .text-center,
-  body[data-route="/charts"] .table [style*="text-align:right"],
-  body[data-route="/charts"] .table [style*="text-align: right"],
-  body[data-route="/charts"] .table [style*="text-align:center"],
-  body[data-route="/charts"] .table [style*="text-align: center"]{ text-align:left!important }
+  .stat-card .chart,
+  .stat-card .plot-container,
+  .stat-card .js-plotly-plot { overflow:visible; }
 
-  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
-  .table-floating thead th{
-    background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
-    border-bottom:1px solid var(--hair)!important;font-weight:700;letter-spacing:.2px
-  }
-  .table-floating tbody td{border-top:1px solid var(--hair)}
-  .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
-  .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
+  .muted { color:#6c757d; }
+  .mono { font-variant-numeric: tabular-nums; }
 
-  .kpi-grid{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
-  @media (min-width:992px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
-  .kval{font-size:1.25rem;font-weight:600}
+  .grid { display:grid; gap:1rem; grid-template-columns: 1fr; }
+  @media (min-width: 1200px){ .grid { grid-template-columns: 1fr 1fr; } }
+
+  .chart { width:100%; height:420px; }
+  .chart.tall { height:520px; }
+
+  .chip { padding:.15rem .5rem; border-radius:999px; border:1px solid #e9ecef; font-size:.85rem; }
+  .tabs { display:flex; gap:.4rem; flex-wrap:wrap; }
+  .tab { padding:.3rem .6rem; border:1px solid #e9ecef; border-radius:.5rem; background:#f8f9fa; cursor:pointer; user-select:none; }
+  .tab.active { background:#fff; border-color:#dfe3e7; box-shadow:0 1px 0 rgba(16,24,40,.04); }
+
+  /* Respect fixed navbar height from layout.html */
+  .table thead th { position:sticky; top:var(--sticky-top); background:#fff; z-index:1; }
+  /* Slight header polish inside cards */
+  .stat-card .table thead th { background:#f8fafc; box-shadow: inset 0 -1px 0 #e5e7eb; }
+
+  /* Income KPIs (Income tab) */
+  .kpi-grid { display:grid; gap:.8rem; grid-template-columns: 1fr 1fr; }
+  @media (min-width: 992px){ .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+  .kval { font-size:1.25rem; font-weight:600; }
 </style>
 
 <div class="container mt-4">
   <div class="page-header">
-    <h3 class="m-0">Charts &amp; Insights</h3>
+    <h3 class="m-0">Charts & Insights</h3>
     <div class="controls">
       <div class="tabs" id="viewTabs">
         <div class="tab active" data-view="overview">Overview</div>
@@ -86,32 +76,48 @@
   <div id="pane-overview">
     <div class="grid">
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Income vs Expenses</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Income vs Expenses</div>
+        </div>
         <div id="ov_line" class="chart tall"></div>
       </div>
 
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Net</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Net</div>
+        </div>
         <div id="ov_net" class="chart tall"></div>
       </div>
 
+      <!-- NEW: Savings Rate -->
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Savings Rate</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Savings Rate</div>
+        </div>
         <div id="ov_srate" class="chart"></div>
       </div>
 
+      <!-- NEW: Cumulative Net -->
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Cumulative Net</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Cumulative Net</div>
+        </div>
         <div id="ov_cum" class="chart"></div>
       </div>
 
+      <!-- NEW: Rolling Avg +/- 1σ -->
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Net Rolling Avg</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Net Rolling Avg</div>
+        </div>
         <div id="ov_roll" class="chart"></div>
       </div>
 
+      <!-- NEW: Seasonality -->
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Seasonality — Avg by Month-of-Year</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Seasonality — Avg by Month-of-Year</div>
+        </div>
         <div id="ov_season" class="chart"></div>
       </div>
     </div>
@@ -137,22 +143,34 @@
       </div>
 
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Expense Heatmap (Top N)</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Expense Heatmap (Top N)</div>
+          <div class="muted small">Intensity by month</div>
+        </div>
         <div id="ex_heatmap" class="chart"></div>
       </div>
 
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Pareto — Cumulative Share of Spend</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Pareto — Cumulative Share of Spend</div>
+          <div class="muted small">80/20 view across last 12m</div>
+        </div>
         <div id="ex_pareto" class="chart"></div>
       </div>
 
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Expense Volatility vs Average</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Expense Volatility vs Average</div>
+          <div class="muted small">Bubble = 12m total</div>
+        </div>
         <div id="ex_scatter" class="chart"></div>
       </div>
 
       <div class="stat-card">
-        <div class="mb-2 fw-semibold">Current Month Split — Donut</div>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Current Month Split — Donut</div>
+          <div class="muted small">Top N + Other</div>
+        </div>
         <div id="ex_donut" class="chart"></div>
       </div>
     </div>
@@ -161,44 +179,71 @@
   <!-- INCOME -->
   <div id="pane-income" style="display:none;">
     <div class="kpi-grid mb-3">
-      <div class="stat-card"><div class="muted small">Income (last 30 days)</div><div id="inc_kpi_30d" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Avg monthly (last 3m)</div><div id="inc_kpi_avg3" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Next 30d (recurrents)</div><div id="inc_kpi_next30" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Median paycheck (recurrents)</div><div id="inc_kpi_medpay" class="kval mono">—</div></div>
+      <div class="stat-card">
+        <div class="muted small">Income (last 30 days)</div>
+        <div id="inc_kpi_30d" class="kval mono">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted small">Avg monthly (last 3m)</div>
+        <div id="inc_kpi_avg3" class="kval mono">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted small">Next 30d (recurrents)</div>
+        <div id="inc_kpi_next30" class="kval mono">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="muted small">Median paycheck (recurrents)</div>
+        <div id="inc_kpi_medpay" class="kval mono">—</div>
+      </div>
     </div>
 
     <div class="row g-3">
       <div class="col-xl-7">
         <div class="stat-card h-100">
-          <div class="mb-2 fw-semibold">Income MoM — Waterfall</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income MoM — Waterfall</div>
+            <div class="muted small">Change vs prior month</div>
+          </div>
           <div id="in_waterfall" class="chart"></div>
         </div>
       </div>
 
       <div class="col-xl-5">
         <div class="stat-card h-100">
-          <div class="mb-2 fw-semibold">Income Sources (Top N)</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income Sources (Top N)</div>
+            <div class="muted small">Sum · Avg/mo · Last month</div>
+          </div>
           <div id="in_table"></div>
         </div>
       </div>
 
       <div class="col-xl-12">
         <div class="stat-card">
-          <div class="mb-2 fw-semibold">Income by Source — Stacked Bars</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income by Source — Stacked Bars</div>
+            <div class="muted small">Toggle “Stack as %” to switch view</div>
+          </div>
           <div id="in_stack" class="chart"></div>
         </div>
       </div>
 
       <div class="col-xl-7">
         <div class="stat-card">
-          <div class="mb-2 fw-semibold">Income Heatmap (Top N)</div>
-          <div id="in_heatmap" class="chart"></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income Heatmap (Top N)</div>
+            <div class="muted small">Intensity by month</div>
+          </div>
+        <div id="in_heatmap" class="chart"></div>
         </div>
       </div>
 
       <div class="col-xl-5">
         <div class="stat-card">
-          <div class="mb-2 fw-semibold">Paycheck timeline (next 60–90d)</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Paycheck timeline (next 60–90d)</div>
+            <div class="muted small">From /api/recurrents</div>
+          </div>
           <div id="in_timeline" class="chart"></div>
           <div id="in_upcoming" class="mt-2"></div>
         </div>
@@ -219,53 +264,38 @@
 (function(){
   'use strict';
 
-  /* ---------- Helpers ---------- */
-  const cssVar = (name, fallback) => {
-    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
-  };
-  const ACCENT = () => cssVar('--accent-ink','#9ecbff');
-  const GRID   = () => 'rgba(255,255,255,.14)';
-  const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
-
-  // Plotly base layout (matches Goals)
-  const baseLayout = (extra={}) => ({
-    paper_bgcolor:'rgba(0,0,0,0)',
-    plot_bgcolor:'rgba(0,0,0,0)',
-    font:{color:ACCENT()},
-    margin:{l:60,r:40,t:10,b:40},
-    xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
-    yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID(), rangemode:extra.yZero?'tozero':undefined},
-    legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
-    ...extra
-  });
-
-  const safeReact = (el, data, layout, cfg) => {
-    try { Plotly.react(el, data, baseLayout(layout||{}), Object.assign({responsive:true, displayModeBar:false}, cfg||{})); }
-    catch(e){ /* fail soft to avoid freezing */ }
-  };
-
+  /* ------------ helpers ------------ */
   const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
   const sum = a => a.reduce((x,y)=>x+toNum(y),0);
   const zeros = n => Array.from({length:n}, ()=>0);
-  const money  = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
-  const money2 = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-  const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
-  const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
+  const money = n => {
+    const v = toNum(n), s = v < 0 ? '-$' : '$';
+    return s + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+  };
+  const money2 = n => {
+    const v = toNum(n), s = v < 0 ? '-$' : '$';
+    return s + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+  };
+  const prettyMonth = ym => {
+    if (!ym || ym.length < 7) return ym||'—';
+    const [y,m] = ym.split('-').map(Number);
+    return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long', year:'numeric'});
+  };
+  const parseISO = s => {
+    const [y,m,d] = String(s||'').slice(0,10).split('-').map(Number);
+    return (y&&m&&d) ? new Date(y, m-1, d) : null;
+  };
 
-  // Support either .path (array) or .name ("A / B / C")
-  function segsOf(item){
-    if (item && Array.isArray(item.path) && item.path.length) return item.path.slice();
-    const n = String(item && item.name || '').trim();
-    if (!n) return [];
-    if (n.includes('/')) return n.split('/').map(s=>s.trim()).filter(Boolean);
-    return [n];
-  }
+  // Only treat " / " as separator
+  const splitPathName = raw => {
+    const s = String(raw ?? '');
+    return s.includes(' / ') ? s.split(' / ').map(x => x.trim()).filter(Boolean) : [s];
+  };
 
   const aggregateTopLevel = categories => {
     const map = new Map();
     for (const c of (categories||[])){
-      const segs = segsOf(c);
+      const segs = splitPathName(c.name);
       const top = segs[0] || '(Uncategorized)';
       const arr = (c.monthly||[]).map(toNum);
       if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
@@ -275,377 +305,611 @@
   };
 
   function buildTree(categories){
-    const root={name:'All',path:[],monthly:[],children:[]}; const map=new Map(); map.set('',root);
-    const keyOf=s=>s.join(' / ');
-    const getNode=segs=>{
-      const k=keyOf(segs);
-      if(map.has(k)) return map.get(k);
-      const n={name:segs[segs.length-1]||'(Unnamed)',path:[...segs],monthly:[],children:[]};
-      const p=getNode(segs.slice(0,-1)); p.children.push(n); map.set(k,n); return n;
-    };
+    const root = { name:'All', path:[], monthly:[], children:[] };
+    const map = new Map(); map.set('', root);
+    const keyOf = segs => segs.join(' / ');
+    function getNode(segs){
+      const k = keyOf(segs);
+      if (map.has(k)) return map.get(k);
+      const n = { name: segs[segs.length-1], path:[...segs], monthly:[], children:[] };
+      const par = getNode(segs.slice(0,-1)); par.children.push(n); map.set(k,n); return n;
+    }
     (categories||[]).forEach(c=>{
-      const segs=segsOf(c); if(!segs.length) return;
-      const leaf=getNode(segs); leaf.monthly=(c.monthly||[]).map(toNum);
+      const segs = splitPathName(c.name);
+      const leaf = getNode(segs.length?segs:[c.name||'']);
+      leaf.monthly = (c.monthly||[]).map(toNum);
     });
-    const roll=n=>{
-      if(!n.children.length) return n.monthly||[];
-      const L=Math.max(0,...n.children.map(ch=>(ch.monthly||[]).length));
-      const agg=new Array(L).fill(0);
-      for(const ch of n.children){ const cm=roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0); }
-      n.monthly=agg; return agg;
-    };
-    roll(root); return root;
-  }
-  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(c.name||'')===name)||null;
-
-  function seriesBySecondLevel(sub){
-    const map=new Map(); if(!sub) return {};
-    const visit=n=>{
-      if(!n.children.length){
-        const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
-        if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
-        const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
-      } else n.children.forEach(visit);
-    };
-    (sub.children||[]).forEach(visit); return Object.fromEntries(map.entries());
+    function roll(n){
+      if (!n.children.length) return n.monthly||[];
+      const L = Math.max(0, ...n.children.map(ch => (ch.monthly||[]).length));
+      const agg = new Array(L).fill(0);
+      for (const ch of n.children){
+        const cm = roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0);
+      }
+      n.monthly = agg; return agg;
+    }
+    roll(root);
+    return root;
   }
 
-  const pickTopN=(obj,N)=> Object.entries(obj)
-    .map(([k,v])=>[k,(v||[]).map(toNum),sum(v||[])]).filter(([, ,t])=>t>0)
-    .sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
+  const subtreeByTop = (root, topName) =>
+    (root.children || []).find(c => (c.name||'') === topName) || null;
 
-  const rollingStats=(arr,k=3)=>{
-    const y=arr.map(toNum),mean=[],sd=[];
-    for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);
-      const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;
-      const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;
-      mean.push(m);sd.push(Math.sqrt(v));
-    }return{mean,sd};
+  function seriesBySecondLevel(subtree){
+    const map = new Map();
+    if (!subtree) return {};
+    function visit(n){
+      if (!n.children.length){
+        const lvl2 = n.path[1] || n.name;
+        const arr = n.monthly || [];
+        if (!map.has(lvl2)) map.set(lvl2, new Array(arr.length).fill(0));
+        const dest = map.get(lvl2); for(let i=0;i<arr.length;i++) dest[i]+=toNum(arr[i]||0);
+      } else {
+        n.children.forEach(visit);
+      }
+    }
+    (subtree.children||[]).forEach(visit);
+    return Object.fromEntries(map.entries());
+  }
+
+  const pickTopN = (seriesObj, N) =>
+    Object.entries(seriesObj)
+      .map(([k,v])=>[k,(v||[]).map(toNum),sum(v||[])]).filter(([, ,t])=>t>0)
+      .sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
+
+  // Rolling helpers
+  const rollingStats = (arr, k=3) => {
+    const y = arr.map(toNum);
+    const mean=[], sd=[];
+    for (let i=0;i<y.length;i++){
+      const start = Math.max(0, i-k+1);
+      const slice = y.slice(start, i+1);
+      const m = slice.length ? slice.reduce((a,v)=>a+v,0)/slice.length : 0;
+      const v = slice.length>1 ? slice.reduce((a,v)=>a+(v-m)**2,0)/(slice.length-1) : 0;
+      mean.push(m); sd.push(Math.sqrt(v));
+    }
+    return {mean, sd};
   };
-  const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const seasonality=(monthKeys,series)=>{
-    const sums=Array(12).fill(0),cnt=Array(12).fill(0);
-    series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});
-    return sums.map((s,i)=>cnt[i]?s/cnt[i]:0);
-  };
 
-  /* ---------- DOM ---------- */
-  const monthsWindow=document.getElementById('monthsWindow');
-  const normalizeEl=document.getElementById('normalize');
-  const topNEl=document.getElementById('topN'); const topNLabel=document.getElementById('topNLabel');
-  const focusMonthEl=document.getElementById('focusMonth');
-  const tabs=document.getElementById('viewTabs');
-  const paneOverview=document.getElementById('pane-overview');
-  const paneExpenses=document.getElementById('pane-expenses');
-  const paneIncome=document.getElementById('pane-income');
+  // Seasonality helpers (avg by calendar month)
+  const monthNamesShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function seasonality(monthKeys, series){
+    // monthKeys are "YYYY-MM"; map to 0..11 and average values per month index
+    const sums = Array(12).fill(0), counts = Array(12).fill(0);
+    series.forEach((v,i)=>{
+      const mk = String(monthKeys[i]||'');
+      if (mk.length>=7){
+        const m = Number(mk.slice(5,7))-1;
+        sums[m] += toNum(v); counts[m] += 1;
+      }
+    });
+    return sums.map((s,i)=> counts[i] ? s / counts[i] : 0);
+  }
 
-  const ov_line=document.getElementById('ov_line');
-  const ov_net=document.getElementById('ov_net');
-  const ov_srate=document.getElementById('ov_srate');
-  const ov_cum=document.getElementById('ov_cum');
-  const ov_roll=document.getElementById('ov_roll');
-  const ov_season=document.getElementById('ov_season');
+  /* ------------ UI elements ------------ */
+  const monthsWindow = document.getElementById('monthsWindow');
+  const normalizeEl  = document.getElementById('normalize');
+  const topNEl       = document.getElementById('topN');
+  const topNLabel    = document.getElementById('topNLabel');
+  const focusMonthEl = document.getElementById('focusMonth');
 
-  const ex_area=document.getElementById('ex_area');
-  const ex_treemap=document.getElementById('ex_treemap');
-  const ex_heatmap=document.getElementById('ex_heatmap');
-  const ex_pareto=document.getElementById('ex_pareto');
-  const ex_scatter=document.getElementById('ex_scatter');
-  const ex_donut=document.getElementById('ex_donut');
-  const ex_tm_month=document.getElementById('ex_tm_month');
+  const tabs         = document.getElementById('viewTabs');
+  const paneOverview = document.getElementById('pane-overview');
+  const paneExpenses = document.getElementById('pane-expenses');
+  const paneIncome   = document.getElementById('pane-income');
 
-  const in_waterfall=document.getElementById('in_waterfall');
-  const in_table=document.getElementById('in_table');
-  const in_stack=document.getElementById('in_stack');
-  const in_heatmap=document.getElementById('in_heatmap');
-  const in_timeline=document.getElementById('in_timeline');
+  // charts
+  const ov_line = document.getElementById('ov_line');
+  const ov_net  = document.getElementById('ov_net');
 
-  const kpi30d=document.getElementById('inc_kpi_30d');
-  const kpiAvg3=document.getElementById('inc_kpi_avg3');
-  const kpiNext=document.getElementById('inc_kpi_next30');
-  const kpiMed=document.getElementById('inc_kpi_medpay');
+  // NEW overview chart nodes
+  const ov_srate = document.getElementById('ov_srate');
+  const ov_cum   = document.getElementById('ov_cum');
+  const ov_roll  = document.getElementById('ov_roll');
+  const ov_season= document.getElementById('ov_season');
 
-  /* ---------- Data ---------- */
-  let months=[], topSeries={}, treeDeep=null;
+  const ex_area = document.getElementById('ex_area');
+  const ex_treemap = document.getElementById('ex_treemap');
+  const ex_heatmap = document.getElementById('ex_heatmap');
+  const ex_pareto  = document.getElementById('ex_pareto');
+  const ex_scatter = document.getElementById('ex_scatter');
+  const ex_donut   = document.getElementById('ex_donut');
+  const ex_tm_month = document.getElementById('ex_tm_month');
+
+  const in_waterfall = document.getElementById('in_waterfall');
+  const in_table = document.getElementById('in_table');
+  const in_stack = document.getElementById('in_stack');
+  const in_heatmap = document.getElementById('in_heatmap');
+  const in_timeline = document.getElementById('in_timeline');
+
+  // KPI elements (income tab)
+  const kpi30d   = document.getElementById('inc_kpi_30d');
+  const kpiAvg3  = document.getElementById('inc_kpi_avg3');
+  const kpiNext  = document.getElementById('inc_kpi_next30');
+  const kpiMed   = document.getElementById('inc_kpi_medpay');
+
+  /* ------------ data ------------ */
+  let months=[], categoriesTop=[], categoriesDeep=[];
+  let topSeries={}, treeDeep=null;
   let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
-  let incomeSubSeries={};
-  let handlersAttached=false;
+  let incomeSubSeries = {}; // 2nd-level under Income (built from deep)
+  let handlersAttached = false;
 
-  /* ---------- Charts ---------- */
+  /* ------------ charts ------------ */
   function renderOverview(){
-    safeReact(ov_line, [
-      {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
-      {type:'scatter',mode:'lines+markers',name:'Expenses',x:months,y:expenseByMonth,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
-    ], {});
+    // Lines
+    const traces = [
+      {type:'scatter', mode:'lines+markers', name:'Income',   x:months, y:incomeByMonth, hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
+      {type:'scatter', mode:'lines+markers', name:'Expenses', x:months, y:expenseByMonth, hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
+    ];
+    Plotly.react(ov_line, traces, {
+      margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'}, yaxis:{title:'Amount'},
+      legend:{orientation:'h', y:-0.25}
+    }, {responsive:true, displayModeBar:false});
 
-    const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
-    safeReact(ov_net, [{type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
-      {yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},yZero:true});
+    // Net bars
+    const colors = netByMonth.map(v => v>=0 ? '#2a9d8f' : '#e76f51');
+    Plotly.react(ov_net, [{
+      type:'bar', x:months, y:netByMonth, marker:{color:colors},
+      hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'
+    }], {
+      margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'}, yaxis:{title:'Income − Expenses'}
+    }, {responsive:true, displayModeBar:false});
 
-    const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0)
-                               .map(v=>Math.max(-200,Math.min(200,v)));
-    safeReact(ov_srate,[{type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
-      {yaxis:{title:'%',rangemode:'tozero'},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]});
+    // NEW: Savings Rate (%)
+    const sRate = incomeByMonth.map((inc,i)=>{
+      const n = toNum(inc) ? (toNum(netByMonth[i]) / Math.max(1, toNum(inc))) * 100 : 0;
+      return Math.max(-200, Math.min(200, n)); // clamp wild divisions
+    });
+    Plotly.react(ov_srate, [{
+      type:'scatter', mode:'lines+markers', x:months, y:sRate,
+      hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'
+    }], {
+      margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'},
+      yaxis:{title:'%', rangemode:'tozero'},
+      shapes:[{type:'line', xref:'paper', x0:0, x1:1, y0:0, y1:0, line:{width:1, dash:'dot'}}]
+    }, {responsive:true, displayModeBar:false});
 
-    let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
-    safeReact(ov_cum,[{type:'scatter',mode:'lines',fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
-      {shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]});
+    // NEW: Cumulative Net (area)
+    let run=0; const cum = netByMonth.map(v=> (run+=toNum(v)));
+    Plotly.react(ov_cum, [
+      {type:'scatter', mode:'lines', fill:'tozeroy', x:months, y:cum,
+        hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}
+    ], {
+      margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'}, yaxis:{title:'Cumulative net'},
+      shapes:[{type:'line', xref:'paper', x0:0, x1:1, y0:0, y1:0, line:{width:1, dash:'dot'}}]
+    }, {responsive:true, displayModeBar:false});
 
-    const {mean,sd}=rollingStats(netByMonth,3);
-    const upper=mean.map((m,i)=>m+(sd[i]||0)), lower=mean.map((m,i)=>m-(sd[i]||0));
-    safeReact(ov_roll,[
-      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
-    ], {});
+    // NEW: Rolling Avg ±1σ (3m)
+    const {mean, sd} = rollingStats(netByMonth, 3);
+    const upper = mean.map((m,i)=> m + (sd[i]||0));
+    const lower = mean.map((m,i)=> m - (sd[i]||0));
+    const bandLower = {type:'scatter', x:months, y:lower, mode:'lines', line:{width:0}, name:'-1σ', hoverinfo:'skip'};
+    const bandUpper = {type:'scatter', x:months, y:upper, mode:'lines', fill:'tonexty', line:{width:0}, name:'+1σ', hoverinfo:'skip'};
+    const meanLine  = {type:'scatter', x:months, y:mean,  mode:'lines+markers', name:'Rolling mean',
+                       hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'};
+    Plotly.react(ov_roll, [bandLower, bandUpper, meanLine], {
+      margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'}, yaxis:{title:'Net'},
+      legend:{orientation:'h', y:-0.25}
+    }, {responsive:true, displayModeBar:false});
+
+    // NEW: Seasonality (avg by calendar month)
+    const incSeason = seasonality(months, incomeByMonth);
+    const expSeason = seasonality(months, expenseByMonth);
+    Plotly.react(ov_season, [
+      {type:'bar', x:monthNamesShort, y:incSeason, name:'Income', hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
+      {type:'bar', x:monthNamesShort, y:expSeason, name:'Expenses', hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
+    ], {
+      margin:{l:60,r:40,t:10,b:40}, barmode:'group',
+      yaxis:{title:'Average amount'}, xaxis:{title:'Month-of-year'}
+    }, {responsive:true, displayModeBar:false});
   }
 
   function stackedArea(targetEl, months, entries, normalize){
-    if(!entries.length){ safeReact(targetEl,[],{}); return;}
-    const traces = entries.map(([name,arr]) => normalize
-      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
-      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
-    safeReact(targetEl,traces,{yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}});
+    if (!entries.length){
+      Plotly.react(targetEl, [], {margin:{l:40,r:40,t:10,b:40}}, {responsive:true, displayModeBar:false}); return;
+    }
+    let traces;
+    if (normalize){
+      const colSums = months.map((_,i)=> entries.reduce((t,[,arr])=>t+toNum(arr[i]||0),0)||1);
+      traces = entries.map(([name,arr])=>({
+        x:months, y:arr.map((v,i)=> (toNum(v)/colSums[i])*100 ), name, stackgroup:'one', groupnorm:'percent',
+        type:'scatter', mode:'lines', hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`
+      }));
+    } else {
+      traces = entries.map(([name,arr])=>({
+        x:months, y:arr, name, stackgroup:'one', type:'scatter', mode:'lines',
+        hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`
+      }));
+    }
+    Plotly.react(targetEl, traces, {
+      margin:{l:55,r:40,t:10,b:40}, xaxis:{type:'category'},
+      yaxis:{title: normalize?'% of total':'Amount', rangemode:'tozero'}, legend:{orientation:'h', y:-0.25}
+    }, {responsive:true, displayModeBar:false});
   }
 
   function stackedBars(targetEl, months, entries, normalize){
-    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr}));
-    safeReact(targetEl,traces,{barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}});
+    const traces = entries.map(([name,arr])=>({ type:'bar', name, x:months, y:arr }));
+    Plotly.react(targetEl, traces, {
+      margin:{l:60,r:40,t:10,b:40},
+      xaxis:{type:'category'},
+      yaxis:{ title: normalize ? '% of total' : 'Amount', rangemode:'tozero' },
+      barmode:'stack',
+      barnorm: normalize ? 'percent' : undefined,
+      legend:{orientation:'h', y:-0.25}
+    }, {responsive:true, displayModeBar:false});
   }
 
-  function treemap(targetEl, nodes, focusIdx){
-    safeReact(targetEl,[{
-      type:'treemap',
-      labels:nodes.map(n=>n.label),
-      parents:nodes.map(n=>n.parent),
-      values:nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0)),
-      ids:nodes.map(n=>n.id), branchvalues:'total',
-      hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
-    }], {margin:{l:10,r:10,t:0,b:0}});
-  }
+function treemap(targetEl, nodes, focusIdx){
+  const data = [{
+    type: 'treemap',
+    labels:  nodes.map(n => n.label),
+    parents: nodes.map(n => n.parent),
+    values:  nodes.map(n => toNum((n.value && n.value[focusIdx]) || 0)),
+    ids:     nodes.map(n => n.id),
+    branchvalues: 'total',
+    hovertemplate: '%{label}<br>%{value:,.0f}<extra></extra>'
+  }];
+  Plotly.react(
+    targetEl,
+    data,
+    { margin: { l:10, r:10, t:0, b:0 } },
+    { responsive: true, displayModeBar: false }
+  );
+}
 
-  function buildTreemapNodes(root, includeIncome){
-    const out=[]; (function walk(n){
-      if(n===root){ (n.children||[]).forEach(walk); return; }
-      if(!includeIncome && (n.path[0]||'')==='Income') return;
-      const id=n.path.join(' / '); const parent=n.path.slice(0,-1).join(' / '); const label=n.name||'';
-      if(label && label.toLowerCase()!=='all'){ out.push({label,parent,value:n.monthly||[],id}); }
-      (n.children||[]).forEach(walk);
-    })(root);
+
+
+  // No synthetic "All"; skip root and optionally skip Income branch
+  function buildTreemapNodes(rootNode, includeIncome){
+    const out = [];
+    function walk(n){
+      if (n === rootNode){
+        (n.children || []).forEach(walk);
+        return;
+      }
+      if (!includeIncome && (n.path[0] || '') === 'Income') return;
+
+      const id = n.path.join(' / ');
+      const parent = n.path.slice(0,-1).join(' / ');
+      const label = n.name || '';
+      if (label && label.toLowerCase() !== 'all'){
+        out.push({ label, parent, value: n.monthly || [], id });
+      }
+      (n.children || []).forEach(walk);
+    }
+    walk(rootNode);
     return out;
   }
 
   function heatmap(targetEl, months, entries){
-    const z=entries.map(([,arr])=>arr), y=entries.map(([name])=>name);
-    safeReact(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues'}],
-      {margin:{l:110,r:30,t:10,b:40}});
+    const z = entries.map(([,arr])=>arr);
+    const y = entries.map(([name])=>name);
+    const data=[{type:'heatmap', z, y, x:months, hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>', colorscale:'Blues'}];
+    Plotly.react(targetEl, data, {margin:{l:110,r:30,t:10,b:40}, xaxis:{type:'category'}}, {responsive:true, displayModeBar:false});
   }
 
   function pareto(targetEl, entries){
-    const totals=entries.map(([,arr])=>sum(arr)); const labels=entries.map(([n])=>n);
-    const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
-    const bar={type:'bar',x:labels,y:totals,name:'Total',hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
-    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
-    try {
-      Plotly.react(targetEl,[bar,line],
-        Object.assign(baseLayout({margin:{l:60,r:50,t:10,b:100}}),
-          { yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID()},
-            yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'},
-            xaxis:{tickangle:-45} }),
-        {responsive:true,displayModeBar:false});
-    } catch(e){}
+    const totals = entries.map(([,arr])=> sum(arr));
+    const labels = entries.map(([name])=> name);
+    const cum = []; let running=0; const grand=sum(totals);
+    for (let i=0;i<totals.length;i++){ running += totals[i]; cum.push( grand ? (running/grand)*100 : 0 ); }
+    const bar = { type:'bar', x:labels, y:totals, name:'Total', hovertemplate:'%{x}: %{y:,.0f}<extra></extra>' };
+    const line = { type:'scatter', x:labels, y:cum, name:'Cumulative %', yaxis:'y2', mode:'lines+markers',
+                   hovertemplate:'%{x}: %{y:.1f}%<extra></extra>' };
+    Plotly.react(targetEl, [bar,line], {
+      margin:{l:60,r:50,t:10,b:100},
+      yaxis:{title:'Amount'},
+      yaxis2:{overlaying:'y', side:'right', range:[0,100], title:'Cumulative %'},
+      xaxis:{ tickangle: -45 }
+    }, {responsive:true, displayModeBar:false});
   }
 
   function scatterVolAvg(targetEl, entries){
-    const avg=a=>a.length?sum(a)/a.length:0;
-    const stdev=arr=>{const n=arr.length;if(n<2)return 0;const m=avg(arr);const v=arr.reduce((s,v)=>s+(toNum(v)-m)**2,0)/(n-1);return Math.sqrt(v)};
-    const xs=[],ys=[],sizes=[],labels=[];
-    entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
-    safeReact(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
-      {xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero'}});
+    const avg = a => a.length ? sum(a)/a.length : 0;
+    const stdev = arr => { const n=arr.length; if (n<2) return 0; const m=avg(arr); const v=arr.reduce((s,v)=>s+(toNum(v)-m)**2,0)/(n-1); return Math.sqrt(v); };
+    const xs=[], ys=[], sizes=[], labels=[];
+    entries.forEach(([name,arr])=>{
+      const a = avg(arr); const vol = a ? (stdev(arr)/Math.abs(a))*100 : 0;
+      xs.push(a); ys.push(vol); sizes.push(Math.max(6, Math.sqrt(sum(arr)))); labels.push(name);
+    });
+    Plotly.react(targetEl, [{
+      type:'scattergl', mode:'markers', x:xs, y:ys, text:labels, marker:{size:sizes, sizemode:'diameter'},
+      hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'
+    }], {
+      margin:{l:60,r:40,t:10,b:40},
+      xaxis:{ title:'Average per month' },
+      yaxis:{ title:'Volatility (stdev / mean %)', rangemode:'tozero' }
+    }, {responsive:true, displayModeBar:false});
   }
 
   function donut(targetEl, entries, monthIdx){
-    const labels=[], values=[]; entries.forEach(([n,a])=>{labels.push(n);values.push(toNum(a[monthIdx]||0))});
-    let other=0; const keepL=[], keepV=[]; const grand=sum(values)||1;
-    values.forEach((v,i)=>{ if(v/grand<0.03) other+=v; else {keepL.push(labels[i]); keepV.push(v);} });
-    if(other>0){keepL.push('Other'); keepV.push(other);}
-    safeReact(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
-      {margin:{l:10,r:10,t:10,b:10}});
+    const labels=[], values=[];
+    entries.forEach(([name,arr])=>{ labels.push(name); values.push(toNum(arr[monthIdx]||0)); });
+    let other=0; const keepLabels=[], keepValues=[];
+    const grand = sum(values)||1;
+    values.forEach((v,i)=>{
+      if (v/grand < 0.03) other += v; else { keepLabels.push(labels[i]); keepValues.push(v); }
+    });
+    if (other>0){ keepLabels.push('Other'); keepValues.push(other); }
+    Plotly.react(targetEl, [{
+      type:'pie', labels:keepLabels, values:keepValues, hole:0.55,
+      hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'
+    }], { margin:{l:10,r:10,t:10,b:10}, showlegend:true, legend:{orientation:'h', y:-0.2} }, {responsive:true, displayModeBar:false});
   }
 
   function incomeWaterfall(targetEl, months, income){
-    const diffs=income.map((v,i)=> i===0?v:(v-income[i-1]));
-    safeReact(targetEl,[{type:'waterfall',x:months,y:diffs,increasing:{marker:{color:'#22c55e'}},decreasing:{marker:{color:'#ef4444'}},hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
-      {yaxis:{title:'Change vs prior'}});
+    const diffs = income.map((v,i)=> i===0 ? v : (v-income[i-1]));
+    Plotly.react(targetEl, [{
+      type:'waterfall', x:months, y:diffs,
+      increasing:{marker:{color:'#2a9d8f'}}, decreasing:{marker:{color:'#e76f51'}},
+      hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'
+    }], { margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category'}, yaxis:{ title:'Change vs prior' } },
+    {responsive:true, displayModeBar:false});
   }
 
+  // Income table
   function incomeTable(targetEl, months, entries){
-    const grand=sum(entries.map(([,arr])=>sum(arr)));
-    const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-    const rows=entries.map(([name,arr])=>{
-      const total=sum(arr), avg=months.length?total/months.length:0, last=arr[months.length-1]||0, pct=grand?(total/grand)*100:0;
-      return `<tr>
-        <td>${esc(name)}</td>
-        <td class="mono">${total.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="mono">${avg.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="mono">${last.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
-        <td class="mono">${pct.toFixed(1)}%</td>
-      </tr>`;
+    const host = targetEl;
+    const grand = sum(entries.map(([,arr]) => sum(arr)));
+    const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    const rows = entries.map(([name,arr])=>{
+      const total = sum(arr);
+      const avg   = months.length ? total / months.length : 0;
+      const last  = arr[arr.length-1] || 0;
+      const pct   = grand ? (total/grand)*100 : 0;
+      return `
+        <tr>
+          <td>${esc(name)}</td>
+          <td class="text-end mono">${total.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+          <td class="text-end mono">${avg.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+          <td class="text-end mono">${last.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+          <td class="text-end mono">${pct.toFixed(1)}%</td>
+        </tr>`;
     }).join('');
-    targetEl.innerHTML=`
-      <div class="table-responsive" style="max-height:420px;overflow:auto;">
-        <table class="table table-sm align-middle table-floating mb-0">
+    host.innerHTML = `
+      <div class="table-responsive" style="max-height:420px; overflow:auto;">
+        <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
               <th>Source</th>
-              <th>Total (window)</th>
-              <th>Avg / mo</th>
-              <th>Last month</th>
-              <th>% of income</th>
+              <th class="text-end">Total (window)</th>
+              <th class="text-end">Avg / mo</th>
+              <th class="text-end">Last month</th>
+              <th class="text-end">% of income</th>
             </tr>
           </thead>
-          <tbody>${rows || `<tr><td colspan="5" class="muted">No income sources in range.</td></tr>`}</tbody>
+          <tbody>
+            ${rows || `<tr><td colspan="5" class="text-muted">No income sources in range.</td></tr>`}
+          </tbody>
         </table>
       </div>`;
   }
 
+  // Ensure plots size correctly when shown and on resize
   function resizeAllPlots(){
-    const els=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_timeline];
-    requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
+    const els = [
+      ov_line, ov_net, ov_srate, ov_cum, ov_roll, ov_season,
+      ex_area, ex_treemap, ex_heatmap, ex_pareto, ex_scatter, ex_donut,
+      in_waterfall, in_stack, in_heatmap, in_timeline
+    ];
+    requestAnimationFrame(() => {
+      els.forEach(el => { try { Plotly.Plots.resize(el); } catch(_){} });
+    });
   }
 
   /* ---- paycheck timeline (from /api/recurrents) ---- */
   async function loadRecurrentsIncome(){
-    try{
-      const r=await fetch('/api/recurrents?horizon=90'); const data=await r.json();
-      const streams=(data.streams||[]); const incomeMerchants=new Set(streams.filter(s=>(s.categories||[]).some(c=>String(c).toLowerCase()==='income')).map(s=>s.merchant));
-      const incomeStreams=streams.filter(s=>incomeMerchants.has(s.merchant));
-      const amounts=incomeStreams.map(s=>toNum(s.amount)).filter(v=>v>0).sort((a,b)=>a-b);
-      const med=amounts.length?(amounts.length%2?amounts[(amounts.length-1)/2]:(amounts[amounts.length/2-1]+amounts[amounts.length/2])/2):0;
-      kpiMed.textContent=med?money(med):'—';
+    try {
+      const r = await fetch('/api/recurrents?horizon=90');
+      const data = await r.json();
 
-      const today=new Date(); today.setHours(0,0,0,0);
-      const plus30=new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
-      const upcomingAll=(data.upcoming||[]).map(u=>({...u,dt:parseISO(u.date)})).filter(u=>u.dt);
-      const upcomingIncome=upcomingAll.filter(u=>incomeMerchants.has(u.merchant)).sort((a,b)=>a.dt-b.dt);
-      const next30Income=upcomingIncome.filter(u=>u.dt<=plus30).reduce((t,u)=>t+toNum(u.amount),0);
-      kpiNext.textContent=upcomingIncome.length?money(next30Income):'—';
+      const streams = (data.streams||[]);
+      const incomeMerchants = new Set(
+        streams
+          .filter(s => (s.categories||[]).some(c => String(c).toLowerCase() === 'income'))
+          .map(s => s.merchant)
+      );
 
-      safeReact(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
-        {xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount',rangemode:'tozero'}});
+      // KPIs (recurrents)
+      const incomeStreams = streams.filter(s => incomeMerchants.has(s.merchant));
+      const amounts = incomeStreams.map(s => toNum(s.amount)).filter(v => v>0).sort((a,b)=>a-b);
+      const med = amounts.length
+        ? (amounts.length%2 ? amounts[(amounts.length-1)/2] : (amounts[amounts.length/2-1]+amounts[amounts.length/2])/2)
+        : 0;
+      document.getElementById('inc_kpi_medpay').textContent = med ? money(med) : '—';
 
-      const host=document.getElementById('in_upcoming');
-      const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
-      host.innerHTML=`<div class="table-responsive" style="max-height:200px;overflow:auto;">
-        <table class="table table-sm table-floating mb-0">
-          <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th></tr></thead>
-          <tbody>${rows || `<tr><td colspan="3" class="muted">No upcoming income in horizon.</td></tr>`}</tbody>
-        </table>
-      </div>`;
-    }catch{
-      safeReact(in_timeline,[],{});
-      document.getElementById('in_upcoming').innerHTML='<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>';
+      // Upcoming income only
+      const today = new Date(); today.setHours(0,0,0,0);
+      const plus30 = new Date(today.getFullYear(), today.getMonth(), today.getDate()+30);
+      const upcomingAll = (data.upcoming||[]).map(u => ({...u, dt: parseISO(u.date)})).filter(u => u.dt);
+      const upcomingIncome = upcomingAll.filter(u => incomeMerchants.has(u.merchant)).sort((a,b)=> a.dt-b.dt);
+      const next30Income = upcomingIncome.filter(u => u.dt <= plus30).reduce((t,u)=> t + toNum(u.amount), 0);
+      document.getElementById('inc_kpi_next30').textContent = upcomingIncome.length ? money(next30Income) : '—';
+
+      // Timeline chart
+      Plotly.react(in_timeline, [{
+        type:'scatter', mode:'markers', x:upcomingIncome.map(u=>u.date),
+        y:upcomingIncome.map(u=>toNum(u.amount)),
+        text:upcomingIncome.map(u => `${u.merchant}<br>${money2(u.amount)}`),
+        hovertemplate:'%{x}<br>%{text}<extra></extra>'
+      }], { margin:{l:60,r:40,t:10,b:40}, xaxis:{type:'category', title:'Upcoming dates'}, yaxis:{title:'Amount', rangemode:'tozero'} },
+      {responsive:true, displayModeBar:false});
+
+      // Table (top 10 upcoming)
+      const upcHost = document.getElementById('in_upcoming');
+      const rows = upcomingIncome.slice(0,10).map(u=>`
+        <tr>
+          <td>${u.date}</td>
+          <td>${u.merchant}</td>
+          <td class="text-end mono">${money2(u.amount)}</td>
+        </tr>`).join('');
+      upcHost.innerHTML = `
+        <div class="table-responsive" style="max-height:200px; overflow:auto;">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Date</th><th>Merchant</th><th class="text-end">Amount</th></tr></thead>
+            <tbody>${rows || `<tr><td colspan="3" class="text-muted">No upcoming income in horizon.</td></tr>`}</tbody>
+          </table>
+        </div>`;
+    } catch {
+      Plotly.react(in_timeline, [], {margin:{l:60,r:40,t:10,b:40}}, {responsive:true, displayModeBar:false});
+      document.getElementById('in_upcoming').innerHTML = `<div class="text-muted small">Couldn’t load upcoming from /api/recurrents.</div>`;
     }
   }
 
+  /* ---- drill-through handlers (attach once) ---- */
   function attachDrillHandlers(months){
-    if(handlersAttached) return; handlersAttached=true;
-    if(in_waterfall && typeof in_waterfall.on==='function' && window.openCategoryManager){
-      in_waterfall.on('plotly_click',ev=>{const pt=ev.points && ev.points[0]; if(!pt) return; const month=String(pt.x).slice(0,7); window.openCategoryManager({level:'category',cat:'Income',month});});
+    if (handlersAttached) return;
+    handlersAttached = true;
+
+    if (in_waterfall && typeof in_waterfall.on === 'function' && window.openCategoryManager){
+      in_waterfall.on('plotly_click', (ev)=>{
+        const pt = ev.points?.[0]; if (!pt) return;
+        const month = String(pt.x).slice(0,7);
+        window.openCategoryManager({ level:'category', cat:'Income', month });
+      });
     }
+
+    // Treemap remains interactive for zooming/drilling,
+    // but will NOT call window.openCategoryManager.
   }
 
+  /* ------------ orchestrate ------------ */
   function refreshAll(){
-    const N=Number(topNEl.value)||10; topNLabel.textContent=N;
-    monthsWindow.textContent=months.length?(months[0]+' … '+months[months.length-1]):'—';
+    const N = Number(topNEl.value)||10;
+    topNLabel.textContent = N;
+    monthsWindow.textContent = months.length ? (months[0] + ' … ' + months[months.length-1]) : '—';
 
+    // OVERVIEW
     renderOverview();
 
-    // Expenses (exclude Income)
-    const exObj=Object.fromEntries(Object.entries(topSeries).filter(([k])=>k!=='Income'));
-    const exEntries=pickTopN(exObj,N);
-    stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
+    // EXPENSES
+    const exSeriesObj = Object.fromEntries(Object.entries(topSeries).filter(([k])=>k!=='Income'));
+    const exEntries = pickTopN(exSeriesObj, N);
+    stackedArea(ex_area, months, exEntries, !!normalizeEl.checked);
 
-    const focusIdx=Math.max(0,focusMonthEl.selectedIndex);
-    document.getElementById('ex_tm_month').textContent=months.length?prettyMonth(months[focusIdx]):'—';
-    let nodes=[]; if(treeDeep && (treeDeep.children||[]).length){ nodes=buildTreemapNodes(treeDeep,false);}
-    else { nodes=exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name})); }
-    treemap(ex_treemap,nodes,focusIdx);
+    // Treemap (deep preferred; fallback without synthetic "All")
+    document.getElementById('ex_tm_month').textContent =
+      months.length ? prettyMonth(months[Math.max(0, focusMonthEl.selectedIndex)]) : '—';
 
-    heatmap(ex_heatmap,months,exEntries);
-    pareto(ex_pareto,exEntries);
-    scatterVolAvg(ex_scatter,exEntries);
-    donut(ex_donut,exEntries,focusIdx);
+    const focusIdx = Math.max(0, focusMonthEl.selectedIndex);
+    let nodes = [];
+    if (treeDeep && (treeDeep.children||[]).length){
+      nodes = buildTreemapNodes(treeDeep, false);
+    } else {
+      nodes = exEntries.map(([name,arr]) => ({ label: name, parent: '', value: arr, id: name }));
+    }
+    treemap(ex_treemap, nodes, focusIdx);
 
-    // Income
-    const incomeNode=subtreeByTop(treeDeep,'Income');
-    const incomeSubSeries = (incomeNode && (incomeNode.children||[]).length) ? seriesBySecondLevel(incomeNode) : { 'Income': incomeByMonth.slice() };
+    heatmap(ex_heatmap, months, exEntries);
+    pareto(ex_pareto, exEntries);
+    scatterVolAvg(ex_scatter, exEntries);
+    donut(ex_donut, exEntries, focusIdx);
+
+    // INCOME
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
-    incomeWaterfall(in_waterfall,months,incomeByMonth);
-    incomeTable(in_table,months,inEntries);
-    stackedBars(in_stack,months,inEntries,!!normalizeEl.checked);
-    heatmap(in_heatmap,months,inEntries);
+    incomeWaterfall(in_waterfall, months, incomeByMonth);
+    incomeTable(in_table, months, inEntries);
+    stackedBars(in_stack, months, inEntries, !!normalizeEl.checked);
+    heatmap(in_heatmap, months, inEntries);
 
     attachDrillHandlers(months);
 
-    const lastMonthIncome = incomeByMonth[ incomeByMonth.length-1 ] || 0;
+    // KPIs from monthly totals (income tab)
+    const lastMonthIncome = incomeByMonth.length ? incomeByMonth[incomeByMonth.length-1] : 0;
     kpi30d.textContent = incomeByMonth.length ? money(lastMonthIncome) : '—';
-    const last3=incomeByMonth.slice(Math.max(0,incomeByMonth.length-3));
-    const avg3=last3.length?sum(last3)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
+    const last3 = incomeByMonth.slice(-3);
+    const avg3 = last3.length ? sum(last3)/last3.length : 0;
+    kpiAvg3.textContent = last3.length ? money(avg3) : '—';
 
+    // ensure plots use final widths
     resizeAllPlots();
   }
 
-  tabs.addEventListener('click',e=>{
-    const t=e.target.closest('.tab'); if(!t) return;
-    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
-    const view=t.getAttribute('data-view');
-    paneOverview.style.display=(view==='overview')?'':'none';
-    paneExpenses.style.display=(view==='expenses')?'':'none';
-    paneIncome.style.display=(view==='income')?'':'none';
-    setTimeout(refreshAll,0);
+  // tabs
+  tabs.addEventListener('click', e=>{
+    const t = e.target.closest('.tab'); if (!t) return;
+    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const view = t.getAttribute('data-view');
+    paneOverview.style.display = (view==='overview')?'':'none';
+    paneExpenses.style.display = (view==='expenses')?'':'none';
+    paneIncome.style.display   = (view==='income')?'':'none';
+    setTimeout(()=>{ refreshAll(); }, 0);
   });
-  normalizeEl.addEventListener('change',refreshAll);
-  topNEl.addEventListener('input',refreshAll);
-  focusMonthEl.addEventListener('change',refreshAll);
+
+  normalizeEl.addEventListener('change', refreshAll);
+  topNEl.addEventListener('input', refreshAll);
+  focusMonthEl.addEventListener('change', refreshAll);
 
   function populateFocusMonth(){
-    focusMonthEl.innerHTML='';
-    months.forEach((m,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=prettyMonth(m); focusMonthEl.appendChild(opt); });
-    focusMonthEl.selectedIndex=Math.max(0,months.length-1);
+    const el = document.getElementById('focusMonth');
+    el.innerHTML = '';
+    months.forEach((m, i)=>{
+      const opt = document.createElement('option');
+      opt.value = String(i); opt.textContent = prettyMonth(m);
+      el.appendChild(opt);
+    });
+    el.selectedIndex = Math.max(0, months.length-1);
   }
 
+  /* ------------ boot ------------ */
   (async function main(){
-    let base=null; try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
-    if(!base || !Array.isArray(base.months) || !Array.isArray(base.categories)){
-      try { const r=await fetch('/api/categories/monthly'); base=await r.json(); } catch(e){ base=null; }
+    // 1) Top-level payload (for Overview & Expenses)
+    let base = null;
+    try { base = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
+    if (!base || !Array.isArray(base.months) || !Array.isArray(base.categories)) {
+      const r = await fetch('/api/categories/monthly');
+      base = await r.json();
     }
-    if(!base || !Array.isArray(base.months)){ base={months:[],categories:[]}; }
 
-    let deep=null; try{ const r2=await fetch('/api/categories/monthly?deep=1'); deep=await r2.json(); }catch{}
+    // 2) Deep payload (for Income sources). If not supported, fall back to base.
+    let deep = null;
+    try {
+      const r2 = await fetch('/api/categories/monthly?deep=1');
+      deep = await r2.json();
+    } catch { deep = null; }
 
     months = base.months || [];
-    const topCats   = (base.categories || []).map(c=>({name:c.name, path:c.path, monthly:(c.monthly||[]).map(toNum)}));
-    const deepCats  = (deep && Array.isArray(deep.categories) && deep.categories.length) ? deep.categories : (base.categories||[]);
-    const deepNorm  = deepCats.map(c=>({name:c.name, path:c.path, monthly:(c.monthly||[]).map(toNum)}));
+    categoriesTop  = (base.categories || []).map(c => ({ name:c.name, monthly:(c.monthly||[]).map(toNum) }));
 
-    topSeries = aggregateTopLevel(topCats);
+    const deepCats = (deep && Array.isArray(deep.categories) && deep.categories.length)
+      ? deep.categories
+      : (base.categories || []);
+    categoriesDeep = deepCats.map(c => ({ name:c.name, monthly:(c.monthly||[]).map(toNum) }));
 
-    const L=months.length; const incomeTop=(topSeries['Income']||zeros(L)).slice();
-    incomeByMonth=incomeTop;
-    expenseByMonth=zeros(L);
+    // Aggregate top-level for overview/expenses
+    topSeries = aggregateTopLevel(categoriesTop);
+
+    // Totals split
+    const L = months.length;
+    const incomeTop = topSeries['Income'] || zeros(L);
+    incomeByMonth = incomeTop.slice();
+    expenseByMonth = zeros(L);
     Object.entries(topSeries).forEach(([k,arr])=>{
-      if(k==='Income') return;
-      for(let i=0;i<L;i++) expenseByMonth[i]+=toNum(arr[i]||0);
+      if (k === 'Income') return;
+      for (let i=0;i<L;i++) expenseByMonth[i] += toNum(arr[i]||0);
     });
-    netByMonth=incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
+    netByMonth = incomeByMonth.map((v,i)=> v - (expenseByMonth[i]||0));
 
-    treeDeep=buildTree(deepNorm);
+    // Build deep tree and derive Income sources
+    treeDeep = buildTree(categoriesDeep);
+    let incomeNode = subtreeByTop(treeDeep, 'Income');
+    if (!incomeNode || !(incomeNode.children||[]).length) {
+      incomeSubSeries = { 'Income': incomeByMonth.slice() }; // fallback
+    } else {
+      incomeSubSeries = seriesBySecondLevel(incomeNode);
+      if (!Object.keys(incomeSubSeries).length) {
+        incomeSubSeries = { 'Income': incomeByMonth.slice() };
+      }
+    }
 
     populateFocusMonth();
     refreshAll();
+
+    // Load upcoming paychecks timeline/KPIs from recurrents
     await loadRecurrentsIncome();
+
     window.addEventListener('resize', resizeAllPlots);
   })();
 })();
