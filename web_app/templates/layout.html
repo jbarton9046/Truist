@@ -183,6 +183,21 @@
       .muted { color: var(--muted) !important; }
     </style>
 
+    <!-- 🔧 Hot-fix: ensure table headers stick at top:0 and never get pushed down -->
+    <style id="bt-table-head-fix">
+      /* Kill any old offset that pushes headers down */
+      .table thead th { top: 0 !important; }
+      .table.sticky-offset thead th,
+      .sticky-offset .table thead th { top: 0 !important; }
+
+      /* Ensure the table wrapper is the scroll container for sticky math */
+      .table-responsive { overflow: auto; }
+
+      /* Prevent weird stacking or extra space above the header */
+      thead, thead tr, thead th { margin-top: 0 !important; }
+      .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
+    </style>
+
     <script> document.documentElement.classList.add('theme-dark'); </script>
   </head>
 
