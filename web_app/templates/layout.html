@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-5">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-6">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -194,7 +194,7 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
-    <!-- Goals page: flip tokens so all text uses accent ink -->
+    <!-- Goals page: accent ink everywhere -->
     <style id="bt-goals-accent-all">
       body[data-route="/goals"]{
         --text: var(--accent-ink) !important;
@@ -211,6 +211,19 @@
       body[data-route="/goals"] .form-control::placeholder{
         color: var(--accent-ink) !important;
         opacity: .85;
+      }
+
+      /* ▶ Left align Categories + Goal columns (header + cells) on Goals page */
+      body[data-route="/goals"] .table th:nth-child(1),
+      body[data-route="/goals"] .table td:nth-child(1),
+      body[data-route="/goals"] .table th:nth-child(2),
+      body[data-route="/goals"] .table td:nth-child(2){
+        text-align: left !important;
+      }
+      /* inputs inside Goal column also left */
+      body[data-route="/goals"] .table td:nth-child(2) .form-control,
+      body[data-route="/goals"] .table td:nth-child(2) .input-group .form-control{
+        text-align: left !important;
       }
     </style>
 
@@ -278,8 +291,7 @@
       })();
     </script>
 
-    <!-- 🔷 Chart.js NON-INTRUSIVE accent sweep:
-         waits for charts to exist, then recolors ticks/legend to Trend-blue (v2/v3/v4) -->
+    <!-- Chart.js accent sweep (non-intrusive) + MutationObserver to catch late charts -->
     <script>
       (function () {
         function cssVar(name, fallback) {
@@ -358,7 +370,7 @@
           // quick rAF burst (first ~1s)
           let rafCount = 0;
           function rafSweep() {
-            if (sweepAll() || rafCount > 30) return; // stop early if we touched charts or after ~30 frames
+            if (sweepAll() || rafCount > 30) return;
             rafCount++;
             requestAnimationFrame(rafSweep);
           }
@@ -371,6 +383,14 @@
             if (++tries > 20) clearInterval(t);
           }, 300);
         }
+
+        // Observe new canvases being added (SPA sections, async loads)
+        const mo = new MutationObserver(() => {
+          if (window.Chart) sweepAll();
+        });
+        window.addEventListener('load', () => {
+          try { mo.observe(document.body, { childList: true, subtree: true }); } catch(e){}
+        });
 
         if (document.readyState === 'complete') {
           if (window.Chart) startSweeper();
