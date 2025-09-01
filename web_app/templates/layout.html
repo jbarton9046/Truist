@@ -210,15 +210,12 @@
 
     <!-- 🎯 FORCE ACCENT INK ACROSS ENTIRE GOALS PAGE (cards, tables, inputs, headers) -->
     <style id="bt-goals-accent-all">
-      /* 1) Flip the theme tokens on /goals so any var()-based color becomes accent */
       body[data-route="/goals"]{
         --text: var(--accent-ink) !important;
         --muted: var(--accent-ink) !important;
         --thead-fg: var(--accent-ink) !important;
         --table-head-fg: var(--accent-ink) !important;
       }
-
-      /* 2) Belt-and-suspenders: explicitly color all text-y things accent */
       body[data-route="/goals"] *,
       body[data-route="/goals"] .card,
       body[data-route="/goals"] .table,
@@ -296,7 +293,7 @@
       })();
     </script>
 
-    <!-- 🔷 Chart.js accent plugin: force Trend-blue text on ALL charts (safe, no blank render) -->
+    <!-- 🔷 Chart.js: set global defaults + safely recolor any existing charts -->
     <script>
       (function () {
         function cssVar(name, fallback) {
@@ -304,45 +301,28 @@
           return v || fallback;
         }
 
-        function themeChartOptions(chart) {
+        function setGlobalDefaults() {
+          if (!window.Chart || !Chart.defaults) return;
+          const accent = cssVar('--accent-ink', '#9ecbff');
+          Chart.defaults.color = accent;
+          Chart.defaults.backgroundColor = 'transparent';
+          Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
+          Chart.defaults.font = Chart.defaults.font || {};
+          Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
+        }
+
+        function themeChartInstance(chart) {
           if (!chart) return;
-          const accent = cssVar('--accent-ink', '#9ecbff');          // Trend-bar blue
+          const accent = cssVar('--accent-ink', '#9ecbff');
           const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
           const gridC  = 'rgba(255,255,255,.14)';
 
-          // Global defaults (for charts created after this runs)
-          if (window.Chart && Chart.defaults) {
-            Chart.defaults.color = accent;
-            Chart.defaults.backgroundColor = 'transparent';
-            Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
-            Chart.defaults.font = Chart.defaults.font || {};
-            Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
-          }
-
-          // Per-chart options (safe touch)
           const opts = chart.options || (chart.config && chart.config.options) || {};
           opts.color = accent;
-
-          // Use actual instantiated scales to avoid missing keys
-          const scales = chart.scales || {};
-          Object.values(scales).forEach((s) => {
-            const so = s.options || (opts.scales && opts.scales[s.id]) || {};
-            so.ticks = Object.assign({}, so.ticks, { color: accent });
-            so.grid  = Object.assign({}, so.grid,  { color: gridC, borderColor: hair, drawBorder: true });
-            // write back (Chart.js reads from s.options / opts.scales)
-            s.options = so;
-            opts.scales = opts.scales || {};
-            opts.scales[s.id] = so;
-          });
-
-          // Plugins
           opts.plugins = opts.plugins || {};
-          if (opts.plugins.legend) {
-            opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
-          }
-          if (opts.plugins.title) {
-            opts.plugins.title.color = accent;
-          }
+          opts.plugins.legend = opts.plugins.legend || {};
+          opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
+          opts.plugins.title = Object.assign({}, opts.plugins.title, { color: accent });
           opts.plugins.tooltip = Object.assign({}, opts.plugins.tooltip, {
             titleColor: accent,
             bodyColor:  accent,
@@ -350,46 +330,43 @@
             backgroundColor: 'rgba(15,23,42,.92)',
             borderWidth: 1
           });
+
+          // Make conservative changes to scales without overwriting types
+          const scales = opts.scales = opts.scales || {};
+          ['x','x1','x2','y','y1','y2','r'].forEach((k)=>{
+            const s = Object.assign({}, scales[k]);
+            s.ticks = Object.assign({}, s.ticks, { color: accent });
+            s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair, drawBorder: true });
+            scales[k] = s;
+          });
+
+          chart.update('none');
         }
 
         function themeExistingCharts() {
           if (!window.Chart || !Chart.instances) return;
           let list = [];
-          // v4 Map vs v3 object
           if (typeof Chart.instances.forEach === 'function') {
-            list = Array.from(Chart.instances.values());
+            list = Array.from(Chart.instances.values()); // v4 Map
           } else {
-            list = Object.values(Chart.instances);
+            list = Object.values(Chart.instances);       // v3 object
           }
-          list.forEach((c) => { try { themeChartOptions(c); c.update('none'); } catch(e){} });
+          list.forEach((c)=>{ try { themeChartInstance(c); } catch(e){} });
         }
 
-        function registerPluginOnce() {
-          if (!window.Chart || Chart._btAccentRegistered) return;
-          const btAccentPlugin = {
-            id: 'btAccentTheme',
-            // apply after chart is fully initialized but before first draw
-            afterInit(chart) { try { themeChartOptions(chart); } catch(e){} },
-            // keep colors in sync if chart updates later
-            beforeDraw(chart) { try { themeChartOptions(chart); } catch(e){} }
-          };
-          Chart.register(btAccentPlugin);
-          Chart._btAccentRegistered = true;
-        }
-
-        function initWhenReady() {
-          registerPluginOnce();
+        function init() {
+          setGlobalDefaults();
           themeExistingCharts();
         }
 
-        if (window.Chart) initWhenReady();
+        if (window.Chart) init();
         let tries = 0;
-        const t = setInterval(function () {
-          if (window.Chart) { initWhenReady(); clearInterval(t); }
+        const t = setInterval(function(){
+          if (window.Chart) { init(); clearInterval(t); }
           if (++tries > 40) clearInterval(t); // ~6s
         }, 150);
 
-        window.addEventListener('bt:charts-init', initWhenReady);
+        window.addEventListener('bt:charts-init', init);
       })();
     </script>
 
