@@ -132,9 +132,17 @@
         color:var(--text);
         background:transparent;
       }
+
+      /* --- CRITICAL: remove Bootstrap's white cell background --- */
+      .table-floating > :not(caption) > tbody > * > *,
+      .table-floating > :not(caption) > tfoot > * > *{
+        background-color: transparent !important;
+        box-shadow: none !important;
+      }
+
       .table-floating thead th{
-        background: var(--thead-bg);
-        color: var(--thead-fg);
+        background: var(--thead-bg) !important;
+        color: var(--thead-fg) !important;
         border-bottom:1px solid var(--hair);
         font-weight:700; letter-spacing:.2px;
       }
@@ -144,6 +152,15 @@
       }
       .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
       .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+
+      /* Inputs inside floating tables */
+      .table-floating .input-group-text,
+      .table-floating .form-control{
+        background: rgba(255,255,255,.06) !important;
+        border-color: var(--card-border) !important;
+        color: var(--text) !important;
+      }
+      .table-floating .form-control::placeholder { color: rgba(230,237,246,.6); }
 
       /* Optional gradient header row for premium tables */
       .thead-gradient th{
