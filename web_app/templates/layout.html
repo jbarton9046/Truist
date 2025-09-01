@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-10">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-11">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -230,19 +230,71 @@
       body[data-route="/goals"] .table .input-group .form-control{
         text-align: left !important;
       }
+    </style>
 
-      /* Kill the blue/gradient “bar” fills that appear only inside the Current vs Last Month block */
-      body[data-route="/goals"] table.bt-cvslm th,
-      body[data-route="/goals"] table.bt-cvslm td{
-        background-image: none !important;   /* removes gradient bars but keeps row stripe bg-color */
+    <!-- Make “Current vs Last Month” MATCH Goals (works for table or row/col grid) -->
+    <style id="bt-cvslm-match-css">
+      /* Tag added in JS: .bt-cvslm-match on the specific card */
+      body[data-route="/goals"] .bt-cvslm-match { --cell-pad: .6rem .9rem; }
+
+      /* TABLE case */
+      body[data-route="/goals"] .bt-cvslm-match table{
+        width:100%;
       }
-      body[data-route="/goals"] table.bt-cvslm .progress,
-      body[data-route="/goals"] table.bt-cvslm .bar,
-      body[data-route="/goals"] table.bt-cvslm .meter,
-      body[data-route="/goals"] table.bt-cvslm [class*="bar-"],
-      body[data-route="/goals"] table.bt-cvslm [style*="linear-gradient"]{
-        display: none !important;
+      body[data-route="/goals"] .bt-cvslm-match thead th{
+        background: var(--thead-bg) !important;
+        color: var(--thead-fg) !important;
+        border-bottom:1px solid var(--hair) !important;
+        text-align:left !important;
+        font-weight:700; letter-spacing:.2px;
+      }
+      body[data-route="/goals"] .bt-cvslm-match th,
+      body[data-route="/goals"] .bt-cvslm-match td{
+        text-align:left !important;
+        padding: var(--cell-pad);
+        background-image: none !important; /* kill gradient bars */
+      }
+
+      /* DIV grid case (Bootstrap rows/cols) */
+      body[data-route="/goals"] .bt-cvslm-match .card-body > .row{ margin-left:0; margin-right:0; }
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row{
+        display: table-row;
+      }
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class^="col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class*=" col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class*="col-"]{
+        display: table-cell;
+        padding: var(--cell-pad);
+        text-align: left !important;
+        vertical-align: middle;
         background: transparent !important;
+        background-image: none !important; /* kill blue fills */
+      }
+      /* First data row acts like a THEAD */
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:first-of-type > [class^="col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:first-of-type > [class*=" col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:first-of-type > [class*="col-"]{
+        background: var(--thead-bg) !important;
+        color: var(--thead-fg) !important;
+        font-weight: 700;
+        border-bottom: 1px solid var(--hair);
+      }
+      /* Table-ish div borders for the rest */
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:not(:first-of-type) > [class^="col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:not(:first-of-type) > [class*=" col"],
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row:not(:first-of-type) > [class*="col-"]{
+        border-top: 1px solid var(--hair);
+      }
+
+      /* Progress bars or decorative bars inside the block: neutralize */
+      body[data-route="/goals"] .bt-cvslm-match .progress,
+      body[data-route="/goals"] .bt-cvslm-match [class*="progress"],
+      body[data-route="/goals"] .bt-cvslm-match [class*="bar"],
+      body[data-route="/goals"] .bt-cvslm-match [style*="linear-gradient"]{
+        background: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        border: 0 !important;
       }
     </style>
 
@@ -310,42 +362,66 @@
       })();
     </script>
 
-    <!-- Upgrade “Current vs Last Month” to match Goals (floating, left aligned, no bars) -->
+    <!-- TARGET & NORMALIZE the “Current vs Last Month” block -->
     <script>
       (function () {
-        function upgradeCvslmTables() {
-          const cards = Array.from(document.querySelectorAll('.card'));
-          cards.forEach(card => {
-            const header = card.querySelector('.card-header, .card-title, h1, h2, h3, h4, h5');
-            if (!header) return;
-            if (!/current\s*vs\s*last\s*month/i.test((header.textContent || '').trim())) return;
+        function norm(t){ return (t||'').toLowerCase().replace(/[\s_\-]+/g,'').trim(); }
 
+        function tagCvslmCard() {
+          const targets = Array.from(document.querySelectorAll('.card'));
+          targets.forEach(card => {
+            // find any heading-like element inside the card
+            const h = card.querySelector('.card-header, .card-title, .summary-label, h1, h2, h3, h4, h5, h6, caption');
+            if (!h) return;
+            const txt = norm(h.textContent);
+            if (!txt) return;
+            // accept several variants just in case
+            const hit =
+              txt.includes('currentvslastmonth') ||
+              txt.includes('currentversuslastmonth') ||
+              txt.includes('currentlastmonth');
+            if (!hit) return;
+
+            // Tag the card for CSS
+            card.classList.add('bt-cvslm-match');
+
+            // If there is a table but no thead, promote first row to thead
             const table = card.querySelector('table');
-            if (!table) return;
-
-            table.classList.add('table', 'table-hover', 'table-striped', 'table-floating', 'bt-cvslm');
-
-            // If there is no thead, promote first tbody row into thead so sticky/tint works
-            if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
-              const firstRow = table.tBodies[0].rows[0];
-              const thead = document.createElement('thead');
-              const tr = document.createElement('tr');
-              Array.from(firstRow.cells).forEach(td => {
-                const th = document.createElement('th');
-                th.innerHTML = td.innerHTML;
-                tr.appendChild(th);
-              });
-              thead.appendChild(tr);
-              table.insertBefore(thead, table.tBodies[0]);
-              firstRow.parentNode.removeChild(firstRow);
+            if (table) {
+              table.classList.add('table','table-hover','table-striped','table-floating');
+              if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
+                const firstRow = table.tBodies[0].rows[0];
+                const thead = document.createElement('thead');
+                const tr = document.createElement('tr');
+                Array.from(firstRow.cells).forEach(td => {
+                  const th = document.createElement('th');
+                  th.innerHTML = td.innerHTML;
+                  tr.appendChild(th);
+                });
+                thead.appendChild(tr);
+                table.insertBefore(thead, table.tBodies[0]);
+                firstRow.parentNode.removeChild(firstRow);
+              }
+              // force left align in case inline styles exist
+              table.querySelectorAll('th,td').forEach(c=>{ c.style.textAlign='left'; c.style.backgroundImage='none'; });
+            } else {
+              // DIV grid case: nothing else to do—CSS handles it via .bt-cvslm-match .row/.col
             }
-
-            // Hard left-align like Goals
-            table.querySelectorAll('th, td').forEach(c => { c.style.textAlign = 'left'; });
           });
         }
-        window.addEventListener('load', upgradeCvslmTables);
-        document.addEventListener('bt:page-ready', upgradeCvslmTables);
+
+        function init(){
+          tagCvslmCard();
+          // run again shortly in case the page hydrates content after load
+          setTimeout(tagCvslmCard, 200);
+          setTimeout(tagCvslmCard, 600);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init, { once:true });
+        } else {
+          init();
+        }
+        window.addEventListener('bt:page-ready', tagCvslmCard);
       })();
     </script>
 
