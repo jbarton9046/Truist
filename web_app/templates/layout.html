@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-4">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-5">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -278,7 +278,8 @@
       })();
     </script>
 
-    <!-- 🔷 Chart.js accent + axis tick color plugin (v2/v3/v4), with safe sweeps -->
+    <!-- 🔷 Chart.js NON-INTRUSIVE accent sweep:
+         waits for charts to exist, then recolors ticks/legend to Trend-blue (v2/v3/v4) -->
     <script>
       (function () {
         function cssVar(name, fallback) {
@@ -286,24 +287,14 @@
           return v || fallback;
         }
 
-        function setGlobalDefaults() {
-          if (!window.Chart || !Chart.defaults) return;
-          const accent = cssVar('--accent-ink', '#9ecbff');
-          Chart.defaults.color = accent;
-          Chart.defaults.backgroundColor = 'transparent';
-          Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
-          Chart.defaults.font = Chart.defaults.font || {};
-          Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
-        }
-
-        function applyAccent(chart) {
+        function recolorChart(chart) {
+          if (!chart) return false;
           const accent = cssVar('--accent-ink', '#9ecbff');
           const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
           const gridC  = 'rgba(255,255,255,.14)';
+          const opts   = chart.options || (chart.config && chart.config.options) || {};
 
-          const opts = chart.options || (chart.config && chart.config.options) || {};
-
-          // legend / title / tooltip
+          // Legend/title/tooltip text
           opts.plugins = opts.plugins || {};
           opts.plugins.legend = opts.plugins.legend || {};
           opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
@@ -316,33 +307,40 @@
             borderWidth: 1
           });
 
-          // v3+ actual instantiated scales
+          let touched = false;
+
+          // v3+ runtime scales
           if (chart.scales) {
             Object.values(chart.scales).forEach((scale) => {
               const so = scale.options || {};
+              const before = JSON.stringify(so.ticks || {});
               so.ticks = Object.assign({}, so.ticks, { color: accent, fontColor: accent });
               so.grid  = Object.assign({}, so.grid,  { color: gridC, borderColor: hair, drawBorder: true, zeroLineColor: gridC });
-              scale.options = so;                 // write back
-              opts.scales = opts.scales || {};
-              opts.scales[scale.id] = Object.assign({}, opts.scales[scale.id], so);
+              scale.options = so;
+              touched = touched || (JSON.stringify(so.ticks || {}) !== before);
             });
           }
 
-          // v2 arrays (xAxes/yAxes)
+          // v2 options (xAxes/yAxes arrays)
           if (opts.scales && (opts.scales.xAxes || opts.scales.yAxes)) {
             (opts.scales.xAxes || []).forEach(ax => {
               ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
               ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
+              touched = true;
             });
             (opts.scales.yAxes || []).forEach(ax => {
               ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
               ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
+              touched = true;
             });
           }
+
+          if (touched) { try { chart.update('none'); } catch(e){} }
+          return touched;
         }
 
-        function sweepExisting() {
-          if (!window.Chart || !Chart.instances) return;
+        function sweepAll() {
+          if (!window.Chart || !Chart.instances) return false;
           let list = [];
           if (typeof Chart.instances.forEach === 'function') {
             list = Array.from(Chart.instances.values()); // v4 Map
@@ -351,39 +349,38 @@
           } else {
             list = Object.values(Chart.instances);       // v3 object
           }
-          list.forEach(c => { try { applyAccent(c); c.update('none'); } catch(e){} });
+          let changed = false;
+          list.forEach(c => { try { changed = recolorChart(c) || changed; } catch(e){} });
+          return changed;
         }
 
-        function registerPlugin() {
-          if (!window.Chart || Chart._btAccentPlugin) return;
+        function startSweeper() {
+          // quick rAF burst (first ~1s)
+          let rafCount = 0;
+          function rafSweep() {
+            if (sweepAll() || rafCount > 30) return; // stop early if we touched charts or after ~30 frames
+            rafCount++;
+            requestAnimationFrame(rafSweep);
+          }
+          requestAnimationFrame(rafSweep);
 
-          const plugin = {
-            id: 'btAccentAll',
-            beforeInit(chart)  { try { applyAccent(chart); } catch(e){} },
-            beforeUpdate(chart){ try { applyAccent(chart); } catch(e){} },
-            afterUpdate(chart) { try { applyAccent(chart); } catch(e){} }
-          };
-
-          if (Chart.register) Chart.register(plugin);
-          else if (Chart.plugins && Chart.plugins.register) Chart.plugins.register(plugin); // v2
-
-          Chart._btAccentPlugin = true;
+          // slower fallback for lazy charts (~6s)
+          let tries = 0;
+          const t = setInterval(function(){
+            if (sweepAll()) { clearInterval(t); return; }
+            if (++tries > 20) clearInterval(t);
+          }, 300);
         }
 
-        function init() {
-          setGlobalDefaults();
-          registerPlugin();
-          sweepExisting();
+        if (document.readyState === 'complete') {
+          if (window.Chart) startSweeper();
+          else window.addEventListener('load', startSweeper);
+        } else {
+          window.addEventListener('load', startSweeper);
         }
 
-        if (window.Chart) init();
-        let tries = 0;
-        const t = setInterval(function(){
-          if (window.Chart) { init(); clearInterval(t); }
-          if (++tries > 40) clearInterval(t);
-        }, 150);
-
-        window.addEventListener('bt:charts-init', init);
+        // allow pages to re-trigger after they build charts
+        window.addEventListener('bt:charts-init', startSweeper);
       })();
     </script>
 
