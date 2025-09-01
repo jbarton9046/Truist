@@ -44,11 +44,10 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-3">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-4">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
-      /* ===== Theme tokens ===== */
       :root{
         --page-bg-1:#0b1220;
         --page-bg-2:#0f172a;
@@ -62,19 +61,16 @@
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
-        /* Header strip (neutral/tinted) */
         --thead-bg:rgba(255,255,255,.06);
         --thead-fg:#eaf2ff;
 
-        /* Fallbacks for sticky header base */
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
-        /* Accent ink (Trend-bar blue) */
+        /* Trend-bar blue */
         --accent-ink:#9ecbff;
       }
 
-      /* App background + base text */
       html.theme-dark, body.theme-dark {
         background:
           radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
@@ -83,7 +79,6 @@
         color: var(--text);
       }
 
-      /* Navbar (glassy) */
       .navbar {
         background: var(--card-bg) !important;
         border-bottom: 1px solid var(--card-border) !important;
@@ -94,7 +89,6 @@
       }
       .navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
 
-      /* Panels / Cards / Drawers / Modals */
       .card, .stat-card, .panel, .list-group, .offcanvas, .modal-content {
         background: var(--card-bg) !important;
         border: 1px solid var(--card-border) !important;
@@ -105,8 +99,6 @@
         border-radius: 16px;
         backdrop-filter: saturate(120%) blur(4px);
       }
-
-      /* Card headers match table headers (subtle glass) */
       .card .card-header{
         background: var(--thead-bg) !important;
         color: var(--text) !important;
@@ -115,7 +107,6 @@
         letter-spacing: .2px;
       }
 
-      /* Inputs */
       .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
         background: rgba(255,255,255,.06) !important;
         border-color: var(--card-border) !important;
@@ -125,7 +116,6 @@
       .btn-outline-light { color: var(--text) !important; }
       .btn-primary { background: #2563eb; border-color: #2563eb; }
 
-      /* Floating table wrapper */
       .table-responsive{
         border:1px solid var(--card-border);
         border-radius:14px;
@@ -135,7 +125,6 @@
         position: relative;
       }
 
-      /* Kill white cells & keep dark hover/stripe */
       .theme-dark .table{
         --bs-table-bg: transparent;
         --bs-table-color: var(--text);
@@ -154,7 +143,6 @@
         background-color: transparent !important;
       }
 
-      /* Floating table look */
       .table-floating,
       .table-floating .table{
         width:100%;
@@ -182,7 +170,6 @@
         background:rgba(255,255,255,.05);
       }
 
-      /* Table headers: subtle glass + accent text (unified) */
       .table thead th,
       .table thead td{
         background: var(--thead-bg) !important;
@@ -192,13 +179,12 @@
       .table thead th:first-child { border-top-left-radius: 12px; }
       .table thead th:last-child  { border-top-right-radius: 12px; }
 
-      /* Chart canvases transparent by default */
       canvas { background: transparent !important; }
 
       .muted { color: var(--muted) !important; }
     </style>
 
-    <!-- 🔧 Sticky header hot-fix (top:0) -->
+    <!-- Sticky header hot-fix -->
     <style id="bt-table-head-fix">
       .table thead th { top: 0 !important; }
       .table.sticky-offset thead th,
@@ -208,7 +194,7 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
-    <!-- 🎯 FORCE ACCENT INK ACROSS ENTIRE GOALS PAGE (cards, tables, inputs, headers) -->
+    <!-- Goals page: flip tokens so all text uses accent ink -->
     <style id="bt-goals-accent-all">
       body[data-route="/goals"]{
         --text: var(--accent-ink) !important;
@@ -229,7 +215,6 @@
     </style>
 
     <script> document.documentElement.classList.add('theme-dark'); </script>
-    <!-- mark route for scoped CSS -->
     <script>
       (function(){ document.addEventListener('DOMContentLoaded', function(){
         document.body.setAttribute('data-route', location.pathname || '');
@@ -293,7 +278,7 @@
       })();
     </script>
 
-    <!-- 🔷 Chart.js: set global defaults + safely recolor any existing charts -->
+    <!-- 🔷 Chart.js accent + axis tick color plugin (v2/v3/v4), with safe sweeps -->
     <script>
       (function () {
         function cssVar(name, fallback) {
@@ -311,14 +296,14 @@
           Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
         }
 
-        function themeChartInstance(chart) {
-          if (!chart) return;
+        function applyAccent(chart) {
           const accent = cssVar('--accent-ink', '#9ecbff');
           const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
           const gridC  = 'rgba(255,255,255,.14)';
 
           const opts = chart.options || (chart.config && chart.config.options) || {};
-          opts.color = accent;
+
+          // legend / title / tooltip
           opts.plugins = opts.plugins || {};
           opts.plugins.legend = opts.plugins.legend || {};
           opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
@@ -331,59 +316,19 @@
             borderWidth: 1
           });
 
-          // Make conservative changes to scales without overwriting types
-          const scales = opts.scales = opts.scales || {};
-          ['x','x1','x2','y','y1','y2','r'].forEach((k)=>{
-            const s = Object.assign({}, scales[k]);
-            s.ticks = Object.assign({}, s.ticks, { color: accent });
-            s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair, drawBorder: true });
-            scales[k] = s;
-          });
-
-          chart.update('none');
-        }
-
-        function themeExistingCharts() {
-          if (!window.Chart || !Chart.instances) return;
-          let list = [];
-          if (typeof Chart.instances.forEach === 'function') {
-            list = Array.from(Chart.instances.values()); // v4 Map
-          } else if (Array.isArray(Chart.instances)) {
-            list = Chart.instances;                      // v2 array
-          } else {
-            list = Object.values(Chart.instances);       // v3 object
+          // v3+ actual instantiated scales
+          if (chart.scales) {
+            Object.values(chart.scales).forEach((scale) => {
+              const so = scale.options || {};
+              so.ticks = Object.assign({}, so.ticks, { color: accent, fontColor: accent });
+              so.grid  = Object.assign({}, so.grid,  { color: gridC, borderColor: hair, drawBorder: true, zeroLineColor: gridC });
+              scale.options = so;                 // write back
+              opts.scales = opts.scales || {};
+              opts.scales[scale.id] = Object.assign({}, opts.scales[scale.id], so);
+            });
           }
-          list.forEach((c)=>{ try { themeChartInstance(c); } catch(e){} });
-        }
 
-        function init() {
-          setGlobalDefaults();
-          themeExistingCharts();
-        }
-
-        if (window.Chart) init();
-        let tries = 0;
-        const t = setInterval(function(){
-          if (window.Chart) { init(); clearInterval(t); }
-          if (++tries > 40) clearInterval(t); // ~6s
-        }, 150);
-
-        window.addEventListener('bt:charts-init', init);
-      })();
-    </script>
-
-    <!-- Axis tick color fix: make X/Y numbers match Trend-blue on all charts (v2 & v3+) -->
-    <script>
-      (function () {
-        function cssVar(name, fallback) {
-          const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-          return v || fallback;
-        }
-        function colorAxes(chart, accent, hair, gridC) {
-          if (!chart) return;
-          const opts = chart.options || (chart.config && chart.config.options) || {};
-
-          // Chart.js v2 (xAxes/yAxes arrays)
+          // v2 arrays (xAxes/yAxes)
           if (opts.scales && (opts.scales.xAxes || opts.scales.yAxes)) {
             (opts.scales.xAxes || []).forEach(ax => {
               ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
@@ -394,41 +339,51 @@
               ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
             });
           }
-
-          // Chart.js v3+ (named scales)
-          if (opts.scales && !(opts.scales.xAxes || opts.scales.yAxes)) {
-            Object.keys(opts.scales).forEach(k => {
-              const s = opts.scales[k] || {};
-              s.ticks = Object.assign({}, s.ticks, { color: accent });
-              s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair, drawBorder: true });
-              opts.scales[k] = s;
-            });
-          }
-
-          chart.update('none');
         }
-        function sweepAll() {
+
+        function sweepExisting() {
           if (!window.Chart || !Chart.instances) return;
-          const accent = cssVar('--accent-ink', '#9ecbff');
-          const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
-          const gridC  = 'rgba(255,255,255,.14)';
           let list = [];
           if (typeof Chart.instances.forEach === 'function') {
-            list = Array.from(Chart.instances.values());
+            list = Array.from(Chart.instances.values()); // v4 Map
           } else if (Array.isArray(Chart.instances)) {
-            list = Chart.instances;
+            list = Chart.instances;                      // v2 array
           } else {
-            list = Object.values(Chart.instances);
+            list = Object.values(Chart.instances);       // v3 object
           }
-          list.forEach(c => { try { colorAxes(c, accent, hair, gridC); } catch(e){} });
+          list.forEach(c => { try { applyAccent(c); c.update('none'); } catch(e){} });
         }
-        if (window.Chart) sweepAll();
+
+        function registerPlugin() {
+          if (!window.Chart || Chart._btAccentPlugin) return;
+
+          const plugin = {
+            id: 'btAccentAll',
+            beforeInit(chart)  { try { applyAccent(chart); } catch(e){} },
+            beforeUpdate(chart){ try { applyAccent(chart); } catch(e){} },
+            afterUpdate(chart) { try { applyAccent(chart); } catch(e){} }
+          };
+
+          if (Chart.register) Chart.register(plugin);
+          else if (Chart.plugins && Chart.plugins.register) Chart.plugins.register(plugin); // v2
+
+          Chart._btAccentPlugin = true;
+        }
+
+        function init() {
+          setGlobalDefaults();
+          registerPlugin();
+          sweepExisting();
+        }
+
+        if (window.Chart) init();
         let tries = 0;
         const t = setInterval(function(){
-          if (window.Chart) { sweepAll(); clearInterval(t); }
+          if (window.Chart) { init(); clearInterval(t); }
           if (++tries > 40) clearInterval(t);
         }, 150);
-        window.addEventListener('bt:charts-init', sweepAll);
+
+        window.addEventListener('bt:charts-init', init);
       })();
     </script>
 
