@@ -36,12 +36,11 @@
       /* Sticky table headers (no navbar offset; fixes overlap on first row) */
       .table thead th {
         position: sticky;
-        top: 0;            /* <— keep at top of its scroll container */
+        top: 0;
         z-index: 2;
         background: var(--table-head-bg, transparent);
         color: var(--table-head-fg, inherit);
       }
-      /* removed: .table.sticky-offset / .sticky-offset .table (was pushing headers down) */
     </style>
 
     <!-- Your site CSS -->
@@ -63,10 +62,12 @@
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
-        /* feed the sticky header base only as fallback;
-           actual header colors come from neon-tech.css */
+        /* fallback head colors; actual header colors come from neon-tech.css */
         --table-head-bg: transparent;
         --table-head-fg: var(--text);
+
+        /* NEW: accent ink (matches Trend bar/link blue) */
+        --accent-ink: #9ecbff;
       }
 
       /* ===== App background + base text ===== */
@@ -151,7 +152,6 @@
       }
       .table-floating > :not(caption) > thead > tr > th,
       .table-floating .table > :not(caption) > thead > tr > th{
-        /* keep sticky border but DO NOT override header color */
         border-bottom:1px solid var(--hair);
         font-weight:700; letter-spacing:.2px;
       }
@@ -183,22 +183,42 @@
       .muted { color: var(--muted) !important; }
     </style>
 
-    <!-- 🔧 Hot-fix: ensure table headers stick at top:0 and never get pushed down -->
+    <!-- 🔧 Hot-fix: keep sticky headers at top:0 & tidy stacking -->
     <style id="bt-table-head-fix">
-      /* Kill any old offset that pushes headers down */
       .table thead th { top: 0 !important; }
       .table.sticky-offset thead th,
       .sticky-offset .table thead th { top: 0 !important; }
-
-      /* Ensure the table wrapper is the scroll container for sticky math */
       .table-responsive { overflow: auto; }
-
-      /* Prevent weird stacking or extra space above the header */
       thead, thead tr, thead th { margin-top: 0 !important; }
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
+    <!-- 🎯 Goals page ink: match Trend bar blue for all standard text on /goals -->
+    <style id="bt-goals-ink">
+      /* scope by route */
+      body[data-route="/goals"] .table,
+      body[data-route="/goals"] .table > :not(caption) > * > *,
+      body[data-route="/goals"] .card,
+      body[data-route="/goals"] .muted {
+        color: var(--accent-ink) !important;
+      }
+      /* keep status colors intact */
+      body[data-route="/goals"] .tx-neg { color: var(--danger) !important; }
+      body[data-route="/goals"] .tx-pos { color: var(--success) !important; }
+      /* inputs on goals table */
+      body[data-route="/goals"] .table .form-control,
+      body[data-route="/goals"] .table .input-group-text {
+        color: var(--accent-ink) !important;
+      }
+    </style>
+
     <script> document.documentElement.classList.add('theme-dark'); </script>
+    <!-- Set route attribute for per-page styling like the Goals ink above -->
+    <script>
+      (function(){ document.addEventListener('DOMContentLoaded', function(){
+        document.body.setAttribute('data-route', location.pathname || '');
+      });})();
+    </script>
   </head>
 
   <body class="theme-neo theme-dark">
