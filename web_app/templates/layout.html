@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-7">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -194,7 +194,7 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
-    <!-- Goals page: accent ink everywhere -->
+    <!-- Goals page: accent ink + FULL left alignment of the Goals table -->
     <style id="bt-goals-accent-all">
       body[data-route="/goals"]{
         --text: var(--accent-ink) !important;
@@ -213,16 +213,23 @@
         opacity: .85;
       }
 
-      /* ▶ Left align Categories + Goal columns (header + cells) on Goals page */
-      body[data-route="/goals"] .table th:nth-child(1),
-      body[data-route="/goals"] .table td:nth-child(1),
-      body[data-route="/goals"] .table th:nth-child(2),
-      body[data-route="/goals"] .table td:nth-child(2){
+      /* ▶ FULL left-align across the Goals table (headers + all cells) */
+      body[data-route="/goals"] .table th,
+      body[data-route="/goals"] .table td{
         text-align: left !important;
       }
-      /* inputs inside Goal column also left */
-      body[data-route="/goals"] .table td:nth-child(2) .form-control,
-      body[data-route="/goals"] .table td:nth-child(2) .input-group .form-control{
+      /* neutralize any Bootstrap alignment utilities within the table */
+      body[data-route="/goals"] .table .text-end,
+      body[data-route="/goals"] .table .text-center,
+      body[data-route="/goals"] .table [style*="text-align: right"],
+      body[data-route="/goals"] .table [style*="text-align:right"],
+      body[data-route="/goals"] .table [style*="text-align: center"],
+      body[data-route="/goals"] .table [style*="text-align:center"]{
+        text-align: left !important;
+      }
+      /* inputs inside any cells read left */
+      body[data-route="/goals"] .table .form-control,
+      body[data-route="/goals"] .table .input-group .form-control{
         text-align: left !important;
       }
     </style>
@@ -291,7 +298,7 @@
       })();
     </script>
 
-    <!-- Chart.js accent sweep (non-intrusive) + MutationObserver to catch late charts -->
+    <!-- Chart.js axis/legend recolor sweep with MutationObserver (non-intrusive) -->
     <script>
       (function () {
         function cssVar(name, fallback) {
@@ -306,7 +313,6 @@
           const gridC  = 'rgba(255,255,255,.14)';
           const opts   = chart.options || (chart.config && chart.config.options) || {};
 
-          // Legend/title/tooltip text
           opts.plugins = opts.plugins || {};
           opts.plugins.legend = opts.plugins.legend || {};
           opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
@@ -321,7 +327,6 @@
 
           let touched = false;
 
-          // v3+ runtime scales
           if (chart.scales) {
             Object.values(chart.scales).forEach((scale) => {
               const so = scale.options || {};
@@ -333,7 +338,6 @@
             });
           }
 
-          // v2 options (xAxes/yAxes arrays)
           if (opts.scales && (opts.scales.xAxes || opts.scales.yAxes)) {
             (opts.scales.xAxes || []).forEach(ax => {
               ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
@@ -367,7 +371,6 @@
         }
 
         function startSweeper() {
-          // quick rAF burst (first ~1s)
           let rafCount = 0;
           function rafSweep() {
             if (sweepAll() || rafCount > 30) return;
@@ -376,7 +379,6 @@
           }
           requestAnimationFrame(rafSweep);
 
-          // slower fallback for lazy charts (~6s)
           let tries = 0;
           const t = setInterval(function(){
             if (sweepAll()) { clearInterval(t); return; }
@@ -384,10 +386,7 @@
           }, 300);
         }
 
-        // Observe new canvases being added (SPA sections, async loads)
-        const mo = new MutationObserver(() => {
-          if (window.Chart) sweepAll();
-        });
+        const mo = new MutationObserver(() => { if (window.Chart) sweepAll(); });
         window.addEventListener('load', () => {
           try { mo.observe(document.body, { childList: true, subtree: true }); } catch(e){}
         });
@@ -399,7 +398,6 @@
           window.addEventListener('load', startSweeper);
         }
 
-        // allow pages to re-trigger after they build charts
         window.addEventListener('bt:charts-init', startSweeper);
       })();
     </script>
