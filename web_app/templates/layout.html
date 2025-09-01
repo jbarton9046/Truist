@@ -33,7 +33,7 @@
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
 
-      /* Sticky table head base (exact colors come from theme vars below) */
+      /* Sticky table head base (values overridden by theme vars below) */
       .table thead th {
         position: sticky;
         top: 0;
@@ -41,16 +41,15 @@
         background: var(--table-head-bg, #fff);
         color: var(--table-head-fg, inherit);
       }
-      .table.sticky-offset thead th,
-      .sticky-offset .table thead th { top: var(--sticky-top); }
+      .table.sticky-offset thead th, .sticky-offset .table thead th { top: var(--sticky-top); }
     </style>
 
-    <!-- Your existing site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-3">
+    <!-- Site CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-4">
 
-    <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
+    <!-- >>> SITE-WIDE DARK / FLOATING THEME (applies to every page) <<< -->
     <style id="app-theme">
-      /* ===== Theme tokens ===== */
+      /* Theme tokens */
       :root{
         --page-bg-1:#0b1220;
         --page-bg-2:#0f172a;
@@ -64,17 +63,18 @@
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
+        /* Table header tint + gradient colors */
         --thead-bg:rgba(255,255,255,.06);
         --thead-fg:#eaf2ff;
         --grad-a:#60a5fa;   /* header gradient left */
         --grad-b:#7c3aed;   /* header gradient right */
 
-        /* feed the sticky header base rule */
+        /* default table head colors (used by base .table rule above) */
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
       }
 
-      /* ===== App background + base text ===== */
+      /* App background */
       html.theme-dark, body.theme-dark {
         background:
           radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
@@ -83,7 +83,7 @@
         color: var(--text);
       }
 
-      /* ===== Navbar (glassy) ===== */
+      /* Navbar (glassy) */
       .navbar {
         background: var(--card-bg) !important;
         border-bottom: 1px solid var(--card-border) !important;
@@ -94,7 +94,7 @@
       }
       .navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
 
-      /* ===== Panels / Cards / Drawers / Modals ===== */
+      /* Cards / panels / drawers / modals */
       .card, .stat-card, .panel, .list-group, .offcanvas, .modal-content {
         background: var(--card-bg) !important;
         border: 1px solid var(--card-border) !important;
@@ -106,7 +106,7 @@
         backdrop-filter: saturate(120%) blur(4px);
       }
 
-      /* ===== Inputs (so inline controls match) ===== */
+      /* Inputs */
       .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
         background: rgba(255,255,255,.06) !important;
         border-color: var(--card-border) !important;
@@ -116,17 +116,17 @@
       .btn-outline-light { color: var(--text) !important; }
       .btn-primary { background: #2563eb; border-color: #2563eb; }
 
-      /* ===== Floating table wrapper ===== */
+      /* Floating table wrapper */
       .table-responsive{
         border:1px solid var(--card-border);
         border-radius:14px;
+        overflow:hidden;
         background:var(--card-bg);
         box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
-        overflow:auto; /* allow sticky heads to work */
         position: relative;
       }
 
-      /* ===== Global Bootstrap table variable overrides (kills white cells) ===== */
+      /* Bootstrap table var overrides (kill white cells) */
       .theme-dark .table{
         --bs-table-bg: transparent;
         --bs-table-color: var(--text);
@@ -140,13 +140,12 @@
         background-color: transparent !important;
         box-shadow: none !important;
       }
-      /* If someone tagged cells as bg-white/light, neutralize inside tables */
       .theme-dark .table td.bg-white, .theme-dark .table th.bg-white,
       .theme-dark .table td.bg-light, .theme-dark .table th.bg-light{
         background-color: transparent !important;
       }
 
-      /* ===== Floating table look (works if class is on table OR wrapper) ===== */
+      /* Floating table look (table or wrapper may have .table-floating) */
       .table-floating,
       .table-floating .table{
         width:100%;
@@ -155,18 +154,20 @@
         color:var(--text);
         background:transparent;
       }
-      .table-floating > :not(caption) > thead > tr > th,
-      .table-floating .table > :not(caption) > thead > tr > th{
+
+      /* Default sticky header tint */
+      .theme-dark .table thead th{
         background: var(--thead-bg) !important;
         color: var(--thead-fg) !important;
         border-bottom:1px solid var(--hair);
-        font-weight:700; letter-spacing:.2px;
+        padding:.65rem .75rem;
       }
-      .table-floating > :not(caption) > tbody > tr > td,
-      .table-floating .table > :not(caption) > tbody > tr > td{
-        border-top:1px solid var(--hair);
-        vertical-align:middle;
-      }
+
+      /* Rounded top corners for the first sticky row */
+      .table thead th:first-child { border-top-left-radius: 12px; }
+      .table thead th:last-child  { border-top-right-radius: 12px; }
+
+      /* Zebra + hover (subtle) */
       .table-floating > :not(caption) > tbody > tr:nth-child(odd),
       .table-floating .table > :not(caption) > tbody > tr:nth-child(odd){
         background:rgba(255,255,255,.015);
@@ -174,21 +175,6 @@
       .table-floating > :not(caption) > tbody > tr:hover,
       .table-floating .table > :not(caption) > tbody > tr:hover{
         background:rgba(255,255,255,.05);
-      }
-
-      /* Optional gradient header style (opt-in with .thead-gradient) */
-      .thead-gradient th{
-        background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
-        color:#f8fbff !important;
-        text-shadow:0 1px 0 rgba(0,0,0,.35);
-        border-color: transparent !important;
-      }
-
-      /* Default sticky header tint across all tables */
-      .theme-dark .table thead th{
-        background: var(--thead-bg) !important;
-        color: var(--thead-fg) !important;
-        border-bottom:1px solid var(--hair);
       }
 
       /* Inputs inside floating tables */
@@ -200,10 +186,20 @@
       }
       .table-floating .form-control::placeholder { color: rgba(230,237,246,.6); }
 
-      /* Chart canvases transparent by default */
+      /* === Gradient header style (navbar-like), now auto-applied === */
+      .thead-gradient th,
+      .thead-gradient td{
+        background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
+        color:#f8fbff !important;
+        text-shadow:0 1px 0 rgba(0,0,0,.35);
+        border-color: transparent !important;
+        z-index: 3; /* above cells when sticky */
+      }
+
+      /* Transparent chart canvases */
       canvas { background: transparent !important; }
 
-      /* Muted text on dark */
+      /* Muted on dark */
       .muted { color: var(--muted) !important; }
     </style>
 
@@ -211,6 +207,7 @@
     <script> document.documentElement.classList.add('theme-dark'); </script>
   </head>
 
+  <!-- add theme-dark to body so background always applies -->
   <body class="theme-neo theme-dark">
     {% include "navbar.html" %}
 
@@ -294,7 +291,6 @@
           Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
           Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
 
-          // Grid/ticks for common scales
           const grids = 'rgba(255,255,255,.14)';
           Chart.defaults.scales.category = Chart.defaults.scales.category || {};
           Chart.defaults.scales.linear   = Chart.defaults.scales.linear   || {};
@@ -304,7 +300,6 @@
             Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: mutd });
           });
 
-          // Legend/tooltip
           Chart.defaults.plugins = Chart.defaults.plugins || {};
           Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
           Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: mutd });
@@ -317,16 +312,29 @@
           });
         }
 
-        // Run now if Chart already loaded, or shortly after if it loads later
         if (window.Chart) setChartDefaults();
         let tries = 0;
         const i = setInterval(function(){
           if (window.Chart){ setChartDefaults(); clearInterval(i); }
-          if (++tries > 20) clearInterval(i); // ~5s max
+          if (++tries > 20) clearInterval(i);
         }, 250);
 
-        // Allow pages to force a refresh if they swap themes dynamically
         window.addEventListener('bt:charts-init', setChartDefaults);
+      })();
+    </script>
+
+    <!-- Auto-apply gradient headers to all tables (navbar-like).
+         Opt out by adding class="no-gradient" or data-head="tint" on a table. -->
+    <script>
+      (function(){
+        function applyGradientHeaders(){
+          document.querySelectorAll('table').forEach(t=>{
+            if (t.classList.contains('no-gradient')) return;
+            if (t.dataset.head === 'tint') return; // allow per-table opt-out
+            t.classList.add('thead-gradient');
+          });
+        }
+        window.addEventListener('load', applyGradientHeaders, { once:true });
       })();
     </script>
 
