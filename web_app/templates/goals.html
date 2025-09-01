@@ -2,16 +2,14 @@
 {% block content %}
 
 <style>
-  /* =========================
-     DARK “FLOATING” PAGE THEME
-     ========================= */
+  /* ---------- Theme tokens (page-local) ---------- */
   :root{
-    --page-bg-1:#0b1220;  /* deep navy */
-    --page-bg-2:#0f172a;  /* slate */
+    --page-bg-1:#0b1220;
+    --page-bg-2:#0f172a;
     --glow-1:#243b55;
     --glow-2:#1b3a6b;
 
-    --text:#e6edf6;
+    --text:#e6edf6;      /* page text color (also used for chart axes) */
     --muted:#9fb3c8;
 
     --card-bg:rgba(255,255,255,.045);
@@ -21,15 +19,15 @@
     --good:#34d399;
     --bad:#f87171;
 
-    /* table header tint / gradient */
+    /* table header strip */
     --thead-bg:rgba(255,255,255,.06);
-    --grad-a:#60a5fa;  /* blue-400 */
-    --grad-b:#7c3aed;  /* violet-600 */
+    --grad-a:#60a5fa;
+    --grad-b:#7c3aed;
+
+    --sticky-top: 0px; /* updated by JS for fixed navbars */
   }
 
-  :root { --sticky-top: 0px; } /* offset for fixed navbars, set via JS below */
-
-  /* Page background + base text */
+  /* ---------- Page background ---------- */
   html, body{
     background:
       radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
@@ -43,15 +41,13 @@
   .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
   .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
 
-  /* Cards (glass, floating) */
+  /* ---------- Floating cards ---------- */
   .stat-card, .panel{
     background:var(--card-bg) !important;
     border:1px solid var(--card-border) !important;
     border-radius:16px !important;
     padding:.9rem;
-    box-shadow:
-      0 12px 28px rgba(0,0,0,.35),
-      inset 0 1px 0 rgba(255,255,255,.05);
+    box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
     backdrop-filter:saturate(120%) blur(4px);
     color:var(--text);
   }
@@ -61,11 +57,10 @@
   .small-note { font-size:.9rem; color:var(--muted); }
   .pill { padding:.15rem .5rem; border:1px solid var(--hair); border-radius:999px; font-size:.85rem; background: rgba(255,255,255,.06); color:var(--text); }
 
-  /* Manage link keeps theme colors */
-  .name-link { text-decoration: none; color: inherit; cursor: pointer; }
-  .name-link:hover { text-decoration: underline; }
+  .name-link { text-decoration:none; color:inherit; cursor:pointer; }
+  .name-link:hover { text-decoration:underline; }
 
-  /* ======= FLOATING TABLE CONTAINER ======= */
+  /* ---------- Floating table container ---------- */
   .table-responsive{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -74,7 +69,7 @@
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
   }
 
-  /* Add class="table-floating" to the table element */
+  /* ---------- Floating table ---------- */
   .table-floating{
     width:100%;
     border-collapse:separate;
@@ -96,33 +91,25 @@
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* ======= GRADIENT HEADER (matches your screenshot) ======= */
+  /* gradient header option (the Goals table in your screenshots uses this) */
   .thead-gradient th{
     background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
     color:#f8fbff !important;
     text-shadow:0 1px 0 rgba(0,0,0,.35);
     border-color: transparent !important;
   }
-  .thead-gradient th + th{ box-shadow: inset 1px 0 0 rgba(255,255,255,.18); }
   .thead-gradient th:first-child{ border-top-left-radius:12px; }
-  .thead-gradient th:last-child{ border-top-right-radius:12px; }
+  .thead-gradient th:last-child { border-top-right-radius:12px; }
 
-  /* ======= Goals table specifics ======= */
+  /* ---------- ALL tables on this page: force LEFT alignment ---------- */
+  .table-floating th,
+  .table-floating td { text-align:left !important; }
+
+  /* Goals table specifics */
   .goals-table { table-layout: fixed; }
-  .goals-table th, .goals-table td { padding:.55rem .6rem; text-align:left; }
+  .goals-table th, .goals-table td { padding:.55rem .6rem; }
 
-  /* Right-align money columns to match the charts vibe */
-  #goalsTable td:nth-child(3),
-  #goalsTable td:nth-child(4),
-  #goalsTable td:nth-child(5),
-  #goalsTable td:nth-child(6),
-  #goalsTable td:nth-child(7),
-  #goalsTable td:nth-child(8),
-  #goalsTable tfoot th.mono{
-    text-align:right;
-  }
-
-  /* Dark input group to “pill” with the $ prefix */
+  /* Input styling inside the goals table */
   .input-dark .input-group-text{
     background:rgba(255,255,255,.10);
     border-color:var(--hair);
@@ -132,6 +119,7 @@
     background:rgba(0,0,0,.25);
     border-color:var(--hair);
     color:var(--text);
+    text-align:left !important;
   }
   .input-dark .form-control:focus{
     background:rgba(0,0,0,.35);
@@ -139,19 +127,19 @@
     color:var(--text);
   }
 
-  /* Variance coloring */
+  /* variance coloring */
   .ok  { color: var(--good); font-weight:600; }
   .bad { color: var(--bad);  font-weight:600; }
 
-  /* Tiny spark bars */
+  /* spark bars */
   .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
   .spark > i { display:block; width:6px; background:rgba(173,216,255,.7); border-radius:2px 2px 0 0; }
 
-  /* Summary grid */
-  .summary-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
+  /* summary grid (top two cards) */
+  .summary-grid { display:grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
   @media (max-width: 992px){ .summary-grid { grid-template-columns: 1fr; } }
 
-  /* Goal progress meter */
+  /* goal meter */
   .meter{
     width:100%; height:12px; border-radius:999px;
     background:rgba(255,255,255,.06); overflow:hidden; margin:.35rem 0 .25rem;
@@ -160,7 +148,7 @@
   .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
   .meter.over > .fill { background:#ef4444; }
 
-  /* Chart canvases inherit transparent bg */
+  /* charts */
   canvas { background:transparent !important; }
 </style>
 
@@ -188,20 +176,28 @@
     </div>
 
     <div class="summary-grid">
+      <!-- Current vs Last Month — now a floating table identical to Goals -->
       <div class="panel">
         <div class="panel-title">Current vs Last Month</div>
-        <table class="mini-table table-floating">
-          <thead class="thead-gradient">
-            <tr><th></th><th class="text-end">Current</th><th class="text-end">Last Full</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Income</td><td class="val mono text-end" id="incCM">$0</td><td class="val mono text-end" id="incLFM">$0</td></tr>
-            <tr><td>Expenses</td><td class="val mono text-end" id="expCM">$0</td><td class="val mono text-end" id="expLFM">$0</td></tr>
-            <tr><td>Net</td><td class="val mono text-end" id="netCM">$0</td><td class="val mono text-end" id="netLFM">$0</td></tr>
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="mini-table table table-sm table-floating thead-gradient">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Current</th>
+                <th>Last Full</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Income</td>   <td class="val mono" id="incCM">$0</td>  <td class="val mono" id="incLFM">$0</td></tr>
+              <tr><td>Expenses</td> <td class="val mono" id="expCM">$0</td>  <td class="val mono" id="expLFM">$0</td></tr>
+              <tr><td>Net</td>      <td class="val mono" id="netCM">$0</td>  <td class="val mono" id="netLFM">$0</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      <!-- Expense goal card -->
       <div class="panel">
         <div class="panel-title">Expense Goal</div>
         <div class="d-flex justify-content-between"><div class="muted">Goal</div><div class="mono" id="expGoalTotal">$0</div></div>
@@ -226,12 +222,11 @@
     </div>
   </div>
 
-  <!-- Table -->
+  <!-- Goals table -->
   <div class="stat-card">
     <div class="mb-2 fw-semibold">Goals</div>
     <div class="table-responsive">
       <table id="goalsTable" class="goals-table table-floating table table-sm align-middle">
-        <!-- Fixed column widths for perfect header/body/footer alignment -->
         <colgroup>
           <col style="width:22%">
           <col style="width:12%">
@@ -287,12 +282,13 @@
 (function(){
   'use strict';
 
-  /* ---------- Chart.js dark defaults (transparent, light text) ---------- */
-  const CHART_TEXT = '#e6edf6';
+  /* ---------- Chart color from CSS token so it matches page text ---------- */
+  const css = getComputedStyle(document.documentElement);
+  const CHART_TEXT = (css.getPropertyValue('--text') || '#e6edf6').trim();
   const CHART_GRID = 'rgba(255,255,255,0.15)';
   Chart.defaults.color = CHART_TEXT;
   Chart.defaults.borderColor = CHART_GRID;
-  if (Chart.defaults.plugins && Chart.defaults.plugins.legend && Chart.defaults.plugins.legend.labels) {
+  if (Chart.defaults.plugins?.legend?.labels) {
     Chart.defaults.plugins.legend.labels.color = CHART_TEXT;
   }
 
@@ -321,6 +317,7 @@
     return Object.fromEntries(map.entries());
   }
 
+  /* --- DOM refs --- */
   const tbody = document.querySelector('#goalsTable tbody');
   const monthsLabel = document.getElementById('monthsLabel');
   const lfmName = document.getElementById('lfmName');
@@ -389,12 +386,6 @@
     netGoalEl.textContent = fmt.format(incG - expG);
   }
 
-  let chartRefreshTimer = null;
-  function scheduleChartRefresh() {
-    clearTimeout(chartRefreshTimer);
-    chartRefreshTimer = setTimeout(() => { rebuildCharts(); }, 250);
-  }
-
   function updateExpenseGoalSummary(){
     const goalTotal = expenseGoalTotalFromTop();
     expGoalTotalEl.textContent = fmt.format(goalTotal);
@@ -433,21 +424,6 @@
       goalDeltaLabel.textContent = '—';
       goalDeltaLabel.classList.remove('ok','bad');
     }
-  }
-
-  function updateRowVarianceFor(cat){
-    const cm = (months?.length || 0) - 1;
-    if (cm < 0) return;
-    const s = topSeries[cat] || [];
-    const cmVal = toNum(s[cm]) || 0;
-    const g = goalAbs(cat);
-    const variance = cmVal - g; // CM − Goal
-    const cell = Array.from(document.querySelectorAll('.variance-cell')).find(td => (td.dataset.cat || '') === cat);
-    if (!cell) return;
-    cell.textContent = fmt.format(variance);
-    cell.classList.remove('ok','bad');
-    if (isIncome(cat)) { cell.classList.add(variance >= 0 ? 'ok' : 'bad'); }
-    else { cell.classList.add(variance >= 0 ? 'bad' : 'ok'); }
   }
 
   function rebuildCharts(){
@@ -509,10 +485,10 @@
       const lfm = lastFullIndex(months), pfm = prevFullIndex(months);
       const cm = months.length-1;
       lfmName.textContent = lfm>=0 ? monName(months[lfm]) : '—';
-      cmName.textContent = months[cm] ? monName(months[cm]) : '—';
-      cmCol.textContent  = months[cm] ? monName(months[cm]) : '—';
-      lfmCol.textContent = lfm>=0 ? monName(months[lfm]) : '—';
-      pfmCol.textContent = pfm>=0 ? monName(months[pfm]) : '—';
+      cmName.textContent  = months[cm] ? monName(months[cm]) : '—';
+      cmCol.textContent   = months[cm] ? monName(months[cm]) : '—';
+      lfmCol.textContent  = lfm>=0 ? monName(months[lfm]) : '—';
+      pfmCol.textContent  = pfm>=0 ? monName(months[pfm]) : '—';
 
       const cur = computeIncomeExpenses(cm);
       const lastf = computeIncomeExpenses(lfm>=0?lfm:cm);
@@ -556,9 +532,6 @@
                data-manage
                data-level="category"
                data-cat="${cat}"
-               data-sub=""
-               data-ssub=""
-               data-sss=""
                title="Manage ${cat}">
               ${cat}
             </a>
@@ -602,6 +575,7 @@
     rebuildCharts();
   }
 
+  /* inline editing of goals */
   document.querySelector('#goalsTable').addEventListener('input', (e)=>{
     const inp = e.target.closest('.goal-input'); if (!inp) return;
     const cat = inp.getAttribute('data-cat'); if (!cat) return;
@@ -612,8 +586,19 @@
 
     updateNetGoalFooter();
     updateExpenseGoalSummary();
-    updateRowVarianceFor(cat);
-    scheduleChartRefresh();
+    const cm = months.length - 1;
+    if (cm >= 0) {
+      const s = topSeries[cat] || [];
+      const variance = toNum(s[cm]) - val;
+      const cell = Array.from(document.querySelectorAll('.variance-cell')).find(td => (td.dataset.cat || '') === cat);
+      if (cell) {
+        cell.textContent = fmt.format(variance);
+        cell.classList.remove('ok','bad');
+        const isInc = isIncome(cat);
+        cell.classList.add(isInc ? (variance >= 0 ? 'ok' : 'bad') : (variance >= 0 ? 'bad' : 'ok'));
+      }
+    }
+    rebuildCharts();
   });
 
   function applySuggestions(overwriteAll){
@@ -654,6 +639,7 @@
   setStickyTopOffset();
   window.addEventListener('resize', setStickyTopOffset);
 
+  /* bootstrap data + render */
   (async function main(){
     let payload=null;
     try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}

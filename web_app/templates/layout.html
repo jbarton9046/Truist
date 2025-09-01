@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-11">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-12">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -206,7 +206,7 @@
       body[data-route="/goals"] .card,
       body[data-route="/goals"] .table,
       body[data-route="/goals"] .table > :not(caption) > * > *{
-        color: var(--accent-ink) !important;
+        color: var(--accent-ink) !important;  /* make EVERY bit of text match trend bars */
       }
       body[data-route="/goals"] .form-control::placeholder{
         color: var(--accent-ink) !important;
@@ -257,9 +257,7 @@
 
       /* DIV grid case (Bootstrap rows/cols) */
       body[data-route="/goals"] .bt-cvslm-match .card-body > .row{ margin-left:0; margin-right:0; }
-      body[data-route="/goals"] .bt-cvslm-match .card-body .row{
-        display: table-row;
-      }
+      body[data-route="/goals"] .bt-cvslm-match .card-body .row{ display: table-row; }
       body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class^="col"],
       body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class*=" col"],
       body[data-route="/goals"] .bt-cvslm-match .card-body .row > [class*="col-"]{
@@ -268,7 +266,7 @@
         text-align: left !important;
         vertical-align: middle;
         background: transparent !important;
-        background-image: none !important; /* kill blue fills */
+        background-image: none !important; /* kill any blue fills */
       }
       /* First data row acts like a THEAD */
       body[data-route="/goals"] .bt-cvslm-match .card-body .row:first-of-type > [class^="col"],
@@ -370,22 +368,18 @@
         function tagCvslmCard() {
           const targets = Array.from(document.querySelectorAll('.card'));
           targets.forEach(card => {
-            // find any heading-like element inside the card
             const h = card.querySelector('.card-header, .card-title, .summary-label, h1, h2, h3, h4, h5, h6, caption');
             if (!h) return;
             const txt = norm(h.textContent);
             if (!txt) return;
-            // accept several variants just in case
             const hit =
               txt.includes('currentvslastmonth') ||
               txt.includes('currentversuslastmonth') ||
               txt.includes('currentlastmonth');
             if (!hit) return;
 
-            // Tag the card for CSS
             card.classList.add('bt-cvslm-match');
 
-            // If there is a table but no thead, promote first row to thead
             const table = card.querySelector('table');
             if (table) {
               table.classList.add('table','table-hover','table-striped','table-floating');
@@ -402,17 +396,13 @@
                 table.insertBefore(thead, table.tBodies[0]);
                 firstRow.parentNode.removeChild(firstRow);
               }
-              // force left align in case inline styles exist
               table.querySelectorAll('th,td').forEach(c=>{ c.style.textAlign='left'; c.style.backgroundImage='none'; });
-            } else {
-              // DIV grid case: nothing else to do—CSS handles it via .bt-cvslm-match .row/.col
             }
           });
         }
 
         function init(){
           tagCvslmCard();
-          // run again shortly in case the page hydrates content after load
           setTimeout(tagCvslmCard, 200);
           setTimeout(tagCvslmCard, 600);
         }
@@ -425,12 +415,33 @@
       })();
     </script>
 
-    <!-- Chart.js axis/legend recolor sweep with MutationObserver (accent ink) -->
+    <!-- Chart.js axis/legend recolor + sensible defaults (accent ink) -->
     <script>
       (function () {
         function cssVar(name, fallback) {
           const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
           return v || fallback;
+        }
+
+        function setChartDefaults() {
+          if (!window.Chart || !Chart.defaults) return;
+          const accent = cssVar('--accent-ink', '#9ecbff');
+          const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
+          const gridC  = 'rgba(255,255,255,.14)';
+          Chart.defaults.color = accent;                 // tick/label color
+          Chart.defaults.borderColor = gridC;
+          Chart.defaults.font = Chart.defaults.font || {};
+          Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
+          Chart.defaults.plugins = Chart.defaults.plugins || {};
+          Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
+          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: accent });
+          Chart.defaults.plugins.tooltip = Object.assign({}, Chart.defaults.plugins.tooltip, {
+            backgroundColor: 'rgba(15,23,42,.92)',
+            borderColor: hair,
+            borderWidth: 1,
+            titleColor: accent,
+            bodyColor: accent
+          });
         }
 
         function recolorChart(chart) {
@@ -498,6 +509,8 @@
         }
 
         function startSweeper() {
+          setChartDefaults();
+
           let rafCount = 0;
           function rafSweep() {
             if (sweepAll() || rafCount > 30) return;
