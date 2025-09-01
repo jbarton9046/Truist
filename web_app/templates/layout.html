@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-2">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-3">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -348,6 +348,8 @@
           let list = [];
           if (typeof Chart.instances.forEach === 'function') {
             list = Array.from(Chart.instances.values()); // v4 Map
+          } else if (Array.isArray(Chart.instances)) {
+            list = Chart.instances;                      // v2 array
           } else {
             list = Object.values(Chart.instances);       // v3 object
           }
@@ -367,6 +369,66 @@
         }, 150);
 
         window.addEventListener('bt:charts-init', init);
+      })();
+    </script>
+
+    <!-- Axis tick color fix: make X/Y numbers match Trend-blue on all charts (v2 & v3+) -->
+    <script>
+      (function () {
+        function cssVar(name, fallback) {
+          const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+          return v || fallback;
+        }
+        function colorAxes(chart, accent, hair, gridC) {
+          if (!chart) return;
+          const opts = chart.options || (chart.config && chart.config.options) || {};
+
+          // Chart.js v2 (xAxes/yAxes arrays)
+          if (opts.scales && (opts.scales.xAxes || opts.scales.yAxes)) {
+            (opts.scales.xAxes || []).forEach(ax => {
+              ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
+              ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
+            });
+            (opts.scales.yAxes || []).forEach(ax => {
+              ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
+              ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
+            });
+          }
+
+          // Chart.js v3+ (named scales)
+          if (opts.scales && !(opts.scales.xAxes || opts.scales.yAxes)) {
+            Object.keys(opts.scales).forEach(k => {
+              const s = opts.scales[k] || {};
+              s.ticks = Object.assign({}, s.ticks, { color: accent });
+              s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair, drawBorder: true });
+              opts.scales[k] = s;
+            });
+          }
+
+          chart.update('none');
+        }
+        function sweepAll() {
+          if (!window.Chart || !Chart.instances) return;
+          const accent = cssVar('--accent-ink', '#9ecbff');
+          const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
+          const gridC  = 'rgba(255,255,255,.14)';
+          let list = [];
+          if (typeof Chart.instances.forEach === 'function') {
+            list = Array.from(Chart.instances.values());
+          } else if (Array.isArray(Chart.instances)) {
+            list = Chart.instances;
+          } else {
+            list = Object.values(Chart.instances);
+          }
+          list.forEach(c => { try { colorAxes(c, accent, hair, gridC); } catch(e){} });
+        }
+        if (window.Chart) sweepAll();
+        let tries = 0;
+        const t = setInterval(function(){
+          if (window.Chart) { sweepAll(); clearInterval(t); }
+          if (++tries > 40) clearInterval(t);
+        }, 150);
+        window.addEventListener('bt:charts-init', sweepAll);
       })();
     </script>
 
