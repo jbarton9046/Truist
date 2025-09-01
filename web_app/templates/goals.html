@@ -2,107 +2,102 @@
 {% block content %}
 
 <style>
-  /* ===========================
-     SKYLINE LIGHT THEME VARS
-     (same palette used on index)
-     =========================== */
+  /* =========================
+     DARK “FLOATING” PAGE THEME
+     ========================= */
   :root{
-    /* Neutrals & Surfaces */
-    --bg: #f7f9fc;
-    --surface: #ffffff;
-    --surface-2: #f1f5f9;
-    --hairline: #e5eaf1;
-    --card-border: #dee5ee;
+    --page-bg-1:#0b1220;  /* deep navy */
+    --page-bg-2:#0f172a;  /* slate */
+    --glow-1:#243b55;
+    --glow-2:#1b3a6b;
 
-    /* Text */
-    --text: #0f172a;          /* slate-900 */
-    --muted: #64748b;         /* slate-500 */
+    --text:#e6edf6;
+    --muted:#9fb3c8;
 
-    /* Brand */
-    --primary: #143a6e;       /* deep navy */
-    --primary-600: #1d4d97;   /* mid navy */
+    --card-bg:rgba(255,255,255,.045);
+    --card-border:rgba(255,255,255,.10);
+    --hair:rgba(255,255,255,.08);
 
-    /* Accents / States */
-    --success: #16a34a;
-    --danger:  #dc2626;
+    --good:#34d399;
+    --bad:#f87171;
 
-    /* Table & Section headers */
-    --header-bg: #eef3fb;
-    --header-fg: #1f2937;
-    --header-muted: #4b5563;
-    --header-border: #d8e2f0;
+    /* table header tint for “floating” look */
+    --thead-bg:rgba(255,255,255,.06);
   }
 
   :root { --sticky-top: 0px; } /* offset for fixed navbars, set via JS below */
 
-  html, body { background: var(--bg); color: var(--text); }
-  .muted { color: var(--muted); }
-  .mono { font-variant-numeric: tabular-nums; }
+  /* Page background + base text */
+  html, body{
+    background:
+      radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
+      radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
+      linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%);
+    color:var(--text);
+  }
+  .muted { color: var(--muted) !important; }
+  .mono  { font-variant-numeric: tabular-nums; }
 
   .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
   .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
 
-  /* Cards */
-  .stat-card {
-    border:1px solid var(--card-border);
-    border-radius:.75rem;
+  /* Cards (glass, floating) */
+  .stat-card, .panel{
+    background:var(--card-bg) !important;
+    border:1px solid var(--card-border) !important;
+    border-radius:16px !important;
     padding:.9rem;
-    position: relative;
-    overflow: visible;
-    background: var(--surface);
-    box-shadow: 0 1px 2px rgba(16,24,40,.06);
+    box-shadow:
+      0 12px 28px rgba(0,0,0,.35),
+      inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:saturate(120%) blur(4px);
+    color:var(--text);
   }
-
-  /* KPI panels inside summary */
-  .panel {
-    border:1px solid var(--card-border);
-    border-radius:.65rem;
-    padding:.75rem;
-    background:#fff;
-  }
+  .panel { padding:.75rem; }
   .panel-title { font-weight:600; margin-bottom:.5rem; }
 
   .small-note { font-size:.9rem; color:var(--muted); }
-  .pill { padding:.15rem .5rem; border:1px solid var(--hairline); border-radius:999px; font-size:.85rem; background: var(--surface-2); }
+  .pill { padding:.15rem .5rem; border:1px solid var(--hair); border-radius:999px; font-size:.85rem; background: rgba(255,255,255,.06); color:var(--text); }
 
   /* Manage link keeps theme colors */
   .name-link { text-decoration: none; color: inherit; cursor: pointer; }
   .name-link:hover { text-decoration: underline; }
 
-  /* ======= UNIFIED TABLE STYLE (matches index) ======= */
-  .table-modern { width:100%; border-collapse: separate; border-spacing:0; }
+  /* ======= FLOATING TABLE STYLE ======= */
+  /* Wrap tables in .table-responsive for rounded container */
+  .table-responsive{
+    border:1px solid var(--card-border);
+    border-radius:14px;
+    overflow:hidden;
+    background:var(--card-bg);
+    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+  }
 
-  .table-modern thead,
-  .table-modern thead tr,
-  .table-modern thead th,
-  .table-modern thead td{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-    border-bottom: 1px solid var(--header-border) !important;
+  /* Add class="table-floating" to the table element */
+  .table-floating{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    color:var(--text);
+    background:transparent;
   }
-  .table-modern thead th a,
-  .table-modern thead th span,
-  .table-modern thead th small{
-    color: var(--header-fg) !important;
+  .table-floating thead th{
+    background:var(--thead-bg);
+    color:var(--text);
+    border-bottom:1px solid var(--hair);
+    position:sticky; top:var(--sticky-top); z-index:2;
+    font-weight:700; letter-spacing:.2px;
   }
-  .table-modern thead th{
-    font-weight:700;
-    position: sticky;
-    top: var(--sticky-top);
-    z-index: 20;
-    letter-spacing:.2px;
+  .table-floating tbody td{
+    border-top:1px solid var(--hair);
+    vertical-align:middle;
   }
-  .table-modern tbody td{
-    border-top: 1px solid var(--hairline);
-    vertical-align: middle;
-  }
-  .table-modern tbody tr:nth-child(odd){ background: #fbfdff; }
-  .table-modern tbody tr:hover { background: var(--surface-2); }
+  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* ======= Goals table specifics (kept your layout) ======= */
+  /* ======= Goals table specifics (kept layout) ======= */
   .goals-table { table-layout: fixed; }
-  .goals-table th, .goals-table td { padding:.55rem .6rem; }
-  .goals-table th { text-align:left; font-weight:600; }
+  .goals-table th, .goals-table td { padding:.55rem .6rem; text-align:left; }
   .goals-table td.mono, .goals-table tfoot th.mono { text-align: left; }
 
   /* Inputs compact/aligned */
@@ -110,21 +105,28 @@
   .goals-table .goal-input { width:auto !important; min-width:0; }
 
   /* Variance coloring */
-  .ok { color: var(--success); font-weight:600; }
-  .bad { color: var(--danger); font-weight:600; }
+  .ok  { color: var(--good); font-weight:600; }
+  .bad { color: var(--bad);  font-weight:600; }
 
   /* Tiny spark bars */
   .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
-  .spark > i { display:block; width:6px; background:#cfe2ff; border-radius:2px 2px 0 0; }
+  .spark > i { display:block; width:6px; background:rgba(173,216,255,.7); border-radius:2px 2px 0 0; }
 
   /* Summary grid */
   .summary-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
   @media (max-width: 992px){ .summary-grid { grid-template-columns: 1fr; } }
 
   /* Goal progress meter */
-  .meter { width: 100%; height: 12px; border-radius: 999px; background: #f1f3f5; overflow: hidden; margin: .35rem 0 .25rem; border: 1px solid var(--hairline); }
-  .meter > .fill { height: 100%; width: 0%; background: #16a34a; transition: width .25s ease; }
-  .meter.over > .fill { background: #e57373; }
+  .meter{
+    width:100%; height:12px; border-radius:999px;
+    background:rgba(255,255,255,.06); overflow:hidden; margin:.35rem 0 .25rem;
+    border:1px solid var(--hair);
+  }
+  .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
+  .meter.over > .fill { background:#ef4444; }
+
+  /* Chart canvases inherit transparent bg */
+  canvas { background:transparent !important; }
 </style>
 
 <div class="container mt-4">
@@ -136,8 +138,8 @@
         <option value="6">Suggest from 6-mo avg</option>
         <option value="12">Suggest from 12-mo avg</option>
       </select>
-      <button id="applySuggestionsEmpty" class="btn btn-sm btn-outline-primary">Fill empty goals</button>
-      <button id="applySuggestionsAll" class="btn btn-sm btn-outline-secondary">Overwrite all</button>
+      <button id="applySuggestionsEmpty" class="btn btn-sm btn-outline-light">Fill empty goals</button>
+      <button id="applySuggestionsAll" class="btn btn-sm btn-outline-light">Overwrite all</button>
       <button id="saveBtn" class="btn btn-sm btn-primary">Save</button>
     </div>
   </div>
@@ -153,14 +155,14 @@
     <div class="summary-grid">
       <div class="panel">
         <div class="panel-title">Current vs Last Month</div>
-        <table class="mini-table">
+        <table class="mini-table table-floating">
           <thead>
             <tr><th></th><th class="text-end">Current</th><th class="text-end">Last Full</th></tr>
           </thead>
           <tbody>
-            <tr><td>Income</td><td class="val mono" id="incCM">$0</td><td class="val mono" id="incLFM">$0</td></tr>
-            <tr><td>Expenses</td><td class="val mono" id="expCM">$0</td><td class="val mono" id="expLFM">$0</td></tr>
-            <tr><td>Net</td><td class="val mono" id="netCM">$0</td><td class="val mono" id="netLFM">$0</td></tr>
+            <tr><td>Income</td><td class="val mono text-end" id="incCM">$0</td><td class="val mono text-end" id="incLFM">$0</td></tr>
+            <tr><td>Expenses</td><td class="val mono text-end" id="expCM">$0</td><td class="val mono text-end" id="expLFM">$0</td></tr>
+            <tr><td>Net</td><td class="val mono text-end" id="netCM">$0</td><td class="val mono text-end" id="netLFM">$0</td></tr>
           </tbody>
         </table>
       </div>
@@ -192,48 +194,50 @@
   <!-- Table -->
   <div class="stat-card">
     <div class="mb-2 fw-semibold">Goals</div>
-    <table id="goalsTable" class="goals-table table-modern table table-sm align-middle">
-      <!-- Fixed column widths for perfect header/body/footer alignment -->
-      <colgroup>
-        <col style="width:22%">
-        <col style="width:12%">
-        <col style="width:9%">
-        <col style="width:9%">
-        <col style="width:9%">
-        <col style="width:9%">
-        <col style="width:9%">
-        <col style="width:11%">
-        <col style="width:10%">
-      </colgroup>
+    <div class="table-responsive">
+      <table id="goalsTable" class="goals-table table-floating table table-sm align-middle">
+        <!-- Fixed column widths for perfect header/body/footer alignment -->
+        <colgroup>
+          <col style="width:22%">
+          <col style="width:12%">
+          <col style="width:9%">
+          <col style="width:9%">
+          <col style="width:9%">
+          <col style="width:9%">
+          <col style="width:9%">
+          <col style="width:11%">
+          <col style="width:10%">
+        </colgroup>
 
-      <thead>
-        <tr>
-          <th>Categories</th>
-          <th>Goal</th>
-          <th><span id="cmCol">—</span></th>
-          <th><span id="lfmCol">—</span></th>
-          <th><span id="pfmCol">—</span></th>
-          <th>3-mo avg</th>
-          <th>6-mo avg</th>
-          <th>Goal Var</th>
-          <th>Trend</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-      <tfoot>
-        <tr>
-          <th>NET (Income − Expenses)</th>
-          <th class="mono" id="netGoal">—</th>
-          <th class="mono" id="netCMCell">—</th>
-          <th class="mono" id="netLFMCell">—</th>
-          <th class="mono" id="netPFMCell">—</th>
-          <th class="mono" id="netAvg3Cell">—</th>
-          <th class="mono" id="netAvg6Cell">—</th>
-          <th></th>
-          <th></th>
-        </tr>
-      </tfoot>
-    </table>
+        <thead>
+          <tr>
+            <th>Categories</th>
+            <th>Goal</th>
+            <th><span id="cmCol">—</span></th>
+            <th><span id="lfmCol">—</span></th>
+            <th><span id="pfmCol">—</span></th>
+            <th>3-mo avg</th>
+            <th>6-mo avg</th>
+            <th>Goal Var</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <th>NET (Income − Expenses)</th>
+            <th class="mono" id="netGoal">—</th>
+            <th class="mono" id="netCMCell">—</th>
+            <th class="mono" id="netLFMCell">—</th>
+            <th class="mono" id="netPFMCell">—</th>
+            <th class="mono" id="netAvg3Cell">—</th>
+            <th class="mono" id="netAvg6Cell">—</th>
+            <th></th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
     <div class="small-note mt-2">Tip: “Suggest” uses the selected window’s average (rounded). You can tweak any value before saving.</div>
   </div>
 </div>
@@ -247,6 +251,15 @@
 <script>
 (function(){
   'use strict';
+
+  /* ---------- Chart.js dark defaults (transparent, light text) ---------- */
+  const CHART_TEXT = '#e6edf6';
+  const CHART_GRID = 'rgba(255,255,255,0.15)';
+  Chart.defaults.color = CHART_TEXT;
+  Chart.defaults.borderColor = CHART_GRID;
+  if (Chart.defaults.plugins && Chart.defaults.plugins.legend && Chart.defaults.plugins.legend.labels) {
+    Chart.defaults.plugins.legend.labels.color = CHART_TEXT;
+  }
 
   const fmt = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:0 });
   const toNum = (v)=> (typeof v === 'number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,'')) || 0);
@@ -419,6 +432,15 @@
     const actualLFM = labels.map(k => (lfm >= 0 ? valAt(k, lfm) : 0));
     const goals     = labels.map(k => goalAbs(k));
 
+    const commonOpts = {
+      responsive:true,
+      plugins:{ legend:{ position:'top', labels:{ color: CHART_TEXT } } },
+      scales:{
+        x:{ ticks:{ color:CHART_TEXT }, grid:{ color:CHART_GRID } },
+        y:{ beginAtZero:true, ticks:{ color:CHART_TEXT }, grid:{ color:CHART_GRID } }
+      }
+    };
+
     if (barChart) barChart.destroy();
     barChart = new Chart(document.getElementById('barGoals'), {
       type:'bar',
@@ -427,7 +449,7 @@
         {label:'Actual (LFM)', data: actualLFM},
         {label:'Goal',         data: goals}
       ]},
-      options:{ responsive:true, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true } } }
+      options: commonOpts
     });
 
     const inc = months.map((_,i)=> toNum((topSeries['Income']||[])[i] || 0));
@@ -442,7 +464,7 @@
         {label:'Expenses', data: exp},
         {label:'Net', data: net}
       ]},
-      options:{ responsive:true, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true } } }
+      options: commonOpts
     });
   }
 
