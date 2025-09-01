@@ -33,7 +33,7 @@
       .tx-neg { color:#c0392b; font-weight:600; }
       .tx-pos { color:#1e7e34; font-weight:600; }
 
-      /* Sticky table headers (no navbar offset; fixes overlap on first row) */
+      /* Sticky table headers (no navbar offset) */
       .table thead th {
         position: sticky;
         top: 0;
@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-08-31-6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-1">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -62,11 +62,11 @@
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
-        /* Header strip (neutral/tinted) */
+        /* Unified header strip (tables + card headers) */
         --thead-bg:rgba(255,255,255,.06);
         --thead-fg:#eaf2ff;
 
-        /* Fallback for sticky header base */
+        /* Fallbacks for sticky header base */
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
@@ -105,6 +105,16 @@
         border-radius: 16px;
         backdrop-filter: saturate(120%) blur(4px);
       }
+
+      /* NEW: Card headers now match table headers (no bright gradient) */
+      .card .card-header{
+        background: var(--thead-bg) !important;
+        color: var(--accent-ink) !important;
+        border-bottom: 1px solid var(--hair) !important;
+        font-weight: 700;
+        letter-spacing: .2px;
+      }
+      .card .card-header *{ color: var(--accent-ink) !important; }
 
       /* Inputs */
       .form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
@@ -169,15 +179,15 @@
         background:rgba(255,255,255,.015);
       }
       .table-floating > :not(caption) > tbody > tr:hover,
-      .table-floating .table > :not(ccaption) > tbody > tr:hover{
+      .table-floating .table > :not(caption) > tbody > tr:hover{
         background:rgba(255,255,255,.05);
       }
 
-      /* Default table header look (subtle/tinted; NOT bright gradient) */
+      /* Table headers: subtle glass + accent text (matches card headers) */
       .table thead th,
       .table thead td{
         background: var(--thead-bg) !important;
-        color: var(--thead-fg) !important;
+        color: var(--accent-ink) !important;
         border-bottom:1px solid var(--hair) !important;
       }
       .table thead th:first-child { border-top-left-radius: 12px; }
@@ -199,35 +209,7 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
-    <!-- 🎯 Goals page ink: make all standard text use the Trend-bar blue -->
-    <style id="bt-goals-ink">
-      body[data-route="/goals"] .table,
-      body[data-route="/goals"] .table > :not(caption) > * > *,
-      body[data-route="/goals"] .card,
-      body[data-route="/goals"] .card *:not(.tx-neg):not(.tx-pos),
-      body[data-route="/goals"] .muted {
-        color: var(--accent-ink) !important;
-      }
-      /* keep red/green status colors intact */
-      body[data-route="/goals"] .tx-neg { color: #ff6b6b !important; }
-      body[data-route="/goals"] .tx-pos { color: #2dd4bf !important; }
-      /* headers on goals: use accent text as well */
-      body[data-route="/goals"] .table thead th,
-      body[data-route="/goals"] .table thead td{
-        color: var(--accent-ink) !important;
-      }
-      /* inputs inside goals table */
-      body[data-route="/goals"] .table .form-control,
-      body[data-route="/goals"] .table .input-group-text { color: var(--accent-ink) !important; }
-    </style>
-
     <script> document.documentElement.classList.add('theme-dark'); </script>
-    <!-- mark route for scoped CSS -->
-    <script>
-      (function(){ document.addEventListener('DOMContentLoaded', function(){
-        document.body.setAttribute('data-route', location.pathname || '');
-      });})();
-    </script>
   </head>
 
   <body class="theme-neo theme-dark">
@@ -294,39 +276,36 @@
       })();
     </script>
 
-    <!-- Chart.js dark defaults -->
+    <!-- Chart.js defaults: transparent bg, dark grids, ACCENT ticks/legend (global) -->
     <script>
       (function(){
         function setChartDefaults(){
           if (!window.Chart || !Chart.defaults) return;
           const cs   = getComputedStyle(document.documentElement);
-          const text = cs.getPropertyValue('--text').trim()   || '#e6edf6';
-          const mutd = cs.getPropertyValue('--muted').trim()  || '#9fb3c8';
-          const hair = cs.getPropertyValue('--hair').trim()   || 'rgba(255,255,255,.12)';
+          const accent = cs.getPropertyValue('--accent-ink').trim() || '#9ecbff';
+          const hair   = cs.getPropertyValue('--hair').trim()       || 'rgba(255,255,255,.12)';
+          const gridC  = 'rgba(255,255,255,.14)';
 
-          Chart.defaults.color = mutd;
+          Chart.defaults.color = accent;
           Chart.defaults.backgroundColor = 'transparent';
           Chart.defaults.borderColor = 'rgba(255,255,255,.15)';
           Chart.defaults.font.family = getComputedStyle(document.body).fontFamily || 'system-ui';
 
-          const grids = 'rgba(255,255,255,.14)';
-          Chart.defaults.scales.category = Chart.defaults.scales.category || {};
-          Chart.defaults.scales.linear   = Chart.defaults.scales.linear   || {};
-          Chart.defaults.scales.time     = Chart.defaults.scales.time     || {};
-          ['category','linear','time'].forEach(k=>{
-            Chart.defaults.scales[k].grid  = Object.assign({}, Chart.defaults.scales[k].grid,  { color: grids, borderColor: hair, drawBorder: true });
-            Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: mutd });
+          ['category','linear','time','logarithmic'].forEach(k=>{
+            Chart.defaults.scales[k] = Chart.defaults.scales[k] || {};
+            Chart.defaults.scales[k].grid  = Object.assign({}, Chart.defaults.scales[k].grid,  { color: gridC, borderColor: hair, drawBorder: true });
+            Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: accent });
           });
 
           Chart.defaults.plugins = Chart.defaults.plugins || {};
           Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
-          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: mutd });
+          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: accent });
           Chart.defaults.plugins.tooltip = Object.assign({}, Chart.defaults.plugins.tooltip, {
             backgroundColor: 'rgba(15,23,42,.92)',
             borderColor: hair,
             borderWidth: 1,
-            titleColor: text,
-            bodyColor: text
+            titleColor: accent,
+            bodyColor: accent
           });
         }
 
@@ -338,61 +317,6 @@
         }, 250);
 
         window.addEventListener('bt:charts-init', setChartDefaults);
-      })();
-    </script>
-
-    <!-- Apply accent ink to charts on Goals page (ticks/legend) -->
-    <script>
-      (function(){
-        function applyGoalsAccent(){
-          if (!window.Chart) return;
-          if (document.body.getAttribute('data-route') !== '/goals') return;
-
-          const cs = getComputedStyle(document.documentElement);
-          const accent = cs.getPropertyValue('--accent-ink').trim() || '#9ecbff';
-          const hair   = cs.getPropertyValue('--hair').trim() || 'rgba(255,255,255,.12)';
-          const gridC  = 'rgba(255,255,255,.14)';
-
-          // Defaults for any charts created after this runs
-          Chart.defaults.color = accent;
-          ['category','linear','time','logarithmic'].forEach(k=>{
-            Chart.defaults.scales[k] = Chart.defaults.scales[k] || {};
-            Chart.defaults.scales[k].ticks = Object.assign({}, Chart.defaults.scales[k].ticks, { color: accent });
-            Chart.defaults.scales[k].grid  = Object.assign({}, Chart.defaults.scales[k].grid,  { color: gridC, borderColor: hair });
-          });
-          Chart.defaults.plugins = Chart.defaults.plugins || {};
-          Chart.defaults.plugins.legend = Chart.defaults.plugins.legend || {};
-          Chart.defaults.plugins.legend.labels = Object.assign({}, Chart.defaults.plugins.legend.labels, { color: accent });
-
-          // Update existing charts if any already mounted
-          let instances = [];
-          if (Chart.instances) {
-            if (typeof Chart.instances.forEach === 'function') {
-              // v4: Map
-              instances = Array.from(Chart.instances.values());
-            } else {
-              // v3: plain object
-              instances = Object.values(Chart.instances);
-            }
-          }
-          instances.forEach(c=>{
-            try{
-              const opts = c.options || (c.config && c.config.options) || {};
-              const scales = opts.scales || {};
-              Object.values(scales).forEach(s=>{
-                s.ticks = Object.assign({}, s.ticks, { color: accent });
-                s.grid  = Object.assign({}, s.grid,  { color: gridC, borderColor: hair });
-              });
-              opts.plugins = opts.plugins || {};
-              if (opts.plugins.legend) {
-                opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
-              }
-              c.update('none');
-            }catch(e){}
-          });
-        }
-        window.addEventListener('load', applyGoalsAccent);
-        window.addEventListener('bt:charts-init', applyGoalsAccent);
       })();
     </script>
 
