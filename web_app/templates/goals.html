@@ -1,665 +1,662 @@
 {% extends "layout.html" %}
+{% block title %}Charts & Insights{% endblock %}
 {% block content %}
-
 <style>
-  /* ---------- Theme tokens (page-local) ---------- */
-  :root{
-    --page-bg-1:#0b1220;
-    --page-bg-2:#0f172a;
-    --glow-1:#243b55;
-    --glow-2:#1b3a6b;
+  .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
+  .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+  .stat-card{position:relative;overflow:visible}
+  .stat-card .chart,.stat-card .plot-container,.stat-card .js-plotly-plot{overflow:visible}
+  .muted{color:var(--muted)!important}
+  .mono{font-variant-numeric:tabular-nums}
 
-    --text:#e6edf6;      /* page text color (also used for chart axes) */
-    --muted:#9fb3c8;
+  .grid{display:grid;gap:1rem;grid-template-columns:1fr}
+  @media (min-width:1200px){.grid{grid-template-columns:1fr 1fr}}
+  .chart{width:100%;height:420px}
+  .chart.tall{height:520px}
 
-    --card-bg:rgba(255,255,255,.045);
-    --card-border:rgba(255,255,255,.10);
-    --hair:rgba(255,255,255,.08);
+  .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
+  .tabs{display:flex;gap:.4rem;flex-wrap:wrap}
+  .tab{padding:.3rem .6rem;border:1px solid var(--card-border);border-radius:.5rem;background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
+  .tab.active{background:var(--card-bg);box-shadow:0 1px 0 rgba(16,24,40,.06)}
 
-    --good:#34d399;
-    --bad:#f87171;
-
-    /* table header strip */
-    --thead-bg:rgba(255,255,255,.06);
-    --grad-a:#60a5fa;
-    --grad-b:#7c3aed;
-
-    --sticky-top: 0px; /* updated by JS for fixed navbars */
+  /* Charts page uses the same accent rules as Goals, but scoped to /charts only */
+  body[data-route="/charts"]{
+    --text:var(--accent-ink)!important;
+    --muted:var(--accent-ink)!important;
+    --thead-fg:var(--accent-ink)!important;
+    --table-head-fg:var(--accent-ink)!important;
   }
+  body[data-route="/charts"] .table th,
+  body[data-route="/charts"] .table td{ text-align:left!important }
+  body[data-route="/charts"] .table .text-end,
+  body[data-route="/charts"] .table .text-center,
+  body[data-route="/charts"] .table [style*="text-align:right"],
+  body[data-route="/charts"] .table [style*="text-align: right"],
+  body[data-route="/charts"] .table [style*="text-align:center"],
+  body[data-route="/charts"] .table [style*="text-align: center"]{ text-align:left!important }
 
-  /* ---------- Page background ---------- */
-  html, body{
-    background:
-      radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
-      radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
-      linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%);
-    color:var(--text);
-  }
-  .muted { color: var(--muted) !important; }
-  .mono  { font-variant-numeric: tabular-nums; }
-
-  .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
-  .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
-
-  /* ---------- Floating cards ---------- */
-  .stat-card, .panel{
-    background:var(--card-bg) !important;
-    border:1px solid var(--card-border) !important;
-    border-radius:16px !important;
-    padding:.9rem;
-    box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-    backdrop-filter:saturate(120%) blur(4px);
-    color:var(--text);
-  }
-  .panel { padding:.75rem; }
-  .panel-title { font-weight:600; margin-bottom:.5rem; }
-
-  .small-note { font-size:.9rem; color:var(--muted); }
-  .pill { padding:.15rem .5rem; border:1px solid var(--hair); border-radius:999px; font-size:.85rem; background: rgba(255,255,255,.06); color:var(--text); }
-
-  .name-link { text-decoration:none; color:inherit; cursor:pointer; }
-  .name-link:hover { text-decoration:underline; }
-
-  /* ---------- Floating table container ---------- */
-  .table-responsive{
-    border:1px solid var(--card-border);
-    border-radius:14px;
-    overflow:hidden;
-    background:var(--card-bg);
-    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-
-  /* ---------- Floating table ---------- */
-  .table-floating{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    color:var(--text);
-    background:transparent;
-  }
+  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
   .table-floating thead th{
-    background:var(--thead-bg);
-    color:var(--text);
-    border-bottom:1px solid var(--hair);
-    position:sticky; top:var(--sticky-top); z-index:2;
-    font-weight:700; letter-spacing:.2px;
+    background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
+    border-bottom:1px solid var(--hair)!important;font-weight:700;letter-spacing:.2px
   }
-  .table-floating tbody td{
-    border-top:1px solid var(--hair);
-    vertical-align:middle;
-  }
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+  .table-floating tbody td{border-top:1px solid var(--hair)}
+  .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
+  .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
 
-  /* gradient header option (the Goals table in your screenshots uses this) */
-  .thead-gradient th{
-    background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
-    color:#f8fbff !important;
-    text-shadow:0 1px 0 rgba(0,0,0,.35);
-    border-color: transparent !important;
-  }
-  .thead-gradient th:first-child{ border-top-left-radius:12px; }
-  .thead-gradient th:last-child { border-top-right-radius:12px; }
-
-  /* ---------- ALL tables on this page: force LEFT alignment ---------- */
-  .table-floating th,
-  .table-floating td { text-align:left !important; }
-
-  /* Goals table specifics */
-  .goals-table { table-layout: fixed; }
-  .goals-table th, .goals-table td { padding:.55rem .6rem; }
-
-  /* Input styling inside the goals table */
-  .input-dark .input-group-text{
-    background:rgba(255,255,255,.10);
-    border-color:var(--hair);
-    color:#cfe5ff;
-  }
-  .input-dark .form-control{
-    background:rgba(0,0,0,.25);
-    border-color:var(--hair);
-    color:var(--text);
-    text-align:left !important;
-  }
-  .input-dark .form-control:focus{
-    background:rgba(0,0,0,.35);
-    box-shadow:0 0 0 .2rem rgba(124,58,237,.25);
-    color:var(--text);
-  }
-
-  /* variance coloring */
-  .ok  { color: var(--good); font-weight:600; }
-  .bad { color: var(--bad);  font-weight:600; }
-
-  /* spark bars */
-  .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
-  .spark > i { display:block; width:6px; background:rgba(173,216,255,.7); border-radius:2px 2px 0 0; }
-
-  /* summary grid (top two cards) */
-  .summary-grid { display:grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
-  @media (max-width: 992px){ .summary-grid { grid-template-columns: 1fr; } }
-
-  /* goal meter */
-  .meter{
-    width:100%; height:12px; border-radius:999px;
-    background:rgba(255,255,255,.06); overflow:hidden; margin:.35rem 0 .25rem;
-    border:1px solid var(--hair);
-  }
-  .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
-  .meter.over > .fill { background:#ef4444; }
-
-  /* charts */
-  canvas { background:transparent !important; }
+  .kpi-grid{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
+  @media (min-width:992px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+  .kval{font-size:1.25rem;font-weight:600}
 </style>
 
 <div class="container mt-4">
   <div class="page-header">
-    <h3 class="m-0">Monthly Goals</h3>
-    <div class="actions">
-      <select id="suggestWindow" class="form-select form-select-sm">
-        <option value="3" selected>Suggest from 3-mo avg</option>
-        <option value="6">Suggest from 6-mo avg</option>
-        <option value="12">Suggest from 12-mo avg</option>
-      </select>
-      <button id="applySuggestionsEmpty" class="btn btn-sm btn-outline-light">Fill empty goals</button>
-      <button id="applySuggestionsAll" class="btn btn-sm btn-outline-light">Overwrite all</button>
-      <button id="saveBtn" class="btn btn-sm btn-primary">Save</button>
+    <h3 class="m-0">Charts &amp; Insights</h3>
+    <div class="controls">
+      <div class="tabs" id="viewTabs">
+        <div class="tab active" data-view="overview">Overview</div>
+        <div class="tab" data-view="expenses">Expenses</div>
+        <div class="tab" data-view="income">Income</div>
+      </div>
+
+      <label class="form-check-label d-flex align-items-center gap-2 ms-2">
+        <input id="normalize" class="form-check-input" type="checkbox">
+        Stack as %
+      </label>
+
+      <div class="d-flex align-items-center gap-2">
+        <label class="form-label m-0 small">Number of Categories</label>
+        <input id="topN" type="range" class="form-range" min="5" max="25" step="1" value="10">
+        <span id="topNLabel" class="mono small">10</span>
+      </div>
+
+      <div class="d-flex align-items-center gap-2">
+        <label class="form-label m-0 small">Focus month</label>
+        <select id="focusMonth" class="form-select form-select-sm"></select>
+      </div>
+
+      <span class="chip">Window: <span id="monthsWindow" class="mono">—</span></span>
     </div>
   </div>
 
-  <!-- Summary -->
-  <div class="stat-card mb-2">
-    <div class="d-flex align-items-center gap-2 mb-2">
-      <span class="pill">Window</span>
-      <span class="muted small">Data: <span id="monthsLabel">—</span></span>
-      <span class="muted small ms-auto">Last full month: <span id="lfmName">—</span> · Current month: <span id="cmName">—</span></span>
+  <!-- OVERVIEW -->
+  <div id="pane-overview">
+    <div class="grid">
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Income vs Expenses</div>
+        <div id="ov_line" class="chart tall"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Net</div>
+        <div id="ov_net" class="chart tall"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Savings Rate</div>
+        <div id="ov_srate" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Cumulative Net</div>
+        <div id="ov_cum" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Net Rolling Avg</div>
+        <div id="ov_roll" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Seasonality — Avg by Month-of-Year</div>
+        <div id="ov_season" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div id="pane-expenses" style="display:none;">
+    <div class="grid">
+      <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Top Expenses — Stacked Area</div>
+          <div class="muted small">Hover to see breakdown</div>
+        </div>
+        <div id="ex_area" class="chart tall"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Expenses Treemap — <span id="ex_tm_month" class="mono">—</span></div>
+          <div class="muted small">Click to drill within chart</div>
+        </div>
+        <div id="ex_treemap" class="chart tall"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Expense Heatmap (Top N)</div>
+        <div id="ex_heatmap" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Pareto — Cumulative Share of Spend</div>
+        <div id="ex_pareto" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Expense Volatility vs Average</div>
+        <div id="ex_scatter" class="chart"></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="mb-2 fw-semibold">Current Month Split — Donut</div>
+        <div id="ex_donut" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOME -->
+  <div id="pane-income" style="display:none;">
+    <div class="kpi-grid mb-3">
+      <div class="stat-card"><div class="muted small">Income (last 30 days)</div><div id="inc_kpi_30d" class="kval mono">—</div></div>
+      <div class="stat-card"><div class="muted small">Avg monthly (last 3m)</div><div id="inc_kpi_avg3" class="kval mono">—</div></div>
+      <div class="stat-card"><div class="muted small">Next 30d (recurrents)</div><div id="inc_kpi_next30" class="kval mono">—</div></div>
+      <div class="stat-card"><div class="muted small">Median paycheck (recurrents)</div><div id="inc_kpi_medpay" class="kval mono">—</div></div>
     </div>
 
-    <div class="summary-grid">
-      <!-- Current vs Last Month — now a floating table identical to Goals -->
-      <div class="panel">
-        <div class="panel-title">Current vs Last Month</div>
-        <div class="table-responsive">
-          <table class="mini-table table table-sm table-floating thead-gradient">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Current</th>
-                <th>Last Full</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>Income</td>   <td class="val mono" id="incCM">$0</td>  <td class="val mono" id="incLFM">$0</td></tr>
-              <tr><td>Expenses</td> <td class="val mono" id="expCM">$0</td>  <td class="val mono" id="expLFM">$0</td></tr>
-              <tr><td>Net</td>      <td class="val mono" id="netCM">$0</td>  <td class="val mono" id="netLFM">$0</td></tr>
-            </tbody>
-          </table>
+    <div class="row g-3">
+      <div class="col-xl-7">
+        <div class="stat-card h-100">
+          <div class="mb-2 fw-semibold">Income MoM — Waterfall</div>
+          <div id="in_waterfall" class="chart"></div>
         </div>
       </div>
 
-      <!-- Expense goal card -->
-      <div class="panel">
-        <div class="panel-title">Expense Goal</div>
-        <div class="d-flex justify-content-between"><div class="muted">Goal</div><div class="mono" id="expGoalTotal">$0</div></div>
-        <div class="d-flex justify-content-between"><div class="muted">Current State</div><div class="mono" id="expActualCM">$0</div></div>
-        <div id="goalMeter" class="meter" title="Actual as % of goal"><div id="goalMeterFill" class="fill"></div></div>
-        <div class="d-flex justify-content-between small"><div class="muted" id="goalPctLabel">—</div><div id="goalDeltaLabel">—</div></div>
+      <div class="col-xl-5">
+        <div class="stat-card h-100">
+          <div class="mb-2 fw-semibold">Income Sources (Top N)</div>
+          <div id="in_table"></div>
+        </div>
+      </div>
+
+      <div class="col-xl-12">
+        <div class="stat-card">
+          <div class="mb-2 fw-semibold">Income by Source — Stacked Bars</div>
+          <div id="in_stack" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="col-xl-7">
+        <div class="stat-card">
+          <div class="mb-2 fw-semibold">Income Heatmap (Top N)</div>
+          <div id="in_heatmap" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="col-xl-5">
+        <div class="stat-card">
+          <div class="mb-2 fw-semibold">Paycheck timeline (next 60–90d)</div>
+          <div id="in_timeline" class="chart"></div>
+          <div id="in_upcoming" class="mt-2"></div>
+        </div>
       </div>
     </div>
-  </div>
-
-  <!-- Charts -->
-  <div class="stat-card mb-2">
-    <div class="row g-3">
-      <div class="col-lg-7">
-        <div class="mb-2 fw-semibold">Current Month &amp; Prev Month vs Goal</div>
-        <canvas id="barGoals"></canvas>
-      </div>
-      <div class="col-lg-5">
-        <div class="mb-2 fw-semibold">Income/Expenses/Net</div>
-        <canvas id="lineNet"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <!-- Goals table -->
-  <div class="stat-card">
-    <div class="mb-2 fw-semibold">Goals</div>
-    <div class="table-responsive">
-      <table id="goalsTable" class="goals-table table-floating table table-sm align-middle">
-        <colgroup>
-          <col style="width:22%">
-          <col style="width:12%">
-          <col style="width:9%">
-          <col style="width:9%">
-          <col style="width:9%">
-          <col style="width:9%">
-          <col style="width:9%">
-          <col style="width:11%">
-          <col style="width:10%">
-        </colgroup>
-
-        <thead class="thead-gradient">
-          <tr>
-            <th>Categories</th>
-            <th>Goal</th>
-            <th><span id="cmCol">—</span></th>
-            <th><span id="lfmCol">—</span></th>
-            <th><span id="pfmCol">—</span></th>
-            <th>3-mo avg</th>
-            <th>6-mo avg</th>
-            <th>Goal Var</th>
-            <th>Trend</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-        <tfoot>
-          <tr>
-            <th>NET (Income − Expenses)</th>
-            <th class="mono" id="netGoal">—</th>
-            <th class="mono" id="netCMCell">—</th>
-            <th class="mono" id="netLFMCell">—</th>
-            <th class="mono" id="netPFMCell">—</th>
-            <th class="mono" id="netAvg3Cell">—</th>
-            <th class="mono" id="netAvg6Cell">—</th>
-            <th></th>
-            <th></th>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="small-note mt-2">Tip: “Suggest” uses the selected window’s average (rounded). You can tweak any value before saving.</div>
   </div>
 </div>
 
-<!-- Data bootstrap -->
+<!-- Prefer server-injected data; fallback to API -->
 <script id="catMonthlyData" type="application/json">
 {{ (cat_monthly | default({})) | tojson }}
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<!-- Plotly -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
 <script>
 (function(){
   'use strict';
 
-  /* ---------- Chart color from CSS token so it matches page text ---------- */
-  const css = getComputedStyle(document.documentElement);
-  const CHART_TEXT = (css.getPropertyValue('--text') || '#e6edf6').trim();
-  const CHART_GRID = 'rgba(255,255,255,0.15)';
-  Chart.defaults.color = CHART_TEXT;
-  Chart.defaults.borderColor = CHART_GRID;
-  if (Chart.defaults.plugins?.legend?.labels) {
-    Chart.defaults.plugins.legend.labels.color = CHART_TEXT;
+  /* ---------------- safety: wait for Plotly ---------------- */
+  function whenPlotlyReady(){
+    return new Promise(res=>{
+      if (window.Plotly) return res();
+      let tries = 0;
+      const t = setInterval(()=>{ if (window.Plotly || ++tries>80){ clearInterval(t); res(); } }, 125);
+    });
   }
 
-  const fmt = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:0 });
-  const toNum = (v)=> (typeof v === 'number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,'')) || 0);
-  const avgLastK = (arr,k)=>{ const n=arr.length; if(!n) return 0; let used=0,sum=0; for(let i=n-1;i>=0 && used<k;i--){ sum+=toNum(arr[i]); used++; } return used?sum/used:0; };
-  const lastFullIndex = (months)=> Math.max((months?.length||0)-2, -1);
-  const prevFullIndex = (months)=> Math.max((months?.length||0)-3, -1);
-  const sixSpark = (arr)=>{ const m = arr.slice(-6); const max = Math.max(...m.map(v=>Math.abs(toNum(v))),1);
-    return '<div class="spark">'+m.map(v=>`<i style="height:${Math.round((Math.abs(toNum(v))/max)*18)}px"></i>`).join('')+'</div>'; };
-  const roundNice = (v)=> Math.round(toNum(v)/10)*10;
-  const monName = (ym)=>{ const [y,m]=ym.split('-').map(Number); const d=new Date(y,m-1,1); return d.toLocaleString(undefined,{month:'short', year:'2-digit'}); };
+  /* ---------------- helpers ---------------- */
+  const cssVar=(n,f)=>{const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();return v||f;}
+  const ACCENT=()=>cssVar('--accent-ink','#9ecbff');
+  const GRID=()=>'rgba(255,255,255,.14)';
+  const HAIR=()=>cssVar('--hair','rgba(255,255,255,.12)');
 
-  const isIncome = (name)=> String(name||'').trim().toLowerCase() === 'income';
-  const segsOf = (item)=>{ if (item && Array.isArray(item.path) && item.path.length) return item.path.slice(); return [String(item?.name || '').trim()]; };
+  const baseLayout=(extra={})=>({
+    paper_bgcolor:'rgba(0,0,0,0)',
+    plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:ACCENT()},
+    margin:{l:60,r:40,t:10,b:40},
+    xaxis:{type:'category',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},
+    yaxis:{tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID(),rangemode:extra.yZero?'tozero':undefined},
+    legend:{orientation:'h',y:-0.25,font:{color:ACCENT()}},
+    ...extra
+  });
+
+  const toNum=v=>(typeof v==='number'&&isFinite(v))?v:(Number(String(v??'').replace(/[$,]/g,''))||0);
+  const sum=a=>a.reduce((x,y)=>x+toNum(y),0);
+  const zeros=n=>Array.from({length:n},()=>0);
+  const money=n=> (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
+  const money2=n=> (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const prettyMonth=ym=>{if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
+  const parseISO=s=>{const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number);return (y&&m&&d)?new Date(y,m-1,d):null;}
+
+  // robust payload normalizer (accepts a few shapes)
+  function normalizePayload(d){
+    if (!d || typeof d!=='object') return {months:[],categories:[]};
+    const months = Array.isArray(d.months) ? d.months
+                 : Array.isArray(d.labels) ? d.labels
+                 : Array.isArray(d.dates)  ? d.dates : [];
+    let cats = Array.isArray(d.categories) ? d.categories
+            : Array.isArray(d.cats)       ? d.cats
+            : (d.data && Array.isArray(d.data.categories)) ? d.data.categories
+            : d.categories_map || d.cats_map || null;
+
+    if (cats && !Array.isArray(cats) && typeof cats==='object'){
+      cats = Object.entries(cats).map(([name,monthly])=>({name,monthly}));
+    }
+    cats = Array.isArray(cats) ? cats.map(c=>({
+      name: c.name || c.category || c.cat || 'Unlabeled',
+      monthly: (c.monthly || c.values || c.data || []).map(toNum)
+    })) : [];
+
+    return {months, categories:cats};
+  }
 
   function aggregateTopLevel(categories){
-    const map = new Map();
+    const map=new Map();
     for (const c of (categories||[])){
-      const top = segsOf(c)[0] || '(Uncategorized)';
-      const arr = (c.monthly||[]).map(toNum);
-      if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
-      const dest = map.get(top);
-      for (let i=0;i<arr.length;i++) dest[i] += arr[i];
+      const top=(String(c.name||'').split(' / ')[0]||'(Uncategorized)').trim();
+      const arr=(c.monthly||[]).map(toNum);
+      if(!map.has(top)) map.set(top,new Array(arr.length).fill(0));
+      const dest=map.get(top); for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
     }
     return Object.fromEntries(map.entries());
   }
 
-  /* --- DOM refs --- */
-  const tbody = document.querySelector('#goalsTable tbody');
-  const monthsLabel = document.getElementById('monthsLabel');
-  const lfmName = document.getElementById('lfmName');
-  const cmName = document.getElementById('cmName');
-  const cmCol = document.getElementById('cmCol');
-  const lfmCol = document.getElementById('lfmCol');
-  const pfmCol = document.getElementById('pfmCol');
-
-  const suggestSel = document.getElementById('suggestWindow');
-  const btnFillEmpty = document.getElementById('applySuggestionsEmpty');
-  const btnFillAll = document.getElementById('applySuggestionsAll');
-  const btnSave = document.getElementById('saveBtn');
-
-  const incCMEl = document.getElementById('incCM');
-  const expCMEl = document.getElementById('expCM');
-  const netCMEl = document.getElementById('netCM');
-  const incLFMEl = document.getElementById('incLFM');
-  const expLFMEl = document.getElementById('expLFM');
-  const netLFMEl = document.getElementById('netLFM');
-
-  const expGoalTotalEl = document.getElementById('expGoalTotal');
-  const expActualCMEl  = document.getElementById('expActualCM');
-  const goalMeter      = document.getElementById('goalMeter');
-  const goalMeterFill  = document.getElementById('goalMeterFill');
-  const goalPctLabel   = document.getElementById('goalPctLabel');
-  const goalDeltaLabel = document.getElementById('goalDeltaLabel');
-
-  const netGoalEl = document.getElementById('netGoal');
-  const netCMCell = document.getElementById('netCMCell');
-  const netLFMCell = document.getElementById('netLFMCell');
-  const netPFMCell = document.getElementById('netPFMCell');
-  const netAvg3Cell = document.getElementById('netAvg3Cell');
-  const netAvg6Cell = document.getElementById('netAvg6Cell');
-
-  let months=[], topSeries={}, goalsByCat={};
-  let barChart=null, lineChart=null;
-
-  function computeIncomeExpenses(idx){
-    const inc = toNum((topSeries['Income']||[])[idx] || 0);
-    let exp = 0;
-    for (const [k,arr] of Object.entries(topSeries)){
-      if (isIncome(k)) continue;
-      exp += toNum(arr[idx] || 0);
-    }
-    return {inc, exp, net: inc - exp};
+  function buildTree(categories){
+    const root={name:'All',path:[],monthly:[],children:[]}; const map=new Map(); map.set('',root);
+    const keyOf=s=>s.join(' / ');
+    const getNode=segs=>{const k=keyOf(segs); if(map.has(k))return map.get(k);
+      const n={name:segs[segs.length-1],path:[...segs],monthly:[],children:[]};
+      const p=getNode(segs.slice(0,-1)); p.children.push(n); map.set(k,n); return n;};
+    (categories||[]).forEach(c=>{const segs=String(c.name||'').split(' / ').map(s=>s.trim()).filter(Boolean);
+      const leaf=getNode(segs.length?segs:[c.name||'']); leaf.monthly=(c.monthly||[]).map(toNum);});
+    const roll=n=>{if(!n.children.length) return n.monthly||[]; const L=Math.max(0,...n.children.map(ch=>(ch.monthly||[]).length));
+      const agg=new Array(L).fill(0); for(const ch of n.children){const cm=roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0);} n.monthly=agg; return agg;};
+    roll(root); return root;
   }
-
-  const goalAbs = (cat)=> Math.abs(toNum(goalsByCat[cat] || 0));
-  const normalizeGoalsAbs = (obj)=> { const out = {}; for (const [k,v] of Object.entries(obj||{})) out[k] = Math.abs(toNum(v)); return out; };
-
-  function expenseGoalTotalFromTop(){
-    let total = 0;
-    for (const cat of Object.keys(topSeries)){
-      if (isIncome(cat)) continue;
-      total += goalAbs(cat);
-    }
-    return total;
-  }
-
-  function updateNetGoalFooter() {
-    let incG = 0, expG = 0;
-    for (const [cat, goal] of Object.entries(goalsByCat)) {
-      const g = Math.abs(toNum(goal));
-      if (isIncome(cat)) incG += g; else expG += g;
-    }
-    netGoalEl.textContent = fmt.format(incG - expG);
-  }
-
-  function updateExpenseGoalSummary(){
-    const goalTotal = expenseGoalTotalFromTop();
-    expGoalTotalEl.textContent = fmt.format(goalTotal);
-
-    const cmIdx = (months?.length||0) - 1;
-    if (cmIdx >= 0){
-      const {exp} = computeIncomeExpenses(cmIdx);
-      expActualCMEl.textContent = fmt.format(exp);
-
-      if (goalTotal > 0) {
-        const pct = Math.min(140, Math.round((exp / goalTotal) * 100));
-        goalMeter.classList.toggle('over', exp > goalTotal);
-        goalMeterFill.style.width = pct + '%';
-        goalPctLabel.textContent = `${Math.round((exp / goalTotal) * 100)}% of goal`;
-        const delta = goalTotal - exp;
-        goalDeltaLabel.textContent = delta >= 0 ? `Remaining ${fmt.format(delta)}` : `Over by ${fmt.format(Math.abs(delta))}`;
-        goalDeltaLabel.classList.toggle('ok', delta >= 0);
-        goalDeltaLabel.classList.toggle('bad', delta < 0);
-      } else {
-        goalMeter.classList.remove('over');
-        goalMeterFill.style.width = '0%';
-        goalPctLabel.textContent = 'No expense goal set';
-        goalDeltaLabel.textContent = '—';
-        goalDeltaLabel.classList.remove('ok','bad');
-      }
-
-      const over = exp > goalTotal && goalTotal > 0;
-      expActualCMEl.classList.toggle('bad', over);
-      expActualCMEl.classList.toggle('ok', !over && goalTotal > 0);
-    } else {
-      expActualCMEl.textContent = '—';
-      expActualCMEl.classList.remove('ok','bad');
-      goalMeter.classList.remove('over');
-      goalMeterFill.style.width = '0%';
-      goalPctLabel.textContent = '—';
-      goalDeltaLabel.textContent = '—';
-      goalDeltaLabel.classList.remove('ok','bad');
-    }
-  }
-
-  function rebuildCharts(){
-    const cm = (months?.length||0) - 1;
-    const lfm = lastFullIndex(months);
-    if (cm < 0) return;
-
-    const totals = [];
-    for (const [k,arr] of Object.entries(topSeries)){
-      totals.push([k, (arr||[]).reduce((a,b)=>a+toNum(b),0)]);
-    }
-    totals.sort((a,b)=> b[1]-a[1]);
-    const labels = totals.slice(0, 10).map(x=>x[0]);
-
-    const valAt = (k, idx) => Math.abs(toNum((topSeries[k]||[])[idx] || 0));
-    const actualCM  = labels.map(k => valAt(k, cm));
-    const actualLFM = labels.map(k => (lfm >= 0 ? valAt(k, lfm) : 0));
-    const goals     = labels.map(k => goalAbs(k));
-
-    const commonOpts = {
-      responsive:true,
-      plugins:{ legend:{ position:'top', labels:{ color: CHART_TEXT } } },
-      scales:{
-        x:{ ticks:{ color:CHART_TEXT }, grid:{ color:CHART_GRID } },
-        y:{ beginAtZero:true, ticks:{ color:CHART_TEXT }, grid:{ color:CHART_GRID } }
-      }
+  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(c.name||'')===name)||null;
+  function seriesBySecondLevel(sub){
+    const map=new Map(); if(!sub) return {};
+    const visit=n=>{
+      if(!n.children.length){
+        const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
+        if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
+        const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
+      } else n.children.forEach(visit);
     };
+    (sub.children||[]).forEach(visit); return Object.fromEntries(map.entries());
+  }
+  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)])
+    .filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
 
-    if (barChart) barChart.destroy();
-    barChart = new Chart(document.getElementById('barGoals'), {
-      type:'bar',
-      data:{ labels, datasets:[
-        {label:'Actual (CM)',  data: actualCM},
-        {label:'Actual (LFM)', data: actualLFM},
-        {label:'Goal',         data: goals}
-      ]},
-      options: commonOpts
-    });
+  const rollingStats=(arr,k=3)=>{const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}}
+  const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)}
 
-    const inc = months.map((_,i)=> toNum((topSeries['Income']||[])[i] || 0));
-    const exp = months.map((_,i)=> { let s=0; for (const [k,arr] of Object.entries(topSeries)){ if (!isIncome(k)) s+=toNum(arr[i]||0); } return s; });
-    const net = inc.map((v,i)=> v - exp[i]);
+  /* ---------------- dom refs ---------------- */
+  const monthsWindow=document.getElementById('monthsWindow');
+  const normalizeEl=document.getElementById('normalize');
+  const topNEl=document.getElementById('topN'); const topNLabel=document.getElementById('topNLabel');
+  const focusMonthEl=document.getElementById('focusMonth');
+  const tabs=document.getElementById('viewTabs');
+  const paneOverview=document.getElementById('pane-overview');
+  const paneExpenses=document.getElementById('pane-expenses');
+  const paneIncome=document.getElementById('pane-income');
 
-    if (lineChart) lineChart.destroy();
-    lineChart = new Chart(document.getElementById('lineNet'), {
-      type:'line',
-      data:{ labels: months.map(monName), datasets:[
-        {label:'Income', data: inc},
-        {label:'Expenses', data: exp},
-        {label:'Net', data: net}
-      ]},
-      options: commonOpts
-    });
+  const ov_line=document.getElementById('ov_line');
+  const ov_net=document.getElementById('ov_net');
+  const ov_srate=document.getElementById('ov_srate');
+  const ov_cum=document.getElementById('ov_cum');
+  const ov_roll=document.getElementById('ov_roll');
+  const ov_season=document.getElementById('ov_season');
+
+  const ex_area=document.getElementById('ex_area');
+  const ex_treemap=document.getElementById('ex_treemap');
+  const ex_heatmap=document.getElementById('ex_heatmap');
+  const ex_pareto=document.getElementById('ex_pareto');
+  const ex_scatter=document.getElementById('ex_scatter');
+  const ex_donut=document.getElementById('ex_donut');
+  const ex_tm_month=document.getElementById('ex_tm_month');
+
+  const in_waterfall=document.getElementById('in_waterfall');
+  const in_table=document.getElementById('in_table');
+  const in_stack=document.getElementById('in_stack');
+  const in_heatmap=document.getElementById('in_heatmap');
+  const in_timeline=document.getElementById('in_timeline');
+
+  const kpi30d=document.getElementById('inc_kpi_30d');
+  const kpiAvg3=document.getElementById('inc_kpi_avg3');
+  const kpiNext=document.getElementById('inc_kpi_next30');
+  const kpiMed=document.getElementById('inc_kpi_medpay');
+
+  /* ---------------- state ---------------- */
+  let months=[], categoriesTop=[], categoriesDeep=[];
+  let topSeries={}, treeDeep=null;
+  let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
+  let incomeSubSeries={};
+  let handlersAttached=false;
+
+  /* ---------------- charts ---------------- */
+  function renderOverview(){
+    Plotly.react(ov_line, [
+      {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
+      {type:'scatter',mode:'lines+markers',name:'Expenses',x:months,y:expenseByMonth,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
+    ], baseLayout({}), {responsive:true,displayModeBar:false});
+
+    const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
+    Plotly.react(ov_net, [{type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
+      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},yZero:true}),
+      {responsive:true,displayModeBar:false});
+
+    const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
+    Plotly.react(ov_srate,[{type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
+      baseLayout({yaxis:{title:'%',rangemode:'tozero'},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}),
+      {responsive:true,displayModeBar:false});
+
+    let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
+    Plotly.react(ov_cum,[{type:'scatter',mode:'lines',fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
+      baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}),
+      {responsive:true,displayModeBar:false});
+
+    const {mean,sd}=rollingStats(netByMonth,3);
+    const upper=mean.map((m,i)=>m+(sd[i]||0)), lower=mean.map((m,i)=>m-(sd[i]||0));
+    Plotly.react(ov_roll,[
+      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip'},
+      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip'},
+      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
+    ], baseLayout({}), {responsive:true,displayModeBar:false});
+
+    const incSeason=seasonality(months,incomeByMonth), expSeason=seasonality(months,expenseByMonth);
+    Plotly.react(ov_season,[
+      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
+      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
+    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID()},xaxis:{title:'Month-of-year'}}),
+      {responsive:true,displayModeBar:false});
   }
 
-  function render(){
-    if (months.length){
-      monthsLabel.textContent = months[0] + ' … ' + months[months.length-1];
-      const lfm = lastFullIndex(months), pfm = prevFullIndex(months);
-      const cm = months.length-1;
-      lfmName.textContent = lfm>=0 ? monName(months[lfm]) : '—';
-      cmName.textContent  = months[cm] ? monName(months[cm]) : '—';
-      cmCol.textContent   = months[cm] ? monName(months[cm]) : '—';
-      lfmCol.textContent  = lfm>=0 ? monName(months[lfm]) : '—';
-      pfmCol.textContent  = pfm>=0 ? monName(months[pfm]) : '—';
-
-      const cur = computeIncomeExpenses(cm);
-      const lastf = computeIncomeExpenses(lfm>=0?lfm:cm);
-      incCMEl.textContent = fmt.format(cur.inc);
-      expCMEl.textContent = fmt.format(cur.exp);
-      netCMEl.textContent = fmt.format(cur.net);
-      incLFMEl.textContent = fmt.format(lastf.inc);
-      expLFMEl.textContent = fmt.format(lastf.exp);
-      netLFMEl.textContent = fmt.format(lastf.net);
-    }
-
-    const rows = [];
-    const cats = Object.keys(topSeries).sort((a,b)=> {
-      const sa = (topSeries[a]||[]).reduce((x,y)=>x+toNum(y),0);
-      const sb = (topSeries[b]||[]).reduce((x,y)=>x+toNum(y),0);
-      return sb - sa;
-    });
-
-    const lfm = lastFullIndex(months), pfm = prevFullIndex(months), cm = months.length-1;
-
-    let sumGoalIncome=0, sumGoalExpense=0;
-    for (const cat of cats){
-      const s = topSeries[cat]||[];
-      const cmVal  = cm>=0 ? toNum(s[cm])  : 0;
-      const lfmVal = lfm>=0 ? toNum(s[lfm]) : 0;
-      const pfmVal = pfm>=0 ? toNum(s[pfm]) : 0;
-      const avg3 = avgLastK(s, 3);
-      const avg6 = avgLastK(s, 6);
-      const goal = goalAbs(cat);
-
-      const variance = cm>=0 ? (cmVal - goal) : 0; // CM − Goal
-      const vClass = isIncome(cat) ? (variance >= 0 ? 'ok' : 'bad') : (variance >= 0 ? 'bad' : 'ok');
-
-      if (isIncome(cat)) sumGoalIncome += goal; else sumGoalExpense += goal;
-
-      rows.push(`
-        <tr>
-          <td>
-            <a href="#"
-               class="name-link"
-               data-manage
-               data-level="category"
-               data-cat="${cat}"
-               title="Manage ${cat}">
-              ${cat}
-            </a>
-          </td>
-          <td>
-            <div class="input-group input-group-sm input-dark">
-              <span class="input-group-text">$</span>
-              <input type="number" class="form-control goal-input" step="1" data-cat="${cat}" value="${goal}">
-            </div>
-          </td>
-          <td class="mono">${fmt.format(cmVal)}</td>
-          <td class="mono">${fmt.format(lfmVal)}</td>
-          <td class="mono">${fmt.format(pfmVal)}</td>
-          <td class="mono">${fmt.format(avg3)}</td>
-          <td class="mono">${fmt.format(avg6)}</td>
-          <td class="mono variance-cell ${cm>=0 ? vClass : ''}" data-cat="${cat}">${cm>=0 ? fmt.format(variance) : '—'}</td>
-          <td>${sixSpark(s)}</td>
-        </tr>
-      `);
-    }
-
-    tbody.innerHTML = rows.join('');
-
-    const cmIdx = months.length-1, lfmIdx = lastFullIndex(months), pfmIdx = prevFullIndex(months);
-    const cmAgg  = computeIncomeExpenses(cmIdx);
-    const lfmAgg = computeIncomeExpenses(lfmIdx>=0?lfmIdx:cmIdx);
-    const pfmAgg = computeIncomeExpenses(pfmIdx>=0?pfmIdx:lfmIdx);
-
-    const nets = months.map((_, i) => computeIncomeExpenses(i).net);
-    const netAvg3 = avgLastK(nets, 3);
-    const netAvg6 = avgLastK(nets, 6);
-
-    netGoalEl.textContent  = fmt.format(sumGoalIncome - sumGoalExpense);
-    netCMCell.textContent  = fmt.format(cmAgg.net);
-    netLFMCell.textContent = fmt.format(lfmAgg.net);
-    netPFMCell.textContent = fmt.format(pfmAgg.net);
-    netAvg3Cell.textContent = fmt.format(netAvg3);
-    netAvg6Cell.textContent = fmt.format(netAvg6);
-
-    updateExpenseGoalSummary();
-    rebuildCharts();
+  function stackedArea(targetEl, months, entries, normalize){
+    if(!entries.length){ Plotly.react(targetEl,[],baseLayout({}),{responsive:true,displayModeBar:false}); return;}
+    const traces = entries.map(([name,arr]) => normalize
+      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
+      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
+    Plotly.react(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}),{responsive:true,displayModeBar:false});
   }
 
-  /* inline editing of goals */
-  document.querySelector('#goalsTable').addEventListener('input', (e)=>{
-    const inp = e.target.closest('.goal-input'); if (!inp) return;
-    const cat = inp.getAttribute('data-cat'); if (!cat) return;
-
-    const val = Math.abs(toNum(inp.value || 0));
-    inp.value = val;
-    goalsByCat[cat] = val;
-
-    updateNetGoalFooter();
-    updateExpenseGoalSummary();
-    const cm = months.length - 1;
-    if (cm >= 0) {
-      const s = topSeries[cat] || [];
-      const variance = toNum(s[cm]) - val;
-      const cell = Array.from(document.querySelectorAll('.variance-cell')).find(td => (td.dataset.cat || '') === cat);
-      if (cell) {
-        cell.textContent = fmt.format(variance);
-        cell.classList.remove('ok','bad');
-        const isInc = isIncome(cat);
-        cell.classList.add(isInc ? (variance >= 0 ? 'ok' : 'bad') : (variance >= 0 ? 'bad' : 'ok'));
-      }
-    }
-    rebuildCharts();
-  });
-
-  function applySuggestions(overwriteAll){
-    const k = Number(suggestSel.value) || 3;
-    for (const cat of Object.keys(topSeries)){
-      const current = goalAbs(cat);
-      if (!overwriteAll && current !== 0) continue;
-      const guess = Math.abs(roundNice(avgLastK(topSeries[cat]||[], k)));
-      goalsByCat[cat] = guess;
-    }
-    render();
+  function stackedBars(targetEl, months, entries, normalize){
+    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr}));
+    Plotly.react(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}),
+      {responsive:true,displayModeBar:false});
   }
-  document.getElementById('applySuggestionsEmpty').addEventListener('click', ()=> applySuggestions(false));
-  document.getElementById('applySuggestionsAll').addEventListener('click', ()=> applySuggestions(true));
 
-  document.getElementById('saveBtn').addEventListener('click', async ()=>{
-    const payload = {};
-    for (const cat of Object.keys(topSeries)){ payload[cat] = goalAbs(cat); }
+  function treemap(targetEl, nodes, focusIdx){
+    Plotly.react(targetEl,[{
+      type:'treemap',
+      labels:nodes.map(n=>n.label),
+      parents:nodes.map(n=>n.parent),
+      values:nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0)),
+      ids:nodes.map(n=>n.id), branchvalues:'total',
+      hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
+    }], baseLayout({margin:{l:10,r:10,t:0,b:0}}), {responsive:true,displayModeBar:false});
+  }
+
+  function buildTreemapNodes(root, includeIncome){
+    const out=[]; (function walk(n){
+      if(n===root){ (n.children||[]).forEach(walk); return; }
+      if(!includeIncome && (n.path[0]||'')==='Income') return;
+      const id=n.path.join(' / '); const parent=n.path.slice(0,-1).join(' / '); const label=n.name||'';
+      if(label && label.toLowerCase()!=='all'){ out.push({label,parent,value:n.monthly||[],id}); }
+      (n.children||[]).forEach(walk);
+    })(root);
+    return out;
+  }
+
+  function heatmap(targetEl, months, entries){
+    const z=entries.map(([,arr])=>arr), y=entries.map(([name])=>name);
+    Plotly.react(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues'}],
+      baseLayout({margin:{l:110,r:30,t:10,b:40}}),{responsive:true,displayModeBar:false});
+  }
+
+  function pareto(targetEl, entries){
+    const totals=entries.map(([,arr])=>sum(arr)); const labels=entries.map(([n])=>n);
+    const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
+    const bar={type:'bar',x:labels,y:totals,name:'Total',hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
+    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
+    Plotly.react(targetEl,[bar,line],
+      {...baseLayout({margin:{l:60,r:50,t:10,b:100}}), yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID()}, yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'}, xaxis:{tickangle:-45}},
+      {responsive:true,displayModeBar:false});
+  }
+
+  function scatterVolAvg(targetEl, entries){
+    const avg=a=>a.length?sum(a)/a.length:0;
+    const stdev=arr=>{const n=arr.length;if(n<2)return 0;const m=avg(arr);const v=arr.reduce((s,v)=>s+(toNum(v)-m)**2,0)/(n-1);return Math.sqrt(v)};
+    const xs=[],ys=[],sizes=[],labels=[];
+    entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
+    Plotly.react(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
+      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero'}}),
+      {responsive:true,displayModeBar:false});
+  }
+
+  function donut(targetEl, entries, monthIdx){
+    const labels=[], values=[]; entries.forEach(([n,a])=>{labels.push(n);values.push(toNum(a[monthIdx]||0))});
+    let other=0; const keepL=[], keepV=[]; const grand=sum(values)||1;
+    values.forEach((v,i)=>{ if(v/grand<0.03) other+=v; else {keepL.push(labels[i]); keepV.push(v);} });
+    if(other>0){keepL.push('Other'); keepV.push(other);}
+    Plotly.react(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
+      baseLayout({margin:{l:10,r:10,t:10,b:10}}),{responsive:true,displayModeBar:false});
+  }
+
+  function incomeWaterfall(targetEl, months, income){
+    const diffs=income.map((v,i)=> i===0?v:(v-income[i-1]));
+    Plotly.react(targetEl,[{type:'waterfall',x:months,y:diffs,increasing:{marker:{color:'#22c55e'}},decreasing:{marker:{color:'#ef4444'}},hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
+      baseLayout({yaxis:{title:'Change vs prior'}}),{responsive:true,displayModeBar:false});
+  }
+
+  function incomeTable(targetEl, months, entries){
+    const grand=sum(entries.map(([,arr])=>sum(arr)));
+    const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    const rows=entries.map(([name,arr])=>{
+      const total=sum(arr), avg=months.length?total/months.length:0, last=arr[arr.length-1]||0, pct=grand?(total/grand)*100:0;
+      return `<tr>
+        <td>${esc(name)}</td>
+        <td class="mono">${total.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+        <td class="mono">${avg.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+        <td class="mono">${last.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+        <td class="mono">${pct.toFixed(1)}%</td>
+      </tr>`;
+    }).join('');
+    targetEl.innerHTML=`
+      <div class="table-responsive" style="max-height:420px;overflow:auto;">
+        <table class="table table-sm align-middle table-floating mb-0">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Total (window)</th>
+              <th>Avg / mo</th>
+              <th>Last month</th>
+              <th>% of income</th>
+            </tr>
+          </thead>
+          <tbody>${rows || `<tr><td colspan="5" class="muted">No income sources in range.</td></tr>`}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function resizeAllPlots(){
+    const els=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_timeline];
+    requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
+  }
+
+  /* ---- paycheck timeline (from /api/recurrents) ---- */
+  async function loadRecurrentsIncome(){
     try{
-      const resp = await fetch('/api/goals', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ monthly_goals: payload })
-      });
-      const j = await resp.json();
-      goalsByCat = normalizeGoalsAbs((j && j.monthly_goals) ? j.monthly_goals : payload);
-      render();
+      const r=await fetch('/api/recurrents?horizon=90',{credentials:'same-origin'});
+      const data=await r.json();
+      const streams=(data.streams||[]);
+      const incomeMerchants=new Set(streams.filter(s=>(s.categories||[]).some(c=>String(c).toLowerCase()==='income')).map(s=>s.merchant));
+      const incomeStreams=streams.filter(s=>incomeMerchants.has(s.merchant));
+      const amounts=incomeStreams.map(s=>toNum(s.amount)).filter(v=>v>0).sort((a,b)=>a-b);
+      const med=amounts.length?(amounts.length%2?amounts[(amounts.length-1)/2]:(amounts[amounts.length/2-1]+amounts[amounts.length/2])/2):0;
+      document.getElementById('inc_kpi_medpay').textContent=med?money(med):'—';
+
+      const today=new Date(); today.setHours(0,0,0,0);
+      const plus30=new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
+      const upcomingAll=(data.upcoming||[]).map(u=>({...u,dt:parseISO(u.date)})).filter(u=>u.dt);
+      const upcomingIncome=upcomingAll.filter(u=>incomeMerchants.has(u.merchant)).sort((a,b)=>a.dt-b.dt);
+      const next30Income=upcomingIncome.filter(u=>u.dt<=plus30).reduce((t,u)=>t+toNum(u.amount),0);
+      document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
+
+      Plotly.react(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
+        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount',rangemode:'tozero'}}),{responsive:true,displayModeBar:false});
+
+      const host=document.getElementById('in_upcoming');
+      const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
+      host.innerHTML=`<div class="table-responsive" style="max-height:200px;overflow:auto;">
+        <table class="table table-sm table-floating mb-0">
+          <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="3" class="muted">No upcoming income in horizon.</td></tr>`}</tbody>
+        </table>
+      </div>`;
     }catch(err){
-      alert('Failed to save goals: ' + err.message);
+      try{ Plotly.react(in_timeline,[],baseLayout({}),{responsive:true,displayModeBar:false}); }catch(_){}
+      document.getElementById('in_upcoming').innerHTML='<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>';
     }
-  });
-
-  function setStickyTopOffset(){
-    const fixedNav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top');
-    const h = fixedNav ? fixedNav.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty('--sticky-top', (h|0) + 'px');
   }
-  setStickyTopOffset();
-  window.addEventListener('resize', setStickyTopOffset);
 
-  /* bootstrap data + render */
-  (async function main(){
-    let payload=null;
-    try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
-    if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
-      document.querySelector('#goalsTable tbody').innerHTML = '<tr><td colspan="9" class="muted">No category data provided to template.</td></tr>';
-      return;
+  function attachDrillHandlers(months){
+    if(handlersAttached) return; handlersAttached=true;
+    if(in_waterfall && typeof in_waterfall.on==='function' && window.openCategoryManager){
+      in_waterfall.on('plotly_click',ev=>{const pt=ev.points?.[0]; if(!pt) return; const month=String(pt.x).slice(0,7); window.openCategoryManager({level:'category',cat:'Income',month});});
     }
+  }
 
-    months = payload.months || [];
-    topSeries = aggregateTopLevel(payload.categories || []);
+  function populateFocusMonth(){
+    focusMonthEl.innerHTML='';
+    months.forEach((m,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=prettyMonth(m); focusMonthEl.appendChild(opt); });
+    focusMonthEl.selectedIndex=Math.max(0,months.length-1);
+  }
 
+  function refreshAll(){
+    const N=Number(topNEl.value)||10; topNLabel.textContent=N;
+    monthsWindow.textContent=months.length?(months[0]+' … '+months[months.length-1]):'—';
+
+    renderOverview();
+
+    const exObj=Object.fromEntries(Object.entries(topSeries).filter(([k])=>k!=='Income'));
+    const exEntries=pickTopN(exObj,N);
+    stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
+
+    document.getElementById('ex_tm_month').textContent=months.length?prettyMonth(months[Math.max(0,focusMonthEl.selectedIndex)]):'—';
+    const focusIdx=Math.max(0,focusMonthEl.selectedIndex);
+    let nodes=[]; if(treeDeep && (treeDeep.children||[]).length){ nodes=buildTreemapNodes(treeDeep,false);}
+    else { nodes=exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name})); }
+    treemap(ex_treemap,nodes,focusIdx);
+
+    heatmap(ex_heatmap,months,exEntries);
+    pareto(ex_pareto,exEntries);
+    scatterVolAvg(ex_scatter,exEntries);
+    donut(ex_donut,exEntries,focusIdx);
+
+    const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
+    incomeWaterfall(in_waterfall,months,incomeByMonth);
+    incomeTable(in_table,months,inEntries);
+    stackedBars(in_stack,months,inEntries,!!normalizeEl.checked);
+    heatmap(in_heatmap,months,inEntries);
+
+    attachDrillHandlers(months);
+    const lastMonthIncome=incomeByMonth.at(-1)||0; kpi30d.textContent=incomeByMonth.length?money(lastMonthIncome):'—';
+    const last3=incomeByMonth.slice(-3); const avg3=last3.length?sum(last3)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
+
+    resizeAllPlots();
+  }
+
+  tabs.addEventListener('click',e=>{
+    const t=e.target.closest('.tab'); if(!t) return;
+    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+    const view=t.getAttribute('data-view');
+    paneOverview.style.display=(view==='overview')?'':'none';
+    paneExpenses.style.display=(view==='expenses')?'':'none';
+    paneIncome.style.display=(view==='income')?'':'none';
+    setTimeout(refreshAll,0);
+  });
+  normalizeEl.addEventListener('change',refreshAll);
+  topNEl.addEventListener('input',refreshAll);
+  focusMonthEl.addEventListener('change',refreshAll);
+
+  /* ---------------- main ---------------- */
+  (async function main(){
     try{
-      const r = await fetch('/api/goals');
-      const j = await r.json();
-      goalsByCat = normalizeGoalsAbs((j && j.monthly_goals) ? j.monthly_goals : {});
-    }catch{ goalsByCat = {}; }
+      // 1) SSR payload
+      let base=null;
+      try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
+      let normalized = normalizePayload(base);
 
-    render();
+      // 2) Fallback to API if needed
+      if (!normalized.months.length || !normalized.categories.length){
+        const r=await fetch('/api/categories/monthly',{credentials:'same-origin'});
+        const j=await r.json();
+        normalized = normalizePayload(j);
+      }
+
+      // 3) Deep payload for income sources (best effort)
+      let deepNorm=null;
+      try{
+        const r2=await fetch('/api/categories/monthly?deep=1',{credentials:'same-origin'});
+        const j2=await r2.json();
+        deepNorm = normalizePayload(j2);
+      }catch{}
+
+      await whenPlotlyReady(); // make sure Plotly is ready before any draw
+
+      months = normalized.months || [];
+      categoriesTop = (normalized.categories||[]).map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
+
+      const deepCats = (deepNorm && (deepNorm.categories||[]).length) ? deepNorm.categories : categoriesTop;
+      categoriesDeep = deepCats.map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
+
+      topSeries = aggregateTopLevel(categoriesTop);
+      const L=months.length; const incomeTop=topSeries['Income']||zeros(L);
+      incomeByMonth = incomeTop.slice(); expenseByMonth=zeros(L);
+      Object.entries(topSeries).forEach(([k,arr])=>{ if(k==='Income') return; for(let i=0;i<L;i++) expenseByMonth[i]+=toNum(arr[i]||0); });
+      netByMonth = incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
+
+      const tree = buildTree(categoriesDeep); treeDeep=tree;
+      const incomeNode = subtreeByTop(tree,'Income');
+      incomeSubSeries = (incomeNode && (incomeNode.children||[]).length) ? seriesBySecondLevel(incomeNode) : { 'Income': incomeByMonth.slice() };
+      if(!Object.keys(incomeSubSeries).length) incomeSubSeries={'Income':incomeByMonth.slice()};
+
+      populateFocusMonth();
+      refreshAll();
+      loadRecurrentsIncome();
+
+      window.addEventListener('resize', resizeAllPlots);
+    }catch(err){
+      // fail safe: show a small message in each panel instead of freezing
+      const placeholders=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_timeline];
+      placeholders.forEach(el=>{ if(!el) return; el.innerHTML = '<div class="muted small p-3">Problem loading charts.</div>'; });
+      console && console.error && console.error('Charts init failed:', err);
+    }
   })();
 })();
 </script>
-
 {% endblock %}
