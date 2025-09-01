@@ -8,15 +8,15 @@
   --brand-1: #6a5cff;
   --brand-2: #00c2ff;
 
-  /* Surfaces */
-  --bg:        #0d1016;             /* page */
-  --surface:   rgba(255,255,255,0.06);
+  /* If app-theme tokens exist, follow them; otherwise fall back */
+  --bg:        var(--page-bg-2, #0d1016);          /* page */
+  --surface:   var(--card-bg, rgba(255,255,255,0.06));
   --surface-2: rgba(255,255,255,0.08);
-  --hairline:  rgba(255,255,255,0.12);
+  --hairline:  var(--hair, rgba(255,255,255,0.12));
 
   /* Text */
-  --fg:        #e9eef7;
-  --fg-muted:  #a7b0c3;
+  --fg:        var(--text, #e9eef7);
+  --fg-muted:  var(--muted, #a7b0c3);
 
   /* Accents (status) */
   --success:   #2dd4bf;   /* teal */
@@ -29,7 +29,7 @@
   --shadow:    0 10px 30px rgba(0,0,0,0.35);
   --glass-blur: saturate(140%) blur(8px);
 
-  /* Header strip (used for card/table headers) */
+  /* Header strip (used for opt-in gradient table/card headers) */
   --header-grad: linear-gradient(90deg, rgba(106,92,255,.95), rgba(0,194,255,.95));
   --header-fg:   #ffffff;
   --header-border: rgba(255,255,255,0.2);
@@ -85,33 +85,44 @@ html, body{
   font-weight: 700;
 }
 
-/* Tables – universal look (headers match card/header gradient) */
+/* ===================== Tables (Dark/Floating) ===================== */
+
+/* Global Bootstrap table variable overrides live in layout.html,
+   but we mirror key safety nets here too in case this file loads later. */
 .table{
   color: var(--fg);
 }
-.table thead th{
-  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
-  color: var(--header-fg);
-  border-bottom: 0;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+
+/* Make sure table cells never go white, even if templates add bg-* */
+.table > :not(caption) > * > *{
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
-.card .table thead th{
-  background: var(--header-grad);
+.table td.bg-white, .table th.bg-white,
+.table td.bg-light, .table th.bg-light,
+.bg-white, .bg-light{
+  background-color: transparent !important;
 }
-/* Force ALL table headers (card or not) to use the same readable strip */
-.table thead th,
-.table thead td{
-  background: var(--header-bg) !important;
-  color: var(--header-fg) !important;
-  border-bottom: 1px solid var(--header-border) !important;
-}
-.table tbody tr{
-  border-color: var(--hairline);
+
+/* Subtle zebra + hover tints that work on dark */
+.table tbody tr{ border-color: var(--hairline); }
+.table.table-striped > tbody > tr:nth-of-type(odd){
+  background: rgba(255,255,255,0.02);
 }
 .table tbody tr:hover{
   background: var(--surface-2);
+}
+
+/* Sticky header base is controlled by layout theme vars.
+   Keep this file from forcing a header look by default.
+   Use .thead-gradient on <thead> when you WANT the gradient strip. */
+.thead-gradient th,
+.thead-gradient td{
+  background: var(--header-bg) !important;
+  color: var(--header-fg) !important;
+  border-bottom: 1px solid var(--header-border) !important;
+  text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  z-index: 2; /* above cells when sticky */
 }
 
 /* Numbers (consistent) */
@@ -204,3 +215,6 @@ a:hover, .link-manage:hover{
 /* Small utilities */
 .muted{ color: var(--fg-muted) !important; }
 .thin-hr{ border-color: var(--hairline); }
+
+/* Charts: canvases should be transparent; colors handled in layout defaults */
+canvas{ background: transparent !important; }
