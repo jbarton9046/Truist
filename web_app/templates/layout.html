@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-10">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -67,7 +67,7 @@
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
-        /* Trend-bar blue used as “accent ink” on Goals page */
+        /* Trend “accent ink” used across Goals page */
         --accent-ink:#9ecbff;
       }
 
@@ -194,7 +194,7 @@
       .table thead th { z-index: 3; box-shadow: inset 0 -1px 0 rgba(255,255,255,.08); }
     </style>
 
-    <!-- Goals page: accent ink + FULL left alignment of the Goals table -->
+    <!-- Goals page: accent ink + FULL left alignment -->
     <style id="bt-goals-accent-all">
       body[data-route="/goals"]{
         --text: var(--accent-ink) !important;
@@ -213,12 +213,11 @@
         opacity: .85;
       }
 
-      /* FULL left-align across the Goals table (headers + all cells) */
+      /* FULL left-align (headers + cells) */
       body[data-route="/goals"] .table th,
       body[data-route="/goals"] .table td{
         text-align: left !important;
       }
-      /* neutralize any Bootstrap alignment utilities within the table */
       body[data-route="/goals"] .table .text-end,
       body[data-route="/goals"] .table .text-center,
       body[data-route="/goals"] .table [style*="text-align: right"],
@@ -227,10 +226,23 @@
       body[data-route="/goals"] .table [style*="text-align:center"]{
         text-align: left !important;
       }
-      /* inputs inside any cells read left */
       body[data-route="/goals"] .table .form-control,
       body[data-route="/goals"] .table .input-group .form-control{
         text-align: left !important;
+      }
+
+      /* Kill the blue/gradient “bar” fills that appear only inside the Current vs Last Month block */
+      body[data-route="/goals"] table.bt-cvslm th,
+      body[data-route="/goals"] table.bt-cvslm td{
+        background-image: none !important;   /* removes gradient bars but keeps row stripe bg-color */
+      }
+      body[data-route="/goals"] table.bt-cvslm .progress,
+      body[data-route="/goals"] table.bt-cvslm .bar,
+      body[data-route="/goals"] table.bt-cvslm .meter,
+      body[data-route="/goals"] table.bt-cvslm [class*="bar-"],
+      body[data-route="/goals"] table.bt-cvslm [style*="linear-gradient"]{
+        display: none !important;
+        background: transparent !important;
       }
     </style>
 
@@ -298,11 +310,10 @@
       })();
     </script>
 
-    <!-- Make “Current vs Last Month” match the Goals table -->
+    <!-- Upgrade “Current vs Last Month” to match Goals (floating, left aligned, no bars) -->
     <script>
       (function () {
         function upgradeCvslmTables() {
-          // Find any card with a header/title that says "Current vs Last Month"
           const cards = Array.from(document.querySelectorAll('.card'));
           cards.forEach(card => {
             const header = card.querySelector('.card-header, .card-title, h1, h2, h3, h4, h5');
@@ -312,8 +323,7 @@
             const table = card.querySelector('table');
             if (!table) return;
 
-            // Add floating look
-            table.classList.add('table', 'table-hover', 'table-striped', 'table-floating');
+            table.classList.add('table', 'table-hover', 'table-striped', 'table-floating', 'bt-cvslm');
 
             // If there is no thead, promote first tbody row into thead so sticky/tint works
             if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
@@ -330,18 +340,16 @@
               firstRow.parentNode.removeChild(firstRow);
             }
 
-            // Left-align like Goals
+            // Hard left-align like Goals
             table.querySelectorAll('th, td').forEach(c => { c.style.textAlign = 'left'; });
           });
         }
-
-        // Run after page load; also re-run if content is swapped in
         window.addEventListener('load', upgradeCvslmTables);
         document.addEventListener('bt:page-ready', upgradeCvslmTables);
       })();
     </script>
 
-    <!-- Chart.js axis/legend recolor sweep with MutationObserver (non-intrusive) -->
+    <!-- Chart.js axis/legend recolor sweep with MutationObserver (accent ink) -->
     <script>
       (function () {
         function cssVar(name, fallback) {
