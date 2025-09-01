@@ -2,6 +2,22 @@
 {% block title %}Recurring{% endblock %}
 
 {% block content %}
+
+<!-- Page-specific background (matches dark gradient used elsewhere) -->
+<style>
+  body.page-recurring{
+    background:
+      radial-gradient(1200px 600px at 70% -100px, rgba(56,189,248,.20), transparent 50%),
+      radial-gradient(900px 450px at -10% -50px, rgba(129,140,248,.18), transparent 60%),
+      linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
+    background-attachment: fixed;
+  }
+</style>
+<script>
+  // Apply page class when this template loads.
+  document.body.classList.add('page-recurring');
+</script>
+
 <div class="container py-3">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="mb-0">Recurring Dashboard</h2>
