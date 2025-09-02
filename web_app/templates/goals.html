@@ -2,41 +2,9 @@
 {% block content %}
 
 <style>
-  /* ---------- Theme tokens (page-local) ---------- */
-  :root{
-    --page-bg-1:#0b1220;
-    --page-bg-2:#0f172a;
-    --glow-1:#243b55;
-    --glow-2:#1b3a6b;
-
-    --text:#e6edf6;      /* page text color (also used for chart axes) */
-    --muted:#9fb3c8;
-
-    --card-bg:rgba(255,255,255,.045);
-    --card-border:rgba(255,255,255,.10);
-    --hair:rgba(255,255,255,.08);
-
-    --good:#34d399;
-    --bad:#f87171;
-
-    /* table header strip */
-    --thead-bg:rgba(255,255,255,.06);
-    --grad-a:#60a5fa;
-    --grad-b:#7c3aed;
-
-    --sticky-top: 0px; /* updated by JS for fixed navbars */
-  }
-
-  /* ---------- Page background ---------- */
-  html, body{
-    background:
-      radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
-      radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
-      linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%);
-    color:var(--text);
-  }
-  .muted { color: var(--muted) !important; }
-  .mono  { font-variant-numeric: tabular-nums; }
+  /* NOTE: This page now relies on the global dark theme from layout.html.
+     We intentionally avoid redefining --text / --muted or the page background
+     so the accent-ink (light blue) drives ALL text here as requested. */
 
   .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
   .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
@@ -78,8 +46,8 @@
     background:transparent;
   }
   .table-floating thead th{
-    background:var(--thead-bg);
-    color:var(--text);
+    background:var(--thead-bg) !important;
+    color:var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair);
     position:sticky; top:var(--sticky-top); z-index:2;
     font-weight:700; letter-spacing:.2px;
@@ -91,9 +59,9 @@
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* gradient header option (the Goals table in your screenshots uses this) */
+  /* Gradient header option for the Goals table */
   .thead-gradient th{
-    background: linear-gradient(90deg, var(--grad-a), var(--grad-b)) !important;
+    background: linear-gradient(90deg, #60a5fa, #7c3aed) !important; /* soft blue → violet */
     color:#f8fbff !important;
     text-shadow:0 1px 0 rgba(0,0,0,.35);
     border-color: transparent !important;
@@ -113,7 +81,7 @@
   .input-dark .input-group-text{
     background:rgba(255,255,255,.10);
     border-color:var(--hair);
-    color:#cfe5ff;
+    color:color-mix(in oklab, var(--accent-ink) 85%, white);
   }
   .input-dark .form-control{
     background:rgba(0,0,0,.25);
@@ -123,13 +91,13 @@
   }
   .input-dark .form-control:focus{
     background:rgba(0,0,0,.35);
-    box-shadow:0 0 0 .2rem rgba(124,58,237,.25);
+    box-shadow:0 0 0 .2rem color-mix(in oklab, #7c3aed 25%, transparent);
     color:var(--text);
   }
 
   /* variance coloring */
-  .ok  { color: var(--good); font-weight:600; }
-  .bad { color: var(--bad);  font-weight:600; }
+  .ok  { color: #34d399; font-weight:600; }
+  .bad { color: #f87171;  font-weight:600; }
 
   /* spark bars */
   .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
@@ -148,7 +116,6 @@
   .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
   .meter.over > .fill { background:#ef4444; }
 
-  /* charts */
   canvas { background:transparent !important; }
 </style>
 
@@ -176,7 +143,7 @@
     </div>
 
     <div class="summary-grid">
-      <!-- Current vs Last Month — now a floating table identical to Goals -->
+      <!-- Current vs Last Month -->
       <div class="panel">
         <div class="panel-title">Current vs Last Month</div>
         <div class="table-responsive">
@@ -282,9 +249,9 @@
 (function(){
   'use strict';
 
-  /* ---------- Chart color from CSS token so it matches page text ---------- */
+  /* Charts read color from global --text so they match the accent ink */
   const css = getComputedStyle(document.documentElement);
-  const CHART_TEXT = (css.getPropertyValue('--text') || '#e6edf6').trim();
+  const CHART_TEXT = (css.getPropertyValue('--text') || '#9ecbff').trim();
   const CHART_GRID = 'rgba(255,255,255,0.15)';
   Chart.defaults.color = CHART_TEXT;
   Chart.defaults.borderColor = CHART_GRID;
