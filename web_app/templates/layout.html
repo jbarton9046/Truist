@@ -279,9 +279,11 @@
 
     <script> document.documentElement.classList.add('theme-dark'); </script>
     <script>
-      (function(){ document.addEventListener('DOMContentLoaded', function(){
-        document.body.setAttribute('data-route', location.pathname || '');
-      });})();
+      (function(){
+        document.addEventListener('DOMContentLoaded', function(){
+          document.body.setAttribute('data-route', location.pathname || '');
+        });
+      })();
     </script>
   </head>
 
@@ -349,19 +351,16 @@
         function tagCvslmCard() {
           const cards = document.querySelectorAll('.card, .stat-card, .panel');
           cards.forEach(card => {
-            // find a heading-like element OR fallback to text scan
             const heading = card.querySelector('.card-header, .card-title, .panel-title, .summary-label, h1, h2, h3, h4, h5, h6, caption');
             const txt = (heading ? heading.textContent : card.textContent) || '';
             if (!wants.test(txt)) return;
 
-            // tag for CSS and alignments
             card.classList.add('bt-cvslm-match');
 
-            // TABLE case: ensure it gets the floating table look + left align
             const table = card.querySelector('table');
             if (table) {
               table.classList.add('table','table-hover','table-striped','table-floating');
-              // if no THEAD, promote first body row
+
               if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
                 const first = table.tBodies[0].rows[0];
                 const thead = document.createElement('thead');
@@ -386,7 +385,6 @@
 
         function init(){
           tagCvslmCard();
-          // rerun after hydration/layout changes if any
           setTimeout(tagCvslmCard, 200);
           setTimeout(tagCvslmCard, 600);
         }
@@ -502,7 +500,7 @@
       })();
     </script>
 
-    <!-- Plotly grid/tick theming — /charts only (safe for other pages) -->
+    <!-- Plotly grid/tick theming — /charts only (no observers, no loops) -->
     <script id="bt-plotly-dark">
       (function () {
         if (location.pathname !== '/charts') return;
@@ -512,10 +510,9 @@
         const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
         const grid   = 'rgba(255,255,255,.14)';
 
-        function apply(gd){
+        function applyOnce(gd){
+          if (!gd || gd.dataset.btThemed === '1' || !window.Plotly) return;
           try {
-            if (!window.Plotly) return;
-            // Gentle relayout patch; leaves series colors etc. untouched
             Plotly.relayout(gd, {
               'paper_bgcolor': 'rgba(0,0,0,0)',
               'plot_bgcolor' : 'rgba(0,0,0,0)',
@@ -534,33 +531,19 @@
               'yaxis.tickfont.color'   : accent,
               'yaxis.title.font.color' : accent
             });
-          } catch(e){}
+            gd.dataset.btThemed = '1';
+          } catch(_) {}
         }
 
-        function sweep(){
-          document.querySelectorAll('.js-plotly-plot').forEach(apply);
-        }
+        // Theme any charts present after load
+        window.addEventListener('load', function(){
+          document.querySelectorAll('.js-plotly-plot').forEach(applyOnce);
+        }, { once:true });
 
-        function start(){
-          // try a few times in case charts render lazily
-          let tries = 0;
-          const t = setInterval(function(){
-            if (window.Plotly) { sweep(); if (++tries > 6) clearInterval(t); }
-            else if (++tries > 40) clearInterval(t);
-          }, 200);
-
-          // react to charts added/updated
-          const mo = new MutationObserver(sweep);
-          try { mo.observe(document.body, { childList:true, subtree:true }); } catch(e){}
-
-          document.addEventListener('plotly_afterplot', function(e){
-            if (e && e.target && e.target.classList && e.target.classList.contains('js-plotly-plot')) apply(e.target);
-          });
-          window.addEventListener('resize', sweep);
-        }
-
-        if (document.readyState === 'complete') start();
-        else window.addEventListener('load', start);
+        // Theme charts as they finish rendering
+        document.addEventListener('plotly_afterplot', function(e){
+          applyOnce(e && e.target);
+        }, { passive:true });
       })();
     </script>
 
