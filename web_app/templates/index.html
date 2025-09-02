@@ -43,7 +43,6 @@
     border-bottom:1px solid var(--hair) !important;
     position: sticky; top: 0; z-index: 4;
     font-weight:700; letter-spacing:.2px;
-    padding:.65rem .8rem;
     backdrop-filter: saturate(130%) blur(6px);
     -webkit-backdrop-filter: saturate(130%) blur(6px);
     box-shadow:
@@ -55,7 +54,7 @@
   .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
-    padding:.55rem .65rem; /* match goals row rhythm */
+    padding:.55rem .9rem; /* row rhythm like goals */
   }
   .table-modern tbody tr:nth-child(odd),
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
@@ -70,6 +69,19 @@
   .table [style*="text-align:right"],
   .table [style*="text-align: center"],
   .table [style*="text-align:center"]{ text-align:left !important; }
+
+  /* — Header alignment polish (slightly down/right, rounded corners) — */
+  .table-headpad thead th{
+    padding:.70rem 1rem !important;         /* comfy, matches goals look */
+  }
+  .table-headpad thead th:first-child{
+    border-top-left-radius:12px;            /* rounded outer corners */
+    padding-left:1.15rem !important;        /* nudged right */
+  }
+  .table-headpad thead th:last-child{
+    border-top-right-radius:12px;
+    padding-right:1.0rem !important;
+  }
 
   /* Utilities */
   .mono { font-variant-numeric: tabular-nums; }
@@ -129,8 +141,8 @@
   /* --- Polished KPI bubbles (Latest Month Totals) --- */
   .stats-grid .panel.stats-bubble{
     display:flex; flex-direction:column; justify-content:center;
-    gap:.2rem; min-height:90px;
-    padding:.85rem 1rem;
+    gap:.2rem; min-height:94px;
+    padding:.9rem 1.1rem;
     border-radius:14px;
   }
   .stats-grid .label{ font-size:.82rem; letter-spacing:.15px; }
@@ -161,7 +173,7 @@
         </div>
         <div class="card-body p-0">
           <div class="table-responsive" style="max-height: 42vh; overflow:auto;">
-            <table class="table table-sm table-floating align-middle mb-0">
+            <table class="table table-sm table-floating table-headpad align-middle mb-0">
               <thead class="small">
                 <tr>
                   <th>Category</th>
@@ -220,7 +232,7 @@
         </div>
         <div class="card-body">
           <div class="table-responsive" style="max-height: 420px; overflow:auto;">
-            <table class="table table-sm table-floating align-middle mb-0" id="ra-recent">
+            <table class="table table-sm table-floating table-headpad align-middle mb-0" id="ra-recent">
               <thead>
                 <tr>
                   <th style="width:110px;">Date</th>
