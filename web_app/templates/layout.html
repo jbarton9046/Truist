@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-14">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-15">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -67,11 +67,11 @@
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
 
-        /* Trend “accent ink” used across Goals page */
+        /* Trend “accent ink” used across Goals/Charts */
         --accent-ink:#9ecbff;
 
-        /* shared grid color for Plotly */
-        --plot-grid: rgba(158,203,255,.11);
+        /* Plotly grid tone (soft bluish) */
+        --plotly-grid: rgba(158,203,255,.11);
       }
 
       html.theme-dark, body.theme-dark {
@@ -289,11 +289,10 @@
       })();
     </script>
 
-    <!-- TARGET & NORMALIZE the “Current vs Last Month” block -->
+    <!-- (unchanged) “Current vs Last Month” normalizer -->
     <script>
       (function () {
         const wants = /current\s*vs\s*last\s*month/i;
-
         function tagCvslmCard() {
           const cards = document.querySelectorAll('.card, .stat-card, .panel');
           cards.forEach(card => {
@@ -306,7 +305,6 @@
             const table = card.querySelector('table');
             if (table) {
               table.classList.add('table','table-hover','table-striped','table-floating');
-
               if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
                 const first = table.tBodies[0].rows[0];
                 const thead = document.createElement('thead');
@@ -328,125 +326,14 @@
             }
           });
         }
-
-        function init(){
-          tagCvslmCard();
-          setTimeout(tagCvslmCard, 200);
-          setTimeout(tagCvslmCard, 600);
-        }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', init, { once:true });
-        } else {
-          init();
-        }
+        function init(){ tagCvslmCard(); setTimeout(tagCvslmCard,200); setTimeout(tagCvslmCard,600); }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once:true });
+        else init();
         window.addEventListener('bt:page-ready', tagCvslmCard);
       })();
     </script>
 
-    <!-- Chart.js axis/legend recolor sweep (accent ink) -->
-    <script>
-      (function () {
-        function cssVar(name, fallback) {
-          const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-          return v || fallback;
-        }
-
-        function recolorChart(chart) {
-          if (!chart) return false;
-          const accent = cssVar('--accent-ink', '#9ecbff');
-          const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
-          const gridC  = 'rgba(255,255,255,.14)';
-          const opts   = chart.options || (chart.config && chart.config.options) || {};
-
-          opts.plugins = opts.plugins || {};
-          opts.plugins.legend = opts.plugins.legend || {};
-          opts.plugins.legend.labels = Object.assign({}, opts.plugins.legend.labels, { color: accent });
-          opts.plugins.title = Object.assign({}, opts.plugins.title, { color: accent });
-          opts.plugins.tooltip = Object.assign({}, opts.plugins.tooltip, {
-            titleColor: accent,
-            bodyColor:  accent,
-            borderColor: hair,
-            backgroundColor: 'rgba(15,23,42,.92)',
-            borderWidth: 1
-          });
-
-          let touched = false;
-
-          if (chart.scales) {
-            Object.values(chart.scales).forEach((scale) => {
-              const so = scale.options || {};
-              const before = JSON.stringify(so.ticks || {});
-              so.ticks = Object.assign({}, so.ticks, { color: accent, fontColor: accent });
-              so.grid  = Object.assign({}, so.grid,  { color: gridC, borderColor: hair, drawBorder: true, zeroLineColor: gridC });
-              scale.options = so;
-              touched = touched || (JSON.stringify(so.ticks || {}) !== before);
-            });
-          }
-
-          if (opts.scales && (opts.scales.xAxes || opts.scales.yAxes)) {
-            (opts.scales.xAxes || []).forEach(ax => {
-              ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
-              ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
-              touched = true;
-            });
-            (opts.scales.yAxes || []).forEach(ax => {
-              ax.ticks     = Object.assign({}, ax.ticks,     { fontColor: accent, color: accent });
-              ax.gridLines = Object.assign({}, ax.gridLines, { color: gridC, zeroLineColor: gridC });
-              touched = true;
-            });
-          }
-
-          if (touched) { try { chart.update('none'); } catch(e){} }
-          return touched;
-        }
-
-        function sweepAll() {
-          if (!window.Chart || !Chart.instances) return false;
-          let list = [];
-          if (typeof Chart.instances.forEach === 'function') {
-            list = Array.from(Chart.instances.values()); // v4 Map
-          } else if (Array.isArray(Chart.instances)) {
-            list = Chart.instances;                      // v2 array
-          } else {
-            list = Object.values(Chart.instances);       // v3 object
-          }
-          let changed = false;
-          list.forEach(c => { try { changed = recolorChart(c) || changed; } catch(e){} });
-          return changed;
-        }
-
-        function startSweeper() {
-          let rafCount = 0;
-          (function rafSweep(){
-            if (sweepAll() || rafCount > 30) return;
-            rafCount++; requestAnimationFrame(rafSweep);
-          })();
-
-          let tries = 0;
-          const t = setInterval(function(){
-            if (sweepAll()) { clearInterval(t); return; }
-            if (++tries > 20) clearInterval(t);
-          }, 300);
-        }
-
-        const mo = new MutationObserver(() => { if (window.Chart) sweepAll(); });
-        window.addEventListener('load', () => {
-          try { mo.observe(document.body, { childList: true, subtree: true }); } catch(e){}
-        });
-
-        if (document.readyState === 'complete') {
-          if (window.Chart) startSweeper();
-          else window.addEventListener('load', startSweeper);
-        } else {
-          window.addEventListener('load', startSweeper);
-        }
-
-        window.addEventListener('bt:charts-init', startSweeper);
-      })();
-    </script>
-
-    <!-- Plotly grid/tick theming — /charts only (respects chart-provided values) -->
+    <!-- Plotly grid/tick theming — **NEW** (soft bluish grid, no heavy zero-line) -->
     <script id="bt-plotly-dark">
       (function () {
         if (location.pathname !== '/charts') return;
@@ -454,48 +341,40 @@
         function cssVar(n, f){ const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v||f; }
         const accent = cssVar('--accent-ink', '#9ecbff');
         const hair   = cssVar('--hair', 'rgba(255,255,255,.12)');
-        const gridDefault = cssVar('--plot-grid', 'rgba(158,203,255,.11)');
+        const grid   = cssVar('--plotly-grid', 'rgba(158,203,255,.11)');
 
-        function applyOnce(gd){
-          if (!gd || gd.dataset.btThemed === '1' || !window.Plotly) return;
+        function skin(gd){
+          if (!gd || !window.Plotly) return;
           try {
-            const lay = gd.layout || {};
-            const relayout = {
+            Plotly.relayout(gd, {
               'paper_bgcolor': 'rgba(0,0,0,0)',
               'plot_bgcolor' : 'rgba(0,0,0,0)',
               'font.color'   : accent,
-              'legend.font.color': accent
-            };
-            const setIfMissing = (axis, prop, val) => {
-              if (lay[axis] && (prop in lay[axis])) return;
-              relayout[`${axis}.${prop}`] = val;
-            };
+              'legend.font.color': accent,
 
-            setIfMissing('xaxis','gridcolor', gridDefault);
-            setIfMissing('xaxis','gridwidth', 0.6);
-            setIfMissing('xaxis','linecolor', hair);
-            setIfMissing('xaxis','tickfont', {color: accent});
-            setIfMissing('xaxis','title',    {font:{color: accent}});
-            setIfMissing('xaxis','zeroline', false);
+              'xaxis.gridcolor'      : grid,
+              'xaxis.gridwidth'      : 0.6,
+              'xaxis.zeroline'       : false,
+              'xaxis.linecolor'      : hair,
+              'xaxis.tickfont.color' : accent,
+              'xaxis.title.font.color': accent,
 
-            setIfMissing('yaxis','gridcolor', gridDefault);
-            setIfMissing('yaxis','gridwidth', 0.6);
-            setIfMissing('yaxis','linecolor', hair);
-            setIfMissing('yaxis','tickfont', {color: accent});
-            setIfMissing('yaxis','title',    {font:{color: accent}});
-            setIfMissing('yaxis','zeroline', false);
-
-            Plotly.relayout(gd, relayout);
-            gd.dataset.btThemed = '1';
+              'yaxis.gridcolor'      : grid,
+              'yaxis.gridwidth'      : 0.6,
+              'yaxis.zeroline'       : false,
+              'yaxis.linecolor'      : hair,
+              'yaxis.tickfont.color' : accent,
+              'yaxis.title.font.color': accent
+            });
           } catch(_) {}
         }
 
         window.addEventListener('load', function(){
-          document.querySelectorAll('.js-plotly-plot').forEach(applyOnce);
+          document.querySelectorAll('.js-plotly-plot').forEach(skin);
         }, { once:true });
 
         document.addEventListener('plotly_afterplot', function(e){
-          applyOnce(e && e.target);
+          skin(e && e.target);
         }, { passive:true });
       })();
     </script>
