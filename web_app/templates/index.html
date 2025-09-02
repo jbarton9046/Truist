@@ -15,11 +15,14 @@
     box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
     backdrop-filter: saturate(120%) blur(4px);
   }
+
+  /* Section/card headers (nudge right, like goals) */
   .card-header, .section-header{
     background: var(--thead-bg) !important;
     color: var(--text) !important;
     border-bottom: 1px solid var(--hair) !important;
     font-weight: 600;
+    padding:.70rem 1rem .70rem 1.15rem;   /* ← this is the “down & right” feel */
   }
 
   /* Unified table styling (mirror goals.html) */
@@ -50,11 +53,12 @@
       0 10px 18px rgba(2, 6, 23, .25);
   }
 
+  /* Table body rhythm */
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
-    padding:.55rem .9rem; /* row rhythm like goals */
+    padding:.60rem 1.0rem; /* roomier like goals */
   }
   .table-modern tbody tr:nth-child(odd),
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
@@ -72,15 +76,15 @@
 
   /* — Header alignment polish (slightly down/right, rounded corners) — */
   .table-headpad thead th{
-    padding:.70rem 1rem !important;         /* comfy, matches goals look */
+    padding:.80rem 1.15rem !important;        /* wider than default — matches goals feel */
   }
   .table-headpad thead th:first-child{
-    border-top-left-radius:12px;            /* rounded outer corners */
-    padding-left:1.15rem !important;        /* nudged right */
+    border-top-left-radius:12px;
+    padding-left:1.35rem !important;          /* extra nudge so it doesn't hug edge */
   }
   .table-headpad thead th:last-child{
     border-top-right-radius:12px;
-    padding-right:1.0rem !important;
+    padding-right:1.15rem !important;
   }
 
   /* Utilities */
@@ -138,11 +142,11 @@
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
 
-  /* --- Polished KPI bubbles (Latest Month Totals) --- */
+  /* Polished KPI bubbles (Latest Month Totals) */
   .stats-grid .panel.stats-bubble{
     display:flex; flex-direction:column; justify-content:center;
-    gap:.2rem; min-height:94px;
-    padding:.9rem 1.1rem;
+    gap:.22rem; min-height:96px;
+    padding:.95rem 1.15rem;
     border-radius:14px;
   }
   .stats-grid .label{ font-size:.82rem; letter-spacing:.15px; }
