@@ -29,7 +29,7 @@
   .summary-label,
   #recent-activity h5,
   .section-header .fw-bold {
-    color: var(--text) !important; /* accent ink */
+    color: var(--text) !important; /* accent ink everywhere */
   }
 
   /* ======= Tables – shared with Goals ======= */
@@ -41,6 +41,16 @@
     overflow:auto;
     position: relative;
     scrollbar-gutter: stable both-edges;
+  }
+
+  /* Bring back inner scrolling with sticky headers */
+  .scrollbox{
+    max-height: 44vh;            /* restores in-card scroll */
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  @media (max-height: 760px){
+    .scrollbox{ max-height: 40vh; }
   }
 
   .table-floating,
@@ -80,9 +90,12 @@
   .table-floating tbody tr:hover,
   .table-modern   tbody tr:hover{ background:rgba(255,255,255,.05); }
 
+  /* Header padding so titles aren’t slammed left/top */
+  .tight-head th{ padding: .55rem .8rem !important; }
+
   /* ======= Latest Month Totals — compact “bubble” tiles ======= */
   .totals-row{
-    --gap: 18px;
+    --gap: 16px;
     display:grid;
     grid-template-columns: repeat(3, minmax(0,1fr));
     gap: var(--gap);
@@ -93,39 +106,35 @@
   .total-bubble{
     border:1px solid var(--card-border);
     background: color-mix(in oklab, var(--card-bg) 92%, transparent);
-    border-radius: 14px;
-    padding: 14px 16px;
+    border-radius: 12px;
+    padding: 12px 14px;
     box-shadow:
-      0 10px 22px rgba(0,0,0,.25),
+      0 10px 22px rgba(0,0,0,.22),
       inset 0 1px 0 rgba(255,255,255,.05);
   }
+  .totals-card .card-body{ padding: 14px 16px 10px 16px; }
   .total-bubble .label{ color: var(--text); opacity:.95; }
-  .total-bubble .primary{ font-weight:700; font-size:1.25rem; }
+  .total-bubble .primary{ font-weight:700; font-size:1.125rem; }
   .total-bubble .delta{ color:#22c55e; font-weight:600; }
 
-  /* Give the “Latest Month Totals” card comfortable inner paddings */
-  .totals-card .card-body{ padding: 16px 18px 10px 18px; }
+  /* ======= Category Movers — mirror totals look (row “bubbles”) ======= */
+  .cm-card .table-wrap{ padding: 8px 10px 12px 10px; }
+  .cm-card .table-responsive{ background: transparent; }
 
-  /* ======= Category Movers — bubble-rows like the totals ======= */
-  .cm-card .table-wrap{
-    /* inner inset so rows don’t hug the card edges */
-    padding: 10px 12px 12px 12px;
-  }
+  /* Row pills: same background/border/radius proportions as totals */
   .cm-card .table-floating{
-    /* vertical gaps between rows via row border-spacing */
     border-collapse: separate;
-    border-spacing: 0 10px;              /* <-- creates row “pill” gaps */
+    border-spacing: 0 10px;                 /* vertical gaps between pills */
   }
-  /* remove default zebra + borders for this table; we’ll paint the row pills */
   .cm-card .table-floating tbody tr{ background: transparent !important; }
   .cm-card .table-floating tbody td{
     border-top: none !important;
-    background: color-mix(in oklab, var(--card-bg) 94%, transparent);
+    background: color-mix(in oklab, var(--card-bg) 92%, transparent);
     border: 1px solid var(--card-border);
     box-shadow:
       0 8px 18px rgba(0,0,0,.20),
       inset 0 1px 0 rgba(255,255,255,.04);
-    padding: .6rem .8rem !important;
+    padding: .55rem .75rem !important;      /* compact like totals */
   }
   .cm-card .table-floating tbody td:first-child{
     border-top-left-radius: 12px; border-bottom-left-radius: 12px;
@@ -134,11 +143,8 @@
     border-top-right-radius: 12px; border-bottom-right-radius: 12px;
   }
 
-  /* Keep the header tidy and not slammed to the edge */
-  .tight-head th{ padding: .55rem .8rem !important; }
-
-  /* ======= Recent Transactions table also gets frosted header ======= */
-  .rt-card .table-wrap{ padding: 10px 12px; }
+  /* ======= Recent Transactions table also gets frosted header + scroll ======= */
+  .rt-card .table-wrap{ padding: 8px 10px 10px 10px; }
 
   /* ======= Utilities ======= */
   .mono { font-variant-numeric: tabular-nums; }
@@ -208,7 +214,7 @@
           <div class="fw-bold">📈 Category Movers <span class="muted small" id="cmSubtitle"></span></div>
         </div>
         <div class="card-body p-0 table-wrap">
-          <div class="table-responsive frost">
+          <div class="table-responsive frost scrollbox">
             <table class="table table-sm table-floating align-middle mb-0 tight-head">
               <thead class="small">
                 <tr>
@@ -261,7 +267,7 @@
           <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light">🔄 Refresh</button>
         </div>
         <div class="card-body p-0 table-wrap">
-          <div class="table-responsive frost">
+          <div class="table-responsive frost scrollbox">
             <table class="table table-sm table-floating align-middle mb-0 tight-head" id="ra-recent">
               <thead>
                 <tr>
