@@ -166,7 +166,10 @@
 
       <div class="col-xl-5">
         <div class="stat-card h-100">
-          <div class="mb-2 fw-semibold">Income Sources (Top N)</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income Sources (Top N)</div>
+            <div class="muted small">auto-grouped deeper if available</div>
+          </div>
           <div id="in_table"></div>
         </div>
       </div>
@@ -325,7 +328,7 @@
 
   const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(String(c.name||'')===String(name)))||null;
 
-  /* Sum leaves into their level-2 bucket under a subtree (Income) */
+  /* Income groupers */
   function seriesBySecondLevel(sub){
     const map=new Map(); if(!sub) return {};
     const visit=n=>{
@@ -338,13 +341,26 @@
     (sub.children||[]).forEach(visit);
     return Object.fromEntries(map.entries());
   }
-  /* Fallback: group by immediate children */
   function seriesByChildren(sub){
     const map=new Map(); if(!sub) return {};
     (sub.children||[]).forEach(ch=>{
       const arr=(ch.monthly||[]).map(toNum);
       map.set(ch.name||'(child)', arr);
     });
+    return Object.fromEntries(map.entries());
+  }
+  function seriesByLeaves(sub, tailDepth=2){
+    const map=new Map(); if(!sub) return {};
+    const visit=n=>{
+      if(!n.children.length){
+        const p = n.path.slice(1); // drop "Income"
+        const label = (p.length ? p.slice(-tailDepth).join(' / ') : n.name) || 'Income';
+        const arr = (n.monthly||[]).map(toNum);
+        if(!map.has(label)) map.set(label,new Array(arr.length).fill(0));
+        const d=map.get(label); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
+      } else n.children.forEach(visit);
+    };
+    (sub.children||[]).forEach(visit);
     return Object.fromEntries(map.entries());
   }
 
@@ -462,7 +478,6 @@
       values:values,
       ids:nodes.map(n=>n.id),
       branchvalues:'total',
-      maxdepth:2,
       pathbar:{visible:true},
       hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
     }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
@@ -619,11 +634,18 @@
     scatterVolAvg(ex_scatter,exEntries);
     donut(ex_donut,exEntries,focusIdx);
 
-    /* Income (robust fallbacks) */
+    /* Income (deeper auto grouping) */
     const incomeTop = subtreeByTop(treeDeep,'Income');
-    incomeSubSeries = seriesBySecondLevel(incomeTop);
-    if (!Object.keys(incomeSubSeries).length) incomeSubSeries = seriesByChildren(incomeTop);
-    if (!Object.keys(incomeSubSeries).length) incomeSubSeries = { Income: incomeByMonth.slice() };
+    let s2 = seriesBySecondLevel(incomeTop);
+    let sLeaf = seriesByLeaves(incomeTop, 2);
+    let sChild = seriesByChildren(incomeTop);
+
+    // pick the deepest that yields more detail
+    const pickSeries = (obj) => Object.keys(obj).filter(k => obj[k].some(v=>toNum(v)!==0)).length;
+    if (pickSeries(s2) >= 2)      incomeSubSeries = s2;
+    else if (pickSeries(sLeaf)>=2)incomeSubSeries = sLeaf;
+    else if (pickSeries(sChild)>=2)incomeSubSeries = sChild;
+    else                          incomeSubSeries = { Income: incomeByMonth.slice() };
 
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
