@@ -260,7 +260,6 @@
 
   const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
   const sum = a => a.reduce((x,y)=>x+toNum(y),0);
-  const zeros = n => Array.from({length:n}, ()=>0);
   const money = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
   const money2 = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
@@ -292,7 +291,6 @@
     roll(root); return root;
   }
 
-  /* NEW: flatten tree for treemap (skip Income branch when expenses-only) */
   function buildTreemapNodes(root, expensesOnly=true){
     const out=[];
     function visit(node, parentId){
@@ -303,7 +301,7 @@
         out.push({ id, label: node.name || '—', parent: parentId || '', value: (node.monthly||[]).map(toNum) });
       }
       (node.children||[]).forEach(ch => {
-        if (expensesOnly && String(ch.name||'').toLowerCase()==='income') return; /* skip income sub-tree for expense treemap */
+        if (expensesOnly && String(ch.name||'').toLowerCase()==='income') return;
         visit(ch, id);
       });
     }
@@ -319,7 +317,7 @@
     } else n.children.forEach(visit); };
     (sub.children||[]).forEach(visit); return Object.fromEntries(map.entries());
   }
-  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum),sum(v||[])]).filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
+  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)]).filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
   const rollingStats=(arr,k=3)=>{ const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}};
   const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
@@ -361,8 +359,7 @@
   const kpiMed=document.getElementById('inc_kpi_medpay');
 
   /* ---------- Data ---------- */
-  let months=[], categoriesTop=[], categoriesDeep=[];
-  let topSeries={}, treeDeep=null;
+  let months=[], topSeries={}, treeDeep=null;
   let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
   let incomeSubSeries={};
   let handlersAttached=false;
@@ -386,12 +383,12 @@
     safeReact(ov_cum,[{type:'scatter',mode:'lines',opacity:OP_AREA,fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
       baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}));
 
-    const {mean,sd}=rollingStats(netByMonth,3);
-    const upper=mean.map((m,i)=>m+(sd[i]||0)), lower=mean.map((m,i)=>m-(sd[i]||0));
+    const rs=rollingStats(netByMonth,3);
+    const upper=rs.mean.map((m,i)=>m+(rs.sd[i]||0)), lower=rs.mean.map((m,i)=>m-(rs.sd[i]||0));
     safeReact(ov_roll,[
       {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip',opacity:0},
       {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip',opacity:0.25},
-      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',opacity:OP_LINE,hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
+      {type:'scatter',x:months,y:rs.mean,mode:'lines+markers',name:'Rolling mean',opacity:OP_LINE,hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
     ], baseLayout({}));
 
     const incSeason=seasonality(months,incomeByMonth), expSeason=seasonality(months,expenseByMonth);
@@ -461,7 +458,7 @@
 
   function donut(targetEl, entries, monthIdx){
     const labels=[], values=[]; entries.forEach(([n,a])=>{labels.push(n);values.push(toNum(a[monthIdx]||0))});
-    let other=0; const keepL=[], keepV=[]; const grand=sum(values)||1;
+    let other=0; const keepL=[], keepV=[]; const grand=values.reduce((a,b)=>a+Math.max(0,b),0)||1;
     values.forEach((v,i)=>{ if(v/grand<0.03) other+=v; else {keepL.push(labels[i]); keepV.push(v);} });
     if(other>0){keepL.push('Other'); keepV.push(other);}
     safeReact(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,opacity:0.9,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
@@ -478,7 +475,7 @@
   }
 
   function incomeTable(targetEl, months, entries){
-    const grand=sum(entries.map(([,arr])=>sum(arr)));
+    const grand=entries.reduce((t,[,arr])=>t+sum(arr),0);
     const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
     const rows=entries.map(([name,arr])=>{
       const total=sum(arr), avg=months.length?total/months.length:0, last=arr[arr.length-1]||0, pct=grand?(total/grand)*100:0;
@@ -569,7 +566,7 @@
     let nodes=[];
     try{
       if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);   /* expenses-only */
+        nodes = buildTreemapNodes(treeDeep,true);   /* expenses-only (skip Income branch) */
       }else{
         nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
       }
@@ -584,6 +581,8 @@
     donut(ex_donut,exEntries,focusIdx);
 
     /* Income */
+    const incomeTop = subtreeByTop(treeDeep,'Income');
+    incomeSubSeries = seriesBySecondLevel(incomeTop);
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
     incomeTable(in_table,months,inEntries);
@@ -591,8 +590,9 @@
     heatmap(in_heatmap,months,inEntries);
 
     attachDrillHandlers(months);
+
     const lastMonthIncome=incomeByMonth.at(-1)||0; kpi30d.textContent=incomeByMonth.length?money(lastMonthIncome):'—';
-    const last3=incomeByMonth.slice(-3); const avg3=last3.length?sum(last3)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
+    const last3=incomeByMonth.slice(-3); const avg3=last3.length?last3.reduce((a,v)=>a+toNum(v),0)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
 
     resizeAllPlots();
   }
@@ -617,35 +617,33 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
-  /* Bootstrap */
+  /* ---- bootstrap data ---- */
   (async function main(){
-    // Base payload
-    let base=null; try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
-    if(!base || !Array.isArray(base.months) || !Array.isArray(base.categories)){
-      const r=await fetch('/api/categories/monthly'); base=await r.json();
+    let payload=null;
+    try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
+    if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
+      try{
+        const r=await fetch('/api/cat_monthly'); payload=await r.json();
+      }catch(_){}
     }
-    // Deep payload for income sources
-    let deep=null; try{ const r2=await fetch('/api/categories/monthly?deep=1'); deep=await r2.json(); }catch{}
+    if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
+      document.getElementById('pane-overview').innerHTML='<div class="stat-card"><div class="muted">No category data available.</div></div>';
+      return;
+    }
 
-    months=base.months||[];
-    categoriesTop=(base.categories||[]).map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
-    const deepCats = (deep && Array.isArray(deep.categories) && deep.categories.length) ? deep.categories : (base.categories||[]);
-    categoriesDeep=deepCats.map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
+    months = payload.months || [];
+    topSeries = aggregateTopLevel(payload.categories || []);
+    treeDeep = buildTree(payload.categories || []);
 
-    topSeries=aggregateTopLevel(categoriesTop);
-    const L=months.length; const incomeTop=topSeries['Income']||zeros(L);
-    incomeByMonth=incomeTop.slice(); expenseByMonth=zeros(L);
-    Object.entries(topSeries).forEach(([k,arr])=>{ if(k==='Income') return; for(let i=0;i<L;i++) expenseByMonth[i]+=toNum(arr[i]||0); });
-    netByMonth=incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
-
-    treeDeep=buildTree(categoriesDeep);
-    const incomeNode=subtreeByTop(treeDeep,'Income');
-    incomeSubSeries = (incomeNode && (incomeNode.children||[]).length) ? seriesBySecondLevel(incomeNode) : { 'Income': incomeByMonth.slice() };
-    if(!Object.keys(incomeSubSeries).length) incomeSubSeries={'Income':incomeByMonth.slice()};
+    /* income/expense series */
+    incomeByMonth = (topSeries['Income']||[]).map(toNum);
+    expenseByMonth = Object.entries(topSeries).filter(([k])=>k!=='Income')
+      .reduce((arr,[,vals])=>{ vals.forEach((v,i)=> arr[i]=(arr[i]||0)+toNum(v)); return arr; }, new Array(months.length).fill(0));
+    netByMonth = incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
 
     populateFocusMonth();
     refreshAll();
-    await loadRecurrentsIncome();
+    loadRecurrentsIncome();
     window.addEventListener('resize', resizeAllPlots);
   })();
 })();
