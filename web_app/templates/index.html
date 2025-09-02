@@ -22,8 +22,7 @@
     border-bottom: 1px solid var(--hair) !important;
     font-weight: 600;
   }
-
-  /* Header alignment like goals: slightly down/right, not slammed left */
+  /* Header alignment like goals: a touch down/right, no hard-left slam */
   .card-header,
   .section-title {
     padding: .75rem 1rem;
@@ -38,35 +37,25 @@
     background:var(--card-bg);
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
     overflow:hidden;
-    position: relative;
   }
-  .table-modern,
-  .table-floating{
+  .table-floating,
+  .table-modern{
     width:100%;
     border-collapse:separate;
     border-spacing:0;
     color:var(--text);
     background:transparent;
   }
-
-  /* ==== FROSTED STICKY HEADERS — EXACTLY LIKE NAVBAR ==== */
-  .table-wrap thead { position: sticky; top: 0; z-index: 4; }
-  .table-wrap thead th{
-    position: sticky; top: 0; z-index: 5;
-    /* same frosted glass vibe as navbar */
-    background: var(--card-bg) !important;
-    border-bottom: 1px solid var(--card-border) !important;
+  .table-modern thead th,
+  .table-floating thead th{
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
     color: var(--table-head-fg, var(--text)) !important;
-    backdrop-filter: saturate(120%) blur(6px);
-    -webkit-backdrop-filter: saturate(120%) blur(6px);
-    box-shadow:
-      0 1px 0 rgba(255,255,255,.05),
-      0 10px 18px rgba(2, 6, 23, .25);
+    border-bottom:1px solid var(--hair) !important;
+    position: sticky; top: 0; z-index: 3;
     font-weight:700; letter-spacing:.2px;
+    backdrop-filter:saturate(130%) blur(6px);
+    -webkit-backdrop-filter:saturate(130%) blur(6px);
   }
-  .table-wrap thead th:first-child { border-top-left-radius: 12px; }
-  .table-wrap thead th:last-child  { border-top-right-radius: 12px; }
-
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
@@ -82,7 +71,7 @@
   .tx-neg { color:#c0392b; font-weight:600; }
   .tx-pos { color:#1e7e34; font-weight:600; }
 
-  /* --- Metric “bubbles” (Latest Month Totals) --- */
+  /* --- Metric “bubbles” (used in Latest Month Totals) --- */
   .metric-bubble{
     background:rgba(255,255,255,.04);
     border:1px solid var(--hair);
@@ -94,12 +83,15 @@
   .metric-value{ font-weight:700; font-size:1.25rem; }
   .metric-sub{ color:#31d4a1; font-weight:600; }
 
-  /* Comfortable gutters so bubbles never touch shell edges */
-  .metrics-row{ padding:12px 12px 6px; }
+  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
+  .metrics-row{
+    padding:12px 12px 6px;
+  }
   .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
 
   /* ---- Category Movers “Latest-like shell” with preserved scrolling ---- */
   .cm-shell{
+    /* inner shell that gives the same insets as Latest Month Totals */
     margin:12px;                      /* space from card edges */
     border-radius:14px;
     border:1px solid var(--hair);
@@ -107,22 +99,52 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
   .cm-scroll{
+    /* dedicated scroller so sticky header + blur work */
     max-height: 42vh;
-    overflow: auto;                    /* keep vertical scroller */
+    overflow: auto;
     border-radius:12px;
   }
-  .cm-scroll .table-wrap{ border:0; border-radius:12px; box-shadow:none; }
+  /* small interior padding so header row isn't glued to the shell */
   .cm-scroll table{ margin: 6px; }
+
+  /* Header chips and labels */
+  .summary-label, .section-heading { color: var(--text); font-weight: 700; }
+
+  /* Category tree */
+  details > summary { list-style: none; cursor: pointer; user-select: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.8; color: var(--muted); }
+  details[open] .caret { transform:rotate(90deg); color: var(--text); }
+
+  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition: background .15s ease; }
+  .node-line:hover { background: rgba(255,255,255,.04); }
+  .node-main { display:flex; align-items:center; gap:.55rem; }
+  .node-total { opacity:.92; font-variant-numeric: tabular-nums; }
+
+  .link-manage{
+    color: var(--text); text-decoration:none; border:1px solid transparent;
+    padding:.12rem .5rem; border-radius:10px; cursor:pointer;
+  }
+  .link-manage:hover{
+    background: rgba(255,255,255,.06);
+    border-color: var(--hair);
+    text-decoration:none;
+  }
+
+  .clickable-card-header{
+    display:flex; align-items:center; gap:.6rem; user-select:none;
+    padding:.575rem .875rem; margin:.5rem; border-radius:12px;
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
+    border:1px solid var(--hair);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .clickable-card-header .chev{ font-weight:700; opacity:.9; }
+
+  /* “Summary” accordion label color */
+  .summary-label { color: var(--text); }
 
   /* Transactions header refresh button alignment */
   #refresh-btn{ margin-left:auto; }
-
-  /* Prevent horizontal scrollbar by fitting content */
-  #ra-recent{ table-layout: fixed; }
-  #ra-recent th:nth-child(1){ width:110px; }
-  #ra-recent th:nth-child(3){ width:130px; }
-  #ra-recent th:nth-child(4){ width:140px; }
-  #ra-recent td:nth-child(2){ word-break: break-word; overflow-wrap:anywhere; }
 </style>
 
 <!-- Header -->
@@ -147,24 +169,23 @@
           <div class="fw-bold">📈 Category Movers <span class="muted small" id="cmSubtitle"></span></div>
         </div>
         <div class="card-body p-0">
+          <!-- shell gives the same inner spacing “feel” as Latest Month Totals -->
           <div class="cm-shell">
             <div class="cm-scroll">
-              <div class="table-wrap">
-                <table class="table table-sm table-modern align-middle mb-0">
-                  <thead class="small">
-                    <tr>
-                      <th>Category</th>
-                      <th class="text-end">Prev</th>
-                      <th class="text-end">Latest</th>
-                      <th class="text-end">Δ</th>
-                      <th class="text-end">Δ%</th>
-                    </tr>
-                  </thead>
-                  <tbody id="cmBody">
-                    <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
-                  </tbody>
-                </table>
-              </div>
+              <table class="table table-sm table-modern align-middle mb-0">
+                <thead class="small">
+                  <tr>
+                    <th>Category</th>
+                    <th class="text-end">Prev</th>
+                    <th class="text-end">Latest</th>
+                    <th class="text-end">Δ</th>
+                    <th class="text-end">Δ%</th>
+                  </tr>
+                </thead>
+                <tbody id="cmBody">
+                  <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -214,10 +235,10 @@
             <table class="table table-sm table-modern align-middle mb-0" id="ra-recent">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th style="width:110px;">Date</th>
                   <th>Description</th>
-                  <th class="text-end">Amount</th>
-                  <th>Category</th>
+                  <th style="width:130px;" class="text-end">Amount</th>
+                  <th style="width:120px;">Category</th>
                 </tr>
               </thead>
               <tbody id="ra-recent-body"></tbody>
@@ -407,7 +428,7 @@
               {{ node.name }}
             </a>
 
-            <span class="node-total mono">{{ usd(node.total) }}</span>
+            <span class="node-total">{{ usd(node.total) }}</span>
           </div>
         </div>
       </summary>
