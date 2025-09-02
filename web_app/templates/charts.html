@@ -208,7 +208,7 @@
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
   // Base Plotly layout that mirrors page axis + text colors
-  // UPDATED: deep-merge xaxis/yaxis so grid colors never get lost
+  // Deep-merge xaxis/yaxis so grid/tick colors are preserved
   const baseLayout = (extra = {}) => {
     const base = {
       paper_bgcolor:'rgba(0,0,0,0)',
@@ -221,14 +221,11 @@
     };
 
     if (extra.yZero) base.yaxis.rangemode = 'tozero';
-
     if (extra.xaxis) base.xaxis = { ...base.xaxis, ...extra.xaxis };
     if (extra.yaxis) base.yaxis = { ...base.yaxis, ...extra.yaxis };
-
     Object.keys(extra).forEach(k => {
-      if (k !== 'xaxis' && k !== 'yaxis' && k !== 'yZero') base[k] = extra[k];
+      if (!['xaxis','yaxis','yZero'].includes(k)) base[k] = extra[k];
     });
-
     return base;
   };
 
@@ -332,7 +329,7 @@
       {type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}
     ], baseLayout({yaxis:{title:'Income − Expenses'}, yZero:true}), {responsive:true,displayModeBar:false});
 
-    // Savings Rate — now explicitly inherits grid colors and zero-line color matches the theme
+    // Savings Rate — inherit grid colors; zero line styled to match theme
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
     Plotly.react(ov_srate,[
       {type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}
@@ -410,9 +407,26 @@
     const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
     const bar={type:'bar',x:labels,y:totals,name:'Total',hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
     const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
-    Plotly.react(targetEl,[bar,line],
-      {...baseLayout({margin:{l:60,r:50,t:10,b:100}}), yaxis:{title:'Amount'}, yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'}, xaxis:{tickangle:-45}},
-      {responsive:true,displayModeBar:false});
+
+    Plotly.react(
+      targetEl,
+      [bar,line],
+      baseLayout({
+        margin:{l:60,r:60,t:10,b:100},
+        xaxis:{tickangle:-45},
+        yaxis:{title:'Amount'},
+        // Ensure right-side axis uses themed tick/title colors too
+        yaxis2:{
+          overlaying:'y',
+          side:'right',
+          range:[0,100],
+          tickfont:{ color: ACCENT() },
+          title:{ text:'Cumulative %', font:{ color: ACCENT() } },
+          showgrid:false
+        }
+      }),
+      {responsive:true,displayModeBar:false}
+    );
   }
 
   function scatterVolAvg(targetEl, entries){
@@ -420,9 +434,12 @@
     const stdev=arr=>{const n=arr.length;if(n<2)return 0;const m=avg(arr);const v=arr.reduce((s,v)=>s+(toNum(v)-m)**2,0)/(n-1);return Math.sqrt(v)};
     const xs=[],ys=[],sizes=[],labels=[];
     entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
-    Plotly.react(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
-      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %'} , yZero:true}),
-      {responsive:true,displayModeBar:false});
+    Plotly.react(
+      targetEl,
+      [{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
+      baseLayout({xaxis:{title:'Average per month'}, yaxis:{title:'Volatility (stdev / mean %)'}, yZero:true}),
+      {responsive:true,displayModeBar:false}
+    );
   }
 
   function donut(targetEl, entries, monthIdx){
