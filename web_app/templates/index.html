@@ -46,16 +46,40 @@
     color:var(--text);
     background:transparent;
   }
+
+  /* ===== Sticky header "navbar-glass" treatment ===== */
   .table-modern thead th,
   .table-floating thead th{
-    background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
+    position: sticky; top: 0; z-index: 3;
+    /* soft vertical gradient like the nav, with glass blur */
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklab, var(--thead-bg) 86%, transparent) 0%,
+        color-mix(in oklab, var(--thead-bg) 72%, transparent) 100%
+      ) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    position: sticky; top: 0; z-index: 3;
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    /* slight inset sheen to match navbar’s “polish” */
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 6px 14px rgba(0,0,0,.22);
+    /* nudge content slightly down/right like goals */
+    padding:.65rem .9rem;
     font-weight:700; letter-spacing:.2px;
-    backdrop-filter:saturate(130%) blur(6px);
-    -webkit-backdrop-filter:saturate(130%) blur(6px);
   }
+  /* rounded ends on the sticky row, like your card shells */
+  .table-modern thead th:first-child,
+  .table-floating thead th:first-child{
+    border-top-left-radius:12px;
+  }
+  .table-modern thead th:last-child,
+  .table-floating thead th:last-child{
+    border-top-right-radius:12px;
+  }
+
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
@@ -554,4 +578,3 @@ window.toggleCategoryList = function(key){
 </script>
 
 {% endblock %}
-
