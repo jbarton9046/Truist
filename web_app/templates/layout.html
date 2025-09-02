@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-15">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-02-01">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -54,21 +54,20 @@
         --glow-1:#243b55;
         --glow-2:#1b3a6b;
 
-        --text:#e6edf6;
-        --muted:#9fb3c8;
+        /* Accent ink used everywhere */
+        --accent-ink:#9ecbff;
+        --text: var(--accent-ink);
+        --muted: var(--accent-ink);
 
         --card-bg:rgba(255,255,255,.045);
         --card-border:rgba(255,255,255,.10);
         --hair:rgba(255,255,255,.08);
 
         --thead-bg:rgba(255,255,255,.06);
-        --thead-fg:#eaf2ff;
+        --thead-fg: var(--accent-ink);
 
         --table-head-bg: var(--thead-bg);
         --table-head-fg: var(--thead-fg);
-
-        /* Trend “accent ink” used across Goals/Charts */
-        --accent-ink:#9ecbff;
 
         /* Plotly grid tone (soft bluish) */
         --plotly-grid: rgba(158,203,255,.11);
@@ -123,7 +122,7 @@
         border-color: var(--card-border) !important;
         color: var(--text) !important;
       }
-      .form-control::placeholder { color: rgba(230,237,246,.6); }
+      .form-control::placeholder { color: color-mix(in oklab, var(--accent-ink) 70%, transparent); }
       .btn-outline-light { color: var(--text) !important; }
       .btn-primary { background: #2563eb; border-color: #2563eb; }
 
@@ -318,18 +317,8 @@
       }
     </style>
 
-    <!-- Goals page: accent ink + FULL left alignment -->
-    <style id="bt-goals-accent-all">
-      body[data-route="/goals"]{
-        --text: var(--accent-ink) !important;
-        --muted: var(--accent-ink) !important;
-        --thead-fg: var(--accent-ink) !important;
-        --table-head-fg: var(--accent-ink) !important;
-      }
-      body[data-route="/goals"] *{ color: var(--accent-ink) !important; }
-      body[data-route="/goals"] .form-control::placeholder{ color: var(--accent-ink) !important; opacity: .85; }
-
-      /* hard left-align */
+    <!-- Goals page: left alignment only (no color overrides) -->
+    <style id="bt-goals-left">
       body[data-route="/goals"] .table th,
       body[data-route="/goals"] .table td{ text-align:left !important; }
       body[data-route="/goals"] .table .text-end,
