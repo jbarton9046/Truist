@@ -1,16 +1,27 @@
 {% extends "layout.html" %}
 {% block title %}Charts & Insights{% endblock %}
 {% block content %}
+
 <style>
+  /* Page header & controls */
   .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
   .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+
+  /* Cards */
   .stat-card{position:relative;overflow:visible}
-  .stat-card .chart,.stat-card .plot-container,.stat-card .js-plotly-plot{overflow:visible}
+
+  /* Plotly containers */
+  .stat-card .chart,
+  .stat-card .plot-container,
+  .stat-card .js-plotly-plot{overflow:visible}
+
   .muted{color:var(--muted)!important}
   .mono{font-variant-numeric:tabular-nums}
 
+  /* Responsive grid */
   .grid{display:grid;gap:1rem;grid-template-columns:1fr}
   @media (min-width:1200px){.grid{grid-template-columns:1fr 1fr}}
+
   .chart{width:100%;height:420px}
   .chart.tall{height:520px}
 
@@ -18,35 +29,6 @@
   .tabs{display:flex;gap:.4rem;flex-wrap:wrap}
   .tab{padding:.3rem .6rem;border:1px solid var(--card-border);border-radius:.5rem;background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
   .tab.active{background:var(--card-bg);box-shadow:0 1px 0 rgba(16,24,40,.06)}
-
-  /* Charts page uses the same accent rules as Goals, but scoped to /charts only */
-  body[data-route="/charts"]{
-    --text:var(--accent-ink)!important;
-    --muted:var(--accent-ink)!important;
-    --thead-fg:var(--accent-ink)!important;
-    --table-head-fg:var(--accent-ink)!important;
-  }
-  body[data-route="/charts"] .table th,
-  body[data-route="/charts"] .table td{ text-align:left!important }
-  body[data-route="/charts"] .table .text-end,
-  body[data-route="/charts"] .table .text-center,
-  body[data-route="/charts"] .table [style*="text-align:right"],
-  body[data-route="/charts"] .table [style*="text-align: right"],
-  body[data-route="/charts"] .table [style*="text-align:center"],
-  body[data-route="/charts"] .table [style*="text-align: center"]{ text-align:left!important }
-
-  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
-  .table-floating thead th{
-    background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
-    border-bottom:1px solid var(--hair)!important;font-weight:700;letter-spacing:.2px
-  }
-  .table-floating tbody td{border-top:1px solid var(--hair)}
-  .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
-  .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
-
-  .kpi-grid{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
-  @media (min-width:992px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
-  .kval{font-size:1.25rem;font-weight:600}
 </style>
 
 <div class="container mt-4">
@@ -157,11 +139,11 @@
 
   <!-- INCOME -->
   <div id="pane-income" style="display:none;">
-    <div class="kpi-grid mb-3">
-      <div class="stat-card"><div class="muted small">Income (last 30 days)</div><div id="inc_kpi_30d" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Avg monthly (last 3m)</div><div id="inc_kpi_avg3" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Next 30d (recurrents)</div><div id="inc_kpi_next30" class="kval mono">—</div></div>
-      <div class="stat-card"><div class="muted small">Median paycheck (recurrents)</div><div id="inc_kpi_medpay" class="kval mono">—</div></div>
+    <div class="kpi-grid mb-3" style="display:grid;gap:.8rem;grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card"><div class="muted small">Income (last 30 days)</div><div id="inc_kpi_30d" class="mono" style="font-size:1.25rem;font-weight:600">—</div></div>
+      <div class="stat-card"><div class="muted small">Avg monthly (last 3m)</div><div id="inc_kpi_avg3" class="mono" style="font-size:1.25rem;font-weight:600">—</div></div>
+      <div class="stat-card"><div class="muted small">Next 30d (recurrents)</div><div id="inc_kpi_next30" class="mono" style="font-size:1.25rem;font-weight:600">—</div></div>
+      <div class="stat-card"><div class="muted small">Median paycheck (recurrents)</div><div id="inc_kpi_medpay" class="mono" style="font-size:1.25rem;font-weight:600">—</div></div>
     </div>
 
     <div class="row g-3">
@@ -216,105 +198,86 @@
 (function(){
   'use strict';
 
-  /* ---------------- safety: wait for Plotly ---------------- */
-  function whenPlotlyReady(){
-    return new Promise(res=>{
-      if (window.Plotly) return res();
-      let tries = 0;
-      const t = setInterval(()=>{ if (window.Plotly || ++tries>80){ clearInterval(t); res(); } }, 125);
+  /* ---------- Helpers ---------- */
+  const cssVar = (name, fallback) => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  const ACCENT = () => cssVar('--accent-ink','#9ecbff');
+  const GRID   = () => 'rgba(255,255,255,.14)';
+  const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
+
+  // Base Plotly layout that mirrors page axis + text colors
+  // UPDATED: deep-merge xaxis/yaxis so grid colors never get lost
+  const baseLayout = (extra = {}) => {
+    const base = {
+      paper_bgcolor:'rgba(0,0,0,0)',
+      plot_bgcolor:'rgba(0,0,0,0)',
+      font:{ color: ACCENT() },
+      margin:{ l:60, r:40, t:10, b:40 },
+      xaxis:{ type:'category', tickfont:{ color: ACCENT() }, gridcolor: GRID(), linecolor: HAIR(), zerolinecolor: GRID() },
+      yaxis:{ tickfont:{ color: ACCENT() }, gridcolor: GRID(), linecolor: HAIR(), zerolinecolor: GRID() },
+      legend:{ orientation:'h', y:-0.25, font:{ color: ACCENT() } }
+    };
+
+    if (extra.yZero) base.yaxis.rangemode = 'tozero';
+
+    if (extra.xaxis) base.xaxis = { ...base.xaxis, ...extra.xaxis };
+    if (extra.yaxis) base.yaxis = { ...base.yaxis, ...extra.yaxis };
+
+    Object.keys(extra).forEach(k => {
+      if (k !== 'xaxis' && k !== 'yaxis' && k !== 'yZero') base[k] = extra[k];
     });
-  }
 
-  /* ---------------- helpers ---------------- */
-  const cssVar=(n,f)=>{const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();return v||f;}
-  const ACCENT=()=>cssVar('--accent-ink','#9ecbff');
-  const GRID=()=>'rgba(255,255,255,.14)';
-  const HAIR=()=>cssVar('--hair','rgba(255,255,255,.12)');
+    return base;
+  };
 
-  const baseLayout=(extra={})=>({
-    paper_bgcolor:'rgba(0,0,0,0)',
-    plot_bgcolor:'rgba(0,0,0,0)',
-    font:{color:ACCENT()},
-    margin:{l:60,r:40,t:10,b:40},
-    xaxis:{type:'category',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},
-    yaxis:{tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID(),rangemode:extra.yZero?'tozero':undefined},
-    legend:{orientation:'h',y:-0.25,font:{color:ACCENT()}},
-    ...extra
-  });
+  const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
+  const sum = a => a.reduce((x,y)=>x+toNum(y),0);
+  const zeros = n => Array.from({length:n}, ()=>0);
+  const money = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
+  const money2 = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
+  const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
+  const splitPathName = raw => String(raw??'').includes(' / ') ? String(raw).split(' / ').map(x=>x.trim()).filter(Boolean) : [String(raw??'')];
 
-  const toNum=v=>(typeof v==='number'&&isFinite(v))?v:(Number(String(v??'').replace(/[$,]/g,''))||0);
-  const sum=a=>a.reduce((x,y)=>x+toNum(y),0);
-  const zeros=n=>Array.from({length:n},()=>0);
-  const money=n=> (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
-  const money2=n=> (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-  const prettyMonth=ym=>{if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
-  const parseISO=s=>{const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number);return (y&&m&&d)?new Date(y,m-1,d):null;}
-
-  // robust payload normalizer (accepts a few shapes)
-  function normalizePayload(d){
-    if (!d || typeof d!=='object') return {months:[],categories:[]};
-    const months = Array.isArray(d.months) ? d.months
-                 : Array.isArray(d.labels) ? d.labels
-                 : Array.isArray(d.dates)  ? d.dates : [];
-    let cats = Array.isArray(d.categories) ? d.categories
-            : Array.isArray(d.cats)       ? d.cats
-            : (d.data && Array.isArray(d.data.categories)) ? d.data.categories
-            : d.categories_map || d.cats_map || null;
-
-    if (cats && !Array.isArray(cats) && typeof cats==='object'){
-      cats = Object.entries(cats).map(([name,monthly])=>({name,monthly}));
-    }
-    cats = Array.isArray(cats) ? cats.map(c=>({
-      name: c.name || c.category || c.cat || 'Unlabeled',
-      monthly: (c.monthly || c.values || c.data || []).map(toNum)
-    })) : [];
-
-    return {months, categories:cats};
-  }
-
-  function aggregateTopLevel(categories){
-    const map=new Map();
+  const aggregateTopLevel = categories => {
+    const map = new Map();
     for (const c of (categories||[])){
-      const top=(String(c.name||'').split(' / ')[0]||'(Uncategorized)').trim();
-      const arr=(c.monthly||[]).map(toNum);
-      if(!map.has(top)) map.set(top,new Array(arr.length).fill(0));
-      const dest=map.get(top); for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
+      const top = splitPathName(c.name)[0] || '(Uncategorized)';
+      const arr = (c.monthly||[]).map(toNum);
+      if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
+      const dest = map.get(top); for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
     }
     return Object.fromEntries(map.entries());
-  }
+  };
 
   function buildTree(categories){
     const root={name:'All',path:[],monthly:[],children:[]}; const map=new Map(); map.set('',root);
     const keyOf=s=>s.join(' / ');
-    const getNode=segs=>{const k=keyOf(segs); if(map.has(k))return map.get(k);
+    const getNode=segs=>{ const k=keyOf(segs); if(map.has(k))return map.get(k);
       const n={name:segs[segs.length-1],path:[...segs],monthly:[],children:[]};
-      const p=getNode(segs.slice(0,-1)); p.children.push(n); map.set(k,n); return n;};
-    (categories||[]).forEach(c=>{const segs=String(c.name||'').split(' / ').map(s=>s.trim()).filter(Boolean);
-      const leaf=getNode(segs.length?segs:[c.name||'']); leaf.monthly=(c.monthly||[]).map(toNum);});
-    const roll=n=>{if(!n.children.length) return n.monthly||[]; const L=Math.max(0,...n.children.map(ch=>(ch.monthly||[]).length));
-      const agg=new Array(L).fill(0); for(const ch of n.children){const cm=roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0);} n.monthly=agg; return agg;};
+      const p=getNode(segs.slice(0,-1)); p.children.push(n); map.set(k,n); return n; };
+    (categories||[]).forEach(c=>{ const segs=splitPathName(c.name); const leaf=getNode(segs.length?segs:[c.name||'']); leaf.monthly=(c.monthly||[]).map(toNum); });
+    const roll=n=>{ if(!n.children.length) return n.monthly||[]; const L=Math.max(0,...n.children.map(ch=>(ch.monthly||[]).length));
+      const agg=new Array(L).fill(0); for(const ch of n.children){ const cm=roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0); }
+      n.monthly=agg; return agg; };
     roll(root); return root;
   }
   const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(c.name||'')===name)||null;
-  function seriesBySecondLevel(sub){
-    const map=new Map(); if(!sub) return {};
-    const visit=n=>{
-      if(!n.children.length){
-        const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
-        if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
-        const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
-      } else n.children.forEach(visit);
-    };
+  function seriesBySecondLevel(sub){ const map=new Map(); if(!sub) return {};
+    const visit=n=>{ if(!n.children.length){ const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
+      if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
+      const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
+    } else n.children.forEach(visit); };
     (sub.children||[]).forEach(visit); return Object.fromEntries(map.entries());
   }
-  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)])
-    .filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
-
-  const rollingStats=(arr,k=3)=>{const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}}
+  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum),sum(v||[])]).filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
+  const rollingStats=(arr,k=3)=>{ const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}};
   const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)}
+  const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
 
-  /* ---------------- dom refs ---------------- */
+  /* ---------- DOM ---------- */
   const monthsWindow=document.getElementById('monthsWindow');
   const normalizeEl=document.getElementById('normalize');
   const topNEl=document.getElementById('topN'); const topNLabel=document.getElementById('topNLabel');
@@ -350,14 +313,14 @@
   const kpiNext=document.getElementById('inc_kpi_next30');
   const kpiMed=document.getElementById('inc_kpi_medpay');
 
-  /* ---------------- state ---------------- */
+  /* ---------- Data ---------- */
   let months=[], categoriesTop=[], categoriesDeep=[];
   let topSeries={}, treeDeep=null;
   let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
   let incomeSubSeries={};
   let handlersAttached=false;
 
-  /* ---------------- charts ---------------- */
+  /* ---------- Charts ---------- */
   function renderOverview(){
     Plotly.react(ov_line, [
       {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
@@ -365,18 +328,23 @@
     ], baseLayout({}), {responsive:true,displayModeBar:false});
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
-    Plotly.react(ov_net, [{type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},yZero:true}),
-      {responsive:true,displayModeBar:false});
+    Plotly.react(ov_net, [
+      {type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}
+    ], baseLayout({yaxis:{title:'Income − Expenses'}, yZero:true}), {responsive:true,displayModeBar:false});
 
+    // Savings Rate — now explicitly inherits grid colors and zero-line color matches the theme
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
-    Plotly.react(ov_srate,[{type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
-      baseLayout({yaxis:{title:'%',rangemode:'tozero'},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}),
-      {responsive:true,displayModeBar:false});
+    Plotly.react(ov_srate,[
+      {type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}
+    ], baseLayout({
+      yZero:true,
+      yaxis:{ title:'%' },
+      shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot',color:GRID()}}]
+    }), {responsive:true,displayModeBar:false});
 
     let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
     Plotly.react(ov_cum,[{type:'scatter',mode:'lines',fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
-      baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}),
+      baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot',color:GRID()}}]}),
       {responsive:true,displayModeBar:false});
 
     const {mean,sd}=rollingStats(netByMonth,3);
@@ -391,7 +359,7 @@
     Plotly.react(ov_season,[
       {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
       {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
-    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID()},xaxis:{title:'Month-of-year'}}),
+    ], baseLayout({barmode:'group',yaxis:{title:'Average amount'},xaxis:{title:'Month-of-year'}}),
       {responsive:true,displayModeBar:false});
   }
 
@@ -400,12 +368,12 @@
     const traces = entries.map(([name,arr]) => normalize
       ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
       : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
-    Plotly.react(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}),{responsive:true,displayModeBar:false});
+    Plotly.react(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount'}, yZero:true}),{responsive:true,displayModeBar:false});
   }
 
   function stackedBars(targetEl, months, entries, normalize){
     const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr}));
-    Plotly.react(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}),
+    Plotly.react(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount'}, yZero:true}),
       {responsive:true,displayModeBar:false});
   }
 
@@ -443,7 +411,7 @@
     const bar={type:'bar',x:labels,y:totals,name:'Total',hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
     const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
     Plotly.react(targetEl,[bar,line],
-      {...baseLayout({margin:{l:60,r:50,t:10,b:100}}), yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID()}, yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'}, xaxis:{tickangle:-45}},
+      {...baseLayout({margin:{l:60,r:50,t:10,b:100}}), yaxis:{title:'Amount'}, yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'}, xaxis:{tickangle:-45}},
       {responsive:true,displayModeBar:false});
   }
 
@@ -453,7 +421,7 @@
     const xs=[],ys=[],sizes=[],labels=[];
     entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
     Plotly.react(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
-      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero'}}),
+      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %'} , yZero:true}),
       {responsive:true,displayModeBar:false});
   }
 
@@ -510,10 +478,8 @@
   /* ---- paycheck timeline (from /api/recurrents) ---- */
   async function loadRecurrentsIncome(){
     try{
-      const r=await fetch('/api/recurrents?horizon=90',{credentials:'same-origin'});
-      const data=await r.json();
-      const streams=(data.streams||[]);
-      const incomeMerchants=new Set(streams.filter(s=>(s.categories||[]).some(c=>String(c).toLowerCase()==='income')).map(s=>s.merchant));
+      const r=await fetch('/api/recurrents?horizon=90'); const data=await r.json();
+      const streams=(data.streams||[]); const incomeMerchants=new Set(streams.filter(s=>(s.categories||[]).some(c=>String(c).toLowerCase()==='income')).map(s=>s.merchant));
       const incomeStreams=streams.filter(s=>incomeMerchants.has(s.merchant));
       const amounts=incomeStreams.map(s=>toNum(s.amount)).filter(v=>v>0).sort((a,b)=>a-b);
       const med=amounts.length?(amounts.length%2?amounts[(amounts.length-1)/2]:(amounts[amounts.length/2-1]+amounts[amounts.length/2])/2):0;
@@ -527,7 +493,7 @@
       document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
 
       Plotly.react(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
-        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount',rangemode:'tozero'}}),{responsive:true,displayModeBar:false});
+        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount'}, yZero:true}),{responsive:true,displayModeBar:false});
 
       const host=document.getElementById('in_upcoming');
       const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
@@ -537,8 +503,8 @@
           <tbody>${rows || `<tr><td colspan="3" class="muted">No upcoming income in horizon.</td></tr>`}</tbody>
         </table>
       </div>`;
-    }catch(err){
-      try{ Plotly.react(in_timeline,[],baseLayout({}),{responsive:true,displayModeBar:false}); }catch(_){}
+    }catch{
+      Plotly.react(in_timeline,[],baseLayout({}),{responsive:true,displayModeBar:false});
       document.getElementById('in_upcoming').innerHTML='<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>';
     }
   }
@@ -548,12 +514,6 @@
     if(in_waterfall && typeof in_waterfall.on==='function' && window.openCategoryManager){
       in_waterfall.on('plotly_click',ev=>{const pt=ev.points?.[0]; if(!pt) return; const month=String(pt.x).slice(0,7); window.openCategoryManager({level:'category',cat:'Income',month});});
     }
-  }
-
-  function populateFocusMonth(){
-    focusMonthEl.innerHTML='';
-    months.forEach((m,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=prettyMonth(m); focusMonthEl.appendChild(opt); });
-    focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
   function refreshAll(){
@@ -584,6 +544,7 @@
     heatmap(in_heatmap,months,inEntries);
 
     attachDrillHandlers(months);
+
     const lastMonthIncome=incomeByMonth.at(-1)||0; kpi30d.textContent=incomeByMonth.length?money(lastMonthIncome):'—';
     const last3=incomeByMonth.slice(-3); const avg3=last3.length?sum(last3)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
 
@@ -603,60 +564,43 @@
   topNEl.addEventListener('input',refreshAll);
   focusMonthEl.addEventListener('change',refreshAll);
 
-  /* ---------------- main ---------------- */
+  function populateFocusMonth(){
+    focusMonthEl.innerHTML='';
+    months.forEach((m,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=prettyMonth(m); focusMonthEl.appendChild(opt); });
+    focusMonthEl.selectedIndex=Math.max(0,months.length-1);
+  }
+
   (async function main(){
-    try{
-      // 1) SSR payload
-      let base=null;
-      try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
-      let normalized = normalizePayload(base);
-
-      // 2) Fallback to API if needed
-      if (!normalized.months.length || !normalized.categories.length){
-        const r=await fetch('/api/categories/monthly',{credentials:'same-origin'});
-        const j=await r.json();
-        normalized = normalizePayload(j);
-      }
-
-      // 3) Deep payload for income sources (best effort)
-      let deepNorm=null;
-      try{
-        const r2=await fetch('/api/categories/monthly?deep=1',{credentials:'same-origin'});
-        const j2=await r2.json();
-        deepNorm = normalizePayload(j2);
-      }catch{}
-
-      await whenPlotlyReady(); // make sure Plotly is ready before any draw
-
-      months = normalized.months || [];
-      categoriesTop = (normalized.categories||[]).map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
-
-      const deepCats = (deepNorm && (deepNorm.categories||[]).length) ? deepNorm.categories : categoriesTop;
-      categoriesDeep = deepCats.map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
-
-      topSeries = aggregateTopLevel(categoriesTop);
-      const L=months.length; const incomeTop=topSeries['Income']||zeros(L);
-      incomeByMonth = incomeTop.slice(); expenseByMonth=zeros(L);
-      Object.entries(topSeries).forEach(([k,arr])=>{ if(k==='Income') return; for(let i=0;i<L;i++) expenseByMonth[i]+=toNum(arr[i]||0); });
-      netByMonth = incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
-
-      const tree = buildTree(categoriesDeep); treeDeep=tree;
-      const incomeNode = subtreeByTop(tree,'Income');
-      incomeSubSeries = (incomeNode && (incomeNode.children||[]).length) ? seriesBySecondLevel(incomeNode) : { 'Income': incomeByMonth.slice() };
-      if(!Object.keys(incomeSubSeries).length) incomeSubSeries={'Income':incomeByMonth.slice()};
-
-      populateFocusMonth();
-      refreshAll();
-      loadRecurrentsIncome();
-
-      window.addEventListener('resize', resizeAllPlots);
-    }catch(err){
-      // fail safe: show a small message in each panel instead of freezing
-      const placeholders=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_timeline];
-      placeholders.forEach(el=>{ if(!el) return; el.innerHTML = '<div class="muted small p-3">Problem loading charts.</div>'; });
-      console && console.error && console.error('Charts init failed:', err);
+    // Base payload
+    let base=null; try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
+    if(!base || !Array.isArray(base.months) || !Array.isArray(base.categories)){
+      const r=await fetch('/api/categories/monthly'); base=await r.json();
     }
+    // Deep payload for income sources
+    let deep=null; try{ const r2=await fetch('/api/categories/monthly?deep=1'); deep=await r2.json(); }catch{}
+
+    months=base.months||[];
+    categoriesTop=(base.categories||[]).map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
+    const deepCats = (deep && Array.isArray(deep.categories) && deep.categories.length) ? deep.categories : (base.categories||[]);
+    categoriesDeep=deepCats.map(c=>({name:c.name,monthly:(c.monthly||[]).map(toNum)}));
+
+    topSeries=aggregateTopLevel(categoriesTop);
+    const L=months.length; const incomeTop=topSeries['Income']||zeros(L);
+    incomeByMonth=incomeTop.slice(); expenseByMonth=zeros(L);
+    Object.entries(topSeries).forEach(([k,arr])=>{ if(k==='Income') return; for(let i=0;i<L;i++) expenseByMonth[i]+=toNum(arr[i]||0); });
+    netByMonth=incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
+
+    treeDeep=buildTree(categoriesDeep);
+    const incomeNode=subtreeByTop(treeDeep,'Income');
+    incomeSubSeries = (incomeNode && (incomeNode.children||[]).length) ? seriesBySecondLevel(incomeNode) : { 'Income': incomeByMonth.slice() };
+    if(!Object.keys(incomeSubSeries).length) incomeSubSeries={'Income':incomeByMonth.slice()};
+
+    populateFocusMonth();
+    refreshAll();
+    await loadRecurrentsIncome();
+    window.addEventListener('resize', resizeAllPlots);
   })();
 })();
 </script>
+
 {% endblock %}
