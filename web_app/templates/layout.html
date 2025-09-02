@@ -44,7 +44,7 @@
     </style>
 
     <!-- Site CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-13">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/neon-tech.css') }}?v=2025-09-01-14">
 
     <!-- >>> SITE-WIDE DARK / FLOATING THEME <<< -->
     <style id="app-theme">
@@ -69,6 +69,9 @@
 
         /* Trend “accent ink” used across Goals page */
         --accent-ink:#9ecbff;
+
+        /* shared grid color for Plotly */
+        --plot-grid: rgba(158,203,255,.11);
       }
 
       html.theme-dark, body.theme-dark {
@@ -443,7 +446,7 @@
       })();
     </script>
 
-    <!-- Plotly grid/tick theming — /charts only (uses --plot-grid and won’t override explicit chart settings) -->
+    <!-- Plotly grid/tick theming — /charts only (respects chart-provided values) -->
     <script id="bt-plotly-dark">
       (function () {
         if (location.pathname !== '/charts') return;
@@ -469,14 +472,14 @@
             };
 
             setIfMissing('xaxis','gridcolor', gridDefault);
-            setIfMissing('xaxis','gridwidth', 1);
+            setIfMissing('xaxis','gridwidth', 0.6);
             setIfMissing('xaxis','linecolor', hair);
             setIfMissing('xaxis','tickfont', {color: accent});
             setIfMissing('xaxis','title',    {font:{color: accent}});
             setIfMissing('xaxis','zeroline', false);
 
             setIfMissing('yaxis','gridcolor', gridDefault);
-            setIfMissing('yaxis','gridwidth', 1);
+            setIfMissing('yaxis','gridwidth', 0.6);
             setIfMissing('yaxis','linecolor', hair);
             setIfMissing('yaxis','tickfont', {color: accent});
             setIfMissing('yaxis','title',    {font:{color: accent}});

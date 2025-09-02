@@ -2,10 +2,7 @@
 {% block title %}Charts & Insights{% endblock %}
 {% block content %}
 <style>
-  :root{
-    /* grid color used by layout’s Plotly theming and by this page */
-    --plot-grid: rgba(158,203,255,.11);
-  }
+  :root{ --plot-grid: rgba(158,203,255,.11); }
 
   .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
   .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
@@ -222,15 +219,29 @@
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
   /* Floating feel */
-  const OP_LINE = 0.68, OP_BAR = 0.72, OP_AREA = 0.48, OP_MARK = 0.78;
+  const OP_LINE = 0.66, OP_BAR = 0.70, OP_AREA = 0.46, OP_MARK = 0.78;
 
   const baseLayout = (extra={}) => ({
     paper_bgcolor:'rgba(0,0,0,0)',
     plot_bgcolor:'rgba(0,0,0,0)',
     font:{color:ACCENT()},
     margin:{l:60,r:40,t:10,b:40},
-    xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
-    yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID(), rangemode:extra.yZero?'tozero':undefined},
+    xaxis:{
+      type:'category',
+      tickfont:{color:ACCENT()},
+      gridcolor:GRID(),
+      gridwidth:0.6,
+      linecolor:HAIR(),
+      zeroline:false
+    },
+    yaxis:{
+      tickfont:{color:ACCENT()},
+      gridcolor:GRID(),
+      gridwidth:0.6,
+      linecolor:HAIR(),
+      zeroline:false,
+      rangemode:extra.yZero?'tozero':undefined
+    },
     legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
     hoverlabel:{font:{color:ACCENT()}},
     ...extra
@@ -303,7 +314,10 @@
     return out;
   }
 
-  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(String(c.name||'')===String(name)))||null;
+  const subtreeByTop=(root,name)=>{
+    const target = String(name||'').trim().toLowerCase();
+    return (root.children||[]).find(c=>String(c.name||'').trim().toLowerCase()===target) || null;
+  };
 
   /* Sum leaves into their level-2 bucket under a subtree (Income) */
   function seriesBySecondLevel(sub){
@@ -324,6 +338,20 @@
     (sub.children||[]).forEach(ch=>{
       const arr=(ch.monthly||[]).map(toNum);
       map.set(ch.name||'(child)', arr);
+    });
+    return Object.fromEntries(map.entries());
+  }
+  /* Flat fallback directly from raw categories: Income -> 2nd level */
+  function seriesIncomeFlat(categories){
+    const map=new Map();
+    (categories||[]).forEach(c=>{
+      const segs=segsOf(c);
+      if (!segs.length) return;
+      if (String(segs[0]).trim().toLowerCase()!=='income') return;
+      const key = segs[1] || c.name || 'Income';
+      const arr=(c.monthly||[]).map(toNum);
+      if(!map.has(key)) map.set(key,new Array(arr.length).fill(0));
+      const d=map.get(key); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
     });
     return Object.fromEntries(map.entries());
   }
@@ -376,7 +404,7 @@
   const kpiMed=document.getElementById('inc_kpi_medpay');
 
   /* Data holders */
-  let months=[], topSeries={}, treeDeep=null;
+  let months=[], topSeries={}, treeDeep=null, rawCats=[];
   let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
   let incomeSubSeries={};
   let handlersAttached=false;
@@ -389,7 +417,7 @@
     ], baseLayout({}));
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
-    safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
+    safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors,line:{width:0}},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
       baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},yZero:true}));
 
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
@@ -410,9 +438,9 @@
 
     const incSeason=seasonality(months,incomeByMonth), expSeason=seasonality(months,expenseByMonth);
     safeReact(ov_season,[
-      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
-      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
-    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID()},xaxis:{title:'Month-of-year'}}));
+      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',opacity:OP_BAR,marker:{line:{width:0}},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
+      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',opacity:OP_BAR,marker:{line:{width:0}},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
+    ], baseLayout({barmode:'group',yaxis:{title:'Average amount'},xaxis:{title:'Month-of-year'}}));
   }
 
   function stackedArea(targetEl, months, entries, normalize){
@@ -424,7 +452,10 @@
   }
 
   function stackedBars(targetEl, months, entries, normalize){
-    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:OP_BAR,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`}));
+    const traces = entries.map(([name,arr])=>({
+      type:'bar',name,x:months,y:arr,opacity:OP_BAR,marker:{line:{width:0}},
+      hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`
+    }));
     safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
@@ -442,7 +473,7 @@
       values:values,
       ids:nodes.map(n=>n.id),
       branchvalues:'total',
-      maxdepth:0,                 /* allow drilling to any depth */
+      maxdepth:0, /* allow drilling as deep as data goes */
       pathbar:{visible:true},
       hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
     }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
@@ -457,12 +488,12 @@
   function pareto(targetEl, entries){
     const totals=entries.map(([,arr])=>sum(arr)); const labels=entries.map(([n])=>n);
     const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
-    const bar={type:'bar',x:labels,y:totals,name:'Total',opacity:OP_BAR,hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
+    const bar={type:'bar',x:labels,y:totals,name:'Total',opacity:OP_BAR,marker:{line:{width:0}},hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
     const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',opacity:OP_LINE,hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
     safeReact(targetEl,[bar,line],
       {...baseLayout({margin:{l:60,r:50,t:10,b:100}}),
-       yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
-       yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
+       yaxis:{title:'Amount'},
+       yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %'},
        xaxis:{tickangle:-45}});
   }
 
@@ -599,10 +630,11 @@
     scatterVolAvg(ex_scatter,exEntries);
     donut(ex_donut,exEntries,focusIdx);
 
-    /* Income (robust fallbacks) */
+    /* Income — robust multi-path grouping */
     const incomeTop = subtreeByTop(treeDeep,'Income');
     incomeSubSeries = seriesBySecondLevel(incomeTop);
     if (!Object.keys(incomeSubSeries).length) incomeSubSeries = seriesByChildren(incomeTop);
+    if (!Object.keys(incomeSubSeries).length) incomeSubSeries = seriesIncomeFlat(rawCats);
     if (!Object.keys(incomeSubSeries).length) incomeSubSeries = { Income: incomeByMonth.slice() };
 
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
@@ -651,8 +683,9 @@
     }
 
     months = payload.months || [];
-    topSeries = aggregateTopLevel(payload.categories || []);
-    treeDeep = buildTree(payload.categories || []);
+    rawCats = payload.categories || [];
+    topSeries = aggregateTopLevel(rawCats);
+    treeDeep = buildTree(rawCats);
 
     incomeByMonth = (topSeries['Income']||[]).map(toNum);
     expenseByMonth = Object.entries(topSeries).filter(([k])=>k!=='Income')
