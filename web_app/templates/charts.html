@@ -2,6 +2,11 @@
 {% block title %}Charts & Insights{% endblock %}
 {% block content %}
 <style>
+  :root{
+    /* grid color used by layout’s Plotly theming and by this page */
+    --plot-grid: rgba(158,203,255,.11);
+  }
+
   .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
   .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 
@@ -213,8 +218,7 @@
     return v || fallback;
   };
   const ACCENT = () => cssVar('--accent-ink','#9ecbff');
-  /* softer bluish grid so it doesn't look white */
-  const GRID   = () => 'rgba(158,203,255,.11)';
+  const GRID   = () => cssVar('--plot-grid','rgba(158,203,255,.11)');
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
   /* Floating feel */
@@ -225,8 +229,8 @@
     plot_bgcolor:'rgba(0,0,0,0)',
     font:{color:ACCENT()},
     margin:{l:60,r:40,t:10,b:40},
-    xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), gridwidth:1, linecolor:HAIR(), zeroline:false},
-    yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), gridwidth:1, linecolor:HAIR(), zeroline:false, rangemode:extra.yZero?'tozero':undefined},
+    xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
+    yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID(), rangemode:extra.yZero?'tozero':undefined},
     legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
     hoverlabel:{font:{color:ACCENT()}},
     ...extra
@@ -386,11 +390,11 @@
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
     safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zeroline:false},yZero:true}));
+      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},yZero:true}));
 
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
     safeReact(ov_srate,[{type:'scatter',mode:'lines+markers',opacity:OP_LINE,x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
-      baseLayout({yaxis:{title:'%',rangemode:'tozero',zeroline:false},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}));
+      baseLayout({yaxis:{title:'%',rangemode:'tozero'},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}));
 
     let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
     safeReact(ov_cum,[{type:'scatter',mode:'lines',opacity:OP_AREA,fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
@@ -408,7 +412,7 @@
     safeReact(ov_season,[
       {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
       {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
-    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID(),zeroline:false},xaxis:{title:'Month-of-year',zeroline:false}}));
+    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID()},xaxis:{title:'Month-of-year'}}));
   }
 
   function stackedArea(targetEl, months, entries, normalize){
@@ -416,12 +420,12 @@
     const traces = entries.map(([name,arr]) => normalize
       ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',opacity:OP_AREA,hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
       : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',opacity:OP_AREA,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
-    safeReact(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero',zeroline:false}}));
+    safeReact(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
   function stackedBars(targetEl, months, entries, normalize){
     const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:OP_BAR,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`}));
-    safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero',zeroline:false}}));
+    safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
   function treemap(targetEl, nodes, focusIdx){
@@ -438,9 +442,8 @@
       values:values,
       ids:nodes.map(n=>n.id),
       branchvalues:'total',
+      maxdepth:0,                 /* allow drilling to any depth */
       pathbar:{visible:true},
-      tiling:{pad:2},
-      marker:{line:{width:1,color:HAIR()}},
       hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
     }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
   }
@@ -458,9 +461,9 @@
     const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',opacity:OP_LINE,hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
     safeReact(targetEl,[bar,line],
       {...baseLayout({margin:{l:60,r:50,t:10,b:100}}),
-       yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zeroline:false},
-       yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zeroline:false},
-       xaxis:{tickangle:-45,zeroline:false}});
+       yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
+       yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
+       xaxis:{tickangle:-45}});
   }
 
   function scatterVolAvg(targetEl, entries){
@@ -469,7 +472,7 @@
     const xs=[],ys=[],sizes=[],labels=[];
     entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
     safeReact(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter',opacity:OP_MARK},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
-      baseLayout({xaxis:{title:'Average per month',zeroline:false},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero',zeroline:false}}));
+      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero'}}));
   }
 
   function donut(targetEl, entries, monthIdx){
@@ -487,7 +490,7 @@
     safeReact(targetEl,[{type:'waterfall',x:months,y:diffs,opacity:OP_BAR,
       increasing:{marker:{color:'#22c55e',opacity:OP_BAR}},decreasing:{marker:{color:'#ef4444',opacity:OP_BAR}},
       hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Change vs prior',zeroline:false}}));
+      baseLayout({yaxis:{title:'Change vs prior'}}));
   }
 
   function incomeTable(targetEl, months, entries){
@@ -543,7 +546,7 @@
       document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
 
       safeReact(in_timeline,[{type:'scatter',mode:'markers',opacity:OP_MARK,x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
-        baseLayout({xaxis:{title:'Upcoming dates',zeroline:false},yaxis:{title:'Amount',rangemode:'tozero',zeroline:false}}));
+        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount',rangemode:'tozero'}}));
 
       const host=document.getElementById('in_upcoming');
       const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
