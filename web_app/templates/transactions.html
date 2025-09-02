@@ -3,36 +3,84 @@
 {% block content %}
 
 <style>
-  /* Page-specific polish, reusing the global dark tokens */
+  /* --- Bring over the same page tokens & background used on Goals --- */
+  :root{
+    --page-bg-1:#0b1220;
+    --page-bg-2:#0f172a;
+    --glow-1:#243b55;
+    --glow-2:#1b3a6b;
+
+    --text:#e6edf6;      /* main page/typography color */
+    --muted:#9fb3c8;
+
+    --card-bg:rgba(255,255,255,.045);
+    --card-border:rgba(255,255,255,.10);
+    --hair:rgba(255,255,255,.08);
+
+    --thead-bg:rgba(255,255,255,.06);
+    --table-head-fg:var(--text);
+
+    --sticky-top: 0px;
+  }
+
+  html, body{
+    background:
+      radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
+      radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
+      linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%);
+    color:var(--text);
+  }
+  .muted{color:var(--muted)!important}
+  .mono{font-variant-numeric:tabular-nums}
+
+  /* --- Make navbar text match the page ink (scoped to this route) --- */
+  body[data-route="/transactions"] .navbar .navbar-brand,
+  body[data-route="/transactions"] .navbar .nav-link,
+  body[data-route="/transactions"] .navbar .dropdown-item {
+    color: var(--text) !important;
+  }
+  body[data-route="/transactions"] .navbar .nav-link:hover { color:#ffffff !important; opacity:.95; }
+
+  /* Card look that matches Goals */
+  .stat-card{
+    background:var(--card-bg)!important;border:1px solid var(--card-border)!important;
+    border-radius:16px;box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter:saturate(120%) blur(4px); color:var(--text);
+  }
+
+  /* Shell */
   .tx-wrap { max-width: 1200px; margin: 1rem auto; }
   .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin-bottom:.75rem; }
   .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
 
-  /* Card look that matches Goals */
-  .stat-card{background:var(--card-bg)!important;border:1px solid var(--card-border)!important;
-    border-radius:16px;box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)}
-  .muted{color:var(--muted)!important}
-  .mono{font-variant-numeric:tabular-nums}
-
-  /* Floating table look (aligns with Goals) */
+  /* Floating table container (same as Goals) */
   .table-wrap{border:1px solid var(--card-border);border-radius:14px;background:var(--card-bg);
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);overflow:auto}
-  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
+
+  /* Floating table */
+  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent;color:var(--text)}
   .table-floating thead th{
     position:sticky; top:0; z-index:3;
-    background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
+    background:var(--thead-bg)!important;color:var(--table-head-fg)!important;
     border-bottom:1px solid var(--hair)!important;font-weight:700;letter-spacing:.2px;text-align:left!important
   }
   .table-floating tbody td{border-top:1px solid var(--hair);text-align:left!important;vertical-align:middle}
   .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
   .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
 
+  /* Optional gradient header to mirror Goals table */
+  .thead-gradient th{
+    background:linear-gradient(90deg,#60a5fa,#7c3aed)!important;
+    color:#f8fbff!important; text-shadow:0 1px 0 rgba(0,0,0,.35);
+    border-color:transparent!important;
+  }
+
   /* Month separator rows (sticky under thead) */
   .month-row{position:sticky; z-index:2; top:var(--tx-head-h, 40px);
-    background:var(--thead-bg)!important; color:var(--table-head-fg,var(--text))!important}
+    background:var(--thead-bg)!important; color:var(--table-head-fg)!important}
   .month-row td{font-weight:700;border-bottom:1px solid var(--hair)!important}
 
-  /* Amount coloring */
+  /* Keep your green/red amounts exactly as-is */
   .amt-neg{ color:#ef4444; font-weight:600; }
   .amt-pos{ color:#22c55e; font-weight:600; }
 
@@ -86,8 +134,9 @@
 
   <div class="table-wrap">
     <div class="table-responsive" style="max-height:70vh; overflow:auto;">
+      <!-- add the gradient class to mirror Goals' header strip -->
       <table class="table table-sm table-floating align-middle mb-0" id="tbl">
-        <thead>
+        <thead class="thead-gradient">
           <tr>
             <th style="width:110px;">Date</th>
             <th>Description</th>
@@ -112,7 +161,16 @@
   const fmtUSD = n => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(Number(n)||0);
   const fmtDate = s => s || '';
 
-  // Set sticky offset for month rows to sit under thead
+  // Navbar/table sticky offset (in case layout has a fixed header)
+  function setStickyTopOffset(){
+    const fixedNav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top');
+    const h = fixedNav ? Math.ceil(fixedNav.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--sticky-top', (h|0) + 'px');
+  }
+  setStickyTopOffset();
+  window.addEventListener('resize', setStickyTopOffset);
+
+  // Ensure month row sits just under the sticky thead
   function setHeadHeightVar(){
     const th = document.querySelector('#tbl thead');
     const h = th ? Math.ceil(th.getBoundingClientRect().height) : 40;
@@ -147,7 +205,8 @@
   }
 
   const esc = (s='') => String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
   async function load(){
     const params = new URLSearchParams();
