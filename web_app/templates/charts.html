@@ -232,13 +232,12 @@
   const GRID   = () => 'rgba(255,255,255,.14)';
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
-  // Slight transparency just for bars/lines
-  const OP_LINE = 0.78;   // lines / rolling mean / seasonality
-  const OP_BAR  = 0.82;   // bars / waterfall / stacked bars
-  const OP_AREA = 0.62;   // stacked area (fills)
-  const OP_MARK = 0.85;   // markers / scatter points
+  /* Floating look: a bit more see-through */
+  const OP_LINE = 0.68;  /* lines */
+  const OP_BAR  = 0.72;  /* bars / waterfall */
+  const OP_AREA = 0.48;  /* stacked area fills */
+  const OP_MARK = 0.78;  /* markers */
 
-  // Base Plotly layout that mirrors Goals/Charts axis + text colors
   const baseLayout = (extra={}) => ({
     paper_bgcolor:'rgba(0,0,0,0)',
     plot_bgcolor:'rgba(0,0,0,0)',
@@ -250,14 +249,11 @@
     ...extra
   });
 
-  // Safe wrapper so one bad chart never freezes the page
   function safeReact(target, traces, layout, config){
     try{
       Plotly.react(target, traces, layout, Object.assign({responsive:true,displayModeBar:false}, config||{}));
     }catch(err){
-      try {
-        target.innerHTML = '<div class="muted small ms-2 me-2">This chart could not be rendered for the selected window.</div>';
-      } catch(e){}
+      try { target.innerHTML = '<div class="muted small ms-2 me-2">This chart could not be rendered for the selected window.</div>'; } catch(_){}
       console.error('Plotly render failed:', err);
     }
   }
@@ -271,6 +267,7 @@
   const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
   const splitPathName = raw => String(raw??'').includes(' / ') ? String(raw).split(' / ').map(x=>x.trim()).filter(Boolean) : [String(raw??'')];
 
+  /* ---------- Aggregations / tree ---------- */
   const aggregateTopLevel = categories => {
     const map = new Map();
     for (const c of (categories||[])){
@@ -294,6 +291,26 @@
       n.monthly=agg; return agg; };
     roll(root); return root;
   }
+
+  /* NEW: flatten tree for treemap (skip Income branch when expenses-only) */
+  function buildTreemapNodes(root, expensesOnly=true){
+    const out=[];
+    function visit(node, parentId){
+      const id = (node.path||[]).join(' / ');
+      const isTop = node.path && node.path.length===1;
+      const isIncomeTop = isTop && String(node.name||'').toLowerCase()==='income';
+      if (node.path && node.path.length && (!expensesOnly || !isIncomeTop)) {
+        out.push({ id, label: node.name || '—', parent: parentId || '', value: (node.monthly||[]).map(toNum) });
+      }
+      (node.children||[]).forEach(ch => {
+        if (expensesOnly && String(ch.name||'').toLowerCase()==='income') return; /* skip income sub-tree for expense treemap */
+        visit(ch, id);
+      });
+    }
+    (root.children||[]).forEach(ch => visit(ch, ''));
+    return out;
+  }
+
   const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(c.name||'')===name)||null;
   function seriesBySecondLevel(sub){ const map=new Map(); if(!sub) return {};
     const visit=n=>{ if(!n.children.length){ const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
@@ -542,14 +559,23 @@
 
     renderOverview();
 
+    /* Expenses */
     const exObj=Object.fromEntries(Object.entries(topSeries).filter(([k])=>k!=='Income'));
     const exEntries=pickTopN(exObj,N);
     stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
 
     document.getElementById('ex_tm_month').textContent=months.length?prettyMonth(months[Math.max(0,focusMonthEl.selectedIndex)]):'—';
     const focusIdx=Math.max(0,Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length-1)));
-    let nodes=[]; if(treeDeep && (treeDeep.children||[]).length){ nodes=buildTreemapNodes(treeDeep,false);}
-    else { nodes=exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name})); }
+    let nodes=[];
+    try{
+      if(treeDeep && (treeDeep.children||[]).length){
+        nodes = buildTreemapNodes(treeDeep,true);   /* expenses-only */
+      }else{
+        nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
+      }
+    }catch(_){
+      nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
+    }
     treemap(ex_treemap,nodes,focusIdx);
 
     heatmap(ex_heatmap,months,exEntries);
@@ -557,6 +583,7 @@
     scatterVolAvg(ex_scatter,exEntries);
     donut(ex_donut,exEntries,focusIdx);
 
+    /* Income */
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
     incomeTable(in_table,months,inEntries);
@@ -570,6 +597,7 @@
     resizeAllPlots();
   }
 
+  /* UI */
   tabs.addEventListener('click',e=>{
     const t=e.target.closest('.tab'); if(!t) return;
     tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
@@ -589,6 +617,7 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
+  /* Bootstrap */
   (async function main(){
     // Base payload
     let base=null; try{ base=JSON.parse(document.getElementById('catMonthlyData')?.textContent||'null'); }catch{}
