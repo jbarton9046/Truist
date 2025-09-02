@@ -6,13 +6,8 @@
   .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
   .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 
-  /* Use the same dark glass cards as Goals (layout.html already styles .stat-card/.card) */
   .stat-card{position:relative;overflow:visible}
-
-  /* Light tweaks for Plotly containers */
-  .stat-card .chart,
-  .stat-card .plot-container,
-  .stat-card .js-plotly-plot{overflow:visible}
+  .stat-card .chart,.stat-card .plot-container,.stat-card .js-plotly-plot{overflow:visible}
 
   .muted{color:var(--muted)!important}
   .mono{font-variant-numeric:tabular-nums}
@@ -29,7 +24,7 @@
   .tab{padding:.3rem .6rem;border:1px solid var(--card-border);border-radius:.5rem;background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
   .tab.active{background:var(--card-bg);box-shadow:0 1px 0 rgba(16,24,40,.06)}
 
-  /* Make Charts page adopt the same accent-ink + left alignment rules as Goals */
+  /* Charts page adopts accent ink + left alignment like Goals */
   body[data-route="/charts"]{
     --text:var(--accent-ink)!important;
     --muted:var(--accent-ink)!important;
@@ -55,7 +50,7 @@
   .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
   .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
 
-  /* Income KPI grid */
+  /* Income KPIs */
   .kpi-grid{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
   @media (min-width:992px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
   .kval{font-size:1.25rem;font-weight:600}
@@ -237,23 +232,35 @@
   const GRID   = () => 'rgba(255,255,255,.14)';
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
-  // Base Plotly layout (themed grid & ticks)
-  const baseLayout = (extra={}) => {
-    const base = {
-      paper_bgcolor:'rgba(0,0,0,0)',
-      plot_bgcolor:'rgba(0,0,0,0)',
-      font:{color:ACCENT()},
-      margin:{l:60,r:40,t:10,b:40},
-      xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
-      yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
-      legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}}
-    };
-    if (extra.yZero) base.yaxis.rangemode='tozero';
-    if (extra.xaxis) base.xaxis = {...base.xaxis, ...extra.xaxis};
-    if (extra.yaxis) base.yaxis = {...base.yaxis, ...extra.yaxis};
-    Object.keys(extra).forEach(k => { if(!['xaxis','yaxis','yZero'].includes(k)) base[k]=extra[k]; });
-    return base;
-  };
+  // Slight transparency just for bars/lines
+  const OP_LINE = 0.78;   // lines / rolling mean / seasonality
+  const OP_BAR  = 0.82;   // bars / waterfall / stacked bars
+  const OP_AREA = 0.62;   // stacked area (fills)
+  const OP_MARK = 0.85;   // markers / scatter points
+
+  // Base Plotly layout that mirrors Goals/Charts axis + text colors
+  const baseLayout = (extra={}) => ({
+    paper_bgcolor:'rgba(0,0,0,0)',
+    plot_bgcolor:'rgba(0,0,0,0)',
+    font:{color:ACCENT()},
+    margin:{l:60,r:40,t:10,b:40},
+    xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
+    yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID(), rangemode:extra.yZero?'tozero':undefined},
+    legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
+    ...extra
+  });
+
+  // Safe wrapper so one bad chart never freezes the page
+  function safeReact(target, traces, layout, config){
+    try{
+      Plotly.react(target, traces, layout, Object.assign({responsive:true,displayModeBar:false}, config||{}));
+    }catch(err){
+      try {
+        target.innerHTML = '<div class="muted small ms-2 me-2">This chart could not be rendered for the selected window.</div>';
+      } catch(e){}
+      console.error('Plotly render failed:', err);
+    }
+  }
 
   const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
   const sum = a => a.reduce((x,y)=>x+toNum(y),0);
@@ -343,93 +350,87 @@
   let incomeSubSeries={};
   let handlersAttached=false;
 
-  /* ---------- Charts (bars & lines slightly transparent) ---------- */
+  /* ---------- Charts ---------- */
   function renderOverview(){
-    Plotly.react(ov_line, [
-      {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,opacity:.9,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
-      {type:'scatter',mode:'lines+markers',name:'Expenses',x:months,y:expenseByMonth,opacity:.9,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
-    ], baseLayout({}), {responsive:true,displayModeBar:false});
+    safeReact(ov_line, [
+      {type:'scatter',mode:'lines+markers',opacity:OP_LINE,name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
+      {type:'scatter',mode:'lines+markers',opacity:OP_LINE,name:'Expenses',x:months,y:expenseByMonth,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
+    ], baseLayout({}));
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
-    Plotly.react(ov_net, [
-      {type:'bar',x:months,y:netByMonth,marker:{color:colors,opacity:.9},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}
-    ], baseLayout({yaxis:{title:'Income − Expenses'},yZero:true}), {responsive:true,displayModeBar:false});
+    safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
+      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},yZero:true}));
 
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
-    Plotly.react(ov_srate,[
-      {type:'scatter',mode:'lines+markers',x:months,y:sRate,opacity:.9,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}
-    ], baseLayout({
-      yZero:true,
-      yaxis:{title:'%'},
-      shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot',color:GRID()}}]
-    }), {responsive:true,displayModeBar:false});
+    safeReact(ov_srate,[{type:'scatter',mode:'lines+markers',opacity:OP_LINE,x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
+      baseLayout({yaxis:{title:'%',rangemode:'tozero'},shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}));
 
     let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
-    Plotly.react(ov_cum,[
-      {type:'scatter',mode:'lines',fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}
-    ], baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot',color:GRID()}}]}),
-      {responsive:true,displayModeBar:false});
+    safeReact(ov_cum,[{type:'scatter',mode:'lines',opacity:OP_AREA,fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
+      baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot'}}]}));
 
     const {mean,sd}=rollingStats(netByMonth,3);
     const upper=mean.map((m,i)=>m+(sd[i]||0)), lower=mean.map((m,i)=>m-(sd[i]||0));
-    Plotly.react(ov_roll,[
-      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',opacity:.9,hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
-    ], baseLayout({}), {responsive:true,displayModeBar:false});
+    safeReact(ov_roll,[
+      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip',opacity:0},
+      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip',opacity:0.25},
+      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',opacity:OP_LINE,hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
+    ], baseLayout({}));
 
     const incSeason=seasonality(months,incomeByMonth), expSeason=seasonality(months,expenseByMonth);
-    Plotly.react(ov_season,[
-      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',marker:{opacity:.9},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
-      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',marker:{opacity:.9},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
-    ], baseLayout({barmode:'group',yaxis:{title:'Average amount'},xaxis:{title:'Month-of-year'}}),
-      {responsive:true,displayModeBar:false});
+    safeReact(ov_season,[
+      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
+      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',opacity:OP_BAR,hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
+    ], baseLayout({barmode:'group',yaxis:{title:'Average amount',tickfont:{color:ACCENT()},gridcolor:GRID()},xaxis:{title:'Month-of-year'}}));
   }
 
   function stackedArea(targetEl, months, entries, normalize){
-    if(!entries.length){ Plotly.react(targetEl,[],baseLayout({}),{responsive:true,displayModeBar:false}); return;}
+    if(!entries.length){ safeReact(targetEl,[],baseLayout({})); return;}
     const traces = entries.map(([name,arr]) => normalize
-      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
-      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
-    Plotly.react(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount'},yZero:true}),{responsive:true,displayModeBar:false});
+      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',opacity:OP_AREA,hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
+      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',opacity:OP_AREA,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
+    safeReact(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
   function stackedBars(targetEl, months, entries, normalize){
-    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,marker:{opacity:.9}}));
-    Plotly.react(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount'},yZero:true}),
-      {responsive:true,displayModeBar:false});
+    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:OP_BAR}));
+    safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
   function treemap(targetEl, nodes, focusIdx){
-    Plotly.react(targetEl,[{
+    const values = nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0));
+    const total = values.reduce((a,b)=>a+Math.max(0,b),0);
+    if(!nodes.length || total<=0){
+      targetEl.innerHTML = '<div class="muted small ms-2 me-2">No expense detail for this month.</div>';
+      return;
+    }
+    safeReact(targetEl,[{
       type:'treemap',
       labels:nodes.map(n=>n.label),
       parents:nodes.map(n=>n.parent),
-      values:nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0)),
-      ids:nodes.map(n=>n.id), branchvalues:'total',
+      values:values,
+      ids:nodes.map(n=>n.id),
+      branchvalues:'total',
       hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
-    }], baseLayout({margin:{l:10,r:10,t:0,b:0}}), {responsive:true,displayModeBar:false});
+    }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
   }
 
   function heatmap(targetEl, months, entries){
     const z=entries.map(([,arr])=>arr), y=entries.map(([name])=>name);
-    Plotly.react(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues'}],
-      baseLayout({margin:{l:110,r:30,t:10,b:40}}),{responsive:true,displayModeBar:false});
+    safeReact(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues'}],
+      baseLayout({margin:{l:110,r:30,t:10,b:40}}));
   }
 
   function pareto(targetEl, entries){
     const totals=entries.map(([,arr])=>sum(arr)); const labels=entries.map(([n])=>n);
     const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
-    const bar={type:'bar',x:labels,y:totals,name:'Total',marker:{opacity:.9},hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
-    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',opacity:.9,hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
-    Plotly.react(targetEl,[bar,line],
-      baseLayout({
-        margin:{l:60,r:60,t:10,b:100},
-        xaxis:{tickangle:-45},
-        yaxis:{title:'Amount'},
-        yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %',tickfont:{color:ACCENT()},titlefont:{color:ACCENT()},showgrid:false}
-      }),
-      {responsive:true,displayModeBar:false});
+    const bar={type:'bar',x:labels,y:totals,name:'Total',opacity:OP_BAR,hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
+    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',opacity:OP_LINE,hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
+    safeReact(targetEl,[bar,line],
+      {...baseLayout({margin:{l:60,r:50,t:10,b:100}}),
+       yaxis:{title:'Amount',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
+       yaxis2:{overlaying:'y',side:'right',range:[0,100],title:'Cumulative %',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},
+       xaxis:{tickangle:-45}});
   }
 
   function scatterVolAvg(targetEl, entries){
@@ -437,9 +438,8 @@
     const stdev=arr=>{const n=arr.length;if(n<2)return 0;const m=avg(arr);const v=arr.reduce((s,v)=>s+(toNum(v)-m)**2,0)/(n-1);return Math.sqrt(v)};
     const xs=[],ys=[],sizes=[],labels=[];
     entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
-    Plotly.react(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
-      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)'},yZero:true}),
-      {responsive:true,displayModeBar:false});
+    safeReact(targetEl,[{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter',opacity:OP_MARK},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
+      baseLayout({xaxis:{title:'Average per month'},yaxis:{title:'Volatility (stdev / mean %)',rangemode:'tozero'}}));
   }
 
   function donut(targetEl, entries, monthIdx){
@@ -447,14 +447,17 @@
     let other=0; const keepL=[], keepV=[]; const grand=sum(values)||1;
     values.forEach((v,i)=>{ if(v/grand<0.03) other+=v; else {keepL.push(labels[i]); keepV.push(v);} });
     if(other>0){keepL.push('Other'); keepV.push(other);}
-    Plotly.react(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
-      baseLayout({margin:{l:10,r:10,t:10,b:10}}),{responsive:true,displayModeBar:false});
+    safeReact(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,opacity:0.9,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
+      baseLayout({margin:{l:10,r:10,t:10,b:10}}));
   }
 
   function incomeWaterfall(targetEl, months, income){
+    if(!income.length){ safeReact(targetEl,[],baseLayout({})); return; }
     const diffs=income.map((v,i)=> i===0?v:(v-income[i-1]));
-    Plotly.react(targetEl,[{type:'waterfall',x:months,y:diffs,opacity:.9,increasing:{marker:{color:'#22c55e',opacity:.9}},decreasing:{marker:{color:'#ef4444',opacity:.9}},hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Change vs prior'}}),{responsive:true,displayModeBar:false});
+    safeReact(targetEl,[{type:'waterfall',x:months,y:diffs,opacity:OP_BAR,
+      increasing:{marker:{color:'#22c55e',opacity:OP_BAR}},decreasing:{marker:{color:'#ef4444',opacity:OP_BAR}},
+      hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
+      baseLayout({yaxis:{title:'Change vs prior'}}));
   }
 
   function incomeTable(targetEl, months, entries){
@@ -509,8 +512,8 @@
       const next30Income=upcomingIncome.filter(u=>u.dt<=plus30).reduce((t,u)=>t+toNum(u.amount),0);
       document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
 
-      Plotly.react(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
-        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount'},yZero:true}),{responsive:true,displayModeBar:false});
+      safeReact(in_timeline,[{type:'scatter',mode:'markers',opacity:OP_MARK,x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
+        baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount',rangemode:'tozero'}}));
 
       const host=document.getElementById('in_upcoming');
       const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
@@ -521,7 +524,7 @@
         </table>
       </div>`;
     }catch{
-      Plotly.react(in_timeline,[],baseLayout({}),{responsive:true,displayModeBar:false});
+      safeReact(in_timeline,[],baseLayout({}));
       document.getElementById('in_upcoming').innerHTML='<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>';
     }
   }
@@ -544,7 +547,7 @@
     stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
 
     document.getElementById('ex_tm_month').textContent=months.length?prettyMonth(months[Math.max(0,focusMonthEl.selectedIndex)]):'—';
-    const focusIdx=Math.max(0,focusMonthEl.selectedIndex);
+    const focusIdx=Math.max(0,Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length-1)));
     let nodes=[]; if(treeDeep && (treeDeep.children||[]).length){ nodes=buildTreemapNodes(treeDeep,false);}
     else { nodes=exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name})); }
     treemap(ex_treemap,nodes,focusIdx);
@@ -561,7 +564,6 @@
     heatmap(in_heatmap,months,inEntries);
 
     attachDrillHandlers(months);
-
     const lastMonthIncome=incomeByMonth.at(-1)||0; kpi30d.textContent=incomeByMonth.length?money(lastMonthIncome):'—';
     const last3=incomeByMonth.slice(-3); const avg3=last3.length?sum(last3)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
 
