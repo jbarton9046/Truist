@@ -3,14 +3,14 @@
 {% block content %}
 
 <style>
-  /* --- Bring over the same page tokens & background used on Goals --- */
+  /* Base tokens (same vibe as Goals) */
   :root{
     --page-bg-1:#0b1220;
     --page-bg-2:#0f172a;
     --glow-1:#243b55;
     --glow-2:#1b3a6b;
 
-    --text:#e6edf6;      /* main page/typography color */
+    --text:#e6edf6;
     --muted:#9fb3c8;
 
     --card-bg:rgba(255,255,255,.045);
@@ -19,8 +19,6 @@
 
     --thead-bg:rgba(255,255,255,.06);
     --table-head-fg:var(--text);
-
-    --sticky-top: 0px;
   }
 
   html, body{
@@ -33,32 +31,46 @@
   .muted{color:var(--muted)!important}
   .mono{font-variant-numeric:tabular-nums}
 
-  /* --- Make navbar text match the page ink (scoped to this route) --- */
+  /* ⚑ Accent ink override — make /transactions match /goals */
+  /* This mirrors your layout’s #bt-goals-accent-all block */
+  body[data-route="/transactions"]{
+    --text: var(--accent-ink) !important;
+    --muted: var(--accent-ink) !important;
+    --thead-fg: var(--accent-ink) !important;
+    --table-head-fg: var(--accent-ink) !important;
+  }
+  body[data-route="/transactions"] *{
+    color: var(--accent-ink) !important;
+  }
+  body[data-route="/transactions"] .form-control::placeholder{
+    color: var(--accent-ink) !important; opacity:.85;
+  }
+  /* Keep your green/red amounts despite the global accent */
+  body[data-route="/transactions"] .amt-neg{ color:#ef4444 !important; }
+  body[data-route="/transactions"] .amt-pos{ color:#22c55e !important; }
+
+  /* Navbar ink (redundant given the * rule, but explicit) */
   body[data-route="/transactions"] .navbar .navbar-brand,
   body[data-route="/transactions"] .navbar .nav-link,
   body[data-route="/transactions"] .navbar .dropdown-item {
-    color: var(--text) !important;
+    color: var(--accent-ink) !important;
   }
-  body[data-route="/transactions"] .navbar .nav-link:hover { color:#ffffff !important; opacity:.95; }
 
-  /* Card look that matches Goals */
+  /* Card + table chrome to match Goals */
   .stat-card{
     background:var(--card-bg)!important;border:1px solid var(--card-border)!important;
     border-radius:16px;box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-    backdrop-filter:saturate(120%) blur(4px); color:var(--text);
+    backdrop-filter:saturate(120%) blur(4px);
   }
 
-  /* Shell */
   .tx-wrap { max-width: 1200px; margin: 1rem auto; }
   .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin-bottom:.75rem; }
-  .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
+  .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06)}
 
-  /* Floating table container (same as Goals) */
   .table-wrap{border:1px solid var(--card-border);border-radius:14px;background:var(--card-bg);
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);overflow:auto}
 
-  /* Floating table */
-  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent;color:var(--text)}
+  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
   .table-floating thead th{
     position:sticky; top:0; z-index:3;
     background:var(--thead-bg)!important;color:var(--table-head-fg)!important;
@@ -68,23 +80,19 @@
   .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
   .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
 
-  /* Optional gradient header to mirror Goals table */
+  /* Optional: the same gradient header strip used on Goals tables */
   .thead-gradient th{
     background:linear-gradient(90deg,#60a5fa,#7c3aed)!important;
     color:#f8fbff!important; text-shadow:0 1px 0 rgba(0,0,0,.35);
     border-color:transparent!important;
   }
 
-  /* Month separator rows (sticky under thead) */
+  /* Sticky month rows (sit under sticky thead) */
   .month-row{position:sticky; z-index:2; top:var(--tx-head-h, 40px);
-    background:var(--thead-bg)!important; color:var(--table-head-fg)!important}
+    background:var(--thead-bg)!important; }
   .month-row td{font-weight:700;border-bottom:1px solid var(--hair)!important}
 
-  /* Keep your green/red amounts exactly as-is */
-  .amt-neg{ color:#ef4444; font-weight:600; }
-  .amt-pos{ color:#22c55e; font-weight:600; }
-
-  /* Tighter amount column */
+  /* Amount column padding */
   .col-amount{ padding-right:1.25rem !important; }
 </style>
 
@@ -134,7 +142,6 @@
 
   <div class="table-wrap">
     <div class="table-responsive" style="max-height:70vh; overflow:auto;">
-      <!-- add the gradient class to mirror Goals' header strip -->
       <table class="table table-sm table-floating align-middle mb-0" id="tbl">
         <thead class="thead-gradient">
           <tr>
@@ -157,20 +164,10 @@
   'use strict';
 
   const $  = id => document.getElementById(id);
-  const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
   const fmtUSD = n => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(Number(n)||0);
   const fmtDate = s => s || '';
 
-  // Navbar/table sticky offset (in case layout has a fixed header)
-  function setStickyTopOffset(){
-    const fixedNav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top');
-    const h = fixedNav ? Math.ceil(fixedNav.getBoundingClientRect().height) : 0;
-    document.documentElement.style.setProperty('--sticky-top', (h|0) + 'px');
-  }
-  setStickyTopOffset();
-  window.addEventListener('resize', setStickyTopOffset);
-
-  // Ensure month row sits just under the sticky thead
+  // keep month row just beneath sticky thead
   function setHeadHeightVar(){
     const th = document.querySelector('#tbl thead');
     const h = th ? Math.ceil(th.getBoundingClientRect().height) : 40;
@@ -181,18 +178,18 @@
   function monthKey(s){
     if (!s) return '0000-00';
     const t = String(s);
-    if (t.includes('-')) return t.slice(0,7);               // YYYY-MM-DD -> YYYY-MM
-    const p = t.split('/');                                  // MM/DD/YYYY
+    if (t.includes('-')) return t.slice(0,7);
+    const p = t.split('/');
     if (p.length === 3) return `${p[2]}-${String(p[0]).padStart(2,'0')}`;
     return '0000-00';
   }
   function monthLabel(k){
     const [y,m] = k.split('-');
     const d = new Date(Number(y)||0, (Number(m)||1)-1, 1);
-    return isFinite(d) ? d.toLocaleString(undefined,{month:'short',year:'numeric'}) : k;
+    return d.toLocaleString(undefined,{month:'short',year:'numeric'});
   }
 
-  // Robust numeric parser incl. $(1,234.56) -> -1234.56
+  // Robust numeric parser incl. $(1,234.56)
   function toNumber(x){
     if (typeof x === 'number') return isFinite(x) ? x : 0;
     if (x == null) return 0;
@@ -204,10 +201,6 @@
     return negParens ? -n : n;
   }
 
-  const esc = (s='') => String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-
   async function load(){
     const params = new URLSearchParams();
     const q = $('q').value.trim();
@@ -215,13 +208,12 @@
     const df = $('date_from').value;
     const dt = $('date_to').value;
     const months = $('months').value;
-
     if (q) params.set('q', q);
     if (type && type !== 'all') params.set('type', type);
     if (df) params.set('date_from', df);
     if (dt) params.set('date_to', dt);
     if (months) params.set('months', months);
-    params.set('limit','4000');
+    params.set('limit', '4000');
 
     const tbody = $('tbody');
     tbody.innerHTML = `<tr><td colspan="4" class="muted">Loading…</td></tr>`;
@@ -231,7 +223,7 @@
       const r = await fetch('/api/tx/all?' + params.toString(), {headers:{'Accept':'application/json'}});
       data = await r.json();
     }catch(e){
-      tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${esc(e.message||e)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${String(e && e.message || e)}</td></tr>`;
       $('meta').textContent = '—';
       $('txCount').textContent = '0';
       return;
@@ -241,7 +233,7 @@
     $('meta').textContent = `${rows.length.toLocaleString()} transactions`;
     $('txCount').textContent = rows.length.toLocaleString();
 
-    // group by month, compute net, sort months desc then rows desc by date
+    // group by month & compute net
     const groups = new Map();
     for (const t of rows){
       const k = t.month || monthKey(t.date);
@@ -257,31 +249,32 @@
       const g = groups.get(k);
       const net = toNumber(g.net);
       const netCls = net < 0 ? 'amt-neg' : (net > 0 ? 'amt-pos' : '');
-      out.push(`<tr class="month-row"><td colspan="4">${esc(g.label)} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`);
+      out.push(`<tr class="month-row"><td colspan="4">${g.label} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`);
 
-      // sort within month (newest first)
+      // newest first
       g.items.sort((a,b)=> String(b.date).localeCompare(String(a.date)));
 
       for (const t of g.items){
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
-        const cat = (t.category||'') + (t.subcategory ? (' / ' + t.subcategory) : '');
+        const desc = String(t.description||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const cat  = ((t.category||'') + (t.subcategory?(' / '+t.subcategory):''))
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         out.push(`
           <tr>
-            <td class="text-nowrap mono">${esc(fmtDate(t.date))}</td>
-            <td>${esc(t.description||'')}</td>
+            <td class="text-nowrap mono">${t.date||''}</td>
+            <td>${desc}</td>
             <td class="text-end col-amount mono"><span class="${cls}">${fmtUSD(amt)}</span></td>
-            <td>${esc(cat)}</td>
+            <td>${cat}</td>
           </tr>
         `);
       }
     }
 
-    tbody.innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
-    setHeadHeightVar(); // ensure sticky offset is correct after render
+    $('tbody').innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
+    setHeadHeightVar();
   }
 
-  // events
   $('run').addEventListener('click', load);
   $('q').addEventListener('keydown', e=>{ if (e.key === 'Enter') load(); });
   $('type').addEventListener('change', load);
@@ -289,7 +282,6 @@
   $('date_from').addEventListener('change', load);
   $('date_to').addEventListener('change', load);
 
-  // initial
   load();
 })();
 </script>
