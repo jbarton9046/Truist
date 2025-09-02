@@ -2,8 +2,7 @@
 {% block content %}
 
 <style>
-  /* ——— Use global dark variables from layout.html ———
-     No :root overrides here. We only add component styles. */
+  /* Use the global dark variables from layout.html */
 
   .budget-title { letter-spacing:.2px; }
 
@@ -23,7 +22,7 @@
     font-weight: 600;
   }
 
-  /* Unified table styling (same as goals) */
+  /* Unified table styling (mirror goals.html) */
   .table-responsive{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -33,6 +32,7 @@
   }
   .table-modern,
   .table-floating { width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent; }
+
   .table-modern thead th,
   .table-floating thead th{
     background: var(--thead-bg) !important;
@@ -40,16 +40,28 @@
     border-bottom:1px solid var(--hair) !important;
     position: sticky; top: 0; z-index: 2;
     font-weight:700; letter-spacing:.2px;
+    /* Goals-like header offset */
+    padding:.65rem .75rem;
   }
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
+    padding:.55rem .65rem; /* match goals row rhythm */
   }
   .table-modern tbody tr:nth-child(odd),
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
   .table-modern tbody tr:hover,
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+
+  /* Force left alignment everywhere (like goals) */
+  .table th, .table td{ text-align:left !important; }
+  .table .text-end,
+  .table .text-center,
+  .table [style*="text-align: right"],
+  .table [style*="text-align:right"],
+  .table [style*="text-align: center"],
+  .table [style*="text-align:center"]{ text-align:left !important; }
 
   /* Utilities */
   .mono { font-variant-numeric: tabular-nums; }
@@ -134,10 +146,10 @@
               <thead class="small">
                 <tr>
                   <th>Category</th>
-                  <th class="text-end">Prev</th>
-                  <th class="text-end">Latest</th>
-                  <th class="text-end">Δ</th>
-                  <th class="text-end">Δ%</th>
+                  <th>Prev</th>
+                  <th>Latest</th>
+                  <th>Δ</th>
+                  <th>Δ%</th>
                 </tr>
               </thead>
               <tbody id="cmBody">
@@ -194,7 +206,7 @@
                 <tr>
                   <th style="width:110px;">Date</th>
                   <th>Description</th>
-                  <th style="width:130px;" class="text-end">Amount</th>
+                  <th style="width:130px;">Amount</th>
                   <th style="width:120px;">Category</th>
                 </tr>
               </thead>
@@ -217,7 +229,7 @@
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Δ% text without useless "(0.0%)"
+  // Δ% text without useless "(0.0%))"
   const pctCellText = (row) => {
     if (typeof row.delta_pct === 'string') {
       const trimmed = row.delta_pct.replace(/\s*\(0(?:\.0+)?%\)\s*$/,'').trim();
@@ -253,10 +265,10 @@
         return (
           '<tr>' +
             '<td>' + (safe(row.category) || '—') + '</td>' +
-            '<td class="text-end">' + fmtMoney(row.prev) + '</td>' +
-            '<td class="text-end">' + fmtMoney(row.latest) + '</td>' +
-            '<td class="text-end">' + deltaHtml + '</td>' +
-            '<td class="text-end">' + pctCellText(row) + '</td>' +
+            '<td>' + fmtMoney(row.prev) + '</td>' +
+            '<td>' + fmtMoney(row.latest) + '</td>' +
+            '<td>' + deltaHtml + '</td>' +
+            '<td>' + pctCellText(row) + '</td>' +
           '</tr>'
         );
       }).join('');
@@ -314,7 +326,7 @@
         '<tr>' +
           '<td class="mono">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
           '<td>' + safe(t.desc) + '</td>' +
-          '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
+          '<td class="mono">' + fmtMoney(t.amount) + '</td>' +
           '<td>' + safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') + '</td>' +
         '</tr>'
       )).join('') : '<tr><td colspan="4" class="text-center muted py-3">No recent transactions.</td></tr>';
