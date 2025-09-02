@@ -22,7 +22,18 @@
   .grid{display:grid;gap:1rem;grid-template-columns:1fr}
   @media (min-width:1200px){.grid{grid-template-columns:1fr 1fr}}
 
-  .chart{width:100%;height:420px}
+  /* Chart “glass” look + gentle inner glow */
+  .chart{
+    width:100%;height:420px;
+    background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.03));
+    border:1px solid var(--card-border);
+    border-radius:12px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.05),
+      0 12px 28px rgba(0,0,0,.25);
+    padding:6px;           /* tiny breathing room so the frame shows */
+    backdrop-filter:saturate(120%) blur(2px);
+  }
   .chart.tall{height:520px}
 
   .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
@@ -207,8 +218,7 @@
   const GRID   = () => 'rgba(255,255,255,.14)';
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
-  // Base Plotly layout that mirrors page axis + text colors
-  // Deep-merge xaxis/yaxis so grid/tick colors are preserved
+  // Base Plotly layout; deep-merge axes so themed grid/ticks stay intact
   const baseLayout = (extra = {}) => {
     const base = {
       paper_bgcolor:'rgba(0,0,0,0)',
@@ -219,13 +229,10 @@
       yaxis:{ tickfont:{ color: ACCENT() }, gridcolor: GRID(), linecolor: HAIR(), zerolinecolor: GRID() },
       legend:{ orientation:'h', y:-0.25, font:{ color: ACCENT() } }
     };
-
     if (extra.yZero) base.yaxis.rangemode = 'tozero';
     if (extra.xaxis) base.xaxis = { ...base.xaxis, ...extra.xaxis };
     if (extra.yaxis) base.yaxis = { ...base.yaxis, ...extra.yaxis };
-    Object.keys(extra).forEach(k => {
-      if (!['xaxis','yaxis','yZero'].includes(k)) base[k] = extra[k];
-    });
+    Object.keys(extra).forEach(k => { if (!['xaxis','yaxis','yZero'].includes(k)) base[k] = extra[k]; });
     return base;
   };
 
@@ -320,19 +327,19 @@
   /* ---------- Charts ---------- */
   function renderOverview(){
     Plotly.react(ov_line, [
-      {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
-      {type:'scatter',mode:'lines+markers',name:'Expenses',x:months,y:expenseByMonth,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
+      {type:'scatter',mode:'lines+markers',name:'Income',x:months,y:incomeByMonth,opacity:.85,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
+      {type:'scatter',mode:'lines+markers',name:'Expenses',x:months,y:expenseByMonth,opacity:.85,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
     ], baseLayout({}), {responsive:true,displayModeBar:false});
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
     Plotly.react(ov_net, [
-      {type:'bar',x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}
+      {type:'bar',x:months,y:netByMonth,marker:{color:colors,opacity:.85},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}
     ], baseLayout({yaxis:{title:'Income − Expenses'}, yZero:true}), {responsive:true,displayModeBar:false});
 
-    // Savings Rate — inherit grid colors; zero line styled to match theme
+    // Savings Rate — translucent line + themed zero line
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
     Plotly.react(ov_srate,[
-      {type:'scatter',mode:'lines+markers',x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}
+      {type:'scatter',mode:'lines+markers',x:months,y:sRate,opacity:.9,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}
     ], baseLayout({
       yZero:true,
       yaxis:{ title:'%' },
@@ -340,22 +347,22 @@
     }), {responsive:true,displayModeBar:false});
 
     let run=0; const cum=netByMonth.map(v=>run+=toNum(v));
-    Plotly.react(ov_cum,[{type:'scatter',mode:'lines',fill:'tozeroy',x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
+    Plotly.react(ov_cum,[{type:'scatter',mode:'lines',fill:'tozeroy',opacity:.85,x:months,y:cum,hovertemplate:'%{x}<br>Cumulative: %{y:,.0f}<extra></extra>'}],
       baseLayout({shapes:[{type:'line',xref:'paper',x0:0,x1:1,y0:0,y1:0,line:{width:1,dash:'dot',color:GRID()}}]}),
       {responsive:true,displayModeBar:false});
 
     const {mean,sd}=rollingStats(netByMonth,3);
     const upper=mean.map((m,i)=>m+(sd[i]||0)), lower=mean.map((m,i)=>m-(sd[i]||0));
     Plotly.react(ov_roll,[
-      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',hoverinfo:'skip'},
-      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
+      {type:'scatter',x:months,y:lower,mode:'lines',line:{width:0},name:'-1σ',opacity:.22,hoverinfo:'skip'},
+      {type:'scatter',x:months,y:upper,mode:'lines',fill:'tonexty',line:{width:0},name:'+1σ',opacity:.22,hoverinfo:'skip'},
+      {type:'scatter',x:months,y:mean,mode:'lines+markers',name:'Rolling mean',opacity:.9,hovertemplate:'%{x}<br>Mean: %{y:,.0f}<extra></extra>'}
     ], baseLayout({}), {responsive:true,displayModeBar:false});
 
     const incSeason=seasonality(months,incomeByMonth), expSeason=seasonality(months,expenseByMonth);
     Plotly.react(ov_season,[
-      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
-      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
+      {type:'bar',x:monthNamesShort,y:incSeason,name:'Income',marker:{opacity:.85},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'},
+      {type:'bar',x:monthNamesShort,y:expSeason,name:'Expenses',marker:{opacity:.85},hovertemplate:'%{x}<br>%{y:,.0f}<extra></extra>'}
     ], baseLayout({barmode:'group',yaxis:{title:'Average amount'},xaxis:{title:'Month-of-year'}}),
       {responsive:true,displayModeBar:false});
   }
@@ -363,13 +370,13 @@
   function stackedArea(targetEl, months, entries, normalize){
     if(!entries.length){ Plotly.react(targetEl,[],baseLayout({}),{responsive:true,displayModeBar:false}); return;}
     const traces = entries.map(([name,arr]) => normalize
-      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
-      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
+      ? {x:months,y:arr,name,stackgroup:'one',groupnorm:'percent',type:'scatter',mode:'lines',opacity:.85,hovertemplate:`%{x}<br>${name}: %{y:.1f}%<extra></extra>`}
+      : {x:months,y:arr,name,stackgroup:'one',type:'scatter',mode:'lines',opacity:.85,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`});
     Plotly.react(targetEl,traces,baseLayout({yaxis:{title:normalize?'% of total':'Amount'}, yZero:true}),{responsive:true,displayModeBar:false});
   }
 
   function stackedBars(targetEl, months, entries, normalize){
-    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr}));
+    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:.85,marker:{opacity:.85}}));
     Plotly.react(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount'}, yZero:true}),
       {responsive:true,displayModeBar:false});
   }
@@ -385,28 +392,17 @@
     }], baseLayout({margin:{l:10,r:10,t:0,b:0}}), {responsive:true,displayModeBar:false});
   }
 
-  function buildTreemapNodes(root, includeIncome){
-    const out=[]; (function walk(n){
-      if(n===root){ (n.children||[]).forEach(walk); return; }
-      if(!includeIncome && (n.path[0]||'')==='Income') return;
-      const id=n.path.join(' / '); const parent=n.path.slice(0,-1).join(' / '); const label=n.name||'';
-      if(label && label.toLowerCase()!=='all'){ out.push({label,parent,value:n.monthly||[],id}); }
-      (n.children||[]).forEach(walk);
-    })(root);
-    return out;
-  }
-
   function heatmap(targetEl, months, entries){
     const z=entries.map(([,arr])=>arr), y=entries.map(([name])=>name);
-    Plotly.react(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues'}],
+    Plotly.react(targetEl,[{type:'heatmap',z,y,x:months,hovertemplate:'%{y}<br>%{x}: %{z:,.0f}<extra></extra>',colorscale:'Blues',opacity:.95}],
       baseLayout({margin:{l:110,r:30,t:10,b:40}}),{responsive:true,displayModeBar:false});
   }
 
   function pareto(targetEl, entries){
     const totals=entries.map(([,arr])=>sum(arr)); const labels=entries.map(([n])=>n);
     const cum=[]; let r=0; const grand=sum(totals); for(let i=0;i<totals.length;i++){r+=totals[i]; cum.push(grand?(r/grand)*100:0);}
-    const bar={type:'bar',x:labels,y:totals,name:'Total',hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
-    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
+    const bar={type:'bar',x:labels,y:totals,name:'Total',marker:{opacity:.85},opacity:.85,hovertemplate:'%{x}: %{y:,.0f}<extra></extra>'};
+    const line={type:'scatter',x:labels,y:cum,name:'Cumulative %',yaxis:'y2',mode:'lines+markers',opacity:.9,hovertemplate:'%{x}: %{y:.1f}%<extra></extra>'};
 
     Plotly.react(
       targetEl,
@@ -415,7 +411,6 @@
         margin:{l:60,r:60,t:10,b:100},
         xaxis:{tickangle:-45},
         yaxis:{title:'Amount'},
-        // Ensure right-side axis uses themed tick/title colors too
         yaxis2:{
           overlaying:'y',
           side:'right',
@@ -436,7 +431,7 @@
     entries.forEach(([name,arr])=>{const a=avg(arr);const vol=a?(stdev(arr)/Math.abs(a))*100:0;xs.push(a);ys.push(vol);sizes.push(Math.max(6,Math.sqrt(sum(arr))));labels.push(name)});
     Plotly.react(
       targetEl,
-      [{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter'},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
+      [{type:'scattergl',mode:'markers',x:xs,y:ys,text:labels,marker:{size:sizes,sizemode:'diameter',opacity:.85},hovertemplate:'%{text}<br>Avg/mo: %{x:,.0f}<br>Vol: %{y:.0f}%<extra></extra>'}],
       baseLayout({xaxis:{title:'Average per month'}, yaxis:{title:'Volatility (stdev / mean %)'}, yZero:true}),
       {responsive:true,displayModeBar:false}
     );
@@ -447,13 +442,13 @@
     let other=0; const keepL=[], keepV=[]; const grand=sum(values)||1;
     values.forEach((v,i)=>{ if(v/grand<0.03) other+=v; else {keepL.push(labels[i]); keepV.push(v);} });
     if(other>0){keepL.push('Other'); keepV.push(other);}
-    Plotly.react(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
+    Plotly.react(targetEl,[{type:'pie',labels:keepL,values:keepV,hole:0.55,opacity:.95,hovertemplate:'%{label}: %{value:,.0f} (%{percent})<extra></extra>'}],
       baseLayout({margin:{l:10,r:10,t:10,b:10}}),{responsive:true,displayModeBar:false});
   }
 
   function incomeWaterfall(targetEl, months, income){
     const diffs=income.map((v,i)=> i===0?v:(v-income[i-1]));
-    Plotly.react(targetEl,[{type:'waterfall',x:months,y:diffs,increasing:{marker:{color:'#22c55e'}},decreasing:{marker:{color:'#ef4444'}},hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
+    Plotly.react(targetEl,[{type:'waterfall',x:months,y:diffs,opacity:.9,increasing:{marker:{color:'#22c55e',opacity:.9}},decreasing:{marker:{color:'#ef4444',opacity:.9}},hovertemplate:'%{x}<br>Δ %{y:,.0f}<extra></extra>'}],
       baseLayout({yaxis:{title:'Change vs prior'}}),{responsive:true,displayModeBar:false});
   }
 
@@ -509,7 +504,7 @@
       const next30Income=upcomingIncome.filter(u=>u.dt<=plus30).reduce((t,u)=>t+toNum(u.amount),0);
       document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
 
-      Plotly.react(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
+      Plotly.react(in_timeline,[{type:'scatter',mode:'markers',x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),marker:{opacity:.9},hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
         baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount'}, yZero:true}),{responsive:true,displayModeBar:false});
 
       const host=document.getElementById('in_upcoming');
