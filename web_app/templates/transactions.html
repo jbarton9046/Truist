@@ -1,70 +1,49 @@
 {% extends "layout.html" %}
+{% block title %}Transactions{% endblock %}
 {% block content %}
+
 <style>
-  /* ------- Light, readable tokens (page-local) ------- */
-  :root{
-    --bg: #f7f9fc;
-    --surface: #ffffff;
-    --surface-2:#f1f5f9;
-    --hairline:#e5eaf1;
-    --text:#0f172a;
-    --muted:#64748b;
-
-    /* Section / table headers */
-    --header-bg:#eef3fb;
-    --header-fg:#1f2937;
-    --header-border:#d8e2f0;
-
-    /* Row states */
-    --row-alt:#fbfdff;
-    --row-hover:#eef3f9;
-
-    /* Accents */
-    --success:#16a34a;
-    --danger:#dc2626;
-
-    --shadow-1:0 1px 2px rgba(16,24,40,.06);
-  }
-
-  html, body{ background:var(--bg); color:var(--text); }
-
+  /* Page-specific polish, reusing the global dark tokens */
   .tx-wrap { max-width: 1200px; margin: 1rem auto; }
-  .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin-bottom: .75rem; }
+  .toolbar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:end; margin-bottom:.75rem; }
+  .chip{padding:.15rem .5rem;border-radius:999px;border:1px solid var(--hair);font-size:.85rem;background:rgba(255,255,255,.06);color:var(--text)}
 
-  /* Monthly separator row (sticky inside scroller) */
-  .month-row { background: var(--header-bg); position: sticky; top: 0; z-index: 1; }
-  .month-row td { font-weight: 700; border-bottom: 1px solid var(--header-border); color: var(--header-fg); }
+  /* Card look that matches Goals */
+  .stat-card{background:var(--card-bg)!important;border:1px solid var(--card-border)!important;
+    border-radius:16px;box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05)}
+  .muted{color:var(--muted)!important}
+  .mono{font-variant-numeric:tabular-nums}
 
-  /* Unified table look */
-  .table-modern { width:100%; border-collapse: separate; border-spacing:0; box-shadow: var(--shadow-1); background: var(--surface); }
-  .table-modern thead,
-  .table-modern thead tr,
-  .table-modern thead th,
-  .table-modern thead td{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-    border-bottom: 1px solid var(--header-border) !important;
+  /* Floating table look (aligns with Goals) */
+  .table-wrap{border:1px solid var(--card-border);border-radius:14px;background:var(--card-bg);
+    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);overflow:auto}
+  .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
+  .table-floating thead th{
+    position:sticky; top:0; z-index:3;
+    background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
+    border-bottom:1px solid var(--hair)!important;font-weight:700;letter-spacing:.2px;text-align:left!important
   }
-  .table-modern thead th{
-    position: sticky; top: 0; z-index: 2;
-    font-weight:700; letter-spacing:.2px;
-  }
-  .table-modern tbody td{ border-top:1px solid var(--hairline); vertical-align: middle; }
-  .table-modern tbody tr:nth-child(odd){ background: var(--row-alt); }
-  .table-modern tbody tr:hover{ background: var(--row-hover); }
+  .table-floating tbody td{border-top:1px solid var(--hair);text-align:left!important;vertical-align:middle}
+  .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
+  .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
+
+  /* Month separator rows (sticky under thead) */
+  .month-row{position:sticky; z-index:2; top:var(--tx-head-h, 40px);
+    background:var(--thead-bg)!important; color:var(--table-head-fg,var(--text))!important}
+  .month-row td{font-weight:700;border-bottom:1px solid var(--hair)!important}
 
   /* Amount coloring */
-  .amt-neg{ color: var(--danger); font-weight:600; }
-  .amt-pos{ color: var(--success); font-weight:600; }
+  .amt-neg{ color:#ef4444; font-weight:600; }
+  .amt-pos{ color:#22c55e; font-weight:600; }
 
-  /* Right padding so amounts don’t crowd Category */
-  .col-amount { padding-right: 1.25rem !important; }
+  /* Tighter amount column */
+  .col-amount{ padding-right:1.25rem !important; }
 </style>
 
-<div class="tx-wrap">
+<div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center mb-2">
     <h3 class="m-0">All Transactions</h3>
-    <small class="text-muted">Non-hidden items (excludes ±$10,002.02)</small>
+    <span class="chip">Rows: <span id="txCount" class="mono">—</span></span>
   </div>
 
   <div class="toolbar">
@@ -78,6 +57,7 @@
         <option value="all">All</option>
         <option value="income">Income only</option>
         <option value="expense">Expenses only</option>
+        <option value="transfer">Transfers only</option>
       </select>
     </div>
     <div>
@@ -102,54 +82,72 @@
     </div>
   </div>
 
-  <div class="small text-muted mb-2" id="meta">—</div>
+  <div class="small muted mb-2" id="meta">—</div>
 
-  <div class="table-responsive" style="max-height:70vh; overflow:auto;">
-    <table class="table table-sm table-modern align-middle mb-0" id="tbl">
-      <thead>
-        <tr>
-          <th style="width:110px;">Date</th>
-          <th>Description</th>
-          <th class="text-end col-amount" style="width:140px;">Amount</th>
-          <th style="width:220px;">Category</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+  <div class="table-wrap">
+    <div class="table-responsive" style="max-height:70vh; overflow:auto;">
+      <table class="table table-sm table-floating align-middle mb-0" id="tbl">
+        <thead>
+          <tr>
+            <th style="width:110px;">Date</th>
+            <th>Description</th>
+            <th class="text-end col-amount" style="width:140px;">Amount</th>
+            <th style="width:240px;">Category</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="4" class="muted">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <script>
 (function(){
-  const $ = (id)=> document.getElementById(id);
-  const fmtUSD = (n)=> new Intl.NumberFormat(undefined, {style:'currency', currency:'USD'}).format(n||0);
-  const fmtDate= (s)=> s || '';
+  'use strict';
+
+  const $  = id => document.getElementById(id);
+  const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
+  const fmtUSD = n => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(Number(n)||0);
+  const fmtDate = s => s || '';
+
+  // Set sticky offset for month rows to sit under thead
+  function setHeadHeightVar(){
+    const th = document.querySelector('#tbl thead');
+    const h = th ? Math.ceil(th.getBoundingClientRect().height) : 40;
+    document.documentElement.style.setProperty('--tx-head-h', h + 'px');
+  }
+  new ResizeObserver(setHeadHeightVar).observe(document.body);
 
   function monthKey(s){
     if (!s) return '0000-00';
     const t = String(s);
-    if (t.includes('-')) return t.slice(0,7);
-    const parts = t.split('/');
-    if (parts.length === 3) return `${parts[2]}-${String(parts[0]).padStart(2,'0')}`;
+    if (t.includes('-')) return t.slice(0,7);               // YYYY-MM-DD -> YYYY-MM
+    const p = t.split('/');                                  // MM/DD/YYYY
+    if (p.length === 3) return `${p[2]}-${String(p[0]).padStart(2,'0')}`;
     return '0000-00';
   }
   function monthLabel(k){
     const [y,m] = k.split('-');
-    const d = new Date(Number(y), Number(m)-1, 1);
-    return d.toLocaleString(undefined, {month:'short', year:'numeric'});
+    const d = new Date(Number(y)||0, (Number(m)||1)-1, 1);
+    return isFinite(d) ? d.toLocaleString(undefined,{month:'short',year:'numeric'}) : k;
   }
 
-  // Robust numeric parser
+  // Robust numeric parser incl. $(1,234.56) -> -1234.56
   function toNumber(x){
-    if (typeof x === 'number') return x;
+    if (typeof x === 'number') return isFinite(x) ? x : 0;
     if (x == null) return 0;
     let s = String(x).trim();
     let negParens = false;
-    if (/^\\(.*\\)$/.test(s)) { negParens = true; s = s.slice(1, -1); }
-    const n = parseFloat(s.replace(/[^0-9.-]/g, ''));
+    if (/^\(.*\)$/.test(s)) { negParens = true; s = s.slice(1, -1); }
+    const n = parseFloat(s.replace(/[^0-9.-]/g,''));
     if (!Number.isFinite(n)) return 0;
     return negParens ? -n : n;
   }
+
+  const esc = (s='') => String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
   async function load(){
     const params = new URLSearchParams();
@@ -158,20 +156,33 @@
     const df = $('date_from').value;
     const dt = $('date_to').value;
     const months = $('months').value;
+
     if (q) params.set('q', q);
     if (type && type !== 'all') params.set('type', type);
     if (df) params.set('date_from', df);
     if (dt) params.set('date_to', dt);
     if (months) params.set('months', months);
-    params.set('limit', '4000');
+    params.set('limit','4000');
 
-    const r = await fetch('/api/tx/all?' + params.toString(), {headers:{'Accept':'application/json'}});
-    const j = await r.json();
+    const tbody = $('tbody');
+    tbody.innerHTML = `<tr><td colspan="4" class="muted">Loading…</td></tr>`;
 
-    const rows = (j && j.transactions) || [];
-    $('meta').textContent = `${rows.length} transactions`;
+    let data;
+    try{
+      const r = await fetch('/api/tx/all?' + params.toString(), {headers:{'Accept':'application/json'}});
+      data = await r.json();
+    }catch(e){
+      tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${esc(e.message||e)}</td></tr>`;
+      $('meta').textContent = '—';
+      $('txCount').textContent = '0';
+      return;
+    }
 
-    // group by month and compute monthly net
+    const rows = (data && data.transactions) || [];
+    $('meta').textContent = `${rows.length.toLocaleString()} transactions`;
+    $('txCount').textContent = rows.length.toLocaleString();
+
+    // group by month, compute net, sort months desc then rows desc by date
     const groups = new Map();
     for (const t of rows){
       const k = t.month || monthKey(t.date);
@@ -182,44 +193,46 @@
     }
     const keys = Array.from(groups.keys()).sort().reverse();
 
-    const body = $('tbody');
     const out = [];
     for (const k of keys){
       const g = groups.get(k);
       const net = toNumber(g.net);
       const netCls = net < 0 ? 'amt-neg' : (net > 0 ? 'amt-pos' : '');
-      out.push(
-        `<tr class="month-row"><td colspan="4">${g.label} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`
-      );
+      out.push(`<tr class="month-row"><td colspan="4">${esc(g.label)} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`);
+
+      // sort within month (newest first)
+      g.items.sort((a,b)=> String(b.date).localeCompare(String(a.date)));
+
       for (const t of g.items){
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
-        const safeDesc = String(t.description||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
+        const cat = (t.category||'') + (t.subcategory ? (' / ' + t.subcategory) : '');
         out.push(`
           <tr>
-            <td class="text-nowrap">${fmtDate(t.date)}</td>
-            <td>${safeDesc}</td>
-            <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
-            <td>${cat}</td>
+            <td class="text-nowrap mono">${esc(fmtDate(t.date))}</td>
+            <td>${esc(t.description||'')}</td>
+            <td class="text-end col-amount mono"><span class="${cls}">${fmtUSD(amt)}</span></td>
+            <td>${esc(cat)}</td>
           </tr>
         `);
       }
     }
-    body.innerHTML = out.join('') || `<tr><td colspan="4" class="text-muted">No transactions.</td></tr>`;
+
+    tbody.innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
+    setHeadHeightVar(); // ensure sticky offset is correct after render
   }
 
+  // events
   $('run').addEventListener('click', load);
-  $('q').addEventListener('keydown', (e)=>{ if (e.key === 'Enter') load(); });
+  $('q').addEventListener('keydown', e=>{ if (e.key === 'Enter') load(); });
   $('type').addEventListener('change', load);
   $('months').addEventListener('change', load);
   $('date_from').addEventListener('change', load);
   $('date_to').addEventListener('change', load);
 
-  // initial load
-  load().catch(err=>{
-    $('tbody').innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`;
-  });
+  // initial
+  load();
 })();
 </script>
+
 {% endblock %}
