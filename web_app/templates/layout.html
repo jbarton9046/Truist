@@ -353,6 +353,7 @@
     {% include "_drawer.html" %}
 
     <script>
+      // Global [data-manage] click handler
       (function(){
         document.addEventListener('click', function (e) {
           const el = e.target.closest('[data-manage]');
@@ -367,6 +368,7 @@
     </script>
 
     <script>
+      // Force allow_hidden=1 on builder inspect calls
       (function(){
         if (location.pathname !== '/builder') return;
         const origFetch = window.fetch;
@@ -385,6 +387,7 @@
     </script>
 
     <script>
+      // Set CSS vars for sticky offsets based on navbar height
       (function(){
         function setStickyOffsets(){
           const nav = document.querySelector('.navbar.fixed-top, .navbar-sticky, .app-header.fixed-top, .navbar');
@@ -397,51 +400,58 @@
       })();
     </script>
 
-    <!-- (unchanged) “Current vs Last Month” normalizer -->
+    <!-- bt-cvslm normalizer (non-destructive) -->
     <script>
       (function () {
         const wants = /current\s*vs\s*last\s*month/i;
-        function tagCvslmCard() {
-          const cards = document.querySelectorAll('.card, .stat-card, .panel');
-          cards.forEach(card => {
+
+        function normalizeCvslmCard() {
+          document.querySelectorAll('.card, .stat-card, .panel').forEach(card => {
             const heading = card.querySelector('.card-header, .card-title, .panel-title, .summary-label, h1, h2, h3, h4, h5, h6, caption');
             const txt = (heading ? heading.textContent : card.textContent) || '';
             if (!wants.test(txt)) return;
 
-            card.classList.add('bt-cvslm-match');
+            // mark once
+            if (!card.classList.contains('bt-cvslm-match')) card.classList.add('bt-cvslm-match');
 
+            // find/skin table but DO NOT clobber backgrounds set by theme
             const table = card.querySelector('table');
-            if (table) {
-              table.classList.add('table','table-hover','table-striped','table-floating');
-              if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
-                const first = table.tBodies[0].rows[0];
-                const thead = document.createElement('thead');
-                const tr = document.createElement('tr');
-                Array.from(first.cells).forEach(td => {
-                  const th = document.createElement('th');
-                  th.innerHTML = td.innerHTML;
-                  tr.appendChild(th);
-                });
-                thead.appendChild(tr);
-                table.insertBefore(thead, table.tBodies[0]);
-                first.remove();
-              }
-              table.querySelectorAll('th,td').forEach(c=>{
-                c.style.textAlign='left';
-                c.style.background='transparent';
-                c.style.backgroundImage='none';
+            if (!table) return;
+
+            table.classList.add('table','table-hover','table-striped','table-floating');
+            if (!table.tHead && table.tBodies && table.tBodies[0] && table.tBodies[0].rows.length) {
+              const first = table.tBodies[0].rows[0];
+              const thead = document.createElement('thead');
+              const tr = document.createElement('tr');
+              Array.from(first.cells).forEach(td => {
+                const th = document.createElement('th');
+                th.innerHTML = td.innerHTML;
+                tr.appendChild(th);
               });
+              thead.appendChild(tr);
+              table.insertBefore(thead, table.tBodies[0]);
+              first.remove();
             }
+
+            // alignment only; don’t touch background so frosted header/zebra remain
+            table.querySelectorAll('th,td').forEach(c => {
+              c.style.textAlign = 'left';
+            });
           });
         }
-        function init(){ tagCvslmCard(); setTimeout(tagCvslmCard,200); setTimeout(tagCvslmCard,600); }
+
+        function init(){
+          normalizeCvslmCard();
+          setTimeout(normalizeCvslmCard, 200);
+          setTimeout(normalizeCvslmCard, 600);
+        }
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once:true });
         else init();
-        window.addEventListener('bt:page-ready', tagCvslmCard);
+        window.addEventListener('bt:page-ready', normalizeCvslmCard);
       })();
     </script>
 
-    <!-- Plotly grid/tick theming — **NEW** (soft bluish grid, no heavy zero-line) -->
+    <!-- Plotly grid/tick theming -->
     <script id="bt-plotly-dark">
       (function () {
         if (location.pathname !== '/charts') return;
