@@ -199,6 +199,7 @@
   </div>
 </div>
 
+<!-- Server-injected data (preferred) -->
 <script id="catMonthlyData" type="application/json">
 {{ (cat_monthly | default({})) | tojson }}
 </script>
@@ -209,6 +210,7 @@
 (function(){
   'use strict';
 
+  /* Theme helpers */
   const cssVar = (name, fallback) => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return v || fallback;
@@ -217,49 +219,55 @@
   const GRID   = () => 'rgba(255,255,255,.14)';
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
+  /* Floating feel */
   const OP_LINE = 0.68, OP_BAR = 0.72, OP_AREA = 0.48, OP_MARK = 0.78;
 
+  /* ---- BASE LAYOUT ---- */
   const baseLayout = (extra = {}) => {
     const layout = {
       paper_bgcolor:'rgba(0,0,0,0)',
       plot_bgcolor:'rgba(0,0,0,0)',
       font:{color:ACCENT()},
       margin:{l:60,r:40,t:10,b:40},
-      xaxis:{type:'category',tickfont:{color:ACCENT()},gridcolor:GRID(),gridwidth:.6,linecolor:HAIR(),zeroline:false,zerolinecolor:GRID()},
-      yaxis:{tickfont:{color:ACCENT()},gridcolor:GRID(),gridwidth:.6,linecolor:HAIR(),zeroline:false,zerolinecolor:GRID(),rangemode: extra.yZero ? 'tozero' : undefined},
-      legend:{orientation:'h',y:-0.25,font:{color:ACCENT()}},
+      xaxis:{type:'category',tickfont:{color:ACCENT()},gridcolor:GRID(),gridwidth:0.6,linecolor:HAIR(),zeroline:false,zerolinecolor:GRID()},
+      yaxis:{tickfont:{color:ACCENT()},gridcolor:GRID(),gridwidth:0.6,linecolor:HAIR(),zeroline:false,zerolinecolor:GRID(),rangemode: extra.yZero ? 'tozero' : undefined},
+      legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
       hoverlabel:{font:{color:ACCENT()}}
     };
     if (extra.xaxis) layout.xaxis = Object.assign({}, layout.xaxis, extra.xaxis);
     if (extra.yaxis) layout.yaxis = Object.assign({}, layout.yaxis, extra.yaxis);
-    const {xaxis,yaxis,...rest}=extra;
+    const { xaxis, yaxis, ...rest } = extra;
     return Object.assign(layout, rest);
   };
 
   function safeReact(target, traces, layout, config){
-    try{ Plotly.react(target,traces,layout,Object.assign({responsive:true,displayModeBar:false},config||{})); }
-    catch(err){ try{target.innerHTML='<div class="muted small ms-2 me-2">This chart could not be rendered for the selected window.</div>'}catch(_){}
-      console.error('Plotly render failed:',err); }
+    try{
+      Plotly.react(target, traces, layout, Object.assign({responsive:true,displayModeBar:false}, config||{}));
+    }catch(err){
+      try { target.innerHTML = '<div class="muted small ms-2 me-2">This chart could not be rendered for the selected window.</div>'; } catch(_){}
+      console.error('Plotly render failed:', err);
+    }
   }
 
+  /* Utils & math */
   const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
   const sum = a => a.reduce((x,y)=>x+toNum(y),0);
-  const money = n => (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
-  const money2 = n => (toNum(n)<0?'-$':'$')+Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const money = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
+  const money2 = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
   const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
 
-  /* Parse segments */
-  function segsOf(item){
+  /* Prefer real path array if present */
+  const segsOf = item => {
     if (item && Array.isArray(item.path) && item.path.length) return item.path.map(String);
     const name = String(item?.name || '').trim();
     if (!name) return [];
     const raw = name.replace(/\s*>\s*/g,' / ').replace(/\s*:\s*/g,' / ').replace(/\s*-\s*/g,' / ');
     if (raw.includes(' / ')) return raw.split(' / ').map(s=>s.trim()).filter(Boolean);
     return [name];
-  }
+  };
 
-  /* Aggregate top level */
+  /* Aggregations / tree */
   const aggregateTopLevel = categories => {
     const map = new Map();
     for (const c of (categories||[])){
@@ -267,13 +275,11 @@
       const top = segs[0] || '(Uncategorized)';
       const arr = (c.monthly||[]).map(toNum);
       if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
-      const dest = map.get(top);
-      for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
+      const dest = map.get(top); for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
     }
     return Object.fromEntries(map.entries());
   };
 
-  /* Build tree */
   function buildTree(categories){
     const root={name:'All',path:[],monthly:[],children:[]}; const map=new Map(); map.set('',root);
     const keyOf=s=>s.join(' / ');
@@ -287,28 +293,27 @@
     roll(root); return root;
   }
 
-  /* Treemap nodes (expenses only if asked) */
   function buildTreemapNodes(root, expensesOnly=true){
     const out=[];
     function visit(node, parentId){
-      const id=(node.path||[]).join(' / ');
-      const isTop=node.path && node.path.length===1;
-      const isIncomeTop=isTop && String(node.name||'').toLowerCase()==='income';
+      const id = (node.path||[]).join(' / ');
+      const isTop = node.path && node.path.length===1;
+      const isIncomeTop = isTop && String(node.name||'').toLowerCase()==='income';
       if (node.path && node.path.length && (!expensesOnly || !isIncomeTop)) {
-        out.push({id,label:node.name||'—',parent:parentId||'',value:(node.monthly||[]).map(toNum)});
+        out.push({ id, label: node.name || '—', parent: parentId || '', value: (node.monthly||[]).map(toNum) });
       }
-      (node.children||[]).forEach(ch=>{
+      (node.children||[]).forEach(ch => {
         if (expensesOnly && String(ch.name||'').toLowerCase()==='income') return;
-        visit(ch,id);
+        visit(ch, id);
       });
     }
-    (root.children||[]).forEach(ch=>visit(ch,''));
+    (root.children||[]).forEach(ch => visit(ch, ''));
     return out;
   }
 
-  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>String(c.name||'')===String(name))||null;
+  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(String(c.name||'')===String(name)))||null;
 
-  /* Income groupers from tree */
+  /* Income groupers */
   function seriesBySecondLevel(sub){
     const map=new Map(); if(!sub) return {};
     const visit=n=>{
@@ -325,7 +330,7 @@
     const map=new Map(); if(!sub) return {};
     (sub.children||[]).forEach(ch=>{
       const arr=(ch.monthly||[]).map(toNum);
-      map.set(ch.name||'(child)',arr);
+      map.set(ch.name||'(child)', arr);
     });
     return Object.fromEntries(map.entries());
   }
@@ -333,9 +338,9 @@
     const map=new Map(); if(!sub) return {};
     const visit=n=>{
       if(!n.children.length){
-        const p=n.path.slice(1);
-        const label=(p.length ? p.slice(-tailDepth).join(' / ') : n.name) || 'Income';
-        const arr=(n.monthly||[]).map(toNum);
+        const p = n.path.slice(1); // drop "Income"
+        const label = (p.length ? p.slice(-tailDepth).join(' / ') : n.name) || 'Income';
+        const arr = (n.monthly||[]).map(toNum);
         if(!map.has(label)) map.set(label,new Array(arr.length).fill(0));
         const d=map.get(label); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
       } else n.children.forEach(visit);
@@ -344,31 +349,22 @@
     return Object.fromEntries(map.entries());
   }
 
-  /* NEW: derive income sub-sources from raw categories even if tree is flat.
-     - Looks for the word "Income" ANYWHERE in the path/name.
-     - Uses the segment(s) AFTER "Income" as the label (e.g., "JL Pay").
-  */
+  /* Derive income sub-sources from raw if needed */
   function seriesIncomeFromRaw(categories, tailDepth=2){
     const map=new Map();
     for (const c of (categories||[])){
       const segs = segsOf(c);
       if (!segs.length) continue;
 
-      // find "Income" anywhere
       const idx = segs.findIndex(s => String(s).toLowerCase() === 'income');
-      if (idx === -1) {
-        // also catch names like "Income JL Pay" (no separators)
-        const nm = String(c.name||'').toLowerCase();
-        if (!/^income\b/.test(nm)) continue;
-      }
+      const nameLower = String(c.name||'').toLowerCase();
 
-      // pick label from segments after Income
+      if (idx === -1 && !/^income\b/.test(nameLower)) continue;
+
       let after = [];
       if (idx >= 0 && idx < segs.length-1) after = segs.slice(idx+1);
-      if (!after.length) {
-        // If we only had "Income Something" without separators, fallback to last token
-        after = [segs[segs.length-1]];
-      }
+      if (!after.length) after = [segs[segs.length-1]];
+
       const label = after.slice(0, tailDepth).join(' / ').trim();
       if (!label || /^income$/i.test(label)) continue;
 
@@ -380,7 +376,6 @@
     return Object.fromEntries(map.entries());
   }
 
-  /* VERY conservative heuristic last resort (names that look like pay/deposits) */
   function seriesIncomeHeuristicFromRaw(categories){
     const map=new Map();
     const incLike = /(pay|paycheck|salary|deposit|reimb|refund|bonus)/i;
@@ -400,7 +395,7 @@
   }
 
   const pickTopN=(obj,N)=> Object.entries(obj)
-    .map(([k,v])=>[k,(v||[]).map(toNum),(v||[]).reduce((a,b)=>a+toNum(b),0)])
+    .map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)])
     .filter(([, ,t])=>t>0)
     .sort((a,b)=>b[2]-a[2])
     .slice(0,N)
@@ -408,10 +403,10 @@
 
   const rollingStats=(arr,k=3)=>{ const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}};
   const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'']);if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
+  const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
 
   /* DOM refs */
-  const monthsWindow=document.getElementById('monthsWindow');
+  const monthsWindowEl=document.getElementById('monthsWindow');
   const normalizeEl=document.getElementById('normalize');
   const topNEl=document.getElementById('topN'); const topNLabel=document.getElementById('topNLabel');
   const focusMonthEl=document.getElementById('focusMonth');
@@ -598,6 +593,7 @@
     requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
   }
 
+  /* paycheck timeline (from /api/recurrents) */
   async function loadRecurrentsIncome(){
     try{
       const r=await fetch('/api/recurrents?horizon=90'); const data=await r.json();
@@ -640,7 +636,7 @@
 
   function refreshAll(){
     const N=Number(topNEl.value)||10; topNLabel.textContent=N;
-    monthsWindow.textContent=months.length?(months[0]+' … '+months[months.length-1]):'—';
+    if (monthsWindowEl) monthsWindowEl.textContent=months.length?(months[0]+' … '+months[months.length-1]):'—';
 
     renderOverview();
 
@@ -654,7 +650,7 @@
     let nodes=[];
     try{
       if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);
+        nodes = buildTreemapNodes(treeDeep,true);   // expenses only
       }else{
         nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
       }
@@ -668,15 +664,16 @@
     scatterVolAvg(ex_scatter,exEntries);
     donut(ex_donut,exEntries,focusIdx);
 
-    /* Income: deepest available series */
+    /* Income (deeper auto grouping) */
     const incomeTop = subtreeByTop(treeDeep,'Income');
-    let s2     = seriesBySecondLevel(incomeTop);
-    let sLeaf  = seriesByLeaves(incomeTop, 2);
+    let s2 = seriesBySecondLevel(incomeTop);
+    let sLeaf = seriesByLeaves(incomeTop, 2);
     let sChild = seriesByChildren(incomeTop);
-    const rawDeep   = seriesIncomeFromRaw(categoriesRaw, 2);
-    const rawHeur   = seriesIncomeHeuristicFromRaw(categoriesRaw);
 
-    const nonZeroCount = (obj) => Object.values(obj).filter(arr => (arr||[]).some(v => toNum(v) !== 0)).length;
+    const rawDeep = seriesIncomeFromRaw(categoriesRaw, 2);
+    const rawHeur = seriesIncomeHeuristicFromRaw(categoriesRaw);
+
+    const nonZeroCount = (obj) => Object.values(obj).filter(arr => (arr||[]).some(v => toNum(v)!==0)).length;
 
     if      (nonZeroCount(s2)    >= 2) incomeSubSeries = s2;
     else if (nonZeroCount(sLeaf) >= 2) incomeSubSeries = sLeaf;
@@ -698,6 +695,7 @@
     resizeAllPlots();
   }
 
+  /* UI */
   tabs.addEventListener('click',e=>{
     const t=e.target.closest('.tab'); if(!t) return;
     tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
@@ -717,6 +715,7 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
+  /* Bootstrap */
   (async function main(){
     let payload=null;
     try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
