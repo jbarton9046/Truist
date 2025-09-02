@@ -2,7 +2,6 @@
 {% block title %}Charts & Insights{% endblock %}
 {% block content %}
 <style>
-  /* Page header & controls */
   .page-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap}
   .controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 
@@ -12,7 +11,6 @@
   .muted{color:var(--muted)!important}
   .mono{font-variant-numeric:tabular-nums}
 
-  /* Responsive grid */
   .grid{display:grid;gap:1rem;grid-template-columns:1fr}
   @media (min-width:1200px){.grid{grid-template-columns:1fr 1fr}}
 
@@ -24,7 +22,7 @@
   .tab{padding:.3rem .6rem;border:1px solid var(--card-border);border-radius:.5rem;background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
   .tab.active{background:var(--card-bg);box-shadow:0 1px 0 rgba(16,24,40,.06)}
 
-  /* Charts page adopts accent ink + left alignment like Goals */
+  /* Match Goals: accent ink + left alignment */
   body[data-route="/charts"]{
     --text:var(--accent-ink)!important;
     --muted:var(--accent-ink)!important;
@@ -33,14 +31,7 @@
   }
   body[data-route="/charts"] .table th,
   body[data-route="/charts"] .table td{ text-align:left!important }
-  body[data-route="/charts"] .table .text-end,
-  body[data-route="/charts"] .table .text-center,
-  body[data-route="/charts"] .table [style*="text-align:right"],
-  body[data-route="/charts"] .table [style*="text-align: right"],
-  body[data-route="/charts"] .table [style*="text-align:center"],
-  body[data-route="/charts"] .table [style*="text-align: center"]{ text-align:left!important }
 
-  /* Floating table look */
   .table-floating{width:100%;border-collapse:separate;border-spacing:0;background:transparent}
   .table-floating thead th{
     background:var(--thead-bg)!important;color:var(--table-head-fg,var(--text))!important;
@@ -50,7 +41,6 @@
   .table-floating tbody tr:nth-child(odd){background:rgba(255,255,255,.015)}
   .table-floating tbody tr:hover{background:rgba(255,255,255,.05)}
 
-  /* Income KPIs */
   .kpi-grid{display:grid;gap:.8rem;grid-template-columns:1fr 1fr}
   @media (min-width:992px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
   .kval{font-size:1.25rem;font-weight:600}
@@ -93,27 +83,22 @@
         <div class="mb-2 fw-semibold">Income vs Expenses</div>
         <div id="ov_line" class="chart tall"></div>
       </div>
-
       <div class="stat-card">
         <div class="mb-2 fw-semibold">Net</div>
         <div id="ov_net" class="chart tall"></div>
       </div>
-
       <div class="stat-card">
         <div class="mb-2 fw-semibold">Savings Rate</div>
         <div id="ov_srate" class="chart"></div>
       </div>
-
       <div class="stat-card">
         <div class="mb-2 fw-semibold">Cumulative Net</div>
         <div id="ov_cum" class="chart"></div>
       </div>
-
       <div class="stat-card">
         <div class="mb-2 fw-semibold">Net Rolling Avg</div>
         <div id="ov_roll" class="chart"></div>
       </div>
-
       <div class="stat-card">
         <div class="mb-2 fw-semibold">Seasonality — Avg by Month-of-Year</div>
         <div id="ov_season" class="chart"></div>
@@ -211,19 +196,18 @@
   </div>
 </div>
 
-<!-- Prefer server-injected data; fallback to API -->
+<!-- Server-injected data (preferred) -->
 <script id="catMonthlyData" type="application/json">
 {{ (cat_monthly | default({})) | tojson }}
 </script>
 
-<!-- Plotly -->
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
 <script>
 (function(){
   'use strict';
 
-  /* ---------- Helpers ---------- */
+  /* Theme helpers */
   const cssVar = (name, fallback) => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return v || fallback;
@@ -232,11 +216,8 @@
   const GRID   = () => 'rgba(255,255,255,.14)';
   const HAIR   = () => cssVar('--hair','rgba(255,255,255,.12)');
 
-  /* Floating look: a bit more see-through */
-  const OP_LINE = 0.68;  /* lines */
-  const OP_BAR  = 0.72;  /* bars / waterfall */
-  const OP_AREA = 0.48;  /* stacked area fills */
-  const OP_MARK = 0.78;  /* markers */
+  /* Floating feel */
+  const OP_LINE = 0.68, OP_BAR = 0.72, OP_AREA = 0.48, OP_MARK = 0.78;
 
   const baseLayout = (extra={}) => ({
     paper_bgcolor:'rgba(0,0,0,0)',
@@ -246,6 +227,7 @@
     xaxis:{type:'category', tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID()},
     yaxis:{tickfont:{color:ACCENT()}, gridcolor:GRID(), linecolor:HAIR(), zerolinecolor:GRID(), rangemode:extra.yZero?'tozero':undefined},
     legend:{orientation:'h', y:-0.25, font:{color:ACCENT()}},
+    hoverlabel:{font:{color:ACCENT()}},
     ...extra
   });
 
@@ -258,19 +240,26 @@
     }
   }
 
+  /* Utils & math */
   const toNum = v => (typeof v==='number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
   const sum = a => a.reduce((x,y)=>x+toNum(y),0);
   const money = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{maximumFractionDigits:0});
   const money2 = n => (toNum(n)<0?'-$':'$') + Math.abs(toNum(n)).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
   const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
   const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
-  const splitPathName = raw => String(raw??'').includes(' / ') ? String(raw).split(' / ').map(x=>x.trim()).filter(Boolean) : [String(raw??'')];
 
-  /* ---------- Aggregations / tree ---------- */
+  /* Prefer real path array if present */
+  const segsOf = item => {
+    if (item && Array.isArray(item.path) && item.path.length) return item.path.map(String);
+    const name = String(item?.name || '');
+    return name.includes(' / ') ? name.split(' / ').map(s=>s.trim()).filter(Boolean) : [name];
+  };
+
+  /* Aggregations / tree */
   const aggregateTopLevel = categories => {
     const map = new Map();
     for (const c of (categories||[])){
-      const top = splitPathName(c.name)[0] || '(Uncategorized)';
+      const top = segsOf(c)[0] || '(Uncategorized)';
       const arr = (c.monthly||[]).map(toNum);
       if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
       const dest = map.get(top); for(let i=0;i<arr.length;i++) dest[i]+=arr[i];
@@ -284,7 +273,7 @@
     const getNode=segs=>{ const k=keyOf(segs); if(map.has(k))return map.get(k);
       const n={name:segs[segs.length-1],path:[...segs],monthly:[],children:[]};
       const p=getNode(segs.slice(0,-1)); p.children.push(n); map.set(k,n); return n; };
-    (categories||[]).forEach(c=>{ const segs=splitPathName(c.name); const leaf=getNode(segs.length?segs:[c.name||'']); leaf.monthly=(c.monthly||[]).map(toNum); });
+    (categories||[]).forEach(c=>{ const segs=segsOf(c); const leaf=getNode(segs.length?segs:[c.name||'']); leaf.monthly=(c.monthly||[]).map(toNum); });
     const roll=n=>{ if(!n.children.length) return n.monthly||[]; const L=Math.max(0,...n.children.map(ch=>(ch.monthly||[]).length));
       const agg=new Array(L).fill(0); for(const ch of n.children){ const cm=roll(ch); for(let i=0;i<L;i++) agg[i]+=toNum(cm[i]||0); }
       n.monthly=agg; return agg; };
@@ -309,20 +298,43 @@
     return out;
   }
 
-  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(c.name||'')===name)||null;
-  function seriesBySecondLevel(sub){ const map=new Map(); if(!sub) return {};
-    const visit=n=>{ if(!n.children.length){ const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
-      if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
-      const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
-    } else n.children.forEach(visit); };
-    (sub.children||[]).forEach(visit); return Object.fromEntries(map.entries());
+  const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(String(c.name||'')===String(name)))||null;
+
+  /* Sum leaves into their level-2 bucket under a subtree (Income) */
+  function seriesBySecondLevel(sub){
+    const map=new Map(); if(!sub) return {};
+    const visit=n=>{
+      if(!n.children.length){
+        const lvl2=n.path[1]||n.name; const arr=n.monthly||[];
+        if(!map.has(lvl2)) map.set(lvl2,new Array(arr.length).fill(0));
+        const d=map.get(lvl2); for(let i=0;i<arr.length;i++) d[i]+=toNum(arr[i]||0);
+      } else n.children.forEach(visit);
+    };
+    (sub.children||[]).forEach(visit);
+    return Object.fromEntries(map.entries());
   }
-  const pickTopN=(obj,N)=> Object.entries(obj).map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)]).filter(([, ,t])=>t>0).sort((a,b)=>b[2]-a[2]).slice(0,N).map(([k,v])=>[k,v]);
+  /* Fallback: group by immediate children */
+  function seriesByChildren(sub){
+    const map=new Map(); if(!sub) return {};
+    (sub.children||[]).forEach(ch=>{
+      const arr=(ch.monthly||[]).map(toNum);
+      map.set(ch.name||'(child)', arr);
+    });
+    return Object.fromEntries(map.entries());
+  }
+
+  const pickTopN=(obj,N)=> Object.entries(obj)
+    .map(([k,v])=>[k,(v||[]).map(toNum), (v||[]).reduce((a,b)=>a+toNum(b),0)])
+    .filter(([, ,t])=>t>0)
+    .sort((a,b)=>b[2]-a[2])
+    .slice(0,N)
+    .map(([k,v])=>[k,v]);
+
   const rollingStats=(arr,k=3)=>{ const y=arr.map(toNum),mean=[],sd=[];for(let i=0;i<y.length;i++){const s=Math.max(0,i-k+1),sl=y.slice(s,i+1);const m=sl.length?sl.reduce((a,v)=>a+v,0)/sl.length:0;const v=sl.length>1?sl.reduce((a,v)=>a+(v-m)**2,0)/(sl.length-1):0;mean.push(m);sd.push(Math.sqrt(v));}return{mean,sd}};
   const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
 
-  /* ---------- DOM ---------- */
+  /* DOM refs */
   const monthsWindow=document.getElementById('monthsWindow');
   const normalizeEl=document.getElementById('normalize');
   const topNEl=document.getElementById('topN'); const topNLabel=document.getElementById('topNLabel');
@@ -358,13 +370,13 @@
   const kpiNext=document.getElementById('inc_kpi_next30');
   const kpiMed=document.getElementById('inc_kpi_medpay');
 
-  /* ---------- Data ---------- */
+  /* Data holders */
   let months=[], topSeries={}, treeDeep=null;
   let incomeByMonth=[], expenseByMonth=[], netByMonth=[];
   let incomeSubSeries={};
   let handlersAttached=false;
 
-  /* ---------- Charts ---------- */
+  /* Charts */
   function renderOverview(){
     safeReact(ov_line, [
       {type:'scatter',mode:'lines+markers',opacity:OP_LINE,name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
@@ -373,7 +385,7 @@
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
     safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR(),zerolinecolor:GRID()},yZero:true}));
+      baseLayout({yaxis:{title:'Income − Expenses',tickfont:{color:ACCENT()},gridcolor:GRID(),linecolor:HAIR()},yZero:true}));
 
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
     safeReact(ov_srate,[{type:'scatter',mode:'lines+markers',opacity:OP_LINE,x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
@@ -407,7 +419,7 @@
   }
 
   function stackedBars(targetEl, months, entries, normalize){
-    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:OP_BAR}));
+    const traces = entries.map(([name,arr])=>({type:'bar',name,x:months,y:arr,opacity:OP_BAR,hovertemplate:`%{x}<br>${name}: %{y:,.0f}<extra></extra>`}));
     safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount',rangemode:'tozero'}}));
   }
 
@@ -425,6 +437,8 @@
       values:values,
       ids:nodes.map(n=>n.id),
       branchvalues:'total',
+      maxdepth:2,
+      pathbar:{visible:true},
       hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
     }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
   }
@@ -509,7 +523,7 @@
     requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
   }
 
-  /* ---- paycheck timeline (from /api/recurrents) ---- */
+  /* paycheck timeline (from /api/recurrents) */
   async function loadRecurrentsIncome(){
     try{
       const r=await fetch('/api/recurrents?horizon=90'); const data=await r.json();
@@ -566,7 +580,7 @@
     let nodes=[];
     try{
       if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);   /* expenses-only (skip Income branch) */
+        nodes = buildTreemapNodes(treeDeep,true);   // expenses only
       }else{
         nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
       }
@@ -580,9 +594,12 @@
     scatterVolAvg(ex_scatter,exEntries);
     donut(ex_donut,exEntries,focusIdx);
 
-    /* Income */
+    /* Income (robust fallbacks) */
     const incomeTop = subtreeByTop(treeDeep,'Income');
     incomeSubSeries = seriesBySecondLevel(incomeTop);
+    if (!Object.keys(incomeSubSeries).length) incomeSubSeries = seriesByChildren(incomeTop);
+    if (!Object.keys(incomeSubSeries).length) incomeSubSeries = { Income: incomeByMonth.slice() };
+
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
     incomeTable(in_table,months,inEntries);
@@ -590,7 +607,6 @@
     heatmap(in_heatmap,months,inEntries);
 
     attachDrillHandlers(months);
-
     const lastMonthIncome=incomeByMonth.at(-1)||0; kpi30d.textContent=incomeByMonth.length?money(lastMonthIncome):'—';
     const last3=incomeByMonth.slice(-3); const avg3=last3.length?last3.reduce((a,v)=>a+toNum(v),0)/last3.length:0; kpiAvg3.textContent=last3.length?money(avg3):'—';
 
@@ -617,14 +633,12 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
-  /* ---- bootstrap data ---- */
+  /* Bootstrap */
   (async function main(){
     let payload=null;
     try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
     if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
-      try{
-        const r=await fetch('/api/cat_monthly'); payload=await r.json();
-      }catch(_){}
+      try{ const r=await fetch('/api/cat_monthly'); payload=await r.json(); }catch(_){}
     }
     if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
       document.getElementById('pane-overview').innerHTML='<div class="stat-card"><div class="muted">No category data available.</div></div>';
@@ -635,7 +649,6 @@
     topSeries = aggregateTopLevel(payload.categories || []);
     treeDeep = buildTree(payload.categories || []);
 
-    /* income/expense series */
     incomeByMonth = (topSeries['Income']||[]).map(toNum);
     expenseByMonth = Object.entries(topSeries).filter(([k])=>k!=='Income')
       .reduce((arr,[,vals])=>{ vals.forEach((v,i)=> arr[i]=(arr[i]||0)+toNum(v)); return arr; }, new Array(months.length).fill(0));
