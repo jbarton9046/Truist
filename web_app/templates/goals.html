@@ -59,15 +59,13 @@
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* Gradient header option for the Goals table */
-  .thead-gradient th{
-    background: linear-gradient(90deg, #60a5fa, #7c3aed) !important; /* soft blue → violet */
-    color:#f8fbff !important;
-    text-shadow:0 1px 0 rgba(0,0,0,.35);
-    border-color: transparent !important;
+  /* Ensure top summary mini-table matches all other tables */
+  .mini-table thead th {
+    background: var(--thead-bg) !important;
+    color: var(--table-head-fg, var(--text)) !important;
+    border-color: var(--hair) !important;
+    text-shadow: none !important;
   }
-  .thead-gradient th:first-child{ border-top-left-radius:12px; }
-  .thead-gradient th:last-child { border-top-right-radius:12px; }
 
   /* ---------- ALL tables on this page: force LEFT alignment ---------- */
   .table-floating th,
@@ -147,7 +145,7 @@
       <div class="panel">
         <div class="panel-title">Current vs Last Month</div>
         <div class="table-responsive">
-          <table class="mini-table table table-sm table-floating thead-gradient">
+          <table class="mini-table table table-sm table-floating">
             <thead>
               <tr>
                 <th>Category</th>
@@ -206,7 +204,7 @@
           <col style="width:10%">
         </colgroup>
 
-        <thead class="thead-gradient">
+        <thead>
           <tr>
             <th>Categories</th>
             <th>Goal</th>
