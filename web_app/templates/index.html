@@ -2,12 +2,9 @@
 {% block content %}
 
 <style>
-  /* --- Page-specific polish (uses global dark tokens from layout.html) --- */
-
-  /* Title row */
+  /* ===== page polish (matches Goals) ===== */
   .budget-title { letter-spacing:.2px; }
 
-  /* Cards (same skin as goals) */
   .card, .stat-card, .panel{
     background: var(--card-bg) !important;
     border: 1px solid var(--card-border) !important;
@@ -16,135 +13,102 @@
     box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
     backdrop-filter: saturate(120%) blur(4px);
   }
-  .card-header{
-    background: var(--thead-bg) !important;
-    color: var(--text) !important;
+  .section-header{
+    background: linear-gradient(180deg, color-mix(in oklab,var(--thead-bg) 85%, transparent) 0%, transparent 100%) !important;
     border-bottom: 1px solid var(--hair) !important;
+    color: var(--text) !important;
     font-weight: 600;
+    padding: .75rem 1rem !important;
   }
-  /* Header alignment like goals: a touch down/right, no hard-left slam */
-  .card-header,
-  .section-title {
-    padding: .75rem 1rem;
-    display:flex; align-items:center; gap:.5rem;
-  }
-  .section-title .muted { margin-left:.25rem; }
 
-  /* --- Unified table look (matches goals page) --- */
-  .table-wrap{
+  /* ===== tables (bubble shell + frosted sticky heads) ===== */
+  .table-shell{
     border:1px solid var(--card-border);
     border-radius:14px;
     background:var(--card-bg);
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
-    overflow:hidden;
+    padding:10px;                     /* bubble breathing room like Latest Month Totals */
+    overflow-y:auto;                   /* keep vertical scrollbar */
+    overflow-x:hidden;                 /* remove bottom scrollbar */
   }
-  .table-floating,
-  .table-modern{
+
+  .table-floating{
     width:100%;
     border-collapse:separate;
     border-spacing:0;
     color:var(--text);
     background:transparent;
+    table-layout: fixed;               /* force fit -> no horizontal scrollbar */
   }
-  .table-modern thead th,
   .table-floating thead th{
+    position: sticky; top: 0; z-index: 4;
+    backdrop-filter: saturate(130%) blur(6px);
+    -webkit-backdrop-filter: saturate(130%) blur(6px);
     background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    position: sticky; top: 0; z-index: 3;
+    box-shadow: 0 1px 0 rgba(255,255,255,.05), 0 10px 18px rgba(2,6,23,.25);
     font-weight:700; letter-spacing:.2px;
-    backdrop-filter:saturate(130%) blur(6px);
-    -webkit-backdrop-filter:saturate(130%) blur(6px);
+    padding:.65rem .85rem;             /* slight down + right feel like goals */
   }
-  .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
+    padding:.65rem .85rem;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;  /* fit within cols */
   }
-  .table-modern tbody tr:nth-child(odd),
   .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-modern tbody tr:hover,
   .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
+  /* column helpers so content fits without horizontal scrolling */
+  .col-date{ width: 120px; }
+  .col-amount{ width: 120px; text-align:right; }
+  .col-category{ width: 170px; }
+
+  /* utilities */
   .mono { font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted) !important; }
   .tx-neg { color:#c0392b; font-weight:600; }
   .tx-pos { color:#1e7e34; font-weight:600; }
 
-  /* --- Metric “bubbles” (used in Latest Month Totals) --- */
-  .metric-bubble{
+  /* clickable summary headers */
+  .clickable-card-header{
+    display:flex; align-items:center; gap:.6rem; cursor:pointer; user-select:none;
+    padding:.65rem .9rem; margin: .5rem; border-radius:12px;
+    background: color-mix(in oklab,var(--thead-bg) 85%, transparent);
+    color: var(--text); border:1px solid var(--hair);
+  }
+  .clickable-card-header .chev{ font-weight:700; opacity:.9; transition: transform .2s ease; color: var(--text); }
+  .card.open .clickable-card-header .chev{ transform: rotate(90deg); }
+  .summary-label{ color: var(--text); } /* ensure blue accent */
+
+  /* latest month "bubbles" */
+  .kpi-wrap{ display:flex; gap:18px; }
+  .kpi{
+    flex:1 1 0; min-width: 220px;
+    border:1px solid var(--hair);
     background:rgba(255,255,255,.04);
-    border:1px solid var(--hair);
-    border-radius:14px;
-    padding:16px 18px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .metric-title{ font-weight:600; margin-bottom:.25rem; color:var(--text); }
-  .metric-value{ font-weight:700; font-size:1.25rem; }
-  .metric-sub{ color:#31d4a1; font-weight:600; }
-
-  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
-  .metrics-row{
-    padding:12px 12px 6px;
-  }
-  .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
-
-  /* ---- Category Movers “Latest-like shell” with preserved scrolling ---- */
-  .cm-shell{
-    /* inner shell that gives the same insets as Latest Month Totals */
-    margin:12px;                      /* space from card edges */
-    border-radius:14px;
-    border:1px solid var(--hair);
-    background:rgba(255,255,255,.035);
+    border-radius:14px; padding:14px 16px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
-  .cm-scroll{
-    /* dedicated scroller so sticky header + blur work */
-    max-height: 42vh;
-    overflow: auto;
-    border-radius:12px;
-  }
-  /* small interior padding so header row isn't glued to the shell */
-  .cm-scroll table{ margin: 6px; }
 
-  /* Header chips and labels */
-  .summary-label, .section-heading { color: var(--text); font-weight: 700; }
-
-  /* Category tree */
-  details > summary { list-style: none; cursor: pointer; user-select: none; }
-  details > summary::-webkit-details-marker { display: none; }
+  /* category tree clean look */
+  details > summary { list-style:none; cursor:pointer; user-select:none; }
+  details > summary::-webkit-details-marker { display:none; }
   .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.8; color: var(--muted); }
-  details[open] .caret { transform:rotate(90deg); color: var(--text); }
-
+  details[open] .caret{ transform:rotate(90deg); color:var(--text); }
   .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition: background .15s ease; }
   .node-line:hover { background: rgba(255,255,255,.04); }
   .node-main { display:flex; align-items:center; gap:.55rem; }
   .node-total { opacity:.92; font-variant-numeric: tabular-nums; }
 
-  .link-manage{
-    color: var(--text); text-decoration:none; border:1px solid transparent;
-    padding:.12rem .5rem; border-radius:10px; cursor:pointer;
-  }
-  .link-manage:hover{
-    background: rgba(255,255,255,.06);
-    border-color: var(--hair);
-    text-decoration:none;
-  }
+  .link-manage{ color: var(--text); text-decoration:none; border:1px solid transparent; padding:.12rem .5rem; border-radius:10px; }
+  .link-manage:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); text-decoration:none; }
 
-  .clickable-card-header{
-    display:flex; align-items:center; gap:.6rem; user-select:none;
-    padding:.575rem .875rem; margin:.5rem; border-radius:12px;
-    background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
-    border:1px solid var(--hair);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .clickable-card-header .chev{ font-weight:700; opacity:.9; }
-
-  /* “Summary” accordion label color */
-  .summary-label { color: var(--text); }
-
-  /* Transactions header refresh button alignment */
-  #refresh-btn{ margin-left:auto; }
+  .depth-1 { padding-left: 0px; }
+  .depth-2 { padding-left: 16px; }
+  .depth-3 { padding-left: 32px; }
+  .depth-4 { padding-left: 48px; }
 </style>
 
 <!-- Header -->
@@ -157,7 +121,7 @@
 <!-- Recent Activity -->
 <div class="container my-4" id="recent-activity">
   <div class="d-flex align-items-center justify-content-between mb-2">
-    <h5 class="m-0 section-heading">Recent Activity</h5>
+    <h5 class="m-0">Recent Activity</h5>
     <small class="muted" id="ra-asof"></small>
   </div>
 
@@ -165,60 +129,58 @@
     <div class="col-lg-6">
       <!-- Category Movers -->
       <div class="stat-card" id="catMoversCard">
-        <div class="section-title">
+        <div class="section-header d-flex align-items-center">
           <div class="fw-bold">📈 Category Movers <span class="muted small" id="cmSubtitle"></span></div>
         </div>
         <div class="card-body p-0">
-          <!-- shell gives the same inner spacing “feel” as Latest Month Totals -->
-          <div class="cm-shell">
-            <div class="cm-scroll">
-              <table class="table table-sm table-modern align-middle mb-0">
-                <thead class="small">
-                  <tr>
-                    <th>Category</th>
-                    <th class="text-end">Prev</th>
-                    <th class="text-end">Latest</th>
-                    <th class="text-end">Δ</th>
-                    <th class="text-end">Δ%</th>
-                  </tr>
-                </thead>
-                <tbody id="cmBody">
-                  <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="table-shell" style="max-height: 42vh;">
+            <table class="table-floating table table-sm align-middle mb-0" id="cmTable">
+              <colgroup>
+                <col>                       <!-- Category -->
+                <col style="width:110px;">  <!-- Prev -->
+                <col style="width:110px;">  <!-- Latest -->
+                <col style="width:120px;">  <!-- Δ -->
+                <col style="width:90px;">   <!-- Δ% -->
+              </colgroup>
+              <thead class="small">
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Prev</th>
+                  <th class="text-end">Latest</th>
+                  <th class="text-end">Δ</th>
+                  <th class="text-end">Δ%</th>
+                </tr>
+              </thead>
+              <tbody id="cmBody">
+                <tr><td colspan="5" class="text-center py-4 muted">Loading…</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
       <!-- Latest Month Totals -->
       <div class="stat-card mt-3">
-        <div class="section-title"><div class="fw-bold">Latest Month Totals</div></div>
-        <div class="card-body pt-0">
-          <div class="row metrics-row">
-            <div class="col-12 col-md-4">
-              <div class="metric-bubble">
-                <div class="metric-title">Income</div>
-                <div class="metric-value mono" id="ra-inc"></div>
-                <div class="metric-sub mono" id="ra-inc-delta"></div>
-              </div>
+        <div class="section-header">Latest Month Totals</div>
+        <div class="card-body">
+          <div class="kpi-wrap">
+            <div class="kpi">
+              <div class="muted small">Income</div>
+              <div class="fw-semibold mono" id="ra-inc"></div>
+              <div class="muted small" id="ra-inc-delta"></div>
             </div>
-            <div class="col-12 col-md-4">
-              <div class="metric-bubble">
-                <div class="metric-title">Expense</div>
-                <div class="metric-value mono" id="ra-exp"></div>
-                <div class="metric-sub mono" id="ra-exp-delta"></div>
-              </div>
+            <div class="kpi">
+              <div class="muted small">Expense</div>
+              <div class="fw-semibold mono" id="ra-exp"></div>
+              <div class="muted small" id="ra-exp-delta"></div>
             </div>
-            <div class="col-12 col-md-4">
-              <div class="metric-bubble">
-                <div class="metric-title">Net</div>
-                <div class="metric-value mono" id="ra-net"></div>
-                <div class="metric-sub mono" id="ra-net-delta"></div>
-              </div>
+            <div class="kpi">
+              <div class="muted small">Net</div>
+              <div class="fw-semibold mono" id="ra-net"></div>
+              <div class="muted small" id="ra-net-delta"></div>
             </div>
           </div>
-          <div class="muted small mt-1 px-3" id="ra-months"></div>
+          <div class="muted small mt-2" id="ra-months"></div>
         </div>
       </div>
     </div>
@@ -226,19 +188,25 @@
     <div class="col-lg-6">
       <!-- Most Recent Transactions -->
       <div class="stat-card">
-        <div class="card-header d-flex align-items-center">
+        <div class="section-header d-flex justify-content-between align-items-center">
           <h6 class="m-0">Most Recent Transactions</h6>
-          <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light ms-auto">🔄 Refresh</button>
+          <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light">🔄 Refresh</button>
         </div>
-        <div class="card-body">
-          <div class="table-wrap" style="max-height: 420px; overflow:auto;">
-            <table class="table table-sm table-modern align-middle mb-0" id="ra-recent">
+        <div class="card-body p-0">
+          <div class="table-shell" style="max-height: 540px;">
+            <table class="table-floating table table-sm align-middle mb-0" id="ra-recent">
+              <colgroup>
+                <col class="col-date">
+                <col>                     <!-- Description flex -->
+                <col class="col-amount">
+                <col class="col-category">
+              </colgroup>
               <thead>
                 <tr>
-                  <th style="width:110px;">Date</th>
+                  <th>Date</th>
                   <th>Description</th>
-                  <th style="width:130px;" class="text-end">Amount</th>
-                  <th style="width:120px;">Category</th>
+                  <th class="text-end">Amount</th>
+                  <th>Category</th>
                 </tr>
               </thead>
               <tbody id="ra-recent-body"></tbody>
@@ -251,7 +219,6 @@
   </div>
 </div>
 
-<!-- One consolidated loader for Movers & Recent -->
 <script>
 (function(){
   const $ = id => document.getElementById(id);
@@ -260,7 +227,6 @@
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Δ% text without useless "(0.0%)"
   const pctCellText = (row) => {
     if (typeof row.delta_pct === 'string') {
       const trimmed = row.delta_pct.replace(/\s*\(0(?:\.0+)?%\)\s*$/,'').trim();
@@ -273,7 +239,7 @@
     return base;
   };
 
-  // Category Movers
+  /* -------- Category Movers -------- */
   const cmBody = $('cmBody'), cmSub = $('cmSubtitle');
   async function loadCategoryMovers(){
     if (!cmBody) return;
@@ -295,11 +261,11 @@
         const deltaHtml = '<span class="'+cls+'">'+arrow+' '+fmtMoney(Math.abs(d))+'</span>';
         return (
           '<tr>' +
-            '<td>' + (safe(row.category) || '—') + '</td>' +
-            '<td class="text-end mono">' + fmtMoney(row.prev) + '</td>' +
-            '<td class="text-end mono">' + fmtMoney(row.latest) + '</td>' +
-            '<td class="text-end mono">' + deltaHtml + '</td>' +
-            '<td class="text-end mono">' + pctCellText(row) + '</td>' +
+            '<td title="'+safe(row.category)+'">' + (safe(row.category) || '—') + '</td>' +
+            '<td class="text-end mono" title="'+fmtMoney(row.prev)+'">' + fmtMoney(row.prev) + '</td>' +
+            '<td class="text-end mono" title="'+fmtMoney(row.latest)+'">' + fmtMoney(row.latest) + '</td>' +
+            '<td class="text-end mono" title="'+safe(arrow+' '+fmtMoney(Math.abs(d)))+'">' + deltaHtml + '</td>' +
+            '<td class="text-end mono" title="'+safe(pctCellText(row))+'">' + pctCellText(row) + '</td>' +
           '</tr>'
         );
       }).join('');
@@ -309,7 +275,7 @@
   }
   window.loadCategoryMovers = loadCategoryMovers;
 
-  // Recent Activity
+  /* -------- Recent Activity -------- */
   const raAsOf=$('ra-asof'), raInc=$('ra-inc'), raExp=$('ra-exp'), raNet=$('ra-net');
   const raIncD=$('ra-inc-delta'), raExpD=$('ra-exp-delta'), raNetD=$('ra-net-delta'), raMonths=$('ra-months');
   const raWin=$('ra-windows'), raBody=$('ra-recent-body');
@@ -355,10 +321,12 @@
       const rows = d.recent_txs || [];
       raBody.innerHTML = rows.length ? rows.map(t => (
         '<tr>' +
-          '<td class="mono">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
-          '<td>' + safe(t.desc) + '</td>' +
-          '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
-          '<td>' + safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') + '</td>' +
+          '<td class="mono" title="'+safe(String(t.date||'').slice(0,10))+'">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
+          '<td title="'+safe(t.desc)+'">' + safe(t.desc) + '</td>' +
+          '<td class="text-end mono" title="'+fmtMoney(t.amount)+'">' + fmtMoney(t.amount) + '</td>' +
+          '<td title="'+safe((t.category||'') + (t.subcategory ? ' › ' + t.subcategory : ''))+'">' +
+              safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') +
+          '</td>' +
         '</tr>'
       )).join('') : '<tr><td colspan="4" class="text-center muted py-3">No recent transactions.</td></tr>';
     }catch(err){
@@ -368,7 +336,7 @@
   }
   window.loadRecentActivity = loadRecentActivity;
 
-  // Global refresh
+  /* refresh button */
   const raRefreshBtn = document.getElementById('refresh-btn');
   if (raRefreshBtn){
     raRefreshBtn.addEventListener('click', async () => {
@@ -413,7 +381,6 @@
         <div class="node-line">
           <div class="node-main depth-{{ depth }}">
             <span class="caret">▸</span>
-
             <a
               class="link-manage"
               title="Manage {{ node.name }}"
@@ -427,7 +394,6 @@
               onclick="return dashManage(event, this);">
               {{ node.name }}
             </a>
-
             <span class="node-total">{{ usd(node.total) }}</span>
           </div>
         </div>
@@ -444,7 +410,7 @@
           <ul class="list-unstyled ms-3 mt-1">
             {% for tx in node.transactions %}
               <li class="transaction-entry">
-                <span class="muted mono">{{ tx.date }}</span>:
+                <span class="text-dark">{{ tx.date }}</span>:
                 {{ tx.description }}
                 <span class="fw-bold {% if tx.amount>=0 %}tx-pos{% else %}tx-neg{% endif %}">
                   {{ usd(tx.amount) }}
@@ -471,18 +437,18 @@
 
       <div id="section-{{ month_key }}" class="card-body" style="display: none;">
         <p><strong>Total Income:</strong>
-          <span class="tx-pos mono">{{ usd(summary.income_total) }}</span>
+          <span class="tx-pos">{{ usd(summary.income_total) }}</span>
         </p>
         <p><strong>Total Expenses:</strong>
-          <span class="tx-neg mono">{{ usd(summary.expense_total) }}</span>
+          <span class="tx-neg">{{ usd(summary.expense_total) }}</span>
         </p>
         <p><strong>Net Cash Flow:</strong>
-          <span class="fw-bold mono {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
+          <span class="fw-bold {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
         </p>
 
-        <h5 class="mt-3 section-title" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false" style="cursor:pointer;">
+        <h5 class="mt-3" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false" style="cursor:pointer; display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .7rem; border:1px solid var(--hair); border-radius:10px; background:rgba(255,255,255,.04); color: var(--text);">
           <span class="chev" aria-hidden="true">▸</span>
-          <span class="summary-label">Categories</span>
+          Categories
         </h5>
         <div id="category-list-{{ month_key }}" style="display:none;">
           {% if summary.tree and summary.tree|length > 0 %}
