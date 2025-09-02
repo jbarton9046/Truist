@@ -2,28 +2,12 @@
 {% block content %}
 
 <style>
-  /* -------------------------------------------
-     Local polish to match goals.html everywhere
-     ------------------------------------------- */
+  /* ——— Page-specific polish, built on top of layout.html theme ——— */
 
-  /* Brand masthead */
-  .brand-wrap{
-    display:flex; align-items:center; justify-content:center; gap:.75rem;
-    margin: .75rem 0 1.25rem;
-  }
-  .brand-logo{
-    width:34px; height:34px; border-radius:10px;
-    background: linear-gradient(140deg, #6b8cff 0%, #7c3aed 45%, #22d3ee 100%);
-    box-shadow: 0 6px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.35);
-  }
-  .brand-title{
-    font-weight:800; letter-spacing:.2px; line-height:1;
-    background: linear-gradient(90deg, color-mix(in oklab, var(--accent-ink) 92%, #9ecbff) 0%, #22d3ee 100%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
+  .budget-title { letter-spacing:.2px; }
 
-  /* Cards = same look as goals */
-  .card, .stat-card{
+  /* Cards (match Goals) */
+  .card, .stat-card, .panel{
     background: var(--card-bg) !important;
     border: 1px solid var(--card-border) !important;
     color: var(--text);
@@ -31,114 +15,201 @@
     box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
     backdrop-filter: saturate(120%) blur(4px);
   }
-  .section-header{
+
+  /* Section headers / card headers */
+  .section-header,
+  .card-header{
     background: var(--thead-bg) !important;
     color: var(--text) !important;
     border-bottom: 1px solid var(--hair) !important;
-    border-radius: 12px 12px 0 0;
-    padding:.65rem .95rem;
-    font-weight:700; letter-spacing:.2px;
+    font-weight: 600;
+    padding: .75rem 1rem !important;
   }
 
-  /* Tables – match goals (with frosted sticky head) */
+  .summary-label,
+  #recent-activity h5,
+  .section-header .fw-bold {
+    color: var(--text) !important; /* accent ink */
+  }
+
+  /* ======= Tables – shared with Goals ======= */
   .table-responsive{
     border:1px solid var(--card-border);
     border-radius:14px;
     background:var(--card-bg);
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
     overflow:auto;
+    position: relative;
+    scrollbar-gutter: stable both-edges;
   }
-  .table-floating{ width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent; }
-  .table-floating thead{ position:sticky; top:0; z-index:6; }
-  .table-floating thead th{
+
+  .table-floating,
+  .table-modern{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    color:var(--text);
+    background:transparent;
+  }
+
+  /* Frosted sticky headers (navbar-like blur) */
+  .frost thead{
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+  .frost thead th{
+    backdrop-filter: saturate(130%) blur(6px);
+    -webkit-backdrop-filter: saturate(130%) blur(6px);
     background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    /* frosted */
-    backdrop-filter: saturate(130%) blur(6px);
-    -webkit-backdrop-filter: saturate(130%) blur(6px);
-    /* spacing so headers aren’t “slammed” left/top */
-    padding:.60rem .85rem;
+    font-weight:700; letter-spacing:.2px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2, 6, 23, .25);
   }
-  .table-floating tbody td{
+
+  .table-floating tbody td,
+  .table-modern   tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
-    padding:.55rem .85rem;
   }
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+  .table-floating tbody tr:nth-child(odd),
+  .table-modern   tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-floating tbody tr:hover,
+  .table-modern   tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* KPI “bubbles” (Latest Month Totals) — smaller + balanced */
-  .kpi-wrap{ padding:.6rem .8rem 1rem; }
-  .kpi-grid{
-    display:grid; grid-template-columns: repeat(3, minmax(0,1fr));
-    gap: .85rem;
+  /* ======= Latest Month Totals — compact “bubble” tiles ======= */
+  .totals-row{
+    --gap: 18px;
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: var(--gap);
   }
-  @media (max-width: 992px){ .kpi-grid{ grid-template-columns: 1fr; } }
-
-  .kpi{
-    border:1px solid var(--hair);
+  @media (max-width: 992px){
+    .totals-row{ grid-template-columns: 1fr; }
+  }
+  .total-bubble{
+    border:1px solid var(--card-border);
     background: color-mix(in oklab, var(--card-bg) 92%, transparent);
-    border-radius:14px;
-    padding:.65rem .8rem .7rem;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 18px rgba(0,0,0,.25);
-    min-height:88px;
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow:
+      0 10px 22px rgba(0,0,0,.25),
+      inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .kpi .title{ font-size:.95rem; color: var(--muted); margin-bottom:.15rem; }
-  .kpi .big{ font-weight:800; font-size:1.15rem; letter-spacing:.2px; }
-  .kpi .delta{ margin-top:.35rem; font-size:.95rem; color:#2dd4bf; }
-  .tx-neg { color:#ef4444; font-weight:700; }
-  .mono { font-variant-numeric: tabular-nums; }
+  .total-bubble .label{ color: var(--text); opacity:.95; }
+  .total-bubble .primary{ font-weight:700; font-size:1.25rem; }
+  .total-bubble .delta{ color:#22c55e; font-weight:600; }
 
-  /* “Summary” accordion header — use site blue ink + pill look */
+  /* Give the “Latest Month Totals” card comfortable inner paddings */
+  .totals-card .card-body{ padding: 16px 18px 10px 18px; }
+
+  /* ======= Category Movers — bubble-rows like the totals ======= */
+  .cm-card .table-wrap{
+    /* inner inset so rows don’t hug the card edges */
+    padding: 10px 12px 12px 12px;
+  }
+  .cm-card .table-floating{
+    /* vertical gaps between rows via row border-spacing */
+    border-collapse: separate;
+    border-spacing: 0 10px;              /* <-- creates row “pill” gaps */
+  }
+  /* remove default zebra + borders for this table; we’ll paint the row pills */
+  .cm-card .table-floating tbody tr{ background: transparent !important; }
+  .cm-card .table-floating tbody td{
+    border-top: none !important;
+    background: color-mix(in oklab, var(--card-bg) 94%, transparent);
+    border: 1px solid var(--card-border);
+    box-shadow:
+      0 8px 18px rgba(0,0,0,.20),
+      inset 0 1px 0 rgba(255,255,255,.04);
+    padding: .6rem .8rem !important;
+  }
+  .cm-card .table-floating tbody td:first-child{
+    border-top-left-radius: 12px; border-bottom-left-radius: 12px;
+  }
+  .cm-card .table-floating tbody td:last-child{
+    border-top-right-radius: 12px; border-bottom-right-radius: 12px;
+  }
+
+  /* Keep the header tidy and not slammed to the edge */
+  .tight-head th{ padding: .55rem .8rem !important; }
+
+  /* ======= Recent Transactions table also gets frosted header ======= */
+  .rt-card .table-wrap{ padding: 10px 12px; }
+
+  /* ======= Utilities ======= */
+  .mono { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted) !important; }
+  .tx-neg { color:#c0392b; font-weight:600; }
+  .tx-pos { color:#1e7e34; font-weight:600; }
+
+  /* Collapsible month summary header chip */
   .clickable-card-header{
     display:flex; align-items:center; gap:.6rem; cursor:pointer; user-select:none;
-    padding:.575rem .875rem; margin:.5rem .5rem 0; border-radius:999px;
-    color: var(--text) !important; background: color-mix(in oklab, var(--thead-bg) 90%, transparent);
+    padding:.575rem .875rem; margin:.75rem; border-radius:12px;
+    background: linear-gradient(180deg, color-mix(in oklab, var(--thead-bg) 85%, transparent), color-mix(in oklab, var(--thead-bg) 65%, transparent));
+    color: var(--text);
     border:1px solid var(--hair);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    transition: background .15s ease, color .15s ease;
   }
   .clickable-card-header .chev{ font-weight:700; opacity:.9; transition: transform .2s ease; }
   .card.open .clickable-card-header .chev{ transform: rotate(90deg); }
 
-  /* Category tree spacing/ink */
-  .summary-label{ color: var(--text) !important; }
-  .node-line{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.28rem .45rem; border-radius:10px; }
-  .node-main{ display:flex; align-items:center; gap:.55rem; }
-  .caret{ display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.85; color: var(--muted); }
-  details[open] .caret{ transform:rotate(90deg); color: var(--text); }
-  .link-manage{ color: var(--text); text-decoration:none; border:1px solid transparent; padding:.05rem .4rem; border-radius:10px; }
-  .link-manage:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); text-decoration:none; }
+  /* Category tree */
+  details > summary { list-style: none; cursor: pointer; user-select: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s; opacity:.8; color: var(--muted); }
+  details[open] .caret { transform:rotate(90deg); color: var(--text); }
 
-  /* Header chips & small utilities */
-  .muted{ color: var(--muted) !important; }
+  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition: background .15s; }
+  .node-line:hover { background: rgba(255,255,255,.04); }
+  .node-main { display:flex; align-items:center; gap:.55rem; }
+  .node-total { opacity:.92; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  .link-manage{
+    color: var(--text); text-decoration:none; border:1px solid transparent;
+    padding:.12rem .5rem; border-radius:10px; cursor:pointer;
+  }
+  .link-manage:hover{
+    background: rgba(255,255,255,.06);
+    border-color: var(--hair);
+    text-decoration:none;
+  }
+
+  /* Depth padding */
+  .depth-1 { padding-left: 0px; }
+  .depth-2 { padding-left: 16px; }
+  .depth-3 { padding-left: 32px; }
+  .depth-4 { padding-left: 48px; }
 </style>
 
-<!-- Masthead -->
-<div class="container">
-  <div class="brand-wrap">
-    <div class="brand-logo" aria-hidden="true"></div>
-    <h1 class="brand-title m-0">Barton Budget Tracker</h1>
+<!-- Header -->
+<div class="container mt-3 mb-2">
+  <div class="d-flex align-items-center justify-content-center">
+    <h1 class="m-0 budget-title">📊 <span style="background:linear-gradient(90deg,#8ab6ff,#00d1ff); -webkit-background-clip:text; background-clip:text; color:transparent;">Barton Budget Tracker</span></h1>
   </div>
 </div>
 
 <!-- Recent Activity -->
-<div class="container my-3" id="recent-activity">
+<div class="container my-4" id="recent-activity">
   <div class="d-flex align-items-center justify-content-between mb-2">
-    <h5 class="m-0" style="color:var(--text)">Recent Activity</h5>
+    <h5 class="m-0">Recent Activity</h5>
     <small class="muted" id="ra-asof"></small>
   </div>
 
   <div class="row g-3">
     <div class="col-lg-6">
       <!-- Category Movers -->
-      <div class="stat-card" id="catMoversCard">
-        <div class="section-header">
+      <div class="stat-card cm-card" id="catMoversCard">
+        <div class="card-header section-header">
           <div class="fw-bold">📈 Category Movers <span class="muted small" id="cmSubtitle"></span></div>
         </div>
-        <div class="card-body p-0">
-          <div class="table-responsive" style="max-height: 42vh;">
-            <table class="table table-sm table-floating align-middle mb-0">
+        <div class="card-body p-0 table-wrap">
+          <div class="table-responsive frost">
+            <table class="table table-sm table-floating align-middle mb-0 tight-head">
               <thead class="small">
                 <tr>
                   <th>Category</th>
@@ -157,24 +228,24 @@
       </div>
 
       <!-- Latest Month Totals -->
-      <div class="stat-card mt-3">
-        <div class="section-header">Latest Month Totals</div>
-        <div class="kpi-wrap">
-          <div class="kpi-grid">
-            <div class="kpi">
-              <div class="title">Income</div>
-              <div class="big mono" id="ra-inc">—</div>
-              <div class="delta mono" id="ra-inc-delta">—</div>
+      <div class="stat-card totals-card mt-3">
+        <div class="card-header section-header">Latest Month Totals</div>
+        <div class="card-body">
+          <div class="totals-row">
+            <div class="total-bubble">
+              <div class="label small">Income</div>
+              <div class="primary mono" id="ra-inc"></div>
+              <div class="delta small" id="ra-inc-delta"></div>
             </div>
-            <div class="kpi">
-              <div class="title">Expense</div>
-              <div class="big mono" id="ra-exp">—</div>
-              <div class="delta mono" id="ra-exp-delta">—</div>
+            <div class="total-bubble">
+              <div class="label small">Expense</div>
+              <div class="primary mono" id="ra-exp"></div>
+              <div class="delta small" id="ra-exp-delta"></div>
             </div>
-            <div class="kpi">
-              <div class="title">Net</div>
-              <div class="big mono" id="ra-net">—</div>
-              <div class="delta mono" id="ra-net-delta">—</div>
+            <div class="total-bubble">
+              <div class="label small">Net</div>
+              <div class="primary mono" id="ra-net"></div>
+              <div class="delta small" id="ra-net-delta"></div>
             </div>
           </div>
           <div class="muted small mt-2" id="ra-months"></div>
@@ -184,14 +255,14 @@
 
     <div class="col-lg-6">
       <!-- Most Recent Transactions -->
-      <div class="stat-card">
-        <div class="section-header d-flex justify-content-between align-items-center">
-          <h6 class="m-0" style="color:var(--text)">Most Recent Transactions</h6>
+      <div class="stat-card rt-card">
+        <div class="card-header section-header d-flex justify-content-between align-items-center">
+          <h6 class="m-0">Most Recent Transactions</h6>
           <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light">🔄 Refresh</button>
         </div>
-        <div class="card-body">
-          <div class="table-responsive" style="max-height: 420px;">
-            <table class="table table-sm table-floating align-middle mb-0" id="ra-recent">
+        <div class="card-body p-0 table-wrap">
+          <div class="table-responsive frost">
+            <table class="table table-sm table-floating align-middle mb-0 tight-head" id="ra-recent">
               <thead>
                 <tr>
                   <th style="width:110px;">Date</th>
@@ -203,14 +274,14 @@
               <tbody id="ra-recent-body"></tbody>
             </table>
           </div>
-          <div class="muted small mt-2" id="ra-windows"></div>
+          <div class="muted small mt-2 px-3 pb-2" id="ra-windows"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- One consolidated loader for Movers & Recent -->
+<!-- Loader for Movers & Recent -->
 <script>
 (function(){
   const $ = id => document.getElementById(id);
@@ -289,7 +360,9 @@
       if (raNet) {
         const netVal = Number(lt.net || 0);
         raNet.textContent = fmtMoney(netVal);
-        raNet.classList.add('mono', netVal < 0 ? 'tx-neg' : '');
+        raNet.classList.add('mono');
+        raNet.classList.toggle('tx-pos', netVal >= 0);
+        raNet.classList.toggle('tx-neg', netVal < 0);
       }
 
       const mkDelta = (val, posGood=true) => {
@@ -324,7 +397,7 @@
   }
   window.loadRecentActivity = loadRecentActivity;
 
-  // Global refresh button
+  // Global refresh
   const raRefreshBtn = document.getElementById('refresh-btn');
   if (raRefreshBtn){
     raRefreshBtn.addEventListener('click', async () => {
@@ -347,7 +420,7 @@
 </script>
 
 <!-- Per-month summary + category tree -->
-<div class="container mt-3">
+<div class="container mt-2">
   {% macro usd(val) -%}
     {%- set n = (val or 0)|float -%}
     {{ '-' if n < 0 else '' }}${{ '%.2f'|format(n|abs) }}
@@ -369,19 +442,22 @@
         <div class="node-line">
           <div class="node-main depth-{{ depth }}">
             <span class="caret">▸</span>
-            <a class="link-manage"
-               title="Manage {{ node.name }}"
-               data-level="{{ level }}"
-               data-cat="{{ cat }}"
-               data-sub="{{ sub }}"
-               data-ssub="{{ ssub }}"
-               data-sss="{{ sss }}"
-               data-month="{{ month_key }}"
-               href="#"
-               onclick="return dashManage(event, this);">
-              <span class="summary-label">{{ node.name }}</span>
+
+            <a
+              class="link-manage"
+              title="Manage {{ node.name }}"
+              data-level="{{ level }}"
+              data-cat="{{ cat }}"
+              data-sub="{{ sub }}"
+              data-ssub="{{ ssub }}"
+              data-sss="{{ sss }}"
+              data-month="{{ month_key }}"
+              href="#"
+              onclick="return dashManage(event, this);">
+              {{ node.name }}
             </a>
-            <span class="mono">{{ usd(node.total) }}</span>
+
+            <span class="node-total mono">{{ usd(node.total) }}</span>
           </div>
         </div>
       </summary>
@@ -399,7 +475,7 @@
               <li class="transaction-entry">
                 <span class="muted mono">{{ tx.date }}</span>:
                 {{ tx.description }}
-                <span class="{{ 'tx-neg' if tx.amount<0 else 'tx-pos' }} mono">
+                <span class="fw-bold {% if tx.amount>=0 %}tx-pos{% else %}tx-neg{% endif %} mono">
                   {{ usd(tx.amount) }}
                 </span>
               </li>
@@ -416,28 +492,28 @@
     {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
     {% set net_class = 'tx-pos' if summary.net_cash_flow >= 0 else 'tx-neg' %}
 
-    <div class="card mb-3" id="card-{{ month_key }}">
+    <div class="card mb-4" id="card-{{ month_key }}">
       <div class="clickable-card-header" onclick="toggleSection('{{ month_key }}')" id="header-{{ month_key }}">
         <span class="chev" aria-hidden="true">▸</span>
-        <span class="summary-label fw-bold">{{ formatted_month_key }} Summary</span>
+        <span class="summary-label">{{ formatted_month_key }} Summary</span>
       </div>
 
-      <div id="section-{{ month_key }}" class="card-body" style="display:none;">
-        <p class="mb-2"><strong>Total Income:</strong>
+      <div id="section-{{ month_key }}" class="card-body" style="display: none;">
+        <p><strong>Total Income:</strong>
           <span class="tx-pos mono">{{ usd(summary.income_total) }}</span>
         </p>
-        <p class="mb-2"><strong>Total Expenses:</strong>
+        <p><strong>Total Expenses:</strong>
           <span class="tx-neg mono">{{ usd(summary.expense_total) }}</span>
         </p>
-        <p class="mb-3"><strong>Net Cash Flow:</strong>
-          <span class="fw-bold mono {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
+        <p><strong>Net Cash Flow:</strong>
+          <span class="fw-bold {{ net_class }} mono">{{ usd(summary.net_cash_flow) }}</span>
         </p>
 
-        <h6 class="clickable-card-header mt-2" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false" style="display:inline-flex;">
+        <h5 class="mt-3 toggle-link" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false"
+            style="display:inline-flex; align-items:center; gap:.5rem; padding:.35rem .7rem; border-radius:10px; border:1px solid var(--hair); color:var(--text); background:rgba(255,255,255,.04);">
           <span class="chev" aria-hidden="true">▸</span>
-          <span class="summary-label">Categories</span>
-        </h6>
-
+          Categories
+        </h5>
         <div id="category-list-{{ month_key }}" style="display:none;">
           {% if summary.tree and summary.tree|length > 0 %}
             <div class="ms-1">
@@ -464,6 +540,7 @@ window.toggleSection = function(key){
 
   const card = document.getElementById('card-' + key);
   if (card) card.classList.toggle('open', willOpen);
+
   return false;
 };
 window.toggleCategoryList = function(key){
@@ -475,6 +552,7 @@ window.toggleCategoryList = function(key){
 
   const hdr = document.getElementById('cats-toggle-' + key);
   if (hdr) hdr.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+
   return false;
 };
 </script>
