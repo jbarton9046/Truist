@@ -1,194 +1,110 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <style>
-  /* ===========================
-     SKYLINE DESIGN SYSTEM
-     =========================== */
-  :root{
-    /* Neutrals & Surfaces */
-    --bg: #f7f9fc;
-    --surface: #ffffff;
-    --surface-2: #f1f5f9;
-    --hairline: #e5eaf1;
-    --card-border: #dee5ee;
+  /* ——— Use global dark variables from layout.html ———
+     No :root overrides here. We only add component styles. */
 
-    /* Text */
-    --text: #0f172a;          /* slate-900 */
-    --muted: #64748b;         /* slate-500 */
+  .budget-title { letter-spacing:.2px; }
 
-    /* Brand */
-    --primary: #143a6e;       /* deep navy */
-    --primary-600: #1d4d97;   /* mid navy */
-
-    /* Accents / States */
-    --success: #16a34a;
-    --danger:  #dc2626;
-
-    /* Table & Section headers (unified light header + dark text) */
-    --header-bg: #eef3fb;     /* light cool */
-    --header-fg: #1f2937;     /* gray-800 (not black) */
-    --header-muted: #4b5563;  /* gray-600 */
-    --header-border: #d8e2f0;
-
-    /* Table rows */
-    --row-alt: #fbfdff;
-    --row-hover: #eef3f9;
-
-    /* Shadows */
-    --shadow-1: 0 1px 2px rgba(16,24,40,.06);
+  /* Cards match goals page */
+  .card, .stat-card, .panel {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--card-border) !important;
+    color: var(--text);
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    backdrop-filter: saturate(120%) blur(4px);
   }
-
-  html, body { background: var(--bg); color: var(--text); }
-  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-
-  /* Typography & utilities */
-  .budget-title { color: var(--primary) !important; letter-spacing:.2px; }
-  .mono { font-variant-numeric: tabular-nums; }
-  .muted { color: var(--muted); }
-  .tx-neg { color: var(--danger); font-weight:600; }
-  .tx-pos { color: var(--success); font-weight:600; }
-
-  /* Cards */
-  .card { border:1px solid var(--card-border); border-radius:14px; box-shadow:var(--shadow-1); background:var(--surface); }
-  .card-header { background: var(--surface); border-bottom: 1px solid var(--hairline); }
-
-  /* Unified “light header + dark text” section header */
-  .section-header{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-    border-bottom: 1px solid var(--header-border) !important;
+  .card-header, .section-header{
+    background: var(--thead-bg) !important;
+    color: var(--text) !important;
+    border-bottom: 1px solid var(--hair) !important;
     font-weight: 600;
   }
-  /* Ensure any text nested in section headers picks header-fg (not black) */
-  .section-header *:not(.badge){ color: var(--header-fg) !important; }
-  .section-header .muted, .section-header small{ color: var(--header-muted) !important; }
 
-  /* Buttons */
-  .btn-outline-primary{
-    color: var(--primary-600); border-color: var(--primary-600);
+  /* Unified table styling (same as goals) */
+  .table-responsive{
+    border:1px solid var(--card-border);
+    border-radius:14px;
+    background:var(--card-bg);
+    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+    overflow:auto;
   }
-  .btn-outline-primary:hover{
-    background: var(--primary-600); color:#fff; border-color: var(--primary-600);
-    box-shadow: 0 6px 16px rgba(29,77,151,.18);
-  }
-
-  /* ======= UNIFIED TABLE STYLE (all tables match) ======= */
-  .table-modern { width:100%; border-collapse: separate; border-spacing:0; }
-
-  /* HARD RESET for table headers so they match “Summary”
-     (beats Bootstrap .table-primary, .thead-*, and bg-* utilities) */
-  .table-modern thead,
-  .table-modern thead tr,
+  .table-modern,
+  .table-floating { width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent; }
   .table-modern thead th,
-  .table-modern thead td{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-    border-bottom: 1px solid var(--header-border) !important;
-  }
-  .table-modern thead th[class*="bg-"],
-  .table-modern thead tr[class*="bg-"]{
-    background: var(--header-bg) !important;
-    color: var(--header-fg) !important;
-  }
-  .table-modern thead th a,
-  .table-modern thead th span,
-  .table-modern thead th small{
-    color: var(--header-fg) !important;
-  }
-
-  .table-modern thead th{
-    font-weight:700;
+  .table-floating thead th{
+    background: var(--thead-bg) !important;
+    color: var(--table-head-fg, var(--text)) !important;
+    border-bottom:1px solid var(--hair) !important;
     position: sticky; top: 0; z-index: 2;
-    letter-spacing:.2px;
+    font-weight:700; letter-spacing:.2px;
   }
-  .table-modern tbody td{
-    border-top: 1px solid var(--hairline);
-    vertical-align: middle;
+  .table-modern tbody td,
+  .table-floating tbody td{
+    border-top:1px solid var(--hair);
+    vertical-align:middle;
   }
-  .table-modern tbody tr:nth-child(odd){ background: var(--row-alt); }
-  .table-modern tbody tr:hover { background: var(--row-hover); }
-  .table-modern .amount-neg{ color: var(--danger); font-weight:600; }
-  .table-modern .amount-pos{ color: var(--success); font-weight:600; }
+  .table-modern tbody tr:nth-child(odd),
+  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-modern tbody tr:hover,
+  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* ======= INTERACTIVE (Per-month “Summary” cards) ======= */
-  .summary-label { color: var(--header-fg) !important; }
+  /* Utilities */
+  .mono { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted) !important; }
+  .tx-neg { color:#c0392b; font-weight:600; }
+  .tx-pos { color:#1e7e34; font-weight:600; }
+
   .clickable-card-header{
-    display:flex; align-items:center; gap:.6rem;
-    cursor:pointer; user-select:none;
-    padding:.575rem .875rem; margin:-.5rem;
-    border-radius:12px 12px 0 0;
-    background: var(--header-bg);
-    color: var(--header-fg);
-    border-bottom:1px solid var(--header-border);
+    display:flex; align-items:center; gap:.6rem; cursor:pointer; user-select:none;
+    padding:.575rem .875rem; margin:-.5rem; border-radius:12px 12px 0 0;
+    background: var(--thead-bg); color: var(--text);
+    border-bottom:1px solid var(--hair);
     transition: background .15s ease, color .15s ease;
   }
-  .clickable-card-header .chev{ font-weight:700; opacity:.78; transition: transform .2s ease; }
-  .card.open .clickable-card-header .chev{ transform: rotate(90deg); opacity:.95; }
+  .clickable-card-header .chev{ font-weight:700; opacity:.9; transition: transform .2s ease; }
+  .card.open .clickable-card-header .chev{ transform: rotate(90deg); }
 
-  /* “Categories” toggle link */
   .toggle-link{
     display:inline-flex; align-items:center; gap:.45rem; cursor:pointer; user-select:none;
     padding:.3rem .65rem; border-radius:10px;
-    color: var(--primary);
-    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    color: var(--text); border:1px solid var(--hair);
+    background: rgba(255,255,255,.04);
   }
-  .toggle-link:hover{ background: var(--surface-2); }
-  .toggle-link .chev{ font-weight:700; opacity:.7; transition: transform .2s ease; }
-  .toggle-link[aria-expanded="true"] .chev{ transform: rotate(90deg); opacity:.95; }
+  .toggle-link:hover{ background: rgba(255,255,255,.08); }
+  .toggle-link .chev{ font-weight:700; opacity:.85; transition: transform .2s ease; }
+  .toggle-link[aria-expanded="true"] .chev{ transform: rotate(90deg); }
 
-  /* ======= CATEGORY TREE ======= */
+  /* Category tree */
   details > summary { list-style: none; cursor: pointer; user-select: none; }
   details > summary::-webkit-details-marker { display: none; }
-  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.65; color: var(--muted); }
-  details[open] .caret { transform:rotate(90deg); opacity:.9; color: var(--primary); }
+  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.8; color: var(--muted); }
+  details[open] .caret { transform:rotate(90deg); color: var(--text); }
 
-  .node-line {
-    display:flex; align-items:center; justify-content:space-between;
-    gap:.75rem; padding:.35rem .45rem; border-radius:10px;
-    transition: background .15s ease;
-  }
-  .node-line:hover { background: var(--surface-2); }
+  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition: background .15s ease; }
+  .node-line:hover { background: rgba(255,255,255,.04); }
   .node-main { display:flex; align-items:center; gap:.55rem; }
-  .node-total { opacity:.9; font-variant-numeric: tabular-nums; }
+  .node-total { opacity:.92; font-variant-numeric: tabular-nums; }
 
   .link-manage{
     color: var(--text); text-decoration:none; border:1px solid transparent;
     padding:.12rem .5rem; border-radius:10px; cursor:pointer;
-    transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
   }
   .link-manage:hover{
-    background: #eaf6ff; color: #0a6abf;
-    border-color:#cfe7ff; text-decoration:none;
-  }
-  .link-manage:focus, .link-manage:focus-visible{
-    outline:0; box-shadow:0 0 0 .2rem rgba(10,106,191,.18);
+    background: rgba(255,255,255,.06);
+    border-color: var(--hair);
+    text-decoration:none;
   }
 
   .transaction-entry { padding:.15rem 0; }
-  .sticky-subheader { position:sticky; top:0; background:var(--surface); z-index:1; padding:.25rem 0; border-bottom:1px solid var(--hairline); }
 
   /* Depth padding */
   .depth-1 { padding-left: 0px; }
   .depth-2 { padding-left: 16px; }
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
-
-  /* ======= KPI SECTION (Latest Month Totals) ======= */
-  .kpi-section .card-header{ background: var(--header-bg) !important; color: var(--header-fg) !important; border-bottom:1px solid var(--header-border) !important; }
-  .kpi-section .card-body{ background: var(--surface); border-top: 1px solid var(--hairline); }
-  .kpi-card {
-    border:1px solid var(--card-border);
-    border-radius:12px;
-    padding:.65rem .7rem;
-    background: var(--surface);
-    box-shadow: var(--shadow-1);
-  }
-  .kpi-amount { font-variant-numeric: tabular-nums; font-size:1.06rem; letter-spacing:.1px; }
-  .kpi-inc { color: var(--success); }
-  .kpi-exp { color: var(--danger); }
-  .kpi-net-pos { color: var(--success); }
-  .kpi-net-neg { color: var(--danger); }
-  .kpi-sub { font-size:.83rem; color: var(--muted); }
 </style>
 
 <!-- Header -->
@@ -201,22 +117,20 @@
 <!-- Recent Activity -->
 <div class="container my-4" id="recent-activity">
   <div class="d-flex align-items-center justify-content-between mb-2">
-    <h5 class="m-0" style="color:var(--primary);">Recent Activity</h5>
+    <h5 class="m-0">Recent Activity</h5>
     <small class="muted" id="ra-asof"></small>
   </div>
 
   <div class="row g-3">
     <div class="col-lg-6">
-      <!-- 📈 Category Movers -->
-      <div class="card shadow-sm" id="catMoversCard">
-        <div class="card-header d-flex justify-content-between align-items-center section-header">
-          <div class="fw-bold">
-            📈 Category Movers <span class="muted small" id="cmSubtitle"></span>
-          </div>
+      <!-- Category Movers -->
+      <div class="stat-card" id="catMoversCard">
+        <div class="card-header section-header">
+          <div class="fw-bold">📈 Category Movers <span class="muted small" id="cmSubtitle"></span></div>
         </div>
         <div class="card-body p-0">
           <div class="table-responsive" style="max-height: 42vh; overflow:auto;">
-            <table class="table table-sm table-modern align-middle mb-0">
+            <table class="table table-sm table-floating align-middle mb-0">
               <thead class="small">
                 <tr>
                   <th>Category</th>
@@ -235,29 +149,29 @@
       </div>
 
       <!-- Latest Month Totals -->
-      <div class="card shadow-sm mt-3 kpi-section">
+      <div class="stat-card mt-3">
         <div class="card-header section-header">Latest Month Totals</div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-4">
-              <div class="kpi-card">
+              <div class="panel">
                 <div class="muted small">Income</div>
-                <div class="fw-semibold kpi-amount kpi-inc mono" id="ra-inc"></div>
-                <div class="kpi-sub" id="ra-inc-delta"></div>
+                <div class="fw-semibold mono" id="ra-inc"></div>
+                <div class="muted small" id="ra-inc-delta"></div>
               </div>
             </div>
             <div class="col-4">
-              <div class="kpi-card">
+              <div class="panel">
                 <div class="muted small">Expense</div>
-                <div class="fw-semibold kpi-amount kpi-exp mono" id="ra-exp"></div>
-                <div class="kpi-sub" id="ra-exp-delta"></div>
+                <div class="fw-semibold mono" id="ra-exp"></div>
+                <div class="muted small" id="ra-exp-delta"></div>
               </div>
             </div>
             <div class="col-4">
-              <div class="kpi-card">
+              <div class="panel">
                 <div class="muted small">Net</div>
-                <div class="fw-semibold kpi-amount mono" id="ra-net"></div>
-                <div class="kpi-sub" id="ra-net-delta"></div>
+                <div class="fw-semibold mono" id="ra-net"></div>
+                <div class="muted small" id="ra-net-delta"></div>
               </div>
             </div>
           </div>
@@ -268,14 +182,14 @@
 
     <div class="col-lg-6">
       <!-- Most Recent Transactions -->
-      <div class="card shadow-sm">
+      <div class="stat-card">
         <div class="card-header section-header d-flex justify-content-between align-items-center">
           <h6 class="m-0">Most Recent Transactions</h6>
-          <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-primary">🔄 Refresh</button>
+          <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light">🔄 Refresh</button>
         </div>
         <div class="card-body">
           <div class="table-responsive" style="max-height: 420px; overflow:auto;">
-            <table class="table table-sm table-modern align-middle mb-0" id="ra-recent">
+            <table class="table table-sm table-floating align-middle mb-0" id="ra-recent">
               <thead>
                 <tr>
                   <th style="width:110px;">Date</th>
@@ -299,7 +213,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const fmtMoney = (n) => { const v = Number(n||0); const sign = v < 0 ? '-' : ''; return sign + '$' + Math.abs(v).toFixed(2); };
-  const fmtExpense = (n) => fmtMoney(-Math.abs(Number(n||0))); // force “-$”
+  const fmtExpense = (n) => fmtMoney(-Math.abs(Number(n||0)));
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
@@ -375,8 +289,6 @@
         const netVal = Number(lt.net || 0);
         raNet.textContent = fmtMoney(netVal);
         raNet.classList.add('mono');
-        raNet.classList.toggle('kpi-net-pos', netVal >= 0);
-        raNet.classList.toggle('kpi-net-neg', netVal < 0);
         raNet.classList.toggle('tx-pos', netVal >= 0);
         raNet.classList.toggle('tx-neg', netVal < 0);
       }
@@ -414,7 +326,7 @@
   window.loadRecentActivity = loadRecentActivity;
 
   // Global refresh
-  const raRefreshBtn = $('refresh-btn');
+  const raRefreshBtn = document.getElementById('refresh-btn');
   if (raRefreshBtn){
     raRefreshBtn.addEventListener('click', async () => {
       const original = raRefreshBtn.textContent;
@@ -509,7 +421,7 @@
     {% set net_class = 'tx-pos' if summary.net_cash_flow >= 0 else 'tx-neg' %}
 
     <div class="card mb-4" id="card-{{ month_key }}">
-      <div class="card-header clickable-card-header" onclick="toggleSection('{{ month_key }}')" id="header-{{ month_key }}">
+      <div class="clickable-card-header" onclick="toggleSection('{{ month_key }}')" id="header-{{ month_key }}">
         <span class="chev" aria-hidden="true">▸</span>
         <span class="summary-label">{{ formatted_month_key }} Summary</span>
       </div>
@@ -545,7 +457,6 @@
   {% endfor %}
 </div>
 
-<!-- Tiny helpers so the month cards expand/collapse -->
 <script>
 window.toggleSection = function(key){
   const el = document.getElementById('section-' + key);
@@ -572,4 +483,5 @@ window.toggleCategoryList = function(key){
   return false;
 };
 </script>
+
 {% endblock %}
