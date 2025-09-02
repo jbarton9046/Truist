@@ -2,11 +2,11 @@
 {% block content %}
 
 <style>
-  /* Use the global dark variables from layout.html */
+  /* Use global dark variables from layout.html */
 
   .budget-title { letter-spacing:.2px; }
 
-  /* Cards match goals page */
+  /* Cards (match goals page) */
   .card, .stat-card, .panel {
     background: var(--card-bg) !important;
     border: 1px solid var(--card-border) !important;
@@ -33,16 +33,24 @@
   .table-modern,
   .table-floating { width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent; }
 
+  /* Frosted sticky headers (navbar-like blur) */
+  .table-responsive thead { position: sticky; top: 0; z-index: 4; }
   .table-modern thead th,
-  .table-floating thead th{
-    background: var(--thead-bg) !important;
+  .table-floating thead th,
+  .table thead th{
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    position: sticky; top: 0; z-index: 2;
+    position: sticky; top: 0; z-index: 4;
     font-weight:700; letter-spacing:.2px;
-    /* Goals-like header offset */
-    padding:.65rem .75rem;
+    padding:.65rem .8rem;
+    backdrop-filter: saturate(130%) blur(6px);
+    -webkit-backdrop-filter: saturate(130%) blur(6px);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2, 6, 23, .25);
   }
+
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
@@ -117,6 +125,17 @@
   .depth-2 { padding-left: 16px; }
   .depth-3 { padding-left: 32px; }
   .depth-4 { padding-left: 48px; }
+
+  /* --- Polished KPI bubbles (Latest Month Totals) --- */
+  .stats-grid .panel.stats-bubble{
+    display:flex; flex-direction:column; justify-content:center;
+    gap:.2rem; min-height:90px;
+    padding:.85rem 1rem;
+    border-radius:14px;
+  }
+  .stats-grid .label{ font-size:.82rem; letter-spacing:.15px; }
+  .stats-grid .value{ font-size:1.15rem; line-height:1.25; }
+  .stats-grid .delta{ font-size:.82rem; opacity:.95; }
 </style>
 
 <!-- Header -->
@@ -164,26 +183,26 @@
       <div class="stat-card mt-3">
         <div class="card-header section-header">Latest Month Totals</div>
         <div class="card-body">
-          <div class="row g-3">
-            <div class="col-4">
-              <div class="panel">
-                <div class="muted small">Income</div>
-                <div class="fw-semibold mono" id="ra-inc"></div>
-                <div class="muted small" id="ra-inc-delta"></div>
+          <div class="row g-3 stats-grid">
+            <div class="col-12 col-sm-4">
+              <div class="panel stats-bubble h-100">
+                <div class="muted label">Income</div>
+                <div class="fw-semibold mono value" id="ra-inc"></div>
+                <div class="muted delta" id="ra-inc-delta"></div>
               </div>
             </div>
-            <div class="col-4">
-              <div class="panel">
-                <div class="muted small">Expense</div>
-                <div class="fw-semibold mono" id="ra-exp"></div>
-                <div class="muted small" id="ra-exp-delta"></div>
+            <div class="col-12 col-sm-4">
+              <div class="panel stats-bubble h-100">
+                <div class="muted label">Expense</div>
+                <div class="fw-semibold mono value" id="ra-exp"></div>
+                <div class="muted delta" id="ra-exp-delta"></div>
               </div>
             </div>
-            <div class="col-4">
-              <div class="panel">
-                <div class="muted small">Net</div>
-                <div class="fw-semibold mono" id="ra-net"></div>
-                <div class="muted small" id="ra-net-delta"></div>
+            <div class="col-12 col-sm-4">
+              <div class="panel stats-bubble h-100">
+                <div class="muted label">Net</div>
+                <div class="fw-semibold mono value" id="ra-net"></div>
+                <div class="muted delta" id="ra-net-delta"></div>
               </div>
             </div>
           </div>
