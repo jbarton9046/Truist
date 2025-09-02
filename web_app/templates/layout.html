@@ -72,6 +72,12 @@
 
         /* Plotly grid tone (soft bluish) */
         --plotly-grid: rgba(158,203,255,.11);
+
+        /* Global scrollbar tokens (use accent ink) */
+        --scroll-track: transparent;
+        --scroll-thumb: color-mix(in oklab, var(--accent-ink) 58%, transparent);
+        --scroll-thumb-hover: color-mix(in oklab, var(--accent-ink) 82%, transparent);
+        --scroll-border: rgba(255,255,255,.22);
       }
 
       html.theme-dark, body.theme-dark {
@@ -128,6 +134,8 @@
         box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
         overflow:auto;
         position: relative;
+        /* keep layout steady when scrollbar appears */
+        scrollbar-gutter: stable both-edges;
       }
 
       .theme-dark .table{
@@ -187,6 +195,97 @@
       canvas { background: transparent !important; }
 
       .muted { color: var(--muted) !important; }
+
+      /* ===========================
+         Global floating scrollbars
+         =========================== */
+
+      /* Firefox – page level */
+      html.theme-dark, body.theme-dark {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+      }
+
+      /* Firefox – common inner scrollers */
+      .table-responsive,
+      .offcanvas,
+      .offcanvas-body,
+      .modal,
+      .modal-body {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+      }
+
+      /* WebKit (Chrome/Edge/Safari) – page level */
+      html.theme-dark::-webkit-scrollbar,
+      body.theme-dark::-webkit-scrollbar{
+        width:12px; height:12px;
+      }
+      html.theme-dark::-webkit-scrollbar-track,
+      body.theme-dark::-webkit-scrollbar-track{
+        background: var(--scroll-track);
+      }
+      html.theme-dark::-webkit-scrollbar-thumb,
+      body.theme-dark::-webkit-scrollbar-thumb{
+        background: var(--scroll-thumb);
+        border-radius: 999px;
+        border: 3px solid transparent;          /* padding ring */
+        background-clip: padding-box;            /* keeps inner color */
+        box-shadow:
+          0 2px 8px rgba(0,0,0,.35),
+          inset 0 0 0 1px var(--scroll-border);  /* inner ring */
+      }
+      html.theme-dark::-webkit-scrollbar-thumb:hover,
+      body.theme-dark::-webkit-scrollbar-thumb:hover{
+        background: var(--scroll-thumb-hover);
+      }
+      html.theme-dark::-webkit-scrollbar-corner,
+      body.theme-dark::-webkit-scrollbar-corner{
+        background: transparent;
+      }
+
+      /* WebKit – inner scrollers */
+      .table-responsive::-webkit-scrollbar,
+      .offcanvas::-webkit-scrollbar,
+      .offcanvas-body::-webkit-scrollbar,
+      .modal::-webkit-scrollbar,
+      .modal-body::-webkit-scrollbar{
+        width:12px; height:12px;
+      }
+      .table-responsive::-webkit-scrollbar-track,
+      .offcanvas::-webkit-scrollbar-track,
+      .offcanvas-body::-webkit-scrollbar-track,
+      .modal::-webkit-scrollbar-track,
+      .modal-body::-webkit-scrollbar-track{
+        background: var(--scroll-track);
+      }
+      .table-responsive::-webkit-scrollbar-thumb,
+      .offcanvas::-webkit-scrollbar-thumb,
+      .offcanvas-body::-webkit-scrollbar-thumb,
+      .modal::-webkit-scrollbar-thumb,
+      .modal-body::-webkit-scrollbar-thumb{
+        background: var(--scroll-thumb);
+        border-radius: 999px;
+        border: 3px solid transparent;
+        background-clip: padding-box;
+        box-shadow:
+          0 2px 8px rgba(0,0,0,.35),
+          inset 0 0 0 1px var(--scroll-border);
+      }
+      .table-responsive::-webkit-scrollbar-thumb:hover,
+      .offcanvas::-webkit-scrollbar-thumb:hover,
+      .offcanvas-body::-webkit-scrollbar-thumb:hover,
+      .modal::-webkit-scrollbar-thumb:hover,
+      .modal-body::-webkit-scrollbar-thumb:hover{
+        background: var(--scroll-thumb-hover);
+      }
+      .table-responsive::-webkit-scrollbar-corner,
+      .offcanvas::-webkit-scrollbar-corner,
+      .offcanvas-body::-webkit-scrollbar-corner,
+      .modal::-webkit-scrollbar-corner,
+      .modal-body::-webkit-scrollbar-corner{
+        background: transparent;
+      }
     </style>
 
     <!-- Sticky header hot-fix -->
