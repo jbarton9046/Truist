@@ -30,7 +30,7 @@
   }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Unified table look (matches goals page) --- */
+  /* --- Table shells & scrollers (keep your current spacing) --- */
   .table-wrap{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -38,86 +38,8 @@
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
     overflow:hidden;
   }
-  .table-floating,
-  .table-modern{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    color:var(--text);
-    background:transparent;
-  }
-
-  /* ===== Sticky header “navbar-glass” treatment (STRONGER BLUR, no bleed) ===== */
-  .table-modern thead th,
-  .table-floating thead th{
-    position: sticky;
-    top: 0;
-    z-index: 3;
-
-    /* Nearly transparent tint so the backdrop blur actually shows */
-    background: rgba(15, 23, 42, 0.35) !important; /* tailwind-ish slate-900 @ 35% */
-    color: var(--table-head-fg, var(--text)) !important;
-    border-bottom:1px solid var(--hair) !important;
-
-    /* Strong blur: completely obscures text beneath the header */
-    backdrop-filter: saturate(160%) blur(16px);
-    -webkit-backdrop-filter: saturate(160%) blur(16px);
-
-    /* Subtle polish to match navbar */
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.06),
-      0 6px 14px rgba(0,0,0,.25);
-
-    /* same padding/weight as before */
-    padding:.65rem .9rem;
-    font-weight:700; letter-spacing:.2px;
-  }
-  /* rounded ends on the sticky row, like your card shells */
-  .table-modern thead th:first-child,
-  .table-floating thead th:first-child{
-    border-top-left-radius:12px;
-  }
-  .table-modern thead th:last-child,
-  .table-floating thead th:last-child{
-    border-top-right-radius:12px;
-  }
-
-  .table-modern tbody td,
-  .table-floating tbody td{
-    border-top:1px solid var(--hair);
-    vertical-align:middle;
-  }
-  .table-modern tbody tr:nth-child(odd),
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-modern tbody tr:hover,
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
-
-  .mono { font-variant-numeric: tabular-nums; }
-  .muted { color: var(--muted) !important; }
-  .tx-neg { color:#c0392b; font-weight:600; }
-  .tx-pos { color:#1e7e34; font-weight:600; }
-
-  /* --- Metric “bubbles” (used in Latest Month Totals) --- */
-  .metric-bubble{
-    background:rgba(255,255,255,.04);
-    border:1px solid var(--hair);
-    border-radius:14px;
-    padding:16px 18px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .metric-title{ font-weight:600; margin-bottom:.25rem; color:var(--text); }
-  .metric-value{ font-weight:700; font-size:1.25rem; }
-  .metric-sub{ color:#31d4a1; font-weight:600; }
-
-  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
-  .metrics-row{
-    padding:12px 12px 6px;
-  }
-  .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
-
-  /* ---- Category Movers “Latest-like shell” with preserved scrolling ---- */
   .cm-shell{
-    margin:12px;                      /* space from card edges */
+    margin:12px;
     border-radius:14px;
     border:1px solid var(--hair);
     background:rgba(255,255,255,.035);
@@ -130,7 +52,6 @@
   }
   .cm-scroll table{ margin: 6px; }
 
-  /* ---- Transactions: mirror the same shell/scroll as CM ---- */
   .tx-shell{
     margin:12px;
     border-radius:14px;
@@ -139,23 +60,64 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
   .tx-scroll{
-    max-height: 540px;   /* keep vertical scroller */
+    max-height: 540px;
     overflow-y: auto;
     overflow-x: hidden;  /* kill bottom scrollbar */
     border-radius:12px;
   }
   .tx-scroll table{ margin: 6px; }
 
-  /* make content fit without bottom scrollbar */
-  .tx-table{
-    table-layout: fixed; /* keeps width to shell */
+  /* ===== Unified table look (dark “goals” theme) — EXACTLY like transactions.html ===== */
+  .table-modern {
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    background:transparent;
+    color:var(--text);
   }
-  .tx-table th,
-  .tx-table td{ padding:.65rem .85rem; }
+  .table-modern thead th{
+    position: sticky; top: 0; z-index: 5;
+    background: var(--thead-bg) !important;
+    color: var(--table-head-fg,var(--text)) !important;
+    border-bottom:1px solid var(--hair) !important;
+    font-weight:700; letter-spacing:.2px;
+    backdrop-filter: saturate(120%) blur(6px);
+    -webkit-backdrop-filter: saturate(120%) blur(6px);
+  }
+  .table-modern tbody td{
+    border-top:1px solid var(--hair);
+    vertical-align:middle;
+  }
+  .table-modern tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-modern tbody tr:hover{ background:rgba(255,255,255,.05); }
+
+  /* Amount coloring (keep your red/green) */
+  .amt-neg{ color:#dc2626; font-weight:600; }
+  .amt-pos{ color:#16a34a; font-weight:600; }
+  .col-amount { padding-right: 1.25rem !important; }
+
+  /* Transactions table column sizing (to avoid bottom scrollbar) */
+  .tx-table{ table-layout: fixed; }
+  .tx-table th, .tx-table td{ padding:.65rem .85rem; }
   .tx-table .col-date{ width:110px; white-space:nowrap; }
   .tx-table .col-amount{ width:130px; white-space:nowrap; text-align:right; }
-  .tx-table .col-desc,
-  .tx-table .col-cat{ width:auto; word-break:break-word; }
+  .tx-table .col-desc, .tx-table .col-cat{ width:auto; word-break:break-word; }
+
+  /* Metric “bubbles” (Latest Month Totals) */
+  .metric-bubble{
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--hair);
+    border-radius:14px;
+    padding:16px 18px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .metric-title{ font-weight:600; margin-bottom:.25rem; color:var(--text); }
+  .metric-value{ font-weight:700; font-size:1.25rem; }
+  .metric-sub{ color:#31d4a1; font-weight:600; }
+
+  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
+  .metrics-row{ padding:12px 12px 6px; }
+  .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
 
   /* Header chips and labels */
   .summary-label, .section-heading { color: var(--text); font-weight: 700; }
