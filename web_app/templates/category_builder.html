@@ -141,7 +141,45 @@
   #miscMeta{ display:none !important; }                 /* “as of …” under Misc */
   #kbTip{ display:none !important; }                    /* tip under keywords */
   #kwMiniDetails .kb-placeholder{ display:none !important; }
+
+  /* ============= GLASS SELECT (non-destructive wrapper) ============= */
+  .gs-wrap{ position:relative; width:100%; }
+  .gs-native{                 /* the real <select> (kept for forms) */
+    position:absolute; inset:0; width:100%; height:100%;
+    opacity:0; pointer-events:none;
+  }
+  .gs-trigger{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+    padding:.55rem .9rem; border-radius:12px; cursor:pointer; user-select:none;
+    background: color-mix(in oklab, var(--card-bg) 90%, transparent);
+    color: var(--text); border:1px solid var(--hair);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 4px 14px rgba(0,0,0,.25);
+  }
+  .gs-trigger:focus-visible{ outline:2px solid #80b3ff; outline-offset:2px; }
+  .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gs-caret{ opacity:.8; }
+
+  .gs-popup{
+    position:absolute; left:0; top:calc(100% + 6px); min-width:100%;
+    max-height:320px; overflow:auto; z-index:60; padding:6px;
+    border-radius:14px; border:1px solid var(--card-border);
+    background: color-mix(in oklab, var(--card-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .gs-list{ margin:0; padding:0; list-style:none; }
+  .gs-option{
+    padding:.6rem .75rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer;
+    color: var(--text);
+  }
+  .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
+  .gs-option[aria-selected="true"]{
+    background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35)
+  }
+  .gs-option[data-disabled="true"]{ color: var(--muted); cursor:default; }
+  .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
 </style>
+
 
 <div class="container-fluid my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
@@ -764,6 +802,9 @@
     if (prev.subNew)  oneBarEnterNew('sub');  else oneBarExitNew('sub', false);
     if (prev.ssubNew) oneBarEnterNew('ssub'); else oneBarExitNew('ssub', false);
     if (prev.sssNew)  oneBarEnterNew('sss');  else oneBarExitNew('sss', false);
+
+    /* NEW: refresh custom glass selects after options change */
+    if (window.refreshGlassSelects) window.refreshGlassSelects();
   }
 
   function updateVisibility(){
@@ -1188,6 +1229,120 @@
   fetchMisc();
 </script>
 
+<!-- === NEW: Glass Select (blurred custom dropdown, non-destructive) === -->
+<script>
+(function(){
+  function wrapSelect(select){
+    if (select.dataset.gsInit === '1') return;
+    select.dataset.gsInit = '1';
+
+    const wrap = document.createElement('div'); wrap.className='gs-wrap';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.classList.add('gs-native');  // keep in DOM for forms & JS
+
+    const trigger = document.createElement('button');
+    trigger.type='button';
+    trigger.className='gs-trigger';
+    trigger.setAttribute('aria-haspopup','listbox');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.innerHTML = '<span class="gs-label"></span><span class="gs-caret">▾</span>';
+    wrap.insertBefore(trigger, select);
+    const labelEl = trigger.querySelector('.gs-label');
+
+    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
+    const list = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox');
+    popup.appendChild(list); wrap.appendChild(popup);
+
+    function syncLabel(){
+      const opt = select.selectedOptions[0];
+      labelEl.textContent = opt ? opt.textContent : 'Select…';
+    }
+    function close(){ popup.hidden = true; trigger.setAttribute('aria-expanded','false'); }
+    function open(){ popup.hidden = false; trigger.setAttribute('aria-expanded','true'); scrollToSelected(); }
+    function toggle(){ popup.hidden ? open() : close(); }
+    function scrollToSelected(){
+      const sel = list.querySelector('[aria-selected="true"]');
+      if (sel) sel.scrollIntoView({block:'nearest'});
+    }
+    function apply(value){
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles:true }));
+      syncLabel(); close();
+    }
+
+    function rebuild(){
+      list.innerHTML = '';
+      const opts = Array.from(select.options);
+      opts.forEach((o, idx)=>{
+        if (idx===1 && opts[0]?.disabled){
+          const hr = document.createElement('div'); hr.className='gs-divider'; list.appendChild(hr);
+        }
+        const li = document.createElement('li');
+        li.className='gs-option'; li.setAttribute('role','option');
+        li.dataset.value = o.value;
+        if (o.disabled) li.dataset.disabled = 'true';
+        if (o.selected) li.setAttribute('aria-selected','true');
+        li.textContent = o.textContent;
+        li.addEventListener('click', ()=>{ if (!o.disabled) apply(o.value); });
+        li.addEventListener('mousemove', ()=>{
+          list.querySelectorAll('.gs-option[aria-current="true"]').forEach(x=>x.removeAttribute('aria-current'));
+          li.setAttribute('aria-current','true');
+        });
+        list.appendChild(li);
+      });
+      syncLabel();
+      mirrorVisibility();
+    }
+
+    const mo = new MutationObserver(rebuild);
+    mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
+
+    function mirrorVisibility(){
+      trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
+    }
+
+    // keyboard/typeahead
+    let buf='', t=null;
+    function typeAhead(k){
+      buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
+      const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
+      if (f) apply(f.value);
+    }
+    trigger.addEventListener('keydown', (e)=>{
+      if (e.key===' '||e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); open(); return; }
+      if (/^[\w\s]$/.test(e.key)) typeAhead(e.key);
+    });
+    wrap.addEventListener('keydown', (e)=>{
+      if (popup.hidden) return;
+      const opts = Array.from(list.querySelectorAll('.gs-option')).filter(x=>x.dataset.disabled!=='true');
+      const curr = list.querySelector('[aria-current="true"]') || list.querySelector('[aria-selected="true"]') || opts[0];
+      let i = Math.max(0, opts.indexOf(curr));
+      if (e.key==='Escape'){ e.preventDefault(); close(); trigger.focus(); return; }
+      if (e.key==='ArrowDown'){ e.preventDefault(); i = Math.min(opts.length-1, i+1); }
+      if (e.key==='ArrowUp'){ e.preventDefault(); i = Math.max(0, i-1); }
+      if (e.key==='ArrowDown' || e.key==='ArrowUp'){
+        opts.forEach(x=>x.removeAttribute('aria-current')); opts[i].setAttribute('aria-current','true'); opts[i].scrollIntoView({block:'nearest'});
+      }
+      if (e.key==='Enter'){ e.preventDefault(); const cur = list.querySelector('[aria-current="true"]'); if (cur) apply(cur.dataset.value); }
+    });
+
+    trigger.addEventListener('click', toggle);
+    document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
+
+    rebuild();
+  }
+
+  // Public: upgrade all current selects (safe to call repeatedly)
+  window.refreshGlassSelects = function(){
+    document.querySelectorAll('.onebar-select').forEach(wrapSelect);
+  };
+
+  // boot
+  if (document.readyState !== 'loading') window.refreshGlassSelects();
+  else document.addEventListener('DOMContentLoaded', window.refreshGlassSelects);
+})();
+</script>
 
 <script>
   // =========================
@@ -1300,7 +1455,6 @@
         el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Index is empty. Click Re-index.</td></tr>`;
         return;
       }
-      // substring across all keywords
       const hits = Array.from(INDEX.keys()).filter(k=>k.includes(key));
       const paths = new Set(); hits.forEach(h=> INDEX.get(h).forEach(p=>paths.add(p)));
       const rows = Array.from(paths).sort((a,b)=> a.localeCompare(b));
@@ -1335,12 +1489,10 @@
       el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
     }
 
-    // ---------- OPTIONAL: deeper server pass when you *need* it ----------
     async function reindexDeep(){
       const t0 = performance.now();
       el.status.textContent = 'Building index (deep)…';
 
-      // Build a quick tree from CFG so we know all paths
       function treeFromCFG(){
         const cats = new Set(Object.keys((CFG||{}).SUBCATEGORY_MAPS||{}));
         Object.keys((CFG||{}).CATEGORY_KEYWORDS||{}).forEach(k=>cats.add(k));
@@ -1368,10 +1520,8 @@
         t.forEach(n=>walk(n, []));
       })(tree);
 
-      // De-dupe by label name (huge reduction)
       const uniqueNames = Array.from(new Set(nodes.map(n=>n.name)));
 
-      // Try server once per *name*, then fall back to CFG
       const nameCache = new Map();
       async function fetchKeywordsForName(name){
         if (nameCache.has(name)) return nameCache.get(name);
@@ -1390,7 +1540,6 @@
         return nameCache.get(name);
       }
 
-      // Concurrency
       const CONCURRENCY = 12;
       let i=0, active=0;
       await new Promise(resolve=>{
@@ -1404,7 +1553,6 @@
         next();
       });
 
-      // Build index by marrying name->keywords with every path that has that name at any level
       const idx = new Map();
       const add = (kw, parts)=>{
         const key=String(kw||'').trim().toLowerCase(); if(!key) return;
@@ -1418,7 +1566,6 @@
         if (kws.length){
           kws.forEach(kw=> add(kw, n.parts));
         }else{
-          // fallback to CFG keywords for that exact path label
           const [cat,sub,ssub,sss] = n.parts;
           const CK=(CFG.CATEGORY_KEYWORDS||{}), SK=(CFG.SUBCATEGORY_KEYWORDS||{}),
                 S2K=(CFG.SUBSUBCATEGORY_KEYWORDS||{}), S3K=(CFG.SUBSUBSUBCATEGORY_KEYWORDS||{});
@@ -1439,13 +1586,11 @@
       renderMatches(el.q.value||'');
     }
 
-    // Wire events
     if (el.form) el.form.addEventListener('submit', runSearch);
     if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ el.q.value=''; renderMatches(''); });
     if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); });
     if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> e.shiftKey ? reindexDeep() : reindexFast());
 
-    // Boot fast (instant)
     reindexFast();
   })();
 </script>
@@ -1473,7 +1618,6 @@
       .filter(h => /misc\s*\/\s*uncategorized/i.test(h.textContent || ""));
 
     sections.forEach(h => {
-      // Find tables within the same section block
       const scope = h.parentElement || document;
       const tables = scope.querySelectorAll("table");
       tables.forEach(tbl => {
@@ -1489,10 +1633,8 @@
     });
   }
 
-  // Initial pass
   scrub(document);
 
-  // Catch dynamic updates
   const obs = new MutationObserver(muts => {
     for (const m of muts) {
       m.addedNodes.forEach(node => {
