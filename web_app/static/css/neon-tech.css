@@ -1,220 +1,371 @@
-/* ===== Neon Tech Theme (glass + gradient) ===== */
+/* =========================================================
+   NEON TECH — global theme tokens, components, utilities
+   (original content preserved)
+   ========================================================= */
 
-/* Optional Google Font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
+/* --- Tokens --- */
 :root{
-  /* Core brand gradient (purple → cyan) */
-  --brand-1: #6a5cff;
-  --brand-2: #00c2ff;
+  --page-bg-1:#0b1220;
+  --page-bg-2:#0f172a;
+  --glow-1:#243b55;
+  --glow-2:#1b3a6b;
 
-  /* If app-theme tokens exist, follow them; otherwise fall back */
-  --bg:        var(--page-bg-2, #0d1016);          /* page */
-  --surface:   var(--card-bg, rgba(255,255,255,0.06));
-  --surface-2: rgba(255,255,255,0.08);
-  --hairline:  var(--hair, rgba(255,255,255,0.12));
+  --accent-ink:#9ecbff;
+  --text: var(--accent-ink);
+  --muted: var(--accent-ink);
 
-  /* Text */
-  --fg:        var(--text, #e9eef7);
-  --fg-muted:  var(--muted, #a7b0c3);
+  --card-bg:rgba(255,255,255,.045);
+  --card-border:rgba(255,255,255,.10);
+  --hair:rgba(255,255,255,.08);
 
-  /* Accents (status) */
-  --success:   #2dd4bf;   /* teal */
-  --danger:    #ff6b6b;   /* coral */
-  --warning:   #ffd166;   /* warm */
+  --thead-bg:rgba(255,255,255,.06);
+  --thead-fg: var(--accent-ink);
 
-  /* Effects */
-  --radius-lg: 14px;
-  --radius-md: 10px;
-  --shadow:    0 10px 30px rgba(0,0,0,0.35);
-  --glass-blur: saturate(140%) blur(8px);
+  --table-head-bg: var(--thead-bg);
+  --table-head-fg: var(--thead-fg);
 
-  /* Header strip (used for opt-in gradient table/card headers) */
-  --header-grad: linear-gradient(90deg, rgba(106,92,255,.95), rgba(0,194,255,.95));
-  --header-fg:   #ffffff;
-  --header-border: rgba(255,255,255,0.2);
+  --plotly-grid: rgba(158,203,255,.11);
 
-  /* Alias so pages that expect --header-bg use the same gradient */
-  --header-bg: var(--header-grad);
+  --scroll-track: transparent;
+  --scroll-thumb: color-mix(in oklab, var(--accent-ink) 58%, transparent);
+  --scroll-thumb-hover: color-mix(in oklab, var(--accent-ink) 82%, transparent);
+  --scroll-border: rgba(255,255,255,.22);
 }
 
-/* Page base */
-html, body{
+/* --- Page background --- */
+html.theme-dark, body.theme-dark {
   background:
-    radial-gradient(1000px 600px at 10% -10%, rgba(106,92,255,.25), transparent 60%),
-    radial-gradient(900px 500px at 90% 10%, rgba(0,194,255,.22), transparent 55%),
-    var(--bg);
-  color: var(--fg);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    radial-gradient(1200px 700px at -10% -10%, var(--glow-1) 0%, transparent 45%),
+    radial-gradient(900px 600px at 110% 0%, var(--glow-2) 0%, transparent 40%),
+    linear-gradient(180deg, var(--page-bg-2) 0%, var(--page-bg-1) 100%) !important;
+  color: var(--text);
 }
 
-/* Title w/ gradient text */
-.budget-title{
-  background: linear-gradient(90deg, var(--brand-1), var(--brand-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent !important;
-  font-weight: 800;
+/* --- Navbar --- */
+.navbar {
+  background: var(--card-bg) !important;
+  border-bottom: 1px solid var(--card-border) !important;
+  backdrop-filter: saturate(120%) blur(6px);
+}
+.navbar, .navbar .navbar-brand, .navbar .nav-link, .navbar .navbar-text {
+  color: var(--text) !important;
+}
+.navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
+
+/* --- Cards, panels, modals, offcanvas --- */
+.card, .stat-card, .panel, .list-group, .offcanvas, .modal-content {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  color: var(--text);
+  box-shadow:
+    0 12px 28px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.05);
+  border-radius: 16px;
+  backdrop-filter: saturate(120%) blur(4px);
+}
+.card .card-header,
+.stat-card .card-header,
+.panel .card-header{
+  background: var(--thead-bg) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--hair) !important;
+  font-weight: 700;
   letter-spacing: .2px;
 }
 
-/* Cards: glass + hover lift */
-.card{
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+/* --- Forms & buttons --- */
+.form-control, .form-select, .input-group-text, .btn-outline-secondary, .btn-outline-light {
+  background: rgba(255,255,255,.06) !important;
+  border-color: var(--card-border) !important;
+  color: var(--text) !important;
 }
-.card:hover{ transform: translateY(-2px); transition: transform .18s ease; }
+.form-control::placeholder { color: color-mix(in oklab, var(--accent-ink) 70%, transparent); }
+.btn-outline-light { color: var(--text) !important; }
+.btn-primary { background: #2563eb; border-color: #2563eb; }
 
-/* Unified card header style (Summary, Movers, Recent, etc.) */
-.card .card-header{
-  background: var(--header-grad);
-  color: var(--header-fg);
-  border-bottom: 1px solid var(--header-border);
-  font-weight: 700;
-  letter-spacing: .25px;
-}
-
-/* Small “section labels” that look like pro banners */
-.summary-label{
-  color: var(--header-fg) !important;
-  font-weight: 700;
+/* --- Table shell --- */
+.table-responsive{
+  border:1px solid var(--card-border);
+  border-radius:14px;
+  background:var(--card-bg);
+  box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
+  overflow:auto;
+  position: relative;
+  scrollbar-gutter: stable both-edges;
 }
 
-/* ===================== Tables (Dark/Floating) ===================== */
-
-/* Global Bootstrap table variable overrides live in layout.html,
-   but we mirror key safety nets here too in case this file loads later. */
-.table{
-  color: var(--fg);
+/* --- Table colors --- */
+.theme-dark .table{
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--text);
+  --bs-table-border-color: var(--hair);
+  --bs-table-striped-bg: rgba(255,255,255,.02);
+  --bs-table-striped-color: var(--text);
+  --bs-table-hover-bg: rgba(255,255,255,.05);
+  --bs-table-hover-color: var(--text);
 }
-
-/* Make sure table cells never go white, even if templates add bg-* */
-.table > :not(caption) > * > *{
+.theme-dark .table > :not(caption) > * > *{
   background-color: transparent !important;
   box-shadow: none !important;
 }
-.table td.bg-white, .table th.bg-white,
-.table td.bg-light, .table th.bg-light,
-.bg-white, .bg-light{
-  background-color: transparent !important;
+
+/* --- Floating tables (unified shell used across pages) --- */
+.table-floating,
+.table-floating .table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  color:var(--text);
+  background:transparent;
+}
+.table-floating > :not(caption) > thead > tr > th,
+.table-floating .table > :not(caption) > thead > tr > th{
+  border-bottom:1px solid var(--hair);
+  font-weight:700; letter-spacing:.2px;
+}
+.table-floating > :not(caption) > tbody > tr > td,
+.table-floating .table > :not(caption) > tbody > tr > td{
+  border-top:1px solid var(--hair);
+  vertical-align:middle;
+}
+.table-floating > :not(caption) > tbody > tr:nth-child(odd),
+.table-floating .table > :not(caption) > tbody > tr:nth-child(odd){
+  background:rgba(255,255,255,.015);
+}
+.table-floating > :not(caption) > tbody > tr:hover,
+.table-floating .table > :not(caption) > tbody > tr:hover{
+  background:rgba(255,255,255,.05);
 }
 
-/* Subtle zebra + hover tints that work on dark */
-.table tbody tr{ border-color: var(--hairline); }
-.table.table-striped > tbody > tr:nth-of-type(odd){
-  background: rgba(255,255,255,0.02);
+/* --- True frosted sticky table heads (global) --- */
+.table thead th,
+.table thead td{
+  background: var(--thead-bg) !important;
+  color: var(--table-head-fg, var(--text)) !important;
+  border-bottom:1px solid var(--hair) !important;
 }
-.table tbody tr:hover{
-  background: var(--surface-2);
+.table thead th:first-child { border-top-left-radius: 12px; }
+.table thead th:last-child  { border-top-right-radius: 12px; }
+
+.table-responsive thead{
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+.table thead th{
+  backdrop-filter: saturate(120%) blur(6px);
+  -webkit-backdrop-filter: saturate(120%) blur(6px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%
+    ) !important;
+  border-bottom: 1px solid var(--hair) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(2, 6, 23, .25);
+  will-change: backdrop-filter;
+  padding: .65rem .9rem;
+  font-weight: 700;
+  letter-spacing: .2px;
 }
 
-/* Sticky header base is controlled by layout theme vars.
-   Keep this file from forcing a header look by default.
-   Use .thead-gradient on <thead> when you WANT the gradient strip. */
-.thead-gradient th,
-.thead-gradient td{
-  background: var(--header-bg) !important;
-  color: var(--header-fg) !important;
-  border-bottom: 1px solid var(--header-border) !important;
-  text-shadow: 0 1px 0 rgba(0,0,0,.35);
-  z-index: 2; /* above cells when sticky */
+/* --- Utilities --- */
+canvas { background: transparent !important; }
+.muted { color: var(--muted) !important; }
+.mono { font-variant-numeric: tabular-nums; }
+.tx-neg { color:#c0392b; font-weight:600; }
+.tx-pos { color:#1e7e34; font-weight:600; }
+
+/* --- Global scrollbars --- */
+
+/* Firefox – page */
+html.theme-dark, body.theme-dark {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+/* Firefox – common inner scrollers */
+.table-responsive, .offcanvas, .offcanvas-body, .modal, .modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
 
-/* Numbers (consistent) */
-.mono{ font-variant-numeric: tabular-nums; }
-.tx-neg{ color: var(--danger) !important; font-weight: 700; }
-.tx-pos{ color: var(--success) !important; font-weight: 700; }
-
-/* KPI panel (Latest Month Totals) – header colored, body subtle */
-.kpi-section .card-body{
-  background: rgba(255,255,255,0.04);
-}
-.kpi-section .border{
-  border-color: var(--hairline) !important;
-  background: rgba(255,255,255,0.03);
-  border-radius: var(--radius-md);
-}
-
-/* Buttons – brand gradient */
-.btn-primary, .btn-outline-primary:hover{
-  color: #0b1220 !important;
-  background: linear-gradient(90deg, #7a6cff, #33d1ff);
-  border: none;
-}
-.btn-outline-primary{
-  color: var(--fg);
-  border-color: rgba(255,255,255,0.35);
-}
-.btn-outline-primary:hover{ filter: brightness(1.05); }
-
-/* Chips / Pills (children in drawer, keywords, etc.) */
-.child-pill,
-.pill,
-.kw-chip{
-  display:inline-flex; align-items:center; gap:.35rem;
-  padding:.35rem .7rem;
-  background: rgba(255,255,255,0.06);
-  color: var(--fg);
-  border: 1px solid rgba(255,255,255,0.18);
+/* WebKit – page */
+html.theme-dark::-webkit-scrollbar,
+body.theme-dark::-webkit-scrollbar{ width:12px; height:12px; }
+html.theme-dark::-webkit-scrollbar-track,
+body.theme-dark::-webkit-scrollbar-track{ background: var(--scroll-track); }
+html.theme-dark::-webkit-scrollbar-thumb,
+body.theme-dark::-webkit-scrollbar-thumb{
+  background: var(--scroll-thumb);
   border-radius: 999px;
-  cursor: pointer;
-  transition: all .18s ease;
-  text-decoration: none;
-  user-select:none;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.35),
+    inset 0 0 0 1px var(--scroll-border);
 }
-.child-pill:hover,
-.pill:hover,
-.kw-chip:hover{
-  background: rgba(255,255,255,0.1);
-  box-shadow: 0 0 0 2px rgba(122,108,255,.35), 0 8px 22px rgba(0,0,0,.25);
-  transform: translateY(-1px);
+html.theme-dark::-webkit-scrollbar-thumb:hover,
+body.theme-dark::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
+html.theme-dark::-webkit-scrollbar-corner,
+body.theme-dark::-webkit-scrollbar-corner{ background: transparent; }
+
+/* WebKit – inner scrollers */
+.table-responsive::-webkit-scrollbar,
+.offcanvas::-webkit-scrollbar,
+.offcanvas-body::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar{ width:12px; height:12px; }
+.table-responsive::-webkit-scrollbar-track,
+.offcanvas::-webkit-scrollbar-track,
+.offcanvas-body::-webkit-scrollbar-track,
+.modal::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track{ background: var(--scroll-track); }
+.table-responsive::-webkit-scrollbar-thumb,
+.offcanvas::-webkit-scrollbar-thumb,
+.offcanvas-body::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb{
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.35),
+    inset 0 0 0 1px var(--scroll-border);
 }
-.child-pill::after{
-  content: "↗";
-  font-size: .85em;
-  opacity: .7;
-  margin-left: .25rem;
+.table-responsive::-webkit-scrollbar-thumb:hover,
+.offcanvas::-webkit-scrollbar-thumb:hover,
+.offcanvas-body::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
+.table-responsive::-webkit-scrollbar-corner,
+.offcanvas::-webkit-scrollbar-corner,
+.offcanvas-body::-webkit-scrollbar-corner,
+.modal::-webkit-scrollbar-corner,
+.modal-body::-webkit-scrollbar-corner{ background: transparent; }
+
+/* --- Goals page left-align only (kept) --- */
+body[data-route="/goals"] .table th,
+body[data-route="/goals"] .table td{ text-align:left !important; }
+body[data-route="/goals"] .table .text-end,
+body[data-route="/goals"] .table .text-center,
+body[data-route="/goals"] .table [style*="text-align: right"],
+body[data-route="/goals"] .table [style*="text-align:right"],
+body[data-route="/goals"] .table [style*="text-align: center"],
+body[data-route="/goals"] .table [style*="text-align:center"]{ text-align:left !important; }
+body[data-route="/goals"] .table .form-control,
+body[data-route="/goals"] .table .input-group .form-control{ text-align:left !important; }
+
+/* =========================================================
+   Drawer (global, glassy, sticky) — ADDED
+   ========================================================= */
+
+/* Backdrop blur (same look as your Glass Select scrim) */
+.offcanvas-backdrop.show{
+  background: rgba(8,12,20,.28) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
 }
 
-/* Tabs (drawer) */
-.drawer-tabs{
-  border-bottom: 1px solid var(--hairline);
+/* Shell */
+.manage-drawer.offcanvas{
+  background: var(--card-bg) !important;
+  border-left: 1px solid var(--card-border) !important;
+  color: var(--text);
+  box-shadow:
+    0 22px 48px rgba(0,0,0,.50),
+    inset 0 1px 0 rgba(255,255,255,.05);
 }
-.drawer-tab{
-  color: var(--fg-muted);
+
+/* Header: frosted + sticky */
+.manage-drawer .drawer-header{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in oklab, var(--thead-bg) 88%, transparent);
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  backdrop-filter: saturate(120%) blur(10px);
+  border-bottom: 1px solid var(--hair) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(2,6,23,.25);
+}
+.manage-drawer .drawer-title{
+  font-weight: 800;
+  letter-spacing: .2px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+/* Breadcrumb/path chips – linky, not pill-y */
+.manage-drawer .drawer-path{
+  display: flex; align-items: center; gap:.35rem; flex-wrap: wrap;
+}
+.manage-drawer .drawer-path .chip-link{
+  display:inline-flex; align-items:center; gap:.35rem;
+  text-decoration:none;
+  padding:.15rem .5rem;
+  border-radius:10px;
+  color: var(--text);
   background: transparent;
+  border: 1px solid transparent;
 }
-.drawer-tab.active{
-  color: var(--fg);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid var(--hairline);
-  border-bottom-color: rgba(255,255,255,0.06);
-}
-
-/* Sticky subheader strip */
-.sticky-subheader{
-  background: rgba(13,16,22,.85) !important;
-  backdrop-filter: blur(6px);
+.manage-drawer .drawer-path .chip-link:hover{
+  background: rgba(255,255,255,.06);
+  border-color: var(--hair);
 }
 
-/* Links */
-a, .link-manage{
-  color: #9ecbff;
-  text-decoration: none;
+/* Pins row: sticky, glass, values float (accent ink, no pill) */
+.manage-drawer .drawer-sub{
+  position: sticky;
+  top: 56px;               /* sits under header; adjust if header height changes */
+  z-index: 1;
+  padding: .5rem .75rem;
+  background: color-mix(in oklab, var(--thead-bg) 75%, transparent);
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  backdrop-filter: saturate(120%) blur(10px);
+  border-bottom: 1px solid var(--hair);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 10px 18px rgba(2,6,23,.18);
 }
-a:hover, .link-manage:hover{
-  color: #cfe6ff;
-  text-decoration: underline;
+.manage-drawer .drawer-value{
+  font-weight: 800;
+  color: var(--accent-ink);
+  text-shadow: 0 0 10px rgba(158,203,255,.28);
 }
 
-/* Small utilities */
-.muted{ color: var(--fg-muted) !important; }
-.thin-hr{ border-color: var(--hairline); }
+/* Inside the drawer, keep the same frosted sticky table heads */
+.manage-drawer .table-responsive thead{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.manage-drawer .table thead th{
+  backdrop-filter: saturate(120%) blur(6px);
+  -webkit-backdrop-filter: saturate(120%) blur(6px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%
+    ) !important;
+  border-bottom: 1px solid var(--hair) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(2, 6, 23, .25);
+  font-weight: 700; letter-spacing: .2px;
+}
 
-/* Charts: canvases should be transparent; colors handled in layout defaults */
-canvas{ background: transparent !important; }
+/* Drawer scroller styling */
+.manage-drawer .offcanvas-body{ padding-top: .25rem; }
+.manage-drawer .tx-scroll{ background: transparent; isolation: isolate; }
+
+/* Close button polish on dark glass */
+.manage-drawer .btn-close{
+  filter: invert(1) grayscale(1) contrast(90%);
+  opacity: .85;
+}
+.manage-drawer .btn-close:hover{ opacity: 1; }
