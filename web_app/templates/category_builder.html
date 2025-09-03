@@ -74,9 +74,41 @@
   /* List / badges inside Keywords Used */
   #kwMiniList{ max-height:35vh; overflow:auto; background:transparent; isolation:isolate; }
   .kb-card .list-group{ border:1px solid var(--hair); border-radius:12px; background:transparent; }
-  .kb-card .list-group-item{ background:transparent; color:var(--text); border-color:var(--hair); }
+  .kb-card .list-group-item{
+    position: relative;
+    background:transparent;
+    color:var(--text);
+    border-color:var(--hair);
+    padding-right:48px;           /* room for the bubble */
+    font-family: inherit;         /* keep app font */
+  }
   .kb-card .list-group-item:hover{ background:rgba(255,255,255,.05); }
+
+  /* generic badge look inside kb-card (for non-count badges) */
   .kb-card .badge{ border:1px solid var(--hair); background:rgba(255,255,255,.06); color:var(--text); }
+
+  /* === FIX 1: Float the count bubble on the right of each keyword row === */
+  #kwMiniList .list-group-item .badge{
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;               /* circle */
+    background: #fff !important;        /* white bubble */
+    color: #0b1324 !important;          /* readable on dark */
+    border: 1px solid rgba(13,17,23,.15);
+    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.65);
+    line-height: 1;
+    font-weight: 700;
+    font-family: inherit;               /* match site font */
+    font-size: .9rem;
+    pointer-events: none;               /* bubble not clickable */
+  }
+  #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 999px; }
 
   /* Frosted sticky table headers (this page) */
   .misc-card .table thead th,
@@ -95,34 +127,6 @@
       inset 0 1px 0 rgba(255,255,255,.05),
       0 10px 18px rgba(2, 6, 23, .25);
   }
-
-  /* Float the count bubble on the right of each keyword row */
-  #kwMiniList .list-group-item{
-    position: relative;
-    padding-right: 48px;              /* room for the bubble */
-    font-family: inherit;             /* same font as app */
-  }
-  #kwMiniList .list-group-item .badge{
-    position: absolute;
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
-    width: 26px;
-    height: 26px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;             /* circle */
-    background: #fff;                 /* white bubble like your screenshot */
-    color: #0b1324;                   /* readable on dark */
-    border: 1px solid rgba(13,17,23,.15);
-    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.65);
-    line-height: 1;
-    font-weight: 700;                 /* same weight you use elsewhere */
-    font-family: inherit;             /* ensure same font */
-  }
-  /* keep compatibility with the existing “rounded-pill” class your JS adds */
-  #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 999px; }
-
   .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
   .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
@@ -130,7 +134,17 @@
   #miscMeta{ display:none !important; }                /* “as of …” */
   #kbTip{ display:none !important; }                   /* tip under keywords */
   #kwMiniDetails .kb-placeholder{ display:none !important; } /* placeholder text */
+
+  /* === FIX 2: Make Save-path helper hint readable on dark === */
+  #submitHint,
+  .form-text#submitHint{
+    color: var(--muted) !important;  /* same muted tone as the site */
+    opacity: 1;                      /* cancel Bootstrap’s extra fade */
+    font-weight: 500;
+    letter-spacing: .2px;
+  }
 </style>
+
 
 <div class="container-fluid my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
