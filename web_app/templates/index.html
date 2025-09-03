@@ -47,40 +47,7 @@
     background:transparent;
   }
 
-  /* ===== Strong glass header (no brightening) — dashboard tables only ===== */
-  .table-modern thead th{
-    position: sticky;
-    top: 0;
-    z-index: 6;                         /* above rows */
-    background: transparent !important; /* actual glass lives on ::before */
-    color: var(--table-head-fg, var(--text)) !important;
-    border-bottom: 1px solid var(--hair) !important;
-    font-weight: 700;
-    letter-spacing: .2px;
-    padding: .65rem .9rem;
-    /* make its own stacking context so ::before sits under text */
-    isolation: isolate;
-  }
-  /* The frosted layer (fully blurs content behind; darker so text behind isn't readable) */
-  .table-modern thead th::before{
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;                        /* behind header text */
-    background: rgba(10, 14, 24, .78);  /* darker glass; no “brighten” */
-    backdrop-filter: saturate(120%) blur(14px);
-    -webkit-backdrop-filter: saturate(120%) blur(14px);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.05),
-      0 10px 18px rgba(2, 6, 23, .25);
-    transform: translateZ(0);           /* reliably trigger GPU/backdrop */
-    will-change: backdrop-filter;
-  }
-  /* rounded ends on the sticky strip */
-  .table-modern thead th:first-child::before{ border-top-left-radius:12px; }
-  .table-modern thead th:last-child::before { border-top-right-radius:12px; }
-
-  /* Body rows (unchanged) */
+  /* Body rows */
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
@@ -130,7 +97,6 @@
     background: transparent;
     isolation: isolate;
   }
-  /* small interior padding so header row isn't glued to the shell */
   .cm-scroll table{ margin: 6px; }
 
   /* ---- Transactions: mirror the same shell/scroll as CM ---- */
@@ -201,6 +167,31 @@
 
   /* Transactions header refresh button alignment */
   #refresh-btn{ margin-left:auto; }
+
+  /* === DASHBOARD TABLE GLASS (strong, non-brightening, index only) === */
+  /* 1) transparent scrollers so rows are the blur backdrop (already set above) */
+
+  /* 2) put the frosted glass directly on header cells */
+  #recent-activity .table-modern thead th,
+  #recent-activity .table-modern thead td{
+    position: sticky;
+    top: 0;
+    z-index: 7; /* above rows and other header rules */
+    background: rgba(8,12,20,.78) !important; /* dark, non-brightening glass */
+    color: var(--table-head-fg, var(--text)) !important;
+    border-bottom: 1px solid var(--hair) !important;
+    font-weight: 700; letter-spacing:.2px;
+    padding: .65rem .9rem;
+    -webkit-backdrop-filter: saturate(130%) blur(16px);
+    backdrop-filter: saturate(130%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2, 6, 23, .25);
+  }
+
+  /* rounded strip ends (to match your shells) */
+  #recent-activity .table-modern thead th:first-child { border-top-left-radius:12px; }
+  #recent-activity .table-modern thead th:last-child  { border-top-right-radius:12px; }
 </style>
 
 <!-- Header -->
