@@ -22,177 +22,110 @@
     border-bottom: 1px solid var(--hair) !important;
     font-weight: 600;
   }
-  /* Header alignment like goals: a touch down/right, no hard-left slam */
-  .card-header,
-  .section-title {
-    padding: .75rem 1rem;
-    display:flex; align-items:center; gap:.5rem;
-  }
+  .card-header, .section-title { padding:.75rem 1rem; display:flex; align-items:center; gap:.5rem; }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Unified table look (matches goals page) --- */
-  .table-wrap{
-    border:1px solid var(--card-border);
-    border-radius:14px;
-    background:var(--card-bg);
-    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
-    overflow:hidden;
-  }
-  .table-floating,
-  .table-modern{
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    color:var(--text);
-    background:transparent;
-  }
-
-  /* ===== Sticky header "navbar-glass" treatment ===== */
-  .table-modern thead th,
-  .table-floating thead th{
-    position: sticky; top: 0; z-index: 3;
-    /* soft vertical gradient like the nav, with glass blur */
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--thead-bg) 86%, transparent) 0%,
-        color-mix(in oklab, var(--thead-bg) 72%, transparent) 100%
-      ) !important;
+  /* Unified table look (matches goals) */
+  .table-wrap{ border:1px solid var(--card-border); border-radius:14px; background:var(--card-bg);
+    box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04); overflow:hidden; }
+  .table-floating, .table-modern{ width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent; }
+  .table-modern thead th, .table-floating thead th{
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    backdrop-filter: saturate(140%) blur(10px);
-    -webkit-backdrop-filter: saturate(140%) blur(10px);
-    /* slight inset sheen to match navbar’s “polish” */
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.06),
-      0 6px 14px rgba(0,0,0,.22);
-    /* nudge content slightly down/right like goals */
-    padding:.65rem .9rem;
-    font-weight:700; letter-spacing:.2px;
+    position: sticky; top: 0; z-index: 3; font-weight:700; letter-spacing:.2px;
+    backdrop-filter:saturate(130%) blur(6px); -webkit-backdrop-filter:saturate(130%) blur(6px);
   }
-  /* rounded ends on the sticky row, like your card shells */
-  .table-modern thead th:first-child,
-  .table-floating thead th:first-child{
-    border-top-left-radius:12px;
-  }
-  .table-modern thead th:last-child,
-  .table-floating thead th:last-child{
-    border-top-right-radius:12px;
-  }
-
-  .table-modern tbody td,
-  .table-floating tbody td{
-    border-top:1px solid var(--hair);
-    vertical-align:middle;
-  }
-  .table-modern tbody tr:nth-child(odd),
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-modern tbody tr:hover,
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+  .table-modern tbody td, .table-floating tbody td{ border-top:1px solid var(--hair); vertical-align:middle; }
+  .table-modern tbody tr:nth-child(odd), .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-modern tbody tr:hover, .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
   .mono { font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted) !important; }
   .tx-neg { color:#c0392b; font-weight:600; }
   .tx-pos { color:#1e7e34; font-weight:600; }
 
-  /* --- Metric “bubbles” (used in Latest Month Totals) --- */
-  .metric-bubble{
-    background:rgba(255,255,255,.04);
-    border:1px solid var(--hair);
-    border-radius:14px;
-    padding:16px 18px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
-  }
+  /* Metric bubbles */
+  .metric-bubble{ background:rgba(255,255,255,.04); border:1px solid var(--hair); border-radius:14px; padding:16px 18px;
+    box-shadow:0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05); }
   .metric-title{ font-weight:600; margin-bottom:.25rem; color:var(--text); }
   .metric-value{ font-weight:700; font-size:1.25rem; }
   .metric-sub{ color:#31d4a1; font-weight:600; }
 
-  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
-  .metrics-row{
-    padding:12px 12px 6px;
-  }
+  .metrics-row{ padding:12px 12px 6px; }
   .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
 
-  /* ---- Category Movers “Latest-like shell” with preserved scrolling ---- */
-  .cm-shell{
-    margin:12px;                      /* space from card edges */
-    border-radius:14px;
-    border:1px solid var(--hair);
-    background:rgba(255,255,255,.035);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .cm-scroll{
-    max-height: 42vh;
-    overflow: auto;
-    border-radius:12px;
-  }
-  .cm-scroll table{ margin: 6px; }
+  /* Category Movers shell + scroller (keeps your spacing & side scrollbar) */
+  .cm-shell{ margin:12px; border-radius:14px; border:1px solid var(--hair);
+    background:rgba(255,255,255,.035); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+  .cm-scroll{ max-height:42vh; overflow:auto; border-radius:12px; }
+  .cm-scroll table{ margin:6px; }
 
-  /* ---- Transactions: mirror the same shell/scroll as CM ---- */
-  .tx-shell{
-    margin:12px;
-    border-radius:14px;
-    border:1px solid var(--hair);
-    background:rgba(255,255,255,.035);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .tx-scroll{
-    max-height: 540px;   /* keep vertical scroller */
-    overflow-y: auto;
-    overflow-x: hidden;  /* kill bottom scrollbar */
-    border-radius:12px;
-  }
-  .tx-scroll table{ margin: 6px; }
+  /* Transactions shell + scroller (mirrors CM) */
+  .tx-shell{ margin:12px; border-radius:14px; border:1px solid var(--hair);
+    background:rgba(255,255,255,.035); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
+  .tx-scroll{ max-height:540px; overflow-y:auto; overflow-x:hidden; border-radius:12px; }
+  .tx-scroll table{ margin:6px; }
 
-  /* make content fit without bottom scrollbar */
-  .tx-table{
-    table-layout: fixed; /* keeps width to shell */
-  }
-  .tx-table th,
-  .tx-table td{ padding:.65rem .85rem; }
+  .tx-table{ table-layout:fixed; }
+  .tx-table th, .tx-table td{ padding:.65rem .85rem; }
   .tx-table .col-date{ width:110px; white-space:nowrap; }
   .tx-table .col-amount{ width:130px; white-space:nowrap; text-align:right; }
-  .tx-table .col-desc,
-  .tx-table .col-cat{ width:auto; word-break:break-word; }
+  .tx-table .col-desc, .tx-table .col-cat{ width:auto; word-break:break-word; }
 
   /* Header chips and labels */
-  .summary-label, .section-heading { color: var(--text); font-weight: 700; }
+  .summary-label, .section-heading { color: var(--text); font-weight:700; }
 
-  /* Category tree */
-  details > summary { list-style: none; cursor: pointer; user-select: none; }
-  details > summary::-webkit-details-marker { display: none; }
-  .caret { display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg); transition:transform .15s ease-in-out; opacity:.8; color: var(--muted); }
-  details[open] .caret { transform:rotate(90deg); color: var(--text); }
+  /* Accordion + tree (unchanged) */
+  details > summary { list-style:none; cursor:pointer; user-select:none; }
+  details > summary::-webkit-details-marker{ display:none; }
+  .caret{ display:inline-block; width:.9rem; text-align:center; transform:rotate(0deg);
+    transition:transform .15s ease-in-out; opacity:.8; color:var(--muted); }
+  details[open] .caret{ transform:rotate(90deg); color:var(--text); }
+  .node-line{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition:background .15s; }
+  .node-line:hover{ background:rgba(255,255,255,.04); }
+  .node-main{ display:flex; align-items:center; gap:.55rem; }
+  .node-total{ opacity:.92; font-variant-numeric: tabular-nums; }
+  .link-manage{ color:var(--text); text-decoration:none; border:1px solid transparent; padding:.12rem .5rem; border-radius:10px; cursor:pointer; }
+  .link-manage:hover{ background:rgba(255,255,255,.06); border-color:var(--hair); text-decoration:none; }
 
-  .node-line { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.35rem .45rem; border-radius:10px; transition: background .15s ease; }
-  .node-line:hover { background: rgba(255,255,255,.04); }
-  .node-main { display:flex; align-items:center; gap:.55rem; }
-  .node-total { opacity:.92; font-variant-numeric: tabular-nums; }
-
-  .link-manage{
-    color: var(--text); text-decoration:none; border:1px solid transparent;
-    padding:.12rem .5rem; border-radius:10px; cursor:pointer;
-  }
-  .link-manage:hover{
-    background: rgba(255,255,255,.06);
-    border-color: var(--hair);
-    text-decoration:none;
-  }
-
-  .clickable-card-header{
-    display:flex; align-items:center; gap:.6rem; user-select:none;
+  .clickable-card-header{ display:flex; align-items:center; gap:.6rem; user-select:none;
     padding:.575rem .875rem; margin:.5rem; border-radius:12px;
     background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
-    border:1px solid var(--hair);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-  }
+    border:1px solid var(--hair); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
   .clickable-card-header .chev{ font-weight:700; opacity:.9; }
+  .summary-label{ color:var(--text); }
 
-  /* “Summary” accordion label color */
-  .summary-label { color: var(--text); }
-
-  /* Transactions header refresh button alignment */
   #refresh-btn{ margin-left:auto; }
+
+  /* ===== NEW: “navbar-style” sticky header strip for CM + TX ===== */
+  /* We render a single frosted band across the whole header and make th tiles transparent. */
+  .cm-scroll table thead,
+  .tx-scroll table thead{
+    position: sticky;
+    top: 0;          /* relative to the inner scroller, not the page */
+    z-index: 6;
+    isolation: isolate; /* create a stacking context for the ::after strip */
+  }
+  .cm-scroll table thead::after,
+  .tx-scroll table thead::after{
+    content:"";
+    position:absolute; inset:0;
+    backdrop-filter:saturate(130%) blur(6px);
+    -webkit-backdrop-filter:saturate(130%) blur(6px);
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
+    border-bottom:1px solid var(--hair);
+    box-shadow: 0 1px 0 rgba(255,255,255,.05), 0 10px 18px rgba(2,6,23,.25);
+    pointer-events:none;
+    border-top-left-radius:10px;
+    border-top-right-radius:10px;
+  }
+  .cm-scroll table thead th,
+  .tx-scroll table thead th{
+    background: transparent !important; /* kill per-cell tiles so the strip looks continuous */
+    position: relative;
+    z-index: 1; /* draw text above the strip overlay */
+  }
 </style>
 
 <!-- Header -->
@@ -278,7 +211,6 @@
           <button id="refresh-btn" type="button" class="btn btn-sm btn-outline-light ms-auto">🔄 Refresh</button>
         </div>
         <div class="card-body p-0">
-          <!-- mirror CM shell/scroll so spacing matches -->
           <div class="tx-shell">
             <div class="tx-scroll">
               <table class="table table-sm table-modern align-middle mb-0 tx-table" id="ra-recent">
@@ -301,7 +233,6 @@
   </div>
 </div>
 
-<!-- One consolidated loader for Movers & Recent -->
 <script>
 (function(){
   const $ = id => document.getElementById(id);
@@ -310,7 +241,6 @@
   const fmtPct = (p) => (p == null || !isFinite(p)) ? '—' : (p*100).toFixed(0) + '%';
   const safe = (s) => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Δ% text without useless "(0.0%)"
   const pctCellText = (row) => {
     if (typeof row.delta_pct === 'string') {
       const trimmed = row.delta_pct.replace(/\s*\(0(?:\.0+)?%\)\s*$/,'').trim();
@@ -418,20 +348,15 @@
   }
   window.loadRecentActivity = loadRecentActivity;
 
-  // Global refresh
+  // Refresh
   const raRefreshBtn = document.getElementById('refresh-btn');
   if (raRefreshBtn){
     raRefreshBtn.addEventListener('click', async () => {
       const original = raRefreshBtn.textContent;
       raRefreshBtn.disabled = true;
       raRefreshBtn.textContent = '⏳ Refreshing…';
-      try {
-        await fetch('/refresh_data', { method:'POST' }).catch(()=>{});
-        window.location.reload();
-      } finally {
-        raRefreshBtn.disabled = false;
-        raRefreshBtn.textContent = original;
-      }
+      try { await fetch('/refresh_data', { method:'POST' }).catch(()=>{}); window.location.reload(); }
+      finally { raRefreshBtn.disabled = false; raRefreshBtn.textContent = original; }
     });
   }
 
@@ -440,7 +365,7 @@
 })();
 </script>
 
-<!-- Per-month summary + category tree -->
+<!-- Per-month summary + category tree (unchanged) -->
 <div class="container mt-2">
   {% macro usd(val) -%}
     {%- set n = (val or 0)|float -%}
@@ -452,32 +377,19 @@
     {% set sub  = (ancestors[1] if ancestors|length > 1 else (node.name if depth == 2 else '')) %}
     {% set ssub = (ancestors[2] if ancestors|length > 2 else (node.name if depth == 3 else '')) %}
     {% set sss  = (node.name if depth == 4 else '') %}
-
-    {% if depth == 1 %}{% set level = 'category' %}
-    {% elif depth == 2 %}{% set level = 'subcategory' %}
-    {% elif depth == 3 %}{% set level = 'subsubcategory' %}
-    {% else %}{% set level = 'subsubsubcategory' %}{% endif %}
+    {% if depth == 1 %}{% set level = 'category' %}{% elif depth == 2 %}{% set level = 'subcategory' %}{% elif depth == 3 %}{% set level = 'subsubcategory' %}{% else %}{% set level = 'subsubsubcategory' %}{% endif %}
 
     <details>
       <summary>
         <div class="node-line">
           <div class="node-main depth-{{ depth }}">
             <span class="caret">▸</span>
-
-            <a
-              class="link-manage"
-              title="Manage {{ node.name }}"
-              data-level="{{ level }}"
-              data-cat="{{ cat }}"
-              data-sub="{{ sub }}"
-              data-ssub="{{ ssub }}"
-              data-sss="{{ sss }}"
-              data-month="{{ month_key }}"
-              href="#"
-              onclick="return dashManage(event, this);">
+            <a class="link-manage" title="Manage {{ node.name }}"
+               data-level="{{ level }}" data-cat="{{ cat }}" data-sub="{{ sub }}"
+               data-ssub="{{ ssub }}" data-sss="{{ sss }}" data-month="{{ month_key }}"
+               href="#" onclick="return dashManage(event, this);">
               {{ node.name }}
             </a>
-
             <span class="node-total">{{ usd(node.total) }}</span>
           </div>
         </div>
@@ -519,16 +431,10 @@
         <span class="summary-label">{{ formatted_month_key }} Summary</span>
       </div>
 
-      <div id="section-{{ month_key }}" class="card-body" style="display: none;">
-        <p><strong>Total Income:</strong>
-          <span class="tx-pos mono">{{ usd(summary.income_total) }}</span>
-        </p>
-        <p><strong>Total Expenses:</strong>
-          <span class="tx-neg mono">{{ usd(summary.expense_total) }}</span>
-        </p>
-        <p><strong>Net Cash Flow:</strong>
-          <span class="fw-bold mono {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span>
-        </p>
+      <div id="section-{{ month_key }}" class="card-body" style="display:none;">
+        <p><strong>Total Income:</strong> <span class="tx-pos mono">{{ usd(summary.income_total) }}</span></p>
+        <p><strong>Total Expenses:</strong> <span class="tx-neg mono">{{ usd(summary.expense_total) }}</span></p>
+        <p><strong>Net Cash Flow:</strong> <span class="fw-bold mono {{ net_class }}">{{ usd(summary.net_cash_flow) }}</span></p>
 
         <h5 class="mt-3 section-title" id="cats-toggle-{{ month_key }}" onclick="toggleCategoryList('{{ month_key }}')" aria-expanded="false" style="cursor:pointer;">
           <span class="chev" aria-hidden="true">▸</span>
@@ -557,10 +463,8 @@ window.toggleSection = function(key){
   const v = el.style.display;
   const willOpen = (v === 'none' || !v);
   el.style.display = willOpen ? 'block' : 'none';
-
   const card = document.getElementById('card-' + key);
   if (card) card.classList.toggle('open', willOpen);
-
   return false;
 };
 window.toggleCategoryList = function(key){
@@ -569,10 +473,8 @@ window.toggleCategoryList = function(key){
   const v = el.style.display;
   const willOpen = (v === 'none' || !v);
   el.style.display = willOpen ? 'block' : 'none';
-
   const hdr = document.getElementById('cats-toggle-' + key);
   if (hdr) hdr.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-
   return false;
 };
 </script>
