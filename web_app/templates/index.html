@@ -30,7 +30,7 @@
   }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Table look (layout.html handles sticky + frosted headers) --- */
+  /* --- Table look (layout.html handles base sticky; we only add shell + body visuals) --- */
   .table-wrap{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -86,14 +86,13 @@
     background:rgba(255,255,255,.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
-  /* add table-responsive to use global sticky header frosting */
   .cm-scroll{
     max-height: 42vh;
     overflow: auto;
     border-radius:12px;
-    background: transparent;           /* allow backdrop-filter to see rows */
+    background: transparent; /* allow header to see rows */
     isolation: isolate;
-    transform: translateZ(0);
+    transform: translateZ(0); /* paint hint for backdrop-filter */
   }
   .cm-scroll table{ margin: 6px; }
 
@@ -105,7 +104,6 @@
     background:rgba(255,255,255,.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
-  /* add table-responsive to use global sticky header frosting */
   .tx-scroll{
     max-height: 540px;
     overflow-y: auto;
@@ -155,9 +153,35 @@
     text-decoration:none;
   }
 
-  /* === rely on global frosted header in layout.html; no page overrides here === */
+  /* === Dashboard-only: frosted sticky headers via ::before (no dark tint) === */
+  #recent-activity .table-modern thead th{
+    position: sticky;
+    top: 0;
+    z-index: 7;            /* above rows */
+    background: transparent !important;  /* let the ::before do the glass */
+    color: var(--table-head-fg, var(--text)) !important;
+    border-bottom: 1px solid var(--hair) !important;
+    font-weight: 700; letter-spacing:.2px;
+    padding: .65rem .9rem;
+    isolation: isolate;    /* keep ::before under the text */
+  }
+  #recent-activity .table-modern thead th::before{
+    content:"";
+    position:absolute; inset:0;
+    z-index:-1;        /* sits behind header text */
+    background: rgba(15,23,42,.38); /* soft, not inky */
+    backdrop-filter: saturate(130%) blur(16px);
+    -webkit-backdrop-filter: saturate(130%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2,6,23,.25);
+    transform: translateZ(0);
+  }
+  /* rounded strip ends */
+  #recent-activity .table-modern thead th:first-child::before{ border-top-left-radius:12px; }
+  #recent-activity .table-modern thead th:last-child::before { border-top-right-radius:12px; }
 
-  /* === Hide small dashboard bits (unchanged) === */
+  /* === Remove the bits you asked to hide (dashboard only) === */
   #recent-activity .section-heading,
   #recent-activity #ra-asof,
   #ra-months,
@@ -187,8 +211,8 @@
         </div>
         <div class="card-body p-0">
           <div class="cm-shell">
-            <div class="table-responsive cm-scroll">
-              <table class="table table-sm table-modern table-floating align-middle mb-0">
+            <div class="cm-scroll">
+              <table class="table table-sm table-modern align-middle mb-0">
                 <thead class="small">
                   <tr>
                     <th>Category</th>
@@ -248,8 +272,8 @@
         </div>
         <div class="card-body p-0">
           <div class="tx-shell">
-            <div class="table-responsive tx-scroll">
-              <table class="table table-sm table-modern table-floating align-middle mb-0 tx-table" id="ra-recent">
+            <div class="tx-scroll">
+              <table class="table table-sm table-modern align-middle mb-0 tx-table" id="ra-recent">
                 <thead>
                   <tr>
                     <th class="col-date">Date</th>
