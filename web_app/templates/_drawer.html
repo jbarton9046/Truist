@@ -1,214 +1,98 @@
-<!-- templates/_drawer.html -->
-<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel">
-  <div class="offcanvas-header drawer-header">
-    <h5 class="offcanvas-title" id="dashCategoryManagerLabel">Category Manager</h5>
-    <button type="button" class="btn-close btn-close-white text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+<!-- Right-side Category Manager drawer -->
+<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
+  <div class="offcanvas-header">
+    <div class="d-flex flex-column">
+      <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
+        <!-- Breadcrumb (clickable) -->
+        <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
+        <!-- Keep original path label (now hidden) so existing JS can still update it -->
+        <span id="drawer-selected-path" hidden>(All Categories)</span>
+      </h5>
+      <div class="small text-muted">
+        Month:
+        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
+        &nbsp;•&nbsp;
+        <span id="drawer-total" class="fw-semibold">—</span>
+      </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
 
-  <div class="offcanvas-body p-0 drawer-body">
-    <!-- Sticky tools row -->
-    <div class="drawer-tools sticky-top-glass">
-      <div class="d-flex align-items-center gap-2">
-        <label class="form-label m-0 small muted">Month</label>
-        <input id="cmMonth" type="month" class="form-control form-control-sm w-auto" />
-        <div class="ms-auto d-flex align-items-center gap-2">
-          <span class="small muted">Net:</span>
-          <span id="cmNet" class="fw-semibold mono"></span>
-        </div>
-      </div>
+  <div class="offcanvas-body">
+    <!-- simple drawer styles -->
+    <style>
+      .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
+      .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
+      .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
+      .child-pill { display:inline-block; padding:.2rem .55rem; background:#f1f3f5; border-radius:999px; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer; }
+      .month-divider { background:#f8f9fa; position:sticky; top:0; z-index:1; }
+      .month-divider td { font-weight:700; }
+      /* align with drawer.js classes */
+      .tx-pos { color:#1e7e34; font-weight:600; }
+      .tx-neg { color:#c0392b; font-weight:600; }
 
-      <!-- Tabs -->
-      <ul class="nav nav-tabs drawer-tabs mt-2" id="cmTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="cm-tab-overview" data-bs-toggle="tab" data-bs-target="#cm-pane-overview" type="button" role="tab" aria-controls="cm-pane-overview" aria-selected="true">Overview</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="cm-tab-keywords" data-bs-toggle="tab" data-bs-target="#cm-pane-keywords" type="button" role="tab" aria-controls="cm-pane-keywords" aria-selected="false">Keywords</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="cm-tab-actions" data-bs-toggle="tab" data-bs-target="#cm-pane-actions" type="button" role="tab" aria-controls="cm-pane-actions" aria-selected="false">Actions</button>
-        </li>
-      </ul>
+      /* Breadcrumb styles */
+      .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a { text-decoration:none; font-weight:600; }
+      .drawer-breadcrumb a:hover { text-decoration:underline; }
+      .drawer-breadcrumb .sep { color:#adb5bd; }
+      .drawer-breadcrumb .current { color:#212529; font-weight:700; cursor:default; }
+    </style>
+
+    <!-- Tabs -->
+    <div class="drawer-tabs">
+      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
+      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
+      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
     </div>
 
-    <div class="tab-content drawer-content">
-      <!-- OVERVIEW -->
-      <div class="tab-pane fade show active" id="cm-pane-overview" role="tabpanel" aria-labelledby="cm-tab-overview">
-        <div class="p-3 pt-2">
-          <div class="fw-semibold mb-2">Children:</div>
-          <div id="cmChildren" class="d-flex flex-wrap gap-2">
-            <!-- chips are injected here by JS -->
-          </div>
-        </div>
+    <!-- Pane: Overview -->
+    <div class="drawer-pane" data-pane="overview" style="display:block;">
+      <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
 
-        <!-- Transactions list -->
-        <div class="drawer-scroll table-responsive px-3 pb-3">
-          <table class="table table-sm table-modern align-middle mb-0 drawer-table">
-            <thead>
-              <tr>
-                <th style="width:120px;">Date</th>
-                <th>Description</th>
-                <th class="text-end" style="width:120px;">Amount</th>
-                <th style="width:220px;">Category</th>
-              </tr>
-            </thead>
-            <tbody id="cmTxBody">
-              <tr><td colspan="4" class="text-center py-4 muted">Loading…</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- KEYWORDS -->
-      <div class="tab-pane fade" id="cm-pane-keywords" role="tabpanel" aria-labelledby="cm-tab-keywords">
-        <div class="p-3">
-          <div class="small muted mb-2">
-            Keywords attached to: <span id="cmPathLabel" class="fw-semibold"></span>.
-            Click × to remove. Case-insensitive “contains” match.
-          </div>
-
-          <div id="cmKeywordsList" class="mb-3">
-            <!-- keyword chips render here -->
-          </div>
-
-          <div class="input-group">
-            <input id="cmKeywordInput" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
-            <button id="cmKeywordAdd" class="btn btn-outline-light">Add</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ACTIONS -->
-      <div class="tab-pane fade" id="cm-pane-actions" role="tabpanel" aria-labelledby="cm-tab-actions">
-        <div class="p-3">
-          <div class="d-grid gap-2">
-            <button id="cmInspectBtn" class="btn btn-outline-light">Inspect Path JSON</button>
-            <button id="cmRenameBtn" class="btn btn-outline-light">Rename Current Node</button>
-            <button id="cmCreateChildBtn" class="btn btn-outline-light">Create/Attach Child Under This Path</button>
-          </div>
-          <div class="small muted mt-3">
-            These call your admin endpoints (inspect, rename, upsert).
-          </div>
-        </div>
+      <div class="table-responsive" style="max-height:58vh; overflow:auto;">
+        <table class="table table-sm align-middle mb-0" id="drawer-tx">
+          <thead>
+            <tr>
+              <th style="width:110px;">Date</th>
+              <th>Description</th>
+              <th class="text-end" style="width:120px;">Amount</th>
+              <th style="width:180px;">Category</th>
+            </tr>
+          </thead>
+          <tbody id="drawer-tx-body"></tbody>
+        </table>
       </div>
     </div>
 
-    <!-- Optional dynamic area other pages use as a target -->
-    <div id="drawer-dynamic" class="p-3 d-none"></div>
+    <!-- Pane: Keywords -->
+    <div class="drawer-pane" data-pane="keywords" style="display:none;">
+      <div class="small text-muted mb-1">
+        Keywords attached to: <span id="kw-current-level" class="fw-semibold">(select a node)</span>.
+        Click × to remove. Case-insensitive “contains” match.
+      </div>
+      <div id="kw-list" class="mb-2"><span class="text-muted">No keywords yet.</span></div>
+      <div class="input-group input-group-sm">
+        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
+        <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
+      </div>
+    </div>
+
+    <!-- Pane: Actions -->
+    <div class="drawer-pane" data-pane="actions" style="display:none;">
+      <div class="d-grid gap-2">
+        <button id="drawer-inspect" class="btn btn-sm btn-outline-secondary">Inspect Path JSON</button>
+        <button id="drawer-rename"  class="btn btn-sm btn-outline-secondary">Rename Current Node</button>
+        <button id="drawer-upsert"  class="btn btn-sm btn-outline-primary">Create/Attach Child Under This Path</button>
+      </div>
+      <div class="small text-muted mt-2">These call your admin endpoints: inspect, rename, upsert.</div>
+    </div>
   </div>
-
-  <!-- Inline, drawer-only styles (safe, additive) -->
-  <style>
-    /* Offcanvas chrome to match global glass look */
-    #dashCategoryManager.offcanvas {
-      width: 520px;
-      background: var(--card-bg) !important;
-      color: var(--text);
-      border-left: 1px solid var(--card-border);
-      box-shadow:
-        0 24px 48px rgba(0,0,0,.45),
-        inset 0 1px 0 rgba(255,255,255,.05);
-      backdrop-filter: saturate(120%) blur(6px);
-    }
-    #dashCategoryManager .btn-close { filter: invert(1) grayscale(1); opacity:.7; }
-    #dashCategoryManager .btn-close:hover { opacity:1; }
-
-    .drawer-header{
-      background: var(--thead-bg);
-      border-bottom: 1px solid var(--hair);
-      backdrop-filter: saturate(120%) blur(6px);
-    }
-
-    .drawer-body { display:flex; flex-direction:column; min-height: 100%; }
-
-    .drawer-tools{
-      padding: .75rem 1rem .25rem;
-      border-bottom: 1px solid var(--hair);
-      background:
-        linear-gradient(180deg,
-         color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
-         color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%);
-      backdrop-filter: saturate(120%) blur(6px);
-      position: relative;
-      z-index: 3;
-    }
-
-    .drawer-tabs .nav-link{
-      color: var(--text);
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      font-weight: 600;
-      border-radius: .75rem .75rem 0 0;
-      padding: .45rem .85rem;
-    }
-    .drawer-tabs .nav-link.active{
-      background: color-mix(in oklab, var(--thead-bg) 75%, transparent);
-      border: 1px solid var(--hair);
-      border-bottom-color: transparent;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-      color: #cfe6ff;   /* subtle ink lift */
-    }
-
-    .drawer-content { flex: 1 1 auto; min-height: 0; }
-
-    .drawer-scroll{
-      max-height: calc(100vh - 220px);
-      overflow: auto;
-      background: transparent;
-      isolation: isolate;
-      transform: translateZ(0);
-      border-radius: 12px;
-    }
-    .drawer-table thead th{
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      background:
-        linear-gradient(180deg,
-         color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
-         color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%) !important;
-      backdrop-filter: saturate(120%) blur(6px);
-      -webkit-backdrop-filter: saturate(120%) blur(6px);
-      border-bottom:1px solid var(--hair) !important;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.06),
-        0 10px 18px rgba(2,6,23,.25);
-      font-weight:700; letter-spacing:.2px;
-    }
-    .drawer-table thead th:first-child{ border-top-left-radius: 12px; }
-    .drawer-table thead th:last-child { border-top-right-radius: 12px; }
-
-    /* Children chips – match app “ink” */
-    #cmChildren .chip{
-      display:inline-flex; align-items:center; gap:.4rem;
-      padding:.5rem .8rem;
-      border-radius:999px;
-      border:1px solid var(--card-border);
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform .06s ease, background .12s ease, box-shadow .12s ease;
-      user-select: none;
-    }
-    #cmChildren .chip:hover{ background: rgba(255,255,255,.10); transform: translateY(-1px); }
-    #cmChildren .chip .caret{ opacity:.7; }
-
-    /* Make “month header” rows sticky too, if JS marks them */
-    .drawer-table .month-row{
-      position: sticky; top: 38px; z-index: 1;
-      background:
-        linear-gradient(180deg,
-         color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
-         color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%) !important;
-      backdrop-filter: saturate(120%) blur(6px);
-      -webkit-backdrop-filter: saturate(120%) blur(6px);
-      border-top: 1px solid var(--hair);
-      border-bottom: 1px solid var(--hair);
-    }
-
-    .muted{ color: var(--muted) !important; }
-    .mono { font-variant-numeric: tabular-nums; }
-  </style>
 </div>
+
+<!-- Tell drawer.js to use the unified endpoint, then load it -->
+<script>
+  window.CL_URLS = window.CL_URLS || {};
+  window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
+</script>
+<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
