@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% block content %}
 <style>
+  /* ============== Base ============== */
   .muted { color:#6c757d; }
   .mono { font-variant-numeric: tabular-nums; }
   .chip { display:inline-block; padding:.2rem .5rem; border:1px solid #dee2e6; border-radius:999px; margin:.1rem .25rem; font-size:.85rem; }
@@ -22,7 +23,7 @@
   .misc-scroll { max-height: 60vh; overflow:auto; }
   .pointer { cursor:pointer; }
 
-  /* --- Keyword Finder styles (original light defaults) --- */
+  /* --- Keyword Finder (light defaults to be themed below) --- */
   .kb-card { border-radius:1rem; border:1px solid #e9ecef; background:#fff; }
   .kb-card .kb-head { padding:.6rem .9rem; border-bottom:1px solid #edf2f7; }
   .kb-card .kb-body { padding:.75rem; }
@@ -47,10 +48,10 @@
   .kb-path { max-width:480px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .kb-table thead th { position:sticky; top:0; background:#fff; z-index:1; }
 
-  /* ============================
-     Dark / glass overrides ONLY
-     (uses tokens from layout.html)
-     ============================ */
+  /* ===========================
+     Dark / glass overrides
+     (tokens from layout.html)
+     =========================== */
 
   /* Keywords Used: card + head */
   .kb-card{
@@ -71,44 +72,11 @@
     backdrop-filter:saturate(120%) blur(6px);
   }
 
-  /* List / badges inside Keywords Used */
+  /* List / container inside Keywords Used */
   #kwMiniList{ max-height:35vh; overflow:auto; background:transparent; isolation:isolate; }
   .kb-card .list-group{ border:1px solid var(--hair); border-radius:12px; background:transparent; }
-  .kb-card .list-group-item{
-    position: relative;
-    background:transparent;
-    color:var(--text);
-    border-color:var(--hair);
-    padding-right:48px;           /* room for the bubble */
-    font-family: inherit;         /* keep app font */
-  }
+  .kb-card .list-group-item{ background:transparent; color:var(--text); border-color:var(--hair); }
   .kb-card .list-group-item:hover{ background:rgba(255,255,255,.05); }
-
-  /* generic badge look inside kb-card (for non-count badges) */
-  .kb-card .badge{ border:1px solid var(--hair); background:rgba(255,255,255,.06); color:var(--text); }
-
-  /* === FIX 1: Float the count bubble on the right of each keyword row === */
-  #kwMiniList .list-group-item .badge{
-    position: absolute;
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
-    width: 26px;
-    height: 26px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;               /* circle */
-    background: #fff !important;        /* white bubble */
-    color: #0b1324 !important;          /* readable on dark */
-    border: 1px solid rgba(13,17,23,.15);
-    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.65);
-    line-height: 1;
-    font-weight: 700;
-    font-family: inherit;               /* match site font */
-    font-size: .9rem;
-    pointer-events: none;               /* bubble not clickable */
-  }
-  #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 999px; }
 
   /* Frosted sticky table headers (this page) */
   .misc-card .table thead th,
@@ -130,21 +98,50 @@
   .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
   .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
-  /* Remove the three bits you asked to hide (DOM stays for JS) */
-  #miscMeta{ display:none !important; }                /* “as of …” */
-  #kbTip{ display:none !important; }                   /* tip under keywords */
-  #kwMiniDetails .kb-placeholder{ display:none !important; } /* placeholder text */
-
-  /* === FIX 2: Make Save-path helper hint readable on dark === */
-  #submitHint,
-  .form-text#submitHint{
-    color: var(--muted) !important;  /* same muted tone as the site */
-    opacity: 1;                      /* cancel Bootstrap’s extra fade */
-    font-weight: 500;
-    letter-spacing: .2px;
+  /* === Keywords Used counts: ghost blue numbers (no pill), floated right === */
+  #kwMiniList .list-group-item{
+    position: relative;
+    padding-right: 40px;                 /* room for the number */
+    font-family: inherit;
   }
-</style>
+  #kwMiniList .list-group-item .badge{
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    background: transparent !important;  /* no white chip */
+    border: 0 !important;
+    box-shadow: none !important;
+    color: var(--link, #9ec5ff) !important;  /* your page-wide blue */
+    font-weight: 700;
+    font-size: .95rem;
+    line-height: 1;
+    padding: 0;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    pointer-events: none;                /* number itself not clickable */
+    text-shadow: 0 0 10px rgba(158,197,255,.35); /* subtle glow for contrast */
+  }
+  #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 0 !important; }
 
+  /* Helper/hint text to match theme */
+  .form-text, #submitHint { color: var(--muted) !important; }
+  #kwMiniFilter.form-control{
+    background: color-mix(in oklab, var(--card-bg) 85%, #000 0%);
+    color: var(--text);
+    border: 1px solid var(--hair);
+  }
+  #kwMiniFilter::placeholder{
+    color: color-mix(in oklab, var(--muted) 90%, transparent);
+    opacity: 1;
+  }
+
+  /* Bits you asked to hide (DOM remains for JS) */
+  #miscMeta{ display:none !important; }                 /* “as of …” under Misc */
+  #kbTip{ display:none !important; }                    /* tip under keywords */
+  #kwMiniDetails .kb-placeholder{ display:none !important; }
+</style>
 
 <div class="container-fluid my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
