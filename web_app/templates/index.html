@@ -86,13 +86,14 @@
     background:rgba(255,255,255,.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
+  /* add table-responsive to use global sticky header frosting */
   .cm-scroll{
     max-height: 42vh;
     overflow: auto;
     border-radius:12px;
-    background: transparent;           /* allow global backdrop-filter to see rows */
-    isolation: isolate;                /* matches layout’s guidance */
-    transform: translateZ(0);          /* paint hint for backdrop-filter */
+    background: transparent;           /* allow backdrop-filter to see rows */
+    isolation: isolate;
+    transform: translateZ(0);
   }
   .cm-scroll table{ margin: 6px; }
 
@@ -104,6 +105,7 @@
     background:rgba(255,255,255,.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
+  /* add table-responsive to use global sticky header frosting */
   .tx-scroll{
     max-height: 540px;
     overflow-y: auto;
@@ -153,8 +155,7 @@
     text-decoration:none;
   }
 
-  /* === Removed page-specific header blur override.
-         We now rely entirely on the global frosted header in layout.html. === */
+  /* === rely on global frosted header in layout.html; no page overrides here === */
 
   /* === Hide small dashboard bits (unchanged) === */
   #recent-activity .section-heading,
@@ -186,7 +187,7 @@
         </div>
         <div class="card-body p-0">
           <div class="cm-shell">
-            <div class="cm-scroll">
+            <div class="table-responsive cm-scroll">
               <table class="table table-sm table-modern table-floating align-middle mb-0">
                 <thead class="small">
                   <tr>
@@ -247,7 +248,7 @@
         </div>
         <div class="card-body p-0">
           <div class="tx-shell">
-            <div class="tx-scroll">
+            <div class="table-responsive tx-scroll">
               <table class="table table-sm table-modern table-floating align-middle mb-0 tx-table" id="ra-recent">
                 <thead>
                   <tr>
