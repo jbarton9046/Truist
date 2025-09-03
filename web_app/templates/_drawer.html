@@ -1,13 +1,18 @@
 <!-- Right-side Category Manager drawer -->
-<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
-  <div class="offcanvas-header">
+<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1"
+     id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel"
+     style="width:480px;" data-bs-backdrop="true">
+
+  <!-- Header (keeps same structure; adds .drawer-header for glass+sticky) -->
+  <div class="offcanvas-header drawer-header">
     <div class="d-flex flex-column">
       <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
-        <!-- Breadcrumb (clickable) -->
-        <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
-        <!-- Keep original path label (now hidden) so existing JS can still update it -->
+        <!-- Breadcrumb (clickable). Give it both classes so CSS can style it. -->
+        <nav id="drawer-breadcrumb" class="drawer-breadcrumb drawer-path" aria-label="Path"></nav>
+        <!-- Keep original path label (hidden) so existing JS can still update it -->
         <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
+
       <div class="small text-muted">
         Month:
         <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
@@ -15,31 +20,41 @@
         <span id="drawer-total" class="fw-semibold">—</span>
       </div>
     </div>
+
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
 
+  <!-- Body -->
   <div class="offcanvas-body">
-    <!-- simple drawer styles -->
+
+    <!-- Lightweight styles specific to this drawer’s internal widgets only.
+         (All glass/blur/sticky/scrollbar styling comes from neon-tech.css) -->
     <style>
-      .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid #edf2f7; margin-bottom:.6rem; }
-      .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
-      .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
-      .child-pill { display:inline-block; padding:.2rem .55rem; background:#f1f3f5; border-radius:999px; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer; }
-      .month-divider { background:#f8f9fa; position:sticky; top:0; z-index:1; }
+      .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid var(--hair); margin-bottom:.6rem; }
+      .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:var(--text); }
+      .drawer-tab.active {
+        background: color-mix(in oklab, var(--thead-bg) 85%, transparent);
+        border:1px solid var(--hair);
+        border-bottom-color: transparent;
+      }
+      .child-pill {
+        display:inline-block; padding:.2rem .55rem; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer;
+        background: rgba(255,255,255,.06); border:1px solid var(--hair); border-radius:999px; color: var(--text);
+      }
+      .month-divider { background: color-mix(in oklab, var(--thead-bg) 82%, transparent); position:sticky; top:0; z-index:1; }
       .month-divider td { font-weight:700; }
-      /* align with drawer.js classes */
+
+      .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a { text-decoration:none; font-weight:600; color: var(--text); }
+      .drawer-breadcrumb a:hover { text-decoration:underline; }
+      .drawer-breadcrumb .sep { color: var(--muted); }
+      .drawer-breadcrumb .current { color: var(--text); font-weight:700; cursor:default; }
+
       .tx-pos { color:#1e7e34; font-weight:600; }
       .tx-neg { color:#c0392b; font-weight:600; }
-
-      /* Breadcrumb styles */
-      .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
-      .drawer-breadcrumb a { text-decoration:none; font-weight:600; }
-      .drawer-breadcrumb a:hover { text-decoration:underline; }
-      .drawer-breadcrumb .sep { color:#adb5bd; }
-      .drawer-breadcrumb .current { color:#212529; font-weight:700; cursor:default; }
     </style>
 
-    <!-- Tabs -->
+    <!-- Tabs (unchanged hooks) -->
     <div class="drawer-tabs">
       <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
       <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
@@ -48,10 +63,14 @@
 
     <!-- Pane: Overview -->
     <div class="drawer-pane" data-pane="overview" style="display:block;">
-      <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
+      <div class="mb-2">
+        <strong>Children:</strong>
+        <div id="drawer-children" class="mt-1"></div>
+      </div>
 
-      <div class="table-responsive" style="max-height:58vh; overflow:auto;">
-        <table class="table table-sm align-middle mb-0" id="drawer-tx">
+      <!-- Use tx-scroll + table-floating so it matches the rest of the app -->
+      <div class="table-responsive tx-scroll" style="max-height:58vh; overflow:auto;">
+        <table class="table table-sm table-hover table-floating align-middle mb-0" id="drawer-tx">
           <thead>
             <tr>
               <th style="width:110px;">Date</th>
@@ -60,7 +79,9 @@
               <th style="width:180px;">Category</th>
             </tr>
           </thead>
-          <tbody id="drawer-tx-body"></tbody>
+          <tbody id="drawer-tx-body">
+            <!-- filled by drawer.js -->
+          </tbody>
         </table>
       </div>
     </div>
@@ -72,7 +93,7 @@
         Click × to remove. Case-insensitive “contains” match.
       </div>
       <div id="kw-list" class="mb-2"><span class="text-muted">No keywords yet.</span></div>
-      <div class="input-group input-group-sm">
+      <div class="input-group input-group-sm" style="max-width:520px;">
         <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
         <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
       </div>
@@ -80,13 +101,16 @@
 
     <!-- Pane: Actions -->
     <div class="drawer-pane" data-pane="actions" style="display:none;">
-      <div class="d-grid gap-2">
+      <div class="d-grid gap-2" style="max-width:520px;">
         <button id="drawer-inspect" class="btn btn-sm btn-outline-secondary">Inspect Path JSON</button>
         <button id="drawer-rename"  class="btn btn-sm btn-outline-secondary">Rename Current Node</button>
         <button id="drawer-upsert"  class="btn btn-sm btn-outline-primary">Create/Attach Child Under This Path</button>
       </div>
       <div class="small text-muted mt-2">These call your admin endpoints: inspect, rename, upsert.</div>
     </div>
+
+    <!-- Extra dynamic area many pages fill; keep it -->
+    <div id="drawer-dynamic" class="p-3 pt-2"></div>
   </div>
 </div>
 
