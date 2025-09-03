@@ -96,6 +96,7 @@
     /* critical so the header blur uses the rows as backdrop */
     background: transparent;
     isolation: isolate;
+    transform: translateZ(0); /* paint hint for backdrop-filter */
   }
   .cm-scroll table{ margin: 6px; }
 
@@ -115,6 +116,7 @@
     /* critical so the header blur uses the rows as backdrop */
     background: transparent;
     isolation: isolate;
+    transform: translateZ(0); /* paint hint for backdrop-filter */
   }
   .tx-scroll table{ margin: 6px; }
 
@@ -169,9 +171,7 @@
   #refresh-btn{ margin-left:auto; }
 
   /* === DASHBOARD TABLE GLASS (strong, non-brightening, index only) === */
-  /* 1) transparent scrollers so rows are the blur backdrop (already set above) */
-
-  /* 2) put the frosted glass directly on header cells */
+  /* Put the frosted glass directly on header cells in this section */
   #recent-activity .table-modern thead th,
   #recent-activity .table-modern thead td{
     position: sticky;
@@ -192,6 +192,14 @@
   /* rounded strip ends (to match your shells) */
   #recent-activity .table-modern thead th:first-child { border-top-left-radius:12px; }
   #recent-activity .table-modern thead th:last-child  { border-top-right-radius:12px; }
+
+  /* === Remove the bits you asked to hide (dashboard only) === */
+  #recent-activity .section-heading,
+  #recent-activity #ra-asof,
+  #ra-months,
+  #ra-windows {
+    display: none !important;
+  }
 </style>
 
 <!-- Header -->
