@@ -1,5 +1,6 @@
 /* =========================================================
    NEON TECH — global theme tokens, components, utilities
+   (original content preserved)
    ========================================================= */
 
 /* --- Tokens --- */
@@ -46,7 +47,9 @@ html.theme-dark, body.theme-dark {
   border-bottom: 1px solid var(--card-border) !important;
   backdrop-filter: saturate(120%) blur(6px);
 }
-.navbar, .navbar .navbar-brand, .navbar .nav-link, .navbar .navbar-text { color: var(--text) !important; }
+.navbar, .navbar .navbar-brand, .navbar .nav-link, .navbar .navbar-text {
+  color: var(--text) !important;
+}
 .navbar .nav-link.active, .navbar .nav-link:hover { color: #ffffff !important; }
 
 /* --- Cards, panels, modals, offcanvas --- */
@@ -54,7 +57,9 @@ html.theme-dark, body.theme-dark {
   background: var(--card-bg) !important;
   border: 1px solid var(--card-border) !important;
   color: var(--text);
-  box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow:
+    0 12px 28px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.05);
   border-radius: 16px;
   backdrop-filter: saturate(120%) blur(4px);
 }
@@ -99,25 +104,38 @@ html.theme-dark, body.theme-dark {
   --bs-table-hover-bg: rgba(255,255,255,.05);
   --bs-table-hover-color: var(--text);
 }
-.theme-dark .table > :not(caption) > * > *{ background-color: transparent !important; box-shadow: none !important; }
+.theme-dark .table > :not(caption) > * > *{
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
 
 /* --- Floating tables (unified shell used across pages) --- */
 .table-floating,
 .table-floating .table{
-  width:100%; border-collapse:separate; border-spacing:0; color:var(--text); background:transparent;
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  color:var(--text);
+  background:transparent;
 }
 .table-floating > :not(caption) > thead > tr > th,
 .table-floating .table > :not(caption) > thead > tr > th{
-  border-bottom:1px solid var(--hair); font-weight:700; letter-spacing:.2px;
+  border-bottom:1px solid var(--hair);
+  font-weight:700; letter-spacing:.2px;
 }
 .table-floating > :not(caption) > tbody > tr > td,
 .table-floating .table > :not(caption) > tbody > tr > td{
-  border-top:1px solid var(--hair); vertical-align:middle;
+  border-top:1px solid var(--hair);
+  vertical-align:middle;
 }
 .table-floating > :not(caption) > tbody > tr:nth-child(odd),
-.table-floating .table > :not(caption) > tbody > tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+.table-floating .table > :not(caption) > tbody > tr:nth-child(odd){
+  background:rgba(255,255,255,.015);
+}
 .table-floating > :not(caption) > tbody > tr:hover,
-.table-floating .table > :not(caption) > tbody > tr:hover{ background:rgba(255,255,255,.05); }
+.table-floating .table > :not(caption) > tbody > tr:hover{
+  background:rgba(255,255,255,.05);
+}
 
 /* --- True frosted sticky table heads (global) --- */
 .table thead th,
@@ -129,19 +147,28 @@ html.theme-dark, body.theme-dark {
 .table thead th:first-child { border-top-left-radius: 12px; }
 .table thead th:last-child  { border-top-right-radius: 12px; }
 
-.table-responsive thead{ position: sticky; top: 0; z-index: 4; }
+.table-responsive thead{
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
 .table thead th{
-  backdrop-filter: saturate(120%) blur(8px);
-  -webkit-backdrop-filter: saturate(120%) blur(8px);
+  backdrop-filter: saturate(120%) blur(6px);
+  -webkit-backdrop-filter: saturate(120%) blur(6px);
   background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 90%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%
     ) !important;
   border-bottom: 1px solid var(--hair) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 18px rgba(2, 6, 23, .28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(2, 6, 23, .25);
   will-change: backdrop-filter;
-  padding: .65rem .9rem; font-weight: 700; letter-spacing: .2px;
+  padding: .65rem .9rem;
+  font-weight: 700;
+  letter-spacing: .2px;
 }
 
 /* --- Utilities --- */
@@ -152,24 +179,72 @@ canvas { background: transparent !important; }
 .tx-pos { color:#1e7e34; font-weight:600; }
 
 /* --- Global scrollbars --- */
-html.theme-dark, body.theme-dark { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
-.table-responsive, .offcanvas, .offcanvas-body, .modal, .modal-body { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
-html.theme-dark::-webkit-scrollbar, body.theme-dark::-webkit-scrollbar{ width:12px; height:12px; }
-html.theme-dark::-webkit-scrollbar-track, body.theme-dark::-webkit-scrollbar-track{ background: var(--scroll-track); }
-html.theme-dark::-webkit-scrollbar-thumb, body.theme-dark::-webkit-scrollbar-thumb{
-  background: var(--scroll-thumb); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px var(--scroll-border);
+
+/* Firefox – page */
+html.theme-dark, body.theme-dark {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
-html.theme-dark::-webkit-scrollbar-thumb:hover, body.theme-dark::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
-html.theme-dark::-webkit-scrollbar-corner, body.theme-dark::-webkit-scrollbar-corner{ background: transparent; }
-.table-responsive::-webkit-scrollbar, .offcanvas::-webkit-scrollbar, .offcanvas-body::-webkit-scrollbar, .modal::-webkit-scrollbar, .modal-body::-webkit-scrollbar{ width:12px; height:12px; }
-.table-responsive::-webkit-scrollbar-track, .offcanvas::-webkit-scrollbar-track, .offcanvas-body::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track{ background: var(--scroll-track); }
-.table-responsive::-webkit-scrollbar-thumb, .offcanvas::-webkit-scrollbar-thumb, .offcanvas-body::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb{
-  background: var(--scroll-thumb); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box;
-  box-shadow: 0 2px 8px rgba(0,0,0,.35), inset 0 0 0 1px var(--scroll-border);
+/* Firefox – common inner scrollers */
+.table-responsive, .offcanvas, .offcanvas-body, .modal, .modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
 }
-.table-responsive::-webkit-scrollbar-thumb:hover, .offcanvas::-webkit-scrollbar-thumb:hover, .offcanvas-body::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .modal-body::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
-.table-responsive::-webkit-scrollbar-corner, .offcanvas::-webkit-scrollbar-corner, .offcanvas-body::-webkit-scrollbar-corner, .modal::-webkit-scrollbar-corner, .modal-body::-webkit-scrollbar-corner{ background: transparent; }
+
+/* WebKit – page */
+html.theme-dark::-webkit-scrollbar,
+body.theme-dark::-webkit-scrollbar{ width:12px; height:12px; }
+html.theme-dark::-webkit-scrollbar-track,
+body.theme-dark::-webkit-scrollbar-track{ background: var(--scroll-track); }
+html.theme-dark::-webkit-scrollbar-thumb,
+body.theme-dark::-webkit-scrollbar-thumb{
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.35),
+    inset 0 0 0 1px var(--scroll-border);
+}
+html.theme-dark::-webkit-scrollbar-thumb:hover,
+body.theme-dark::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
+html.theme-dark::-webkit-scrollbar-corner,
+body.theme-dark::-webkit-scrollbar-corner{ background: transparent; }
+
+/* WebKit – inner scrollers */
+.table-responsive::-webkit-scrollbar,
+.offcanvas::-webkit-scrollbar,
+.offcanvas-body::-webkit-scrollbar,
+.modal::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar{ width:12px; height:12px; }
+.table-responsive::-webkit-scrollbar-track,
+.offcanvas::-webkit-scrollbar-track,
+.offcanvas-body::-webkit-scrollbar-track,
+.modal::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track{ background: var(--scroll-track); }
+.table-responsive::-webkit-scrollbar-thumb,
+.offcanvas::-webkit-scrollbar-thumb,
+.offcanvas-body::-webkit-scrollbar-thumb,
+.modal::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb{
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,.35),
+    inset 0 0 0 1px var(--scroll-border);
+}
+.table-responsive::-webkit-scrollbar-thumb:hover,
+.offcanvas::-webkit-scrollbar-thumb:hover,
+.offcanvas-body::-webkit-scrollbar-thumb:hover,
+.modal::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover{ background: var(--scroll-thumb-hover); }
+.table-responsive::-webkit-scrollbar-corner,
+.offcanvas::-webkit-scrollbar-corner,
+.offcanvas-body::-webkit-scrollbar-corner,
+.modal::-webkit-scrollbar-corner,
+.modal-body::-webkit-scrollbar-corner{ background: transparent; }
 
 /* --- Goals page left-align only (kept) --- */
 body[data-route="/goals"] .table th,
@@ -184,10 +259,10 @@ body[data-route="/goals"] .table .form-control,
 body[data-route="/goals"] .table .input-group .form-control{ text-align:left !important; }
 
 /* =========================================================
-   Drawer (global, glassy, sticky)
+   Drawer (global, glassy, sticky) — ENHANCED
    ========================================================= */
 
-/* Backdrop blur (same look as Glass Select scrim) */
+/* Backdrop blur (same look as your Glass Select scrim) */
 .offcanvas-backdrop.show{
   background: rgba(8,12,20,.28) !important;
   -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -196,145 +271,169 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 
 /* Shell */
 .manage-drawer.offcanvas{
-  --drawer-pad-x: 10px;                    /* used to extend frosted strips edge-to-edge */
   background: var(--card-bg) !important;
   border-left: 1px solid var(--card-border) !important;
   color: var(--text);
-  box-shadow: 0 22px 48px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.05);
+  box-shadow:
+    0 22px 48px rgba(0,0,0,.50),
+    inset 0 1px 0 rgba(255,255,255,.05);
 }
 
-/* Header: frosted + sticky with edge-to-edge tint */
+/* Header: frosted + sticky (stronger tint for legibility) */
 .manage-drawer .offcanvas-header{
-  position: sticky; top: 0; z-index: 5;
-  padding-top: .65rem; padding-bottom: .6rem;
-  background: transparent;
-}
-.manage-drawer .offcanvas-header::before{
-  content:""; position:absolute; inset:0;
-  left: calc(-1 * var(--drawer-pad-x)); right: calc(-1 * var(--drawer-pad-x));
+  position: sticky;
+  top: 0;
+  z-index: 6;
   background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%);
-  backdrop-filter: saturate(135%) blur(12px);
-  -webkit-backdrop-filter: saturate(135%) blur(12px);
-  border-bottom: 1px solid var(--hair);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 12px 22px rgba(2,6,23,.30);
-  z-index:-1; border-top-left-radius: 14px;
-}
-
-/* Section beneath header: label row (“Children: …”) frosted strip */
-.manage-drawer .drawer-top-strip{
-  position: sticky; top: 52px; z-index:4;
-  margin: .15rem calc(-1 * var(--drawer-pad-x)) .5rem;
-  padding: .5rem calc(var(--drawer-pad-x) + .25rem);
-  background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 88%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 74%, transparent) 100%);
-  backdrop-filter: saturate(130%) blur(10px);
-  -webkit-backdrop-filter: saturate(130%) blur(10px);
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 10px 18px rgba(2,6,23,.22);
-}
-
-/* Title text */
-.manage-drawer #dashCategoryManagerLabel,
-.manage-drawer .offcanvas-title{ font-weight: 800; letter-spacing:.2px; line-height:1.1; color: var(--text); }
-
-/* Breadcrumb/path — plain links (not pills) */
-.manage-drawer .drawer-breadcrumb,
-.manage-drawer .drawer-path{
-  display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
-}
-.manage-drawer .drawer-breadcrumb a,
-.manage-drawer .drawer-path a{
-  color: var(--accent-ink); text-decoration:none; font-weight:700;
-  text-shadow: 0 0 12px rgba(158,203,255,.26);
-}
-.manage-drawer .drawer-breadcrumb a:hover,
-.manage-drawer .drawer-path a:hover{ text-decoration:underline; }
-
-/* ===== Children: floating strip + non-pill items ===== */
-
-/* Make the whole children area a frosted, floating panel */
-.manage-drawer #drawer-children{
-  margin: .35rem calc(-1 * var(--drawer-pad-x)) .6rem;
-  padding: .55rem .75rem;
-  background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 86%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 72%, transparent) 100%);
-  -webkit-backdrop-filter: saturate(130%) blur(10px);
-  backdrop-filter: saturate(130%) blur(10px);
-  border: 1px solid var(--hair);
-  border-radius: 12px;
-  box-shadow: 0 10px 20px rgba(2,6,23,.28), inset 0 1px 0 rgba(255,255,255,.05);
-}
-
-/* Remove any legacy “pill” look and show as clean blue links */
-.manage-drawer #drawer-children .child-pill,
-.manage-drawer #drawer-children .chip,
-.manage-drawer #drawer-children .badge,
-.manage-drawer #drawer-children .btn{
-  all: unset;               /* nuke pill styles coming from older CSS/JS */
-  display: inline-block;
-  cursor: pointer;
-  color: var(--accent-ink);
-  font-weight: 700;
-  line-height: 1.35;
-  margin: .15rem 1rem .15rem 0;
-  text-shadow: 0 0 12px rgba(158,203,255,.26);
-}
-.manage-drawer #drawer-children .child-pill:hover,
-.manage-drawer #drawer-children .chip:hover{
-  text-decoration: underline;
-}
-
-/* ===== Inside the drawer tables ===== */
-
-.manage-drawer .table-responsive{ position: relative; padding: 0 var(--drawer-pad-x); }
-.manage-drawer .table{ border-collapse: separate; border-spacing: 0; }
-
-/* Sticky thead, stronger blur & full-width tint with a pseudo overlay per-cell */
-.manage-drawer .table thead th{
-  position: sticky; top: 0; z-index: 4;
-  backdrop-filter: saturate(130%) blur(12px);
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 95%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 82%, transparent) 100%
+    ) !important;
   -webkit-backdrop-filter: saturate(130%) blur(12px);
-  background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%) !important;
+  backdrop-filter: saturate(130%) blur(12px);
   border-bottom: 1px solid var(--hair) !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 12px 22px rgba(2,6,23,.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 14px 22px rgba(2,6,23,.30);
 }
-.manage-drawer .table thead th:first-child{ border-top-left-radius: 12px; padding-left: calc(.9rem + 2px); }
-.manage-drawer .table thead th:last-child { border-top-right-radius:12px; padding-right: calc(.9rem + 2px); }
 
-/* Month divider row: sticky under thead, heavier tint for separation */
-.manage-drawer #drawer-tx .month-divider{ background: transparent !important; }
-.manage-drawer #drawer-tx .month-divider > *{
-  position: sticky; top: 40px; z-index: 3;
-  backdrop-filter: saturate(130%) blur(12px);
-  -webkit-backdrop-filter: saturate(130%) blur(12px);
+/* Close button polish on dark glass */
+.manage-drawer .btn-close{
+  filter: invert(1) grayscale(1) contrast(90%);
+  opacity: .85;
+}
+.manage-drawer .btn-close:hover{ opacity: 1; }
+
+/* Drawer text color = signature blue everywhere */
+.manage-drawer,
+.manage-drawer *{
+  color: var(--text);
+}
+
+/* Children: floating list (no pills, no bullets) */
+.manage-drawer .drawer-children-wrap{
+  margin-top:.25rem;
+  padding:10px 14px;
+  border:1px solid var(--card-border);
+  border-radius:14px;
   background:
-    linear-gradient(180deg,
-      color-mix(in oklab, var(--thead-bg) 90%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%) !important;
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 88%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 74%, transparent) 100%
+    );
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  backdrop-filter: saturate(120%) blur(10px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 10px 18px rgba(2,6,23,.22);
+}
+.manage-drawer .drawer-children-list{
+  list-style:none;
+  margin:0; padding:0;
+  display:flex; flex-wrap:wrap; gap:10px 18px;
+}
+.manage-drawer .drawer-children-list li{
+  margin:0; padding:0;
+}
+.manage-drawer .drawer-children-list a{
+  text-decoration:none;
+  font-weight:700;
+  letter-spacing:.2px;
+  /* signature blue already from --text */
+}
+.manage-drawer .drawer-children-list a:hover{
+  text-decoration:underline;
+}
+
+/* Subheader/pins row: sticky, glass, values float */
+.manage-drawer .drawer-sub{
+  position: sticky;
+  top: var(--drawer-header-h, 56px);
+  z-index: 5;
+  padding:.5rem .75rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 88%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 76%, transparent) 100%
+    ) !important;
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  backdrop-filter: saturate(120%) blur(10px);
+  border-bottom: 1px solid var(--hair);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 12px 20px rgba(2,6,23,.24);
+}
+.manage-drawer .drawer-value{
+  font-weight:800;
+  color: var(--accent-ink);
+  text-shadow: 0 0 10px rgba(158,203,255,.28);
+}
+
+/* Drawer table: give the scroller side padding so header/dividers can "bleed" */
+.manage-drawer .table-responsive{
+  --drawer-table-xpad: 14px;
+  padding-left: var(--drawer-table-xpad);
+  padding-right: var(--drawer-table-xpad);
+}
+
+/* Stronger, wider tint for sticky THEAD inside drawer */
+.manage-drawer .table-responsive thead{
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+.manage-drawer .table thead th{
+  backdrop-filter: saturate(140%) blur(10px);
+  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 95%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 82%, transparent) 100%
+    ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07),
+    0 12px 20px rgba(2,6,23,.30);
+}
+
+/* Month divider: sticky + glass; extends left/right to match header tint */
+.manage-drawer #drawer-tx .month-divider{
+  background: transparent !important;      /* row background off; cell handles tint */
+}
+.manage-drawer #drawer-tx .month-divider > td{
+  position: sticky;
+  top: var(--drawer-thead-h, 42px);
+  z-index: 3;
+
+  /* bleed effect */
+  margin-left: calc(-1 * var(--drawer-table-xpad));
+  margin-right: calc(-1 * var(--drawer-table-xpad));
+  padding-left: calc(var(--drawer-table-xpad) + .9rem);
+  padding-right: calc(var(--drawer-table-xpad) + .9rem);
+
+  backdrop-filter: saturate(130%) blur(10px);
+  -webkit-backdrop-filter: saturate(130%) blur(10px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+    ) !important;
   border-top: 1px solid var(--hair);
   border-bottom: 1px solid var(--hair);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 18px rgba(2,6,23,.26);
-  font-weight: 800; letter-spacing:.2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(2,6,23,.26);
+  font-weight:700; letter-spacing:.2px;
 }
-.manage-drawer #drawer-tx tbody > .month-divider:first-child > *{
-  border-top-left-radius: 12px; border-top-right-radius: 12px;
+.manage-drawer #drawer-tx tbody > .month-divider:first-child > td{
+  border-top-left-radius:12px;
+  border-top-right-radius:12px;
 }
 
 /* Drawer scroller styling */
-.manage-drawer .offcanvas-body{ padding-top: .25rem; }
+.manage-drawer .offcanvas-body{ padding-top:.25rem; }
 .manage-drawer .tx-scroll{ background: transparent; isolation: isolate; }
-
-/* Close button polish on dark glass */
-.manage-drawer .btn-close{ filter: invert(1) grayscale(1) contrast(90%); opacity: .85; }
-.manage-drawer .btn-close:hover{ opacity: 1; }
