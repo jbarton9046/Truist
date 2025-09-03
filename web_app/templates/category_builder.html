@@ -1,13 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
 <style>
-  /* unify with site tokens */
-  .muted { color: var(--muted) !important; }
+  .muted { color:#6c757d; }
   .mono { font-variant-numeric: tabular-nums; }
-  .pointer { cursor:pointer; }
-
-  .chip { display:inline-block; padding:.2rem .5rem; border:1px solid var(--hair); border-radius:999px; margin:.1rem .25rem; font-size:.85rem; color:var(--text); }
-  .stat-card { border:1px solid var(--card-border); border-radius:16px; padding:.75rem; background:var(--card-bg); color:var(--text); box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05); backdrop-filter:saturate(120%) blur(4px); }
+  .chip { display:inline-block; padding:.2rem .5rem; border:1px solid #dee2e6; border-radius:999px; margin:.1rem .25rem; font-size:.85rem; }
+  .stat-card { border:1px solid #e9ecef; border-radius:.75rem; padding:.75rem; }
 
   /* one-bar chooser */
   .onebar { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
@@ -19,14 +16,43 @@
   .manage-table input.form-control-sm { min-width: 260px; }
 
   /* misc panel */
-  .misc-card { border:1px solid var(--card-border); border-radius:16px; background:var(--card-bg); color:var(--text); box-shadow:0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05); backdrop-filter:saturate(120%) blur(4px); }
+  .misc-card { border:1px solid #e9ecef; border-radius:.75rem; }
   .misc-table tbody tr td { vertical-align: middle; }
   .misc-controls .form-control, .misc-controls .form-select { height: 36px; }
   .misc-scroll { max-height: 60vh; overflow:auto; }
+  .pointer { cursor:pointer; }
 
-  /* =========================
-     Keywords Used – dark glass
-     ========================= */
+  /* --- Keyword Finder styles (original light defaults) --- */
+  .kb-card { border-radius:1rem; border:1px solid #e9ecef; background:#fff; }
+  .kb-card .kb-head { padding:.6rem .9rem; border-bottom:1px solid #edf2f7; }
+  .kb-card .kb-body { padding:.75rem; }
+  .kb-muted { color:#6c757d; }
+  .kb-toolbar {
+    position: sticky; top:.25rem; z-index:5; background:#fff; padding:.6rem .8rem;
+    border:1px solid #eaecf0; border-radius:.75rem; box-shadow:0 1px 0 rgba(0,0,0,.02);
+    margin-bottom: .75rem;
+  }
+  .kb-chip {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.2rem .55rem; border-radius:999px; background:#f1f3f5; color:#212529;
+    border:1px solid #e9ecef; margin:.15rem .25rem 0 0; font-size:.9rem; cursor:pointer;
+  }
+  .kb-chip:hover { background:#e9ecef; }
+  .kb-manage {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.15rem .5rem; border-radius:999px; background:#e7f1ff; color:#0a58ca;
+    border:1px solid #cfe2ff; font-weight:600;
+  }
+  .kb-manage:hover { background:#dbe9ff; border-color:#b6d4fe; color:#0a58ca; }
+  .kb-path { max-width:480px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .kb-table thead th { position:sticky; top:0; background:#fff; z-index:1; }
+
+  /* ============================
+     Dark / glass overrides ONLY
+     (uses tokens from layout.html)
+     ============================ */
+
+  /* Keywords Used: card + head */
   .kb-card{
     border-radius:16px;
     border:1px solid var(--card-border) !important;
@@ -36,55 +62,46 @@
     backdrop-filter: saturate(120%) blur(4px);
   }
   .kb-card .kb-head{
-    padding:.6rem .9rem;
     background: var(--thead-bg) !important;
-    color: var(--text);
-    border-bottom:1px solid var(--hair);
-    font-weight:700;
-    letter-spacing:.2px;
-    border-top-left-radius:16px;
-    border-top-right-radius:16px;
-  }
-  .kb-card .kb-body{ padding:.75rem; }
-
-  /* list group matches table rows */
-  .kb-card .list-group{
-    border:1px solid var(--hair);
-    border-radius:12px;
-    background: transparent;
-    isolation: isolate;
-  }
-  .kb-card .list-group-item{
-    background: transparent;
-    color: var(--text);
-    border-color: var(--hair);
-  }
-  .kb-card .list-group-item:hover{ background: rgba(255,255,255,.05); }
-  .kb-card .badge{
-    border:1px solid var(--hair);
-    background: rgba(255,255,255,.06);
-    color: var(--text);
+    color: var(--text) !important;
+    border-bottom:1px solid var(--hair) !important;
+    font-weight:700; letter-spacing:.2px;
+    border-top-left-radius:16px; border-top-right-radius:16px;
+    -webkit-backdrop-filter:saturate(120%) blur(6px);
+    backdrop-filter:saturate(120%) blur(6px);
   }
 
-  /* keep the scroller slim and “glass-ready” */
+  /* List / badges inside Keywords Used */
   #kwMiniList{ max-height:35vh; overflow:auto; background:transparent; isolation:isolate; }
-  #kwMiniDetails{ max-height:20vh; overflow:auto; }
+  .kb-card .list-group{ border:1px solid var(--hair); border-radius:12px; background:transparent; }
+  .kb-card .list-group-item{ background:transparent; color:var(--text); border-color:var(--hair); }
+  .kb-card .list-group-item:hover{ background:rgba(255,255,255,.05); }
+  .kb-card .badge{ border:1px solid var(--hair); background:rgba(255,255,255,.06); color:var(--text); }
 
-  /* “Keywords Used” mini chips/links */
-  .kb-muted { color: var(--muted) !important; }
-  .kb-path.badge{
-    background: rgba(255,255,255,.06);
-    border:1px solid var(--hair);
-    color: var(--text);
+  /* Frosted sticky table headers (this page) */
+  .misc-card .table thead th,
+  .kb-table thead th{
+    position: sticky;
+    top: 0;
+    z-index: 7;
+    background: rgba(8,12,20,.78) !important; /* dark, non-brightening glass */
+    color: var(--text) !important;
+    border-bottom:1px solid var(--hair) !important;
+    font-weight:700; letter-spacing:.2px;
+    padding:.65rem .9rem;
+    -webkit-backdrop-filter: saturate(130%) blur(16px);
+    backdrop-filter: saturate(130%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2, 6, 23, .25);
   }
+  .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
+  .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
-  /* Hide the three bits you asked to remove (keep DOM for JS) */
-  #kbTip,
-  #kwMiniDetails .kb-placeholder,
-  #miscMeta { display:none !important; }
-
-  /* Optional compact table header look (site-wide tokens already handle forms & tables) */
-  .kb-table thead th { position:sticky; top:0; background:var(--thead-bg); z-index:1; }
+  /* Remove the three bits you asked to hide (DOM stays for JS) */
+  #miscMeta{ display:none !important; }                /* “as of …” */
+  #kbTip{ display:none !important; }                   /* tip under keywords */
+  #kwMiniDetails .kb-placeholder{ display:none !important; } /* placeholder text */
 </style>
 
 <div class="container-fluid my-4">
@@ -118,16 +135,15 @@
         </div>
         <div class="kb-body">
           <input id="kwMiniFilter" class="form-control form-control-sm mb-2" placeholder="Filter keywords…">
-          <div class="list-group small" id="kwMiniList"></div>
+          <!-- reduced visible height, still full list via scroll -->
+          <div class="list-group small" id="kwMiniList" style="max-height:35vh; overflow:auto;"></div>
 
-          <!-- details: start empty (placeholder is hidden by CSS if present) -->
-          <div class="mt-2" id="kwMiniDetails">
+          <!-- keep details compact; scroll if long -->
+          <div class="mt-2" id="kwMiniDetails" style="max-height:20vh; overflow:auto;">
             <div class="small kb-muted kb-placeholder">Select a keyword to see its categories.</div>
           </div>
         </div>
       </div>
-
-      <!-- tip (kept for reference; hidden via CSS) -->
       <div class="small kb-muted mt-2" id="kbTip">
         Tip: Click a <strong>path</strong> to load it into the builder on the right.
       </div>
@@ -221,7 +237,7 @@
               left.textContent = item.display;
 
               const right = document.createElement('span');
-              right.className = 'badge rounded-pill';
+              right.className = 'badge rounded-pill text-bg-light';
               right.textContent = item.pathsCount;
 
               btn.appendChild(left);
@@ -240,7 +256,7 @@
             const n = norm(keyword);
             const item = ALL.find(i => i.n === n);
             if (!item){
-              elDetails.innerHTML = ''; // (placeholder is hidden via CSS anyway)
+              elDetails.innerHTML = '<div class="small kb-muted">Select a keyword to see its categories.</div>';
               return;
             }
 
@@ -250,7 +266,7 @@
             const lines = visible.map(p => {
               const esc = p.replace(/"/g,'&quot;');
               return `<li class="mb-1">
-                <span class="kb-path badge">${p || '—'}</span>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">${p || '—'}</span>
                 <a href="#" class="ms-2 small kw-path" data-path="${esc}">Use path</a>
               </li>`;
             }).join('');
@@ -310,6 +326,7 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Category</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
+                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="category">View drawer</button>
                 </label>
@@ -327,6 +344,7 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
+                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subcategory">View drawer</button>
                 </label>
@@ -344,6 +362,7 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
+                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubcategory">View drawer</button>
                 </label>
@@ -361,6 +380,7 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
+                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubsubcategory">View drawer</button>
                 </label>
@@ -1122,9 +1142,6 @@
     if (btnSaveAll.disabled) e.preventDefault();
   });
 
-  // Expose helpers used by the left panel
-  window.applyPathToLeft = window.applyPathToLeft || applyPathToLeft;
-
   // Initial boot
   populateSelects();
   updateVisibility();
@@ -1221,37 +1238,35 @@
       const entries = Array.from(INDEX.entries())
         .map(([k,set])=>({kw:k,count:set.size}))
         .sort((a,b)=> a.kw.localeCompare(b.kw));
-      if (el.kwcount) el.kwcount.textContent = entries.length;
-      if (el.cloud) {
-        el.cloud.innerHTML = entries.map(e=>`
-          <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
-            ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
-          </span>`).join('');
-        QSA('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
-          const kw=ch.getAttribute('data-kw')||''; if (el.q){ el.q.value=kw; runSearch(); }
-        }));
-      }
+      el.kwcount.textContent = entries.length;
+      el.cloud.innerHTML = entries.map(e=>`
+        <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
+          ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
+        </span>`).join('');
+      QSA('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
+        const kw=ch.getAttribute('data-kw')||''; el.q.value=kw; runSearch();
+      }));
     }
 
     function renderMatches(keyword){
-      if (!el.body) return; // this page doesn’t render the big finder table
       const key = (keyword||'').trim().toLowerCase();
-      if (el.resultKw) el.resultKw.textContent = key ? `for “${keyword}”` : '';
+      el.resultKw.textContent = key ? `for “${keyword}”` : '';
       if (!key){
-        if (el.count) el.count.textContent='0';
+        el.count.textContent='0';
         el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Type a keyword and press Search.</td></tr>`;
         return;
       }
       if (!INDEX || INDEX.size===0){
-        if (el.count) el.count.textContent='0';
+        el.count.textContent='0';
         el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Index is empty. Click Re-index.</td></tr>`;
         return;
       }
+      // substring across all keywords
       const hits = Array.from(INDEX.keys()).filter(k=>k.includes(key));
       const paths = new Set(); hits.forEach(h=> INDEX.get(h).forEach(p=>paths.add(p)));
       const rows = Array.from(paths).sort((a,b)=> a.localeCompare(b));
 
-      if (el.count) el.count.textContent = rows.length;
+      el.count.textContent = rows.length;
       el.body.innerHTML = rows.length ? rows.map(p=>{
         const parts=p.split(' / ').map(s=>s.trim()).filter(Boolean);
         const ds={ level: levelName(parts.length), cat:parts[0]||'', sub:parts[1]||'', ssub:parts[2]||'', sss:parts[3]||'' };
@@ -1259,10 +1274,16 @@
           <td class="kb-path" title="${esc(p)}">${esc(p)}</td>
           <td>${esc(ds.level)}</td>
           <td class="text-end">
-            <a href="#" class="kb-manage" data-manage
-               data-level="${esc(ds.level)}" data-cat="${esc(ds.cat)}" data-sub="${esc(ds.sub)}"
-               data-ssub="${esc(ds.ssub)}" data-sss="${esc(ds.sss)}"
-               onclick="return (window.dashManage ? dashManage(event, this) : false);">manage</a>
+            <a href="#"
+               class="kb-manage"
+               data-manage
+               data-level="${esc(ds.level)}"
+               data-cat="${esc(ds.cat)}"
+               data-sub="${esc(ds.sub)}"
+               data-ssub="${esc(ds.ssub)}"
+               data-sss="${esc(ds.sss)}"
+               onclick="return (window.dashManage ? dashManage(event, this) : (window.openCategoryManager ? (openCategoryManager({level:'${esc(ds.level)}',cat:'${esc(ds.cat)}',sub:'${esc(ds.sub)}',ssub:'${esc(ds.ssub)}',sss:'${esc(ds.sss)}'}), false) : false));"
+            >manage</a>
           </td>
         </tr>`;
       }).join('') : `<tr><td colspan="3" class="text-muted">No paths found for that keyword.</td></tr>`;
@@ -1272,17 +1293,118 @@
       const t0 = performance.now();
       INDEX = buildIndexFromCFG();
       renderCloud();
-      if (el.status) el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
+      el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
+    }
+
+    // ---------- OPTIONAL: deeper server pass when you *need* it ----------
+    async function reindexDeep(){
+      const t0 = performance.now();
+      el.status.textContent = 'Building index (deep)…';
+
+      // Build a quick tree from CFG so we know all paths
+      function treeFromCFG(){
+        const cats = new Set(Object.keys((CFG||{}).SUBCATEGORY_MAPS||{}));
+        Object.keys((CFG||{}).CATEGORY_KEYWORDS||{}).forEach(k=>cats.add(k));
+        Object.keys((CFG||{}).SUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
+        Object.keys((CFG||{}).SUBSUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
+        const getSubs=(c)=> (CFG.SUBCATEGORY_MAPS?.[c]) ? Object.keys(CFG.SUBCATEGORY_MAPS[c]).sort() : [];
+        const getSSubs=(c,s)=> (CFG.SUBSUBCATEGORY_MAPS?.[c]?.[s]) ? Object.keys(CFG.SUBSUBCATEGORY_MAPS[c][s]).sort() : [];
+        const getSSSubs=(c,s,ss)=> (CFG.SUBSUBSUBCATEGORY_MAPS?.[c]?.[s]?.[ss]) ? Object.keys(CFG.SUBSUBSUBCATEGORY_MAPS[c][s][ss]).sort() : [];
+        return Array.from(cats).sort().map(cat=>({
+          name:cat, children:getSubs(cat).map(sub=>({
+            name:sub, children:getSSubs(cat,sub).map(ssub=>({
+              name:ssub, children:getSSSubs(cat,sub,ssub).map(sss=>({name:sss, children:[]}))
+            }))
+          }))
+        }));
+      }
+      const tree = treeFromCFG();
+      const nodes = [];
+      (function flatten(t){
+        function walk(n, anc){
+          const parts=[...anc,(n.name||'').trim()].filter(Boolean);
+          nodes.push({name:n.name, parts});
+          (n.children||[]).forEach(c=>walk(c, parts));
+        }
+        t.forEach(n=>walk(n, []));
+      })(tree);
+
+      // De-dupe by label name (huge reduction)
+      const uniqueNames = Array.from(new Set(nodes.map(n=>n.name)));
+
+      // Try server once per *name*, then fall back to CFG
+      const nameCache = new Map();
+      async function fetchKeywordsForName(name){
+        if (nameCache.has(name)) return nameCache.get(name);
+        async function tryGet(url){
+          const r = await fetch(url, {headers:{'Accept':'application/json'}});
+          if (!r.ok) throw new Error(await r.text());
+          return r.json();
+        }
+        let arr = [];
+        try {
+          const url1 = `${(window.CL_URLS && window.CL_URLS.KW_GET_URL) || '/admin/api/keywords_for_name'}?` + new URLSearchParams({name}).toString();
+          const j1 = await tryGet(url1);
+          arr = (j1 && (j1.keywords || j1.data?.keywords)) || [];
+        } catch(_e){}
+        nameCache.set(name, Array.isArray(arr)?arr:[]);
+        return nameCache.get(name);
+      }
+
+      // Concurrency
+      const CONCURRENCY = 12;
+      let i=0, active=0;
+      await new Promise(resolve=>{
+        const next=()=>{
+          if (i>=uniqueNames.length && active===0) return resolve();
+          while (active<CONCURRENCY && i<uniqueNames.length){
+            const nm = uniqueNames[i++]; active++;
+            fetchKeywordsForName(nm).finally(()=>{active--; next();});
+          }
+        };
+        next();
+      });
+
+      // Build index by marrying name->keywords with every path that has that name at any level
+      const idx = new Map();
+      const add = (kw, parts)=>{
+        const key=String(kw||'').trim().toLowerCase(); if(!key) return;
+        const path=parts.join(' / ');
+        if (!idx.has(key)) idx.set(key,new Set());
+        idx.get(key).add(path);
+      };
+
+      nodes.forEach(n=>{
+        const kws = nameCache.get(n.name) || [];
+        if (kws.length){
+          kws.forEach(kw=> add(kw, n.parts));
+        }else{
+          // fallback to CFG keywords for that exact path label
+          const [cat,sub,ssub,sss] = n.parts;
+          const CK=(CFG.CATEGORY_KEYWORDS||{}), SK=(CFG.SUBCATEGORY_KEYWORDS||{}),
+                S2K=(CFG.SUBSUBCATEGORY_KEYWORDS||{}), S3K=(CFG.SUBSUBSUBCATEGORY_KEYWORDS||{});
+          if (cat && !sub) (CK[cat]||[]).forEach(k=>add(k,[cat]));
+          if (cat && sub && !ssub) (SK[cat]?.[sub]||[]).forEach(k=>add(k,[cat,sub]));
+          if (cat && sub && ssub && !sss) (S2K[cat]?.[sub]?.[ssub]||[]).forEach(k=>add(k,[cat,sub,ssub]));
+          if (cat && sub && ssub && sss) (S3K[cat]?.[sub]?.[ssub]?.[sss]||[]).forEach(k=>add(k,[cat,sub,ssub,sss]));
+        }
+      });
+
+      INDEX = idx;
+      renderCloud();
+      el.status.textContent = `Ready (deep) in ${Math.round(performance.now()-t0)}ms.`;
     }
 
     function runSearch(ev){
       if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
-      renderMatches(el.q ? el.q.value||'' : '');
+      renderMatches(el.q.value||'');
     }
 
+    // Wire events
     if (el.form) el.form.addEventListener('submit', runSearch);
-    if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ if (el.q){ el.q.value=''; renderMatches(''); } });
-    if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ if (el.q){ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); } });
+    if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ el.q.value=''; renderMatches(''); });
+    if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); });
+    if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> e.shiftKey ? reindexDeep() : reindexFast());
 
     // Boot fast (instant)
     reindexFast();
@@ -1361,7 +1483,7 @@
   }
 </script>
 
-<!-- ensure drawer data includes allow_hidden=1 from this page -->
+<!-- NEW: from this page only, ensure drawer data includes allow_hidden=1 -->
 <script>
 (function(){
   const origFetch = window.fetch;
