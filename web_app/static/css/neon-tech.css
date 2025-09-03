@@ -1,6 +1,6 @@
 /* =========================================================
    NEON TECH — global theme tokens, components, utilities
-   (polished drawer + transactions table)
+   (original content preserved + drawer polish)
    ========================================================= */
 
 /* --- Tokens --- */
@@ -10,7 +10,6 @@
   --glow-1:#243b55;
   --glow-2:#1b3a6b;
 
-  /* Signature ink */
   --accent-ink:#9ecbff;
   --text: var(--accent-ink);
   --muted: var(--accent-ink);
@@ -31,6 +30,9 @@
   --scroll-thumb: color-mix(in oklab, var(--accent-ink) 58%, transparent);
   --scroll-thumb-hover: color-mix(in oklab, var(--accent-ink) 82%, transparent);
   --scroll-border: rgba(255,255,255,.22);
+
+  /* Drawer polish */
+  --drawer-bleed: 18px;   /* how far the glass should extend left for month divider */
 }
 
 /* --- Page background --- */
@@ -93,6 +95,7 @@ html.theme-dark, body.theme-dark {
   overflow:auto;
   position: relative;
   scrollbar-gutter: stable both-edges;
+  box-sizing: border-box;
 }
 
 /* --- Table colors --- */
@@ -110,7 +113,7 @@ html.theme-dark, body.theme-dark {
   box-shadow: none !important;
 }
 
-/* --- Floating tables (unified shell) --- */
+/* --- Floating tables (unified shell used across pages) --- */
 .table-floating,
 .table-floating .table{
   width:100%;
@@ -138,12 +141,14 @@ html.theme-dark, body.theme-dark {
   background:rgba(255,255,255,.05);
 }
 
-/* --- Frosted sticky table heads (global) --- */
+/* --- True frosted sticky table heads (global) --- */
 .table thead th,
 .table thead td{
   background: var(--thead-bg) !important;
   color: var(--table-head-fg, var(--text)) !important;
   border-bottom:1px solid var(--hair) !important;
+  white-space: nowrap;       /* prevent weird vertical headers */
+  word-break: keep-all;
 }
 .table thead th:first-child { border-top-left-radius: 12px; }
 .table thead th:last-child  { border-top-right-radius: 12px; }
@@ -154,20 +159,20 @@ html.theme-dark, body.theme-dark {
   z-index: 4;
 }
 .table thead th{
-  backdrop-filter: saturate(120%) blur(6px);
-  -webkit-backdrop-filter: saturate(120%) blur(6px);
+  backdrop-filter: saturate(120%) blur(8px);
+  -webkit-backdrop-filter: saturate(120%) blur(8px);
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
     ) !important;
   border-bottom: 1px solid var(--hair) !important;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.06),
     0 10px 18px rgba(2, 6, 23, .25);
   will-change: backdrop-filter;
-  padding: .65rem .9rem;
+  padding: .70rem .95rem;
   font-weight: 700;
   letter-spacing: .2px;
 }
@@ -260,14 +265,14 @@ body[data-route="/goals"] .table .form-control,
 body[data-route="/goals"] .table .input-group .form-control{ text-align:left !important; }
 
 /* =========================================================
-   Drawer (global, glassy, sticky) — ENHANCED & POLISHED
+   Drawer (global, glassy, sticky)
    ========================================================= */
 
 /* Backdrop blur */
 .offcanvas-backdrop.show{
-  background: rgba(8,12,20,.28) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(8,12,20,.34) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
 }
 
 /* Shell */
@@ -280,230 +285,184 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
     inset 0 1px 0 rgba(255,255,255,.05);
 }
 
-/* Header: strong glass (no see-through messiness) */
+/* Header: frosted + sticky (match navbar) */
 .manage-drawer .offcanvas-header{
   position: sticky;
   top: 0;
-  z-index: 6;
+  z-index: 5;
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--thead-bg) 95%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 84%, transparent) 100%
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
     ) !important;
   -webkit-backdrop-filter: saturate(130%) blur(12px);
   backdrop-filter: saturate(130%) blur(12px);
   border-bottom: 1px solid var(--hair) !important;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.06),
-    0 14px 22px rgba(2,6,23,.30);
+    0 10px 18px rgba(2,6,23,.25);
+}
+.manage-drawer .offcanvas-title{
+  font-weight: 800;
+  letter-spacing: .2px;
+  line-height: 1.1;
+  color: var(--text);
 }
 
-/* Close button polish */
+/* Drawer tabs (no white) */
+.manage-drawer .drawer-tabs{
+  display:flex; gap:.5rem;
+  border-bottom:1px solid var(--hair);
+  margin-bottom:.6rem;
+}
+.manage-drawer .drawer-tab{
+  padding:.35rem .65rem;
+  border-radius:.6rem .6rem 0 0;
+  text-decoration:none;
+  color: var(--text);
+  background: transparent;
+  border:1px solid transparent;
+}
+.manage-drawer .drawer-tab:hover{
+  background: rgba(255,255,255,.06);
+  border-color: var(--hair);
+}
+.manage-drawer .drawer-tab.active{
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+    );
+  border:1px solid var(--hair);
+  border-bottom-color: transparent;
+}
+
+/* Children: floating panel, linky, no pills/bullets/white */
+.manage-drawer .children-panel{
+  position: relative;
+  margin: .35rem 0 .75rem;
+  padding: .65rem .85rem;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--card-bg) 80%, transparent) 0%,
+      color-mix(in oklab, var(--card-bg) 60%, transparent) 100%
+    );
+  -webkit-backdrop-filter: saturate(120%) blur(8px);
+  backdrop-filter: saturate(120%) blur(8px);
+  box-shadow:
+    0 10px 22px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.05);
+  overflow: hidden;
+}
+.manage-drawer .children-links{
+  display:flex; flex-wrap:wrap; gap:.65rem 1.25rem;
+  margin:0; padding:0; list-style:none;
+}
+.manage-drawer .children-links a{
+  text-decoration:none;
+  color: var(--accent-ink);
+  font-weight: 700;
+  letter-spacing:.2px;
+  outline: none;
+  border: 1px solid transparent;     /* no visible outline until hover */
+  border-radius: 8px;
+  padding: .1rem .25rem;
+}
+.manage-drawer .children-links a:hover{
+  background: rgba(255,255,255,.06);
+  border-color: var(--hair);
+}
+
+/* Drawer table — mirror Transactions look */
+.manage-drawer #drawer-tx{
+  table-layout: auto;                 /* prevent forced tiny columns */
+  width:100%;
+  border-collapse: separate;
+  border-spacing:0;
+}
+.manage-drawer #drawer-tx thead th{
+  white-space: nowrap;
+  word-break: keep-all;
+}
+.manage-drawer #drawer-tx th,
+.manage-drawer #drawer-tx td{
+  padding: 18px 22px;
+  vertical-align: top;
+  line-height: 1.35;
+}
+.manage-drawer #drawer-tx tbody tr{
+  border-top: 1px solid var(--hair);
+}
+.manage-drawer #drawer-tx tbody tr:hover{
+  background: rgba(255,255,255,.05);
+}
+
+/* Column sizing to match the main Transactions table */
+.manage-drawer #drawer-tx thead th:nth-child(1),
+.manage-drawer #drawer-tx tbody td:nth-child(1){ width:120px; }
+.manage-drawer #drawer-tx thead th:nth-child(3),
+.manage-drawer #drawer-tx tbody td:nth-child(3){ width:140px; text-align:right; }
+.manage-drawer #drawer-tx thead th:nth-child(4),
+.manage-drawer #drawer-tx tbody td:nth-child(4){ width:260px; }
+
+/* Allow only Description to wrap to multiple lines */
+.manage-drawer #drawer-tx tbody td:nth-child(2){
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Month divider — sticky, glassy, with left bleed flush to rail */
+.manage-drawer #drawer-tx .month-divider{ background: transparent !important; }
+.manage-drawer #drawer-tx .month-divider > td{
+  position: sticky;
+  top: calc(0px + var(--thead-sticky-offset, 40px));
+  z-index: 3;
+  padding: 10px 22px;
+  font-weight: 800;
+  letter-spacing:.2px;
+  backdrop-filter: saturate(120%) blur(10px);
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+    ) !important;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 8px 14px rgba(2,6,23,.22);
+}
+/* create the left bleed so the tint lines up with the drawer rail */
+.manage-drawer #drawer-tx .month-divider > td::before{
+  content:"";
+  position:absolute;
+  left: calc(-1 * var(--drawer-bleed));
+  right: 0;
+  top: 0; bottom: 0;
+  border-top-left-radius: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+    );
+  z-index:-1;
+}
+
+/* Drawer scroller styling */
+.manage-drawer .offcanvas-body{ padding-top: .25rem; }
+.manage-drawer .tx-scroll{ background: transparent; isolation: isolate; }
+
+/* Close button polish on dark glass */
 .manage-drawer .btn-close{
   filter: invert(1) grayscale(1) contrast(90%);
   opacity: .85;
 }
 .manage-drawer .btn-close:hover{ opacity: 1; }
-
-/* Signature blue text everywhere inside drawer */
-.manage-drawer, .manage-drawer *{ color: var(--text); }
-
-/* ---------- CHILDREN: floating, no pills, no bullets, no white ---------- */
-.manage-drawer .drawer-children-wrap{
-  margin-top:.35rem;
-  padding:10px 14px;
-  border:1px solid var(--hair);
-  border-radius:14px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%
-    );
-  -webkit-backdrop-filter: saturate(120%) blur(10px);
-  backdrop-filter: saturate(120%) blur(10px);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.05),
-    0 10px 18px rgba(2,6,23,.22);
-}
-.manage-drawer .drawer-children-list{
-  list-style:none;
-  margin:0; padding:0;
-  display:flex; flex-wrap:wrap; gap:10px 26px;
-}
-.manage-drawer .drawer-children-list li{ margin:0; padding:0; }
-.manage-drawer .drawer-children-list a{
-  text-decoration:none;
-  font-weight:800;
-  letter-spacing:.2px;
-  line-height:1.35;
-  background: transparent !important;
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-.manage-drawer .drawer-children-list a:hover{
-  text-decoration: underline;             /* clean hover */
-  background: transparent !important;
-  outline: none !important;
-}
-/* If leading "• " is present in the text, visually tuck it off-screen without clipping */
-.manage-drawer .drawer-children-list a[data-leading-dot],
-.manage-drawer .drawer-children-list a.leading-dot{
-  text-indent:-0.8em; padding-left:0.8em;
-}
-
-/* ---------- SUBHEADER / PINS (sticky glass) ---------- */
-.manage-drawer .drawer-sub{
-  position: sticky;
-  top: var(--drawer-header-h, 56px);
-  z-index: 5;
-  padding:.5rem .75rem;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%
-    ) !important;
-  -webkit-backdrop-filter: saturate(120%) blur(10px);
-  backdrop-filter: saturate(120%) blur(10px);
-  border-bottom: 1px solid var(--hair);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.05),
-    0 12px 20px rgba(2,6,23,.24);
-}
-.manage-drawer .drawer-value{
-  font-weight:800;
-  color: var(--accent-ink);
-  text-shadow: 0 0 10px rgba(158,203,255,.28);
-}
-
-/* ---------- TRANSACTIONS TABLE (tidy, roomy, no clipping) ---------- */
-.manage-drawer .table-responsive{ padding: 0; } /* give full width back */
-
-.manage-drawer #drawer-tx{
-  table-layout: auto;       /* let columns breathe */
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-.manage-drawer #drawer-tx th,
-.manage-drawer #drawer-tx td{
-  border-color: var(--hair) !important;
-}
-/* Column sizing + wrapping */
-.manage-drawer #drawer-tx th:nth-child(1),
-.manage-drawer #drawer-tx td:nth-child(1){ width:118px; white-space:nowrap; }
-.manage-drawer #drawer-tx th:nth-child(3),
-.manage-drawer #drawer-tx td:nth-child(3){ width:130px; white-space:nowrap; text-align:right; }
-.manage-drawer #drawer-tx th:nth-child(2),
-.manage-drawer #drawer-tx td:nth-child(2){ width:auto; word-break:break-word; }
-.manage-drawer #drawer-tx th:nth-child(4),
-.manage-drawer #drawer-tx td:nth-child(4){ width:220px; }
-
-/* Roomy rows, tidy separators */
-.manage-drawer #drawer-tx tbody td{
-  padding: 14px 14px;         /* comfortable vertical rhythm */
-  vertical-align: top;        /* descriptions start at top like your screenshot */
-  background: transparent;
-}
-.manage-drawer #drawer-tx tbody tr + tr td{
-  border-top: 1px solid color-mix(in oklab, var(--hair) 92%, transparent);
-}
-.manage-drawer #drawer-tx tbody tr{
-  transition: background-color .12s ease, transform .06s ease;
-}
-.manage-drawer #drawer-tx tbody tr:hover{
-  background: color-mix(in oklab, var(--accent-ink) 10%, transparent); /* no white hover */
-}
-.manage-drawer #drawer-tx tbody tr:active{
-  transform: translateY(0px) scale(.997);
-}
-
-/* Stickier, stronger glass for THEAD inside drawer */
-.manage-drawer .table-responsive thead{
-  position: sticky;
-  top: 0;
-  z-index: 4;
-}
-.manage-drawer #drawer-tx thead th{
-  backdrop-filter: saturate(140%) blur(10px);
-  -webkit-backdrop-filter: saturate(140%) blur(10px);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--thead-bg) 96%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 86%, transparent) 100%
-    ) !important;
-  padding: 10px 14px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.07),
-    0 12px 20px rgba(2,6,23,.30);
-}
-
-/* Month divider: sticky + glass; left/right bleed flush with the table chrome */
-.manage-drawer #drawer-tx .month-divider{ background: transparent !important; }
-.manage-drawer #drawer-tx .month-divider > td{
-  position: sticky;
-  top: var(--drawer-thead-h, 42px);
-  z-index: 3;
-  padding: 10px 14px;
-  font-weight:700; letter-spacing:.2px;
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
-  /* create the extended tint without shrinking the table */
-  background: transparent !important;
-}
-.manage-drawer #drawer-tx .month-divider > td::before{
-  content:"";
-  position: absolute;
-  left: -12px; right: -12px; top: 0; bottom: 0;     /* bleed */
-  pointer-events: none;
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
-  border-radius: 12px 12px 0 0;                     /* nice leading curve when first */
-  backdrop-filter: saturate(130%) blur(10px);
-  -webkit-backdrop-filter: saturate(130%) blur(10px);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--thead-bg) 94%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 82%, transparent) 100%
-    );
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.06),
-    0 10px 18px rgba(2,6,23,.26);
-  z-index: -1;
-}
-.manage-drawer #drawer-tx tbody > .month-divider:first-child > td::before{
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
-}
-
-/* ---------- No-white interactions anywhere in drawer ---------- */
-.manage-drawer a,
-.manage-drawer button,
-.manage-drawer .btn,
-.manage-drawer .drawer-children-list a{
-  background: transparent !important;
-  color: var(--text) !important;
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-}
-/* Show subtle neon outline only on hover/focus-visible */
-.manage-drawer .drawer-children-list a:hover,
-.manage-drawer .drawer-children-list a:focus-visible{
-  text-decoration: underline;
-  text-shadow: 0 0 10px color-mix(in oklab, var(--accent-ink) 35%, transparent);
-}
-
-/* =========================================================
-   Micro-interaction toolkit (optional)
-   ========================================================= */
-@keyframes bt-fade-slide-in {
-  from { opacity:0; transform: translateY(6px) scale(.995); }
-  to   { opacity:1; transform: translateY(0) scale(1); }
-}
-.bt-reveal { animation: bt-fade-slide-in .22s ease-out; }
