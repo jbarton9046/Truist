@@ -84,7 +84,7 @@
     position: sticky;
     top: 0;
     z-index: 7;
-    background: rgba(8,12,20,.78) !important; /* dark, non-brightening glass */
+    background: rgba(8,12,20,.78) !important;
     color: var(--text) !important;
     border-bottom:1px solid var(--hair) !important;
     font-weight:700; letter-spacing:.2px;
@@ -101,7 +101,7 @@
   /* === Keywords Used counts: ghost blue numbers (no pill), floated right === */
   #kwMiniList .list-group-item{
     position: relative;
-    padding-right: 40px;                 /* room for the number */
+    padding-right: 40px;
     font-family: inherit;
   }
   #kwMiniList .list-group-item .badge{
@@ -109,10 +109,10 @@
     top: 50%;
     right: 12px;
     transform: translateY(-50%);
-    background: transparent !important;  /* no white chip */
+    background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
-    color: var(--link, #9ec5ff) !important;  /* your page-wide blue */
+    color: var(--link, #9ec5ff) !important;
     font-weight: 700;
     font-size: .95rem;
     line-height: 1;
@@ -120,8 +120,8 @@
     min-width: 0;
     width: auto;
     height: auto;
-    pointer-events: none;                /* number itself not clickable */
-    text-shadow: 0 0 10px rgba(158,197,255,.35); /* subtle glow for contrast */
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(158,197,255,.35);
   }
   #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 0 !important; }
 
@@ -138,13 +138,13 @@
   }
 
   /* Bits you asked to hide (DOM remains for JS) */
-  #miscMeta{ display:none !important; }                 /* “as of …” under Misc */
-  #kbTip{ display:none !important; }                    /* tip under keywords */
+  #miscMeta{ display:none !important; }
+  #kbTip{ display:none !important; }
   #kwMiniDetails .kb-placeholder{ display:none !important; }
 
   /* ============= GLASS SELECT (non-destructive wrapper) ============= */
   .gs-wrap{ position:relative; width:100%; }
-  .gs-native{                 /* the real <select> (kept for forms) */
+  .gs-native{
     position:absolute; inset:0; width:100%; height:100%;
     opacity:0; pointer-events:none;
   }
@@ -159,12 +159,16 @@
   .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gs-caret{ opacity:.8; }
 
+  /* Popup itself (will be portaled to body on open) */
   .gs-popup{
-    position:absolute; left:0; top:calc(100% + 6px); min-width:100%;
-    max-height:320px; overflow:auto; z-index:60; padding:6px;
-    border-radius:14px; border:1px solid var(--card-border);
+    position: fixed;                       /* body-level placement */
+    min-width: 240px;
+    max-height:320px; overflow:auto;
+    z-index:1051;                          /* above scrim (1040) and near modal(1050) */
+    padding:6px; border-radius:14px; border:1px solid var(--card-border);
     background: color-mix(in oklab, var(--card-bg) 82%, transparent);
-    -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
     box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
   }
   .gs-list{ margin:0; padding:0; list-style:none; }
@@ -178,6 +182,14 @@
   }
   .gs-option[data-disabled="true"]{ color: var(--muted); cursor:default; }
   .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
+
+  /* NEW: the blur layer behind the popup (like drawer) */
+  .gs-scrim{
+    position:fixed; inset:0; z-index:1040;
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(8,12,20,.28);
+  }
 </style>
 
 
@@ -212,10 +224,8 @@
         </div>
         <div class="kb-body">
           <input id="kwMiniFilter" class="form-control form-control-sm mb-2" placeholder="Filter keywords…">
-          <!-- reduced visible height, still full list via scroll -->
           <div class="list-group small" id="kwMiniList" style="max-height:35vh; overflow:auto;"></div>
 
-          <!-- keep details compact; scroll if long -->
           <div class="mt-2" id="kwMiniDetails" style="max-height:20vh; overflow:auto;">
             <div class="small kb-muted kb-placeholder">Select a keyword to see its categories.</div>
           </div>
@@ -403,7 +413,6 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Category</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
-                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="category">View drawer</button>
                 </label>
@@ -421,7 +430,6 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
-                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subcategory">View drawer</button>
                 </label>
@@ -439,7 +447,6 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
-                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubcategory">View drawer</button>
                 </label>
@@ -457,7 +464,6 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
-                  <!-- NEW: View drawer -->
                   <span class="text-muted">·</span>
                   <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubsubcategory">View drawer</button>
                 </label>
@@ -522,7 +528,6 @@
         </div>
 
         <div class="card-body">
-          <!-- Hidden controls kept for JS compatibility -->
           <div class="d-none">
             <input type="text" id="miscSearch" value="">
             <input type="number" step="0.01" id="miscMinAbs" value="">
@@ -538,7 +543,6 @@
             <input class="form-check-input" type="checkbox" id="lblUnknown" checked>
             <a href="#" id="miscClearFilters">Clear filters</a>
           </div>
-          <!-- /Hidden controls -->
 
           <div class="misc-scroll">
             <div class="table-responsive">
@@ -602,9 +606,9 @@
 <script>
   // Safe defaults so Keyword Finder / drawer work even if CL_URLS isn’t injected from layout
   window.CL_URLS = Object.assign({
-    KW_GET_URL: '/admin/api/keywords_for_name',   // GET ?name=<label>  -> {keywords: [...]}
-    KW_ADD_URL: '/admin/api/keyword_add',         // POST {name, keyword}
-    KW_REMOVE_URL: '/admin/api/keyword_remove',   // POST {name, keyword, remove:true}
+    KW_GET_URL: '/admin/api/keywords_for_name',
+    KW_ADD_URL: '/admin/api/keyword_add',
+    KW_REMOVE_URL: '/admin/api/keyword_remove',
     INSPECT_URL: '/admin/categories/inspect',
     RENAME_URL: '/admin/categories/rename',
     UPSERT_URL: '/admin/categories/upsert_child'
@@ -612,7 +616,6 @@
 </script>
 
 <script>
-  // Injected config is already in window.CFG from the top block
   const CFG = window.CFG || {};
 
   /* ---------- data access ---------- */
@@ -1049,7 +1052,7 @@
     if (!btn) return;
     e.preventDefault();
 
-    const level = btn.dataset.level; // category | subcategory | subsubcategory | subsubsubcategory
+    const level = btn.dataset.level;
     const { cat, sub, ssub, sss } = readValues();
 
     if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
@@ -1144,7 +1147,6 @@
     miscTableBody.innerHTML = html;
   }
 
-  // Event delegation for misc actions
   document.addEventListener('click', (e) => {
     const useBtn = e.target.closest('.btn-use');
     if (useBtn){
@@ -1164,7 +1166,6 @@
     }
   });
 
-  // Controls for misc
   miscRefresh.addEventListener('click', fetchMisc);
   miscSearch.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); fetchMisc(); } });
   [miscSearch, miscMinAbs, miscLimit, lblMisc, lblUncat, lblUnknown].forEach(el => {
@@ -1222,14 +1223,13 @@
     if (btnSaveAll.disabled) e.preventDefault();
   });
 
-  // Initial boot
   populateSelects();
   updateVisibility();
   updateEnablement();
   fetchMisc();
 </script>
 
-<!-- === NEW: Glass Select (blurred custom dropdown, non-destructive) === -->
+<!-- === NEW: Glass Select (blurred custom dropdown via portal + scrim) === -->
 <script>
 (function(){
   function wrapSelect(select){
@@ -1239,7 +1239,7 @@
     const wrap = document.createElement('div'); wrap.className='gs-wrap';
     select.parentNode.insertBefore(wrap, select);
     wrap.appendChild(select);
-    select.classList.add('gs-native');  // keep in DOM for forms & JS
+    select.classList.add('gs-native');
 
     const trigger = document.createElement('button');
     trigger.type='button';
@@ -1250,21 +1250,53 @@
     wrap.insertBefore(trigger, select);
     const labelEl = trigger.querySelector('.gs-label');
 
+    // Popup lives in body when open
     const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
     const list = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox');
-    popup.appendChild(list); wrap.appendChild(popup);
+    popup.appendChild(list);
+
+    // Scrim (blur layer)
+    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden = true;
 
     function syncLabel(){
       const opt = select.selectedOptions[0];
       labelEl.textContent = opt ? opt.textContent : 'Select…';
     }
-    function close(){ popup.hidden = true; trigger.setAttribute('aria-expanded','false'); }
-    function open(){ popup.hidden = false; trigger.setAttribute('aria-expanded','true'); scrollToSelected(); }
-    function toggle(){ popup.hidden ? open() : close(); }
-    function scrollToSelected(){
-      const sel = list.querySelector('[aria-selected="true"]');
-      if (sel) sel.scrollIntoView({block:'nearest'});
+
+    function placePopup(){
+      const r = trigger.getBoundingClientRect();
+      popup.style.left = Math.round(r.left) + 'px';
+      popup.style.top  = Math.round(r.bottom + 6) + 'px';
+      popup.style.minWidth = Math.max(240, Math.round(r.width)) + 'px';
+      popup.style.maxWidth = Math.round(Math.min(window.innerWidth - 24, r.width * 1.6)) + 'px';
     }
+
+    function close(){
+      if (popup.hidden) return;
+      popup.hidden = true;
+      scrim.hidden = true;
+      trigger.setAttribute('aria-expanded','false');
+      if (popup.parentNode !== wrap) wrap.appendChild(popup);
+      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    }
+
+    function open(){
+      if (!popup.parentNode || popup.parentNode === wrap) document.body.appendChild(popup);
+      if (!scrim.parentNode) document.body.appendChild(scrim);
+      scrim.hidden = false;
+      popup.hidden = false;
+      trigger.setAttribute('aria-expanded','true');
+      placePopup();
+      popup.focus?.();
+      window.addEventListener('resize', onWin);
+      window.addEventListener('scroll', onWin, true);
+    }
+
+    function toggle(){ popup.hidden ? open() : close(); }
+    function onWin(){ placePopup(); }
+
     function apply(value){
       select.value = value;
       select.dispatchEvent(new Event('change', { bubbles:true }));
@@ -1302,7 +1334,7 @@
       trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
     }
 
-    // keyboard/typeahead
+    // typing
     let buf='', t=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
@@ -1313,32 +1345,19 @@
       if (e.key===' '||e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); open(); return; }
       if (/^[\w\s]$/.test(e.key)) typeAhead(e.key);
     });
-    wrap.addEventListener('keydown', (e)=>{
-      if (popup.hidden) return;
-      const opts = Array.from(list.querySelectorAll('.gs-option')).filter(x=>x.dataset.disabled!=='true');
-      const curr = list.querySelector('[aria-current="true"]') || list.querySelector('[aria-selected="true"]') || opts[0];
-      let i = Math.max(0, opts.indexOf(curr));
-      if (e.key==='Escape'){ e.preventDefault(); close(); trigger.focus(); return; }
-      if (e.key==='ArrowDown'){ e.preventDefault(); i = Math.min(opts.length-1, i+1); }
-      if (e.key==='ArrowUp'){ e.preventDefault(); i = Math.max(0, i-1); }
-      if (e.key==='ArrowDown' || e.key==='ArrowUp'){
-        opts.forEach(x=>x.removeAttribute('aria-current')); opts[i].setAttribute('aria-current','true'); opts[i].scrollIntoView({block:'nearest'});
-      }
-      if (e.key==='Enter'){ e.preventDefault(); const cur = list.querySelector('[aria-current="true"]'); if (cur) apply(cur.dataset.value); }
-    });
 
     trigger.addEventListener('click', toggle);
-    document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) close(); });
+    scrim.addEventListener('click', close);
+    document.addEventListener('click', (e)=>{ if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close(); });
 
     rebuild();
   }
 
-  // Public: upgrade all current selects (safe to call repeatedly)
+  // Public: upgrade all current selects
   window.refreshGlassSelects = function(){
     document.querySelectorAll('.onebar-select').forEach(wrapSelect);
   };
 
-  // boot
   if (document.readyState !== 'loading') window.refreshGlassSelects();
   else document.addEventListener('DOMContentLoaded', window.refreshGlassSelects);
 })();
@@ -1367,11 +1386,10 @@
       btnReindex: QS('#kb-reindex'),
     };
 
-    let INDEX = new Map();      // Map<kwLower, Set<"Cat / Sub / ...">>
+    let INDEX = new Map();
 
     const levelName = d => ['category','subcategory','subsubcategory','subsubsubcategory'][Math.min(d-1,3)] || 'category';
 
-    // ---------- FAST: build index purely from CFG ----------
     function buildIndexFromCFG(){
       const idx = new Map();
       const add = (kw, parts) => {
@@ -1387,43 +1405,10 @@
       const S2K = (window.CFG && window.CFG.SUBSUBCATEGORY_KEYWORDS) || {};
       const S3K = (window.CFG && window.CFG.SUBSUBSUBCATEGORY_KEYWORDS) || {};
 
-      // category level
-      Object.keys(CK).forEach(cat=>{
-        (CK[cat]||[]).forEach(kw=> add(kw, [cat]));
-      });
-
-      // subcategory level
-      Object.keys(SK).forEach(cat=>{
-        const o = SK[cat]||{};
-        Object.keys(o).forEach(sub=>{
-          (o[sub]||[]).forEach(kw=> add(kw, [cat, sub]));
-        });
-      });
-
-      // sub-subcategory level
-      Object.keys(S2K).forEach(cat=>{
-        const o = S2K[cat]||{};
-        Object.keys(o).forEach(sub=>{
-          const oo = o[sub]||{};
-          Object.keys(oo).forEach(ssub=>{
-            (oo[ssub]||[]).forEach(kw=> add(kw, [cat, sub, ssub]));
-          });
-        });
-      });
-
-      // sub-sub-subcategory level
-      Object.keys(S3K).forEach(cat=>{
-        const o = S3K[cat]||{};
-        Object.keys(o).forEach(sub=>{
-          const oo = o[sub]||{};
-          Object.keys(oo).forEach(ssub=>{
-            const ooo = oo[ssub]||{};
-            Object.keys(ooo).forEach(sss=>{
-              (ooo[sss]||[]).forEach(kw=> add(kw, [cat, sub, ssub, sss]));
-            });
-          });
-        });
-      });
+      Object.keys(CK).forEach(cat=>{ (CK[cat]||[]).forEach(kw=> add(kw, [cat])); });
+      Object.keys(SK).forEach(cat=>{ const o = SK[cat]||{}; Object.keys(o).forEach(sub=>{ (o[sub]||[]).forEach(kw=> add(kw, [cat, sub])); }); });
+      Object.keys(S2K).forEach(cat=>{ const o = S2K[cat]||{}; Object.keys(o).forEach(sub=>{ const oo = o[sub]||{}; Object.keys(oo).forEach(ssub=>{ (oo[ssub]||[]).forEach(kw=> add(kw, [cat, sub, ssub])); }); }); });
+      Object.keys(S3K).forEach(cat=>{ const o = S3K[cat]||{}; Object.keys(o).forEach(sub=>{ const oo = o[sub]||{}; Object.keys(oo).forEach(ssub=>{ const ooo = oo[ssub]||{}; Object.keys(ooo).forEach(sss=>{ (ooo[sss]||[]).forEach(kw=> add(kw, [cat, sub, ssub, sss])); }); }); }); });
 
       return idx;
     }
@@ -1489,98 +1474,6 @@
       el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
     }
 
-    async function reindexDeep(){
-      const t0 = performance.now();
-      el.status.textContent = 'Building index (deep)…';
-
-      function treeFromCFG(){
-        const cats = new Set(Object.keys((CFG||{}).SUBCATEGORY_MAPS||{}));
-        Object.keys((CFG||{}).CATEGORY_KEYWORDS||{}).forEach(k=>cats.add(k));
-        Object.keys((CFG||{}).SUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
-        Object.keys((CFG||{}).SUBSUBSUBCATEGORY_MAPS||{}).forEach(k=>cats.add(k));
-        const getSubs=(c)=> (CFG.SUBCATEGORY_MAPS?.[c]) ? Object.keys(CFG.SUBCATEGORY_MAPS[c]).sort() : [];
-        const getSSubs=(c,s)=> (CFG.SUBSUBCATEGORY_MAPS?.[c]?.[s]) ? Object.keys(CFG.SUBSUBCATEGORY_MAPS[c][s]).sort() : [];
-        const getSSSubs=(c,s,ss)=> (CFG.SUBSUBSUBCATEGORY_MAPS?.[c]?.[s]?.[ss]) ? Object.keys(CFG.SUBSUBSUBCATEGORY_MAPS[c][s][ss]).sort() : [];
-        return Array.from(cats).sort().map(cat=>({
-          name:cat, children:getSubs(cat).map(sub=>({
-            name:sub, children:getSSubs(cat,sub).map(ssub=>({
-              name:ssub, children:getSSSubs(cat,sub,ssub).map(sss=>({name:sss, children:[]}))
-            }))
-          }))
-        }));
-      }
-      const tree = treeFromCFG();
-      const nodes = [];
-      (function flatten(t){
-        function walk(n, anc){
-          const parts=[...anc,(n.name||'').trim()].filter(Boolean);
-          nodes.push({name:n.name, parts});
-          (n.children||[]).forEach(c=>walk(c, parts));
-        }
-        t.forEach(n=>walk(n, []));
-      })(tree);
-
-      const uniqueNames = Array.from(new Set(nodes.map(n=>n.name)));
-
-      const nameCache = new Map();
-      async function fetchKeywordsForName(name){
-        if (nameCache.has(name)) return nameCache.get(name);
-        async function tryGet(url){
-          const r = await fetch(url, {headers:{'Accept':'application/json'}});
-          if (!r.ok) throw new Error(await r.text());
-          return r.json();
-        }
-        let arr = [];
-        try {
-          const url1 = `${(window.CL_URLS && window.CL_URLS.KW_GET_URL) || '/admin/api/keywords_for_name'}?` + new URLSearchParams({name}).toString();
-          const j1 = await tryGet(url1);
-          arr = (j1 && (j1.keywords || j1.data?.keywords)) || [];
-        } catch(_e){}
-        nameCache.set(name, Array.isArray(arr)?arr:[]);
-        return nameCache.get(name);
-      }
-
-      const CONCURRENCY = 12;
-      let i=0, active=0;
-      await new Promise(resolve=>{
-        const next=()=>{
-          if (i>=uniqueNames.length && active===0) return resolve();
-          while (active<CONCURRENCY && i<uniqueNames.length){
-            const nm = uniqueNames[i++]; active++;
-            fetchKeywordsForName(nm).finally(()=>{active--; next();});
-          }
-        };
-        next();
-      });
-
-      const idx = new Map();
-      const add = (kw, parts)=>{
-        const key=String(kw||'').trim().toLowerCase(); if(!key) return;
-        const path=parts.join(' / ');
-        if (!idx.has(key)) idx.set(key,new Set());
-        idx.get(key).add(path);
-      };
-
-      nodes.forEach(n=>{
-        const kws = nameCache.get(n.name) || [];
-        if (kws.length){
-          kws.forEach(kw=> add(kw, n.parts));
-        }else{
-          const [cat,sub,ssub,sss] = n.parts;
-          const CK=(CFG.CATEGORY_KEYWORDS||{}), SK=(CFG.SUBCATEGORY_KEYWORDS||{}),
-                S2K=(CFG.SUBSUBCATEGORY_KEYWORDS||{}), S3K=(CFG.SUBSUBSUBCATEGORY_KEYWORDS||{});
-          if (cat && !sub) (CK[cat]||[]).forEach(k=>add(k,[cat]));
-          if (cat && sub && !ssub) (SK[cat]?.[sub]||[]).forEach(k=>add(k,[cat,sub]));
-          if (cat && sub && ssub && !sss) (S2K[cat]?.[sub]?.[ssub]||[]).forEach(k=>add(k,[cat,sub,ssub]));
-          if (cat && sub && ssub && sss) (S3K[cat]?.[sub]?.[ssub]?.[sss]||[]).forEach(k=>add(k,[cat,sub,ssub,sss]));
-        }
-      });
-
-      INDEX = idx;
-      renderCloud();
-      el.status.textContent = `Ready (deep) in ${Math.round(performance.now()-t0)}ms.`;
-    }
-
     function runSearch(ev){
       if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
       renderMatches(el.q.value||'');
@@ -1589,7 +1482,7 @@
     if (el.form) el.form.addEventListener('submit', runSearch);
     if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ el.q.value=''; renderMatches(''); });
     if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); });
-    if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> e.shiftKey ? reindexDeep() : reindexFast());
+    if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> reindexFast());
 
     reindexFast();
   })();
@@ -1603,17 +1496,13 @@
     const d = (desc || "").toUpperCase();
     const a = Number(String(amtText || "").replace(/[^0-9.-]/g, "")) || 0;
 
-    // ±$10,002.02 sentinel transfers
     if (Math.abs(a - 10002.02) < EPS || Math.abs(a + 10002.02) < EPS) return true;
-
-    // Robinhood -$450.00 anywhere
     if (d.includes("ROBINHOOD") && Math.abs(a + 450.0) < EPS) return true;
 
     return false;
   }
 
   function scrub(container) {
-    // Only touch the “Misc / Uncategorized Transactions” area
     const sections = Array.from(container.querySelectorAll("h1,h2,h3,h4,h5,h6"))
       .filter(h => /misc\s*\/\s*uncategorized/i.test(h.textContent || ""));
 
@@ -1649,7 +1538,6 @@
 {% include "_drawer.html" %}
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
 <script>
-  // Alias for this page: open the drawer by category name
   if (!window.openDrawerForCategory && window.openDrawerForPath) {
     window.openDrawerForCategory = function (cat, opts = {}) {
       window.openDrawerForPath({
@@ -1664,7 +1552,7 @@
   }
 </script>
 
-<!-- NEW: from this page only, ensure drawer data includes allow_hidden=1 -->
+<!-- ensure drawer data includes allow_hidden=1 -->
 <script>
 (function(){
   const origFetch = window.fetch;
