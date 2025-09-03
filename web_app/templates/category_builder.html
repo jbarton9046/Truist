@@ -190,8 +190,26 @@
     backdrop-filter: blur(14px) saturate(140%);
     background: rgba(8,12,20,.28);
   }
-</style>
 
+  /* ---- tiny entrance animations for glass select ---- */
+  @keyframes gsPopIn {
+    from { opacity: 0; transform: translateY(6px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes gsFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .gs-popup{
+    animation: gsPopIn .14s ease-out;
+    transform-origin: top left;
+    will-change: transform, opacity;
+  }
+  .gs-scrim{
+    animation: gsFadeIn .12s ease-out;
+    will-change: opacity;
+  }
+</style>
 
 <div class="container-fluid my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
