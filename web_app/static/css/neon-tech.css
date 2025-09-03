@@ -320,7 +320,7 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 /* Pins row: sticky, glass, values float (accent ink, no pill) */
 .manage-drawer .drawer-sub{
   position: sticky;
-  top: 56px;               /* sits under header; adjust if header height changes */
+  top: var(--drawer-header-h, 56px); /* was 56px, now allows JS override */
   z-index: 1;
   padding: .5rem .75rem;
   background: color-mix(in oklab, var(--thead-bg) 75%, transparent);
@@ -369,3 +369,35 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   opacity: .85;
 }
 .manage-drawer .btn-close:hover{ opacity: 1; }
+
+/* --- Drawer month divider: sticky & frosted under header (NEW) --- */
+.manage-drawer #drawer-tx .month-divider { 
+  position: static !important;        /* disable row-level sticky from older styles */
+  background: transparent !important; /* let cell styles control the look */
+}
+.manage-drawer #drawer-tx .month-divider > * {
+  position: sticky;
+  top: var(--drawer-thead-h, 40px);   /* sits just below sticky thead; JS can set exact px */
+  z-index: 3;
+
+  backdrop-filter: saturate(120%) blur(6px);
+  -webkit-backdrop-filter: saturate(120%) blur(6px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--thead-bg) 85%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%
+    ) !important;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 8px 14px rgba(2,6,23,.22);
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+/* Rounded edges when this is the first visible row */
+.manage-drawer #drawer-tx tbody > .month-divider:first-child > * {
+  border-top-left-radius: 12px; 
+  border-top-right-radius: 12px;
+}
