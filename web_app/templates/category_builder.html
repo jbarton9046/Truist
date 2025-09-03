@@ -95,6 +95,34 @@
       inset 0 1px 0 rgba(255,255,255,.05),
       0 10px 18px rgba(2, 6, 23, .25);
   }
+
+  /* Float the count bubble on the right of each keyword row */
+  #kwMiniList .list-group-item{
+    position: relative;
+    padding-right: 48px;              /* room for the bubble */
+    font-family: inherit;             /* same font as app */
+  }
+  #kwMiniList .list-group-item .badge{
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;             /* circle */
+    background: #fff;                 /* white bubble like your screenshot */
+    color: #0b1324;                   /* readable on dark */
+    border: 1px solid rgba(13,17,23,.15);
+    box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.65);
+    line-height: 1;
+    font-weight: 700;                 /* same weight you use elsewhere */
+    font-family: inherit;             /* ensure same font */
+  }
+  /* keep compatibility with the existing “rounded-pill” class your JS adds */
+  #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 999px; }
+
   .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
   .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
