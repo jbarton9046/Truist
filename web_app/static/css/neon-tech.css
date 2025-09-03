@@ -313,13 +313,13 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 .manage-drawer .drawer-children-wrap{
   margin-top:.35rem;
   padding:10px 14px;
-  border:1px solid var(--card-border);
+  border:1px solid var(--hair);
   border-radius:14px;
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--thead-bg) 90%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%
     );
   -webkit-backdrop-filter: saturate(120%) blur(10px);
   backdrop-filter: saturate(120%) blur(10px);
@@ -330,7 +330,7 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 .manage-drawer .drawer-children-list{
   list-style:none;
   margin:0; padding:0;
-  display:flex; flex-wrap:wrap; gap:8px 22px;
+  display:flex; flex-wrap:wrap; gap:10px 26px;
 }
 .manage-drawer .drawer-children-list li{ margin:0; padding:0; }
 .manage-drawer .drawer-children-list a{
@@ -338,13 +338,20 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   font-weight:800;
   letter-spacing:.2px;
   line-height:1.35;
-  /* no background/white ever */
   background: transparent !important;
   border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 .manage-drawer .drawer-children-list a:hover{
-  text-decoration: underline;     /* clean hover */
+  text-decoration: underline;             /* clean hover */
   background: transparent !important;
+  outline: none !important;
+}
+/* If leading "• " is present in the text, visually tuck it off-screen without clipping */
+.manage-drawer .drawer-children-list a[data-leading-dot],
+.manage-drawer .drawer-children-list a.leading-dot{
+  text-indent:-0.8em; padding-left:0.8em;
 }
 
 /* ---------- SUBHEADER / PINS (sticky glass) ---------- */
@@ -356,8 +363,8 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--thead-bg) 90%, transparent) 0%,
-      color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%
+      color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%,
+      color-mix(in oklab, var(--thead-bg) 80%, transparent) 100%
     ) !important;
   -webkit-backdrop-filter: saturate(120%) blur(10px);
   backdrop-filter: saturate(120%) blur(10px);
@@ -372,28 +379,43 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   text-shadow: 0 0 10px rgba(158,203,255,.28);
 }
 
-/* ---------- TRANSACTIONS TABLE (tidy & polished) ---------- */
-.manage-drawer .table-responsive{
-  --drawer-table-xpad: 14px;
-  padding-left: var(--drawer-table-xpad);
-  padding-right: var(--drawer-table-xpad);
-}
+/* ---------- TRANSACTIONS TABLE (tidy, roomy, no clipping) ---------- */
+.manage-drawer .table-responsive{ padding: 0; } /* give full width back */
 
 .manage-drawer #drawer-tx{
+  table-layout: auto;       /* let columns breathe */
+  width: 100%;
   border-collapse: separate;
   border-spacing: 0;
 }
 .manage-drawer #drawer-tx th,
 .manage-drawer #drawer-tx td{
-  padding:.65rem .9rem;
   border-color: var(--hair) !important;
+}
+/* Column sizing + wrapping */
+.manage-drawer #drawer-tx th:nth-child(1),
+.manage-drawer #drawer-tx td:nth-child(1){ width:118px; white-space:nowrap; }
+.manage-drawer #drawer-tx th:nth-child(3),
+.manage-drawer #drawer-tx td:nth-child(3){ width:130px; white-space:nowrap; text-align:right; }
+.manage-drawer #drawer-tx th:nth-child(2),
+.manage-drawer #drawer-tx td:nth-child(2){ width:auto; word-break:break-word; }
+.manage-drawer #drawer-tx th:nth-child(4),
+.manage-drawer #drawer-tx td:nth-child(4){ width:220px; }
+
+/* Roomy rows, tidy separators */
+.manage-drawer #drawer-tx tbody td{
+  padding: 14px 14px;         /* comfortable vertical rhythm */
+  vertical-align: top;        /* descriptions start at top like your screenshot */
+  background: transparent;
+}
+.manage-drawer #drawer-tx tbody tr + tr td{
+  border-top: 1px solid color-mix(in oklab, var(--hair) 92%, transparent);
 }
 .manage-drawer #drawer-tx tbody tr{
   transition: background-color .12s ease, transform .06s ease;
 }
 .manage-drawer #drawer-tx tbody tr:hover{
-  /* subtle bluish hover, no white */
-  background: color-mix(in oklab, var(--accent-ink) 10%, transparent);
+  background: color-mix(in oklab, var(--accent-ink) 10%, transparent); /* no white hover */
 }
 .manage-drawer #drawer-tx tbody tr:active{
   transform: translateY(0px) scale(.997);
@@ -414,23 +436,33 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
       color-mix(in oklab, var(--thead-bg) 96%, transparent) 0%,
       color-mix(in oklab, var(--thead-bg) 86%, transparent) 100%
     ) !important;
+  padding: 10px 14px;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.07),
     0 12px 20px rgba(2,6,23,.30);
 }
 
-/* Month divider: sticky + glass; bleeds left/right to align flush */
+/* Month divider: sticky + glass; left/right bleed flush with the table chrome */
 .manage-drawer #drawer-tx .month-divider{ background: transparent !important; }
 .manage-drawer #drawer-tx .month-divider > td{
   position: sticky;
   top: var(--drawer-thead-h, 42px);
   z-index: 3;
-
-  margin-left: calc(-1 * var(--drawer-table-xpad));
-  margin-right: calc(-1 * var(--drawer-table-xpad));
-  padding-left: calc(var(--drawer-table-xpad) + .9rem);
-  padding-right: calc(var(--drawer-table-xpad) + .9rem);
-
+  padding: 10px 14px;
+  font-weight:700; letter-spacing:.2px;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  /* create the extended tint without shrinking the table */
+  background: transparent !important;
+}
+.manage-drawer #drawer-tx .month-divider > td::before{
+  content:"";
+  position: absolute;
+  left: -12px; right: -12px; top: 0; bottom: 0;     /* bleed */
+  pointer-events: none;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  border-radius: 12px 12px 0 0;                     /* nice leading curve when first */
   backdrop-filter: saturate(130%) blur(10px);
   -webkit-backdrop-filter: saturate(130%) blur(10px);
   background:
@@ -438,17 +470,15 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
       180deg,
       color-mix(in oklab, var(--thead-bg) 94%, transparent) 0%,
       color-mix(in oklab, var(--thead-bg) 82%, transparent) 100%
-    ) !important;
-  border-top: 1px solid var(--hair);
-  border-bottom: 1px solid var(--hair);
+    );
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.06),
     0 10px 18px rgba(2,6,23,.26);
-  font-weight:700; letter-spacing:.2px;
+  z-index: -1;
 }
-.manage-drawer #drawer-tx tbody > .month-divider:first-child > td{
-  border-top-left-radius:12px;
-  border-top-right-radius:12px;
+.manage-drawer #drawer-tx tbody > .month-divider:first-child > td::before{
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
 }
 
 /* ---------- No-white interactions anywhere in drawer ---------- */
@@ -458,11 +488,19 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 .manage-drawer .drawer-children-list a{
   background: transparent !important;
   color: var(--text) !important;
+  border: none !important;
   box-shadow: none !important;
+  outline: none !important;
+}
+/* Show subtle neon outline only on hover/focus-visible */
+.manage-drawer .drawer-children-list a:hover,
+.manage-drawer .drawer-children-list a:focus-visible{
+  text-decoration: underline;
+  text-shadow: 0 0 10px color-mix(in oklab, var(--accent-ink) 35%, transparent);
 }
 
 /* =========================================================
-   Micro-interaction toolkit (used by Category Builder & Drawer)
+   Micro-interaction toolkit (optional)
    ========================================================= */
 @keyframes bt-fade-slide-in {
   from { opacity:0; transform: translateY(6px) scale(.995); }
