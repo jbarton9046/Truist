@@ -3,23 +3,6 @@
 
 {% block content %}
 
-<!-- Page-specific background (matches dark gradient used elsewhere) -->
-<style>
-  body.page-recurring{
-    background:
-      radial-gradient(1200px 600px at 70% -100px, rgba(56,189,248,.20), transparent 50%),
-      radial-gradient(900px 450px at -10% -50px, rgba(129,140,248,.18), transparent 60%),
-      linear-gradient(180deg, #0b1220 0%, #0a0f1a 100%);
-    background-attachment: fixed;
-  }
-</style>
-<script>
-  // Apply page class when this template loads.
-  document.addEventListener('DOMContentLoaded', () => {
-    document.body.classList.add('page-recurring');
-  });
-</script>
-
 <div class="container py-3">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="mb-0">Recurring Dashboard</h2>
@@ -107,11 +90,11 @@
 
       <!-- Recurring Charges -->
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center section-header">
+        <div class="card-header d-flex justify-content-between align-items-center">
           <span>Recurring Charges</span>
         </div>
         <div class="table-responsive">
-          <table class="table table-sm table-hover mb-0 table-modern" id="streamsTable">
+          <table class="table table-sm table-hover mb-0 table-floating" id="streamsTable">
             <thead>
               <tr>
                 <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
@@ -133,9 +116,9 @@
     <div class="col-12 col-lg-5">
       <!-- Projected Month -->
       <div class="card mt-3">
-        <div class="card-header d-flex justify-content-between align-items-center section-header">
+        <div class="card-header d-flex justify-content-between align-items-center">
           <span>Projected month</span>
-          <small class="text-muted" id="pmNote"></small>
+          <small class="muted" id="pmNote"></small>
         </div>
         <div class="card-body small">
           <div class="d-flex justify-content-between mb-1">
@@ -164,9 +147,9 @@
 
       <!-- Due soon (next 7 days) -->
       <div class="card mt-3">
-        <div class="card-header section-header">Due next 7 days</div>
+        <div class="card-header">Due next 7 days</div>
         <div class="table-responsive">
-          <table class="table table-sm mb-0 table-modern" id="dueSoonTable">
+          <table class="table table-sm mb-0 table-floating" id="dueSoonTable">
             <thead>
               <tr>
                 <th>Date</th>
@@ -433,7 +416,7 @@
     leftoverEl.classList.toggle('text-danger', leftover < 0);
     document.getElementById('kpi-week').textContent     = money(data.this_week_due);
 
-    // No Monthly Plan card anymore; just keep the KPI floor meter
+    // Keep the KPI floor meter only
     setFloorMeter(floor, income);
 
     // Predictive card values
@@ -492,7 +475,6 @@
         `;
         dueTbody.appendChild(tr);
 
-        // Canonicalize this chip’s text to match Category Builder rename
         const btn = tr.querySelector('.chip-btn');
         if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
       }
@@ -513,7 +495,6 @@
         const ssub = (btn.getAttribute('data-ssub') || '').trim();
         const level = ssub ? 'subsubcategory' : (sub ? 'subcategory' : 'category');
 
-        // Set drawer title to canonical label too
         let title = [cat, sub, ssub].filter(Boolean).join(' › ') || 'Category Manager';
         try{
           if (window.resolveCategoryLabel){
@@ -563,7 +544,6 @@
       return acc;
     }, {});
 
-    // Filter by search using deep category + freq
     const q = (searchEl.value || '').trim().toLowerCase();
     const filtered = streams.filter(s => {
       if (!q) return true;
@@ -603,7 +583,7 @@
         <td class="text-end">${s.count ?? ''}</td>
         <td>${(s.freq || '—')}</td>
         <td>
-          ${s.next ? `<div>${s.next}</div><div class="small text-muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}
+          ${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}
         </td>
         <td class="trend-cell">
           ${svgSparkline(series)}
@@ -611,16 +591,13 @@
       `;
       tbody.appendChild(tr);
 
-      // Canonicalize this chip’s text to match Category Builder rename
       const btn = tr.querySelector('.chip-btn');
       if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
     }
 
-    // CSV export for current view (category-first)
     exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
   }
 
-  // CSV (Category-first)
   function exportStreamsCsv(streams, txByKey){
     const rows = [
       ['Category','Amount','Count','Freq','Next'].join(',')
@@ -642,7 +619,6 @@
     URL.revokeObjectURL(url);
   }
 
-  // Events
   winSel.addEventListener('change', load);
   horSel.addEventListener('change', load);
   searchEl.addEventListener('input', renderStreamsTable);
@@ -652,150 +628,95 @@
 </script>
 
 <style>
-/* =========================
-   Skyline variables (light)
-   ========================= */
-:root{
-  --bg: #f7f9fc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --hairline: #e5eaf1;
-  --card-border: #dee5ee;
-
-  --text: #0f172a;
-  --muted: #64748b;
-
-  --primary: #143a6e;
-  --primary-600: #1d4d97;
-
-  --success: #16a34a;
-  --danger:  #dc2626;
-
-  /* Unified headers */
-  --header-bg: #eef3fb;
-  --header-fg: #1f2937;
-  --header-muted: #4b5563;
-  --header-border: #d8e2f0;
-}
-
-/* Card/header unification */
-.card { border:1px solid var(--card-border); border-radius:14px; background:var(--surface); }
-.section-header{
-  background: var(--header-bg) !important;
-  color: var(--header-fg) !important;
-  border-bottom: 1px solid var(--header-border) !important;
-  font-weight: 600;
-}
-.section-header *:not(.badge){ color: var(--header-fg) !important; }
-.section-header .text-muted, .section-header .muted, .section-header small { color: var(--header-muted) !important; }
-
-/* ======= TABLES (match Summary headers) ======= */
-.table-modern { width:100%; border-collapse: separate; border-spacing:0; }
-.table-modern thead,
-.table-modern thead tr,
-.table-modern thead th,
-.table-modern thead td{
-  background: var(--header-bg) !important;
-  color: var(--header-fg) !important;
-  border-bottom: 1px solid var(--header-border) !important;
-}
-.table-modern thead th{
-  font-weight:700; letter-spacing:.2px;
-  position: sticky; top: 0; z-index: 2;
-}
-.table-modern tbody td{
-  border-top: 1px solid var(--hairline);
-  vertical-align: middle;
-}
-.table-modern tbody tr:nth-child(odd){ background: #fbfdff; }
-.table-modern tbody tr:hover { background: var(--surface-2); }
-
-/* --- KPI strip styles --- */
+/* ---- Align with global dark/glass theme from layout.html ---- */
 .kpi-grid{
   display:grid;
   grid-template-columns: repeat(4, minmax(0,1fr));
   gap:12px;
 }
-@media (max-width: 992px){
-  .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (max-width: 576px){
-  .kpi-grid{ grid-template-columns: 1fr; }
-}
+@media (max-width: 992px){ .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 576px){ .kpi-grid{ grid-template-columns: 1fr; } }
+
 .kpi-tile{
-  border:1px solid #e5e7eb;
+  border:1px solid var(--card-border);
   border-radius:14px;
   padding:12px 14px;
-  background:#fff;
-  box-shadow:0 1px 2px rgba(16,24,40,.04);
+  background: var(--card-bg);
+  box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+  color: var(--text);
+  backdrop-filter: saturate(120%) blur(4px);
 }
 .kpi-top{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
 .kpi-icon{
   display:grid; place-items:center;
   width:28px; height:28px; border-radius:999px;
-  color:#344054; background:#f3f4f6; border:1px solid #eceff1;
+  color: var(--text);
+  background: rgba(255,255,255,.06);
+  border:1px solid var(--card-border);
 }
-.kpi-label{ font-size:12px; color:#6b7280; font-weight:600; }
+.kpi-label{ font-size:12px; color: var(--muted); font-weight:600; }
 .kpi-value{ font-size:22px; font-weight:700; line-height:1.1; margin-top:2px; }
-.kpi-sub{ font-size:12px; color:#6b7280; margin-top:2px; }
+.kpi-sub{ font-size:12px; color: var(--muted); margin-top:2px; }
 
-/* color accents */
-.accent-red .kpi-icon{ background:#fff1f2; color:#b91c1c; border-color:#fde2e4; }
-.accent-green .kpi-icon{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
-.accent-blue .kpi-icon{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
-.accent-amber .kpi-icon{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
+/* soft accent hints */
+.accent-red   .kpi-icon{ color:#fda4af; }
+.accent-green .kpi-icon{ color:#86efac; }
+.accent-blue  .kpi-icon{ color:#93c5fd; }
+.accent-amber .kpi-icon{ color:#fde68a; }
 
-/* meter (Floor vs Income) */
+/* meter */
 .kpi-meter{
-  width:100%; height:10px; border-radius:999px; background:#f3f4f6;
-  border:1px solid #e5e7eb; overflow:hidden; margin-top:6px;
+  width:100%; height:10px; border-radius:999px;
+  background: rgba(255,255,255,.06);
+  border:1px solid var(--card-border);
+  overflow:hidden; margin-top:6px;
 }
 .kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
 #tile-floor.over .kpi-meter .fill{ background:#dc2626; }
 
-/* chips (always colored) */
+/* chips */
 .chip{
   display:inline-block;
-  border:1px solid #e5e7eb;
-  background:#f9fafb;
-  color:#334155;
+  border:1px solid var(--card-border);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
   border-radius:999px;
-  padding:8px 16px;
+  padding:6px 12px;
   font-size:14px;
   font-weight:600;
   line-height:1.1;
   transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
 }
-.chip-btn{
-  cursor:pointer;
-  box-shadow:0 1px 0 rgba(16,24,40,.05);
-}
-.chip-btn:hover{ background:#f3f4f6; transform:translateY(-1px); }
+.chip-btn{ cursor:pointer; box-shadow:0 1px 0 rgba(16,24,40,.05); }
+.chip-btn:hover{ background: rgba(255,255,255,.10); transform:translateY(-1px); }
 .chip-btn:active{ transform:translateY(0); }
-.chip-btn:focus{ outline:0; box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+.chip-btn:focus{ outline:0; box-shadow:0 0 0 3px rgba(129,196,255,.25); }
 
-.chip-blue{ background:#eff6ff; color:#1d4ed8; border-color:#dbeafe; }
-.chip-green{ background:#ecfdf5; color:#047857; border-color:#dcfce7; }
-.chip-amber{ background:#fffbeb; color:#b45309; border-color:#fde68a; }
-.chip-indigo{ background:#eef2ff; color:#4338ca; border-color:#e0e7ff; }
+.chip-blue  { background: rgba(147,197,253,.12); color:#bfdbfe; border-color: rgba(147,197,253,.35); }
+.chip-green { background: rgba(134,239,172,.12); color:#bbf7d0; border-color: rgba(134,239,172,.35); }
+.chip-amber { background: rgba(253,230,138,.12); color:#fde68a; border-color: rgba(253,230,138,.35); }
+.chip-indigo{ background: rgba(199,210,254,.12); color:#c7d2fe; border-color: rgba(199,210,254,.35); }
 
-/* Streams table UX */
+/* table UX */
 #streamsTable thead th.sortable { cursor: pointer; user-select: none; }
-#streamsTable thead th .sort { opacity: .4; margin-left: 4px; font-size: 10px; }
+#streamsTable thead th .sort { opacity: .5; margin-left: 4px; font-size: 10px; }
 #streamsTable thead th.sorted-asc .sort::after  { content: "▲"; }
 #streamsTable thead th.sorted-desc .sort::after { content: "▼"; }
 #streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content: "↕"; }
 
-#streamsTable svg{ display:block; margin:0 auto; color:#64748b; }
+#streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
 .trend-cell { white-space: nowrap; min-width: 190px; }
 
 .streams-category .badge.variance-badge {
-  background: #fff8e1; color: #92400e; border: 1px solid #fde68a; font-weight: 600;
+  background: rgba(253,230,138,.15);
+  color: #fde68a;
+  border: 1px solid rgba(253,230,138,.35);
+  font-weight: 600;
 }
 
-/* Drawer fallback content styling */
+/* drawer fallback */
 .kv{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
-.kv .k{ color:#64748b; }
-.kv .v{ color:#111827; }
+.kv .k{ color: var(--muted); }
+.kv .v{ color: var(--text); }
 </style>
 {% endblock %}
