@@ -46,32 +46,37 @@
     background:transparent;
   }
 
-  /* ===== Sticky, frosted header (match transactions) ===== */
-  /* Make the scrollers the backdrop sampling context */
-  .cm-scroll, .tx-scroll{
-    max-height: 42vh; /* tx-scroll overrides below */
-    overflow: auto;
-    border-radius:12px;
-    position: relative;            /* important for sticky + backdrop */
-    isolation: isolate;            /* keep effects local */
-    background: transparent;       /* allow rows to be “behind” */
-  }
-
-  /* Put blur on the <th> itself (simpler + reliable) */
-  .cm-scroll .table-modern thead th,
-  .tx-scroll .table-modern thead th{
+  /* ===== Strong glass header (non-brightening) — dashboard tables only ===== */
+  .table-modern thead th{
     position: sticky;
     top: 0;
-    z-index: 6;                                      /* above rows */
-    background: var(--thead-bg) !important;          /* semi-transparent token */
+    z-index: 6;                         /* above rows */
+    background: transparent !important; /* actual glass lives on ::before */
     color: var(--table-head-fg, var(--text)) !important;
     border-bottom: 1px solid var(--hair) !important;
     font-weight: 700;
     letter-spacing: .2px;
     padding: .65rem .9rem;
-    backdrop-filter: saturate(120%) blur(6px);
-    -webkit-backdrop-filter: saturate(120%) blur(6px);
+    isolation: isolate;                 /* keep ::before under the text */
   }
+  /* The frosted layer (fully blurs content behind; darker so text behind isn’t readable) */
+  .table-modern thead th::before{
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;                        /* behind header text */
+    background: rgba(10,14,24,.78);     /* dark glass; no “brighten” */
+    -webkit-backdrop-filter: saturate(130%) blur(16px);
+    backdrop-filter: saturate(130%) blur(16px);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.05),
+      0 10px 18px rgba(2,6,23,.25);
+    transform: translateZ(0);
+    will-change: backdrop-filter;
+  }
+  /* rounded ends on the sticky strip */
+  .table-modern thead th:first-child::before{ border-top-left-radius:12px; }
+  .table-modern thead th:last-child::before { border-top-right-radius:12px; }
 
   /* Body rows */
   .table-modern tbody td,
@@ -105,7 +110,7 @@
   .metrics-row{ padding:12px 12px 6px; }
   .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
 
-  /* ---- Category Movers shell ---- */
+  /* ---- Category Movers “Latest-like shell” with preserved scrolling ---- */
   .cm-shell{
     margin:12px;
     border-radius:14px;
@@ -113,9 +118,17 @@
     background:rgba(255,255,255,.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
+  .cm-scroll{
+    max-height: 42vh;
+    overflow: auto;
+    border-radius:12px;
+    /* critical so the header blur uses the rows as backdrop */
+    background: transparent;
+    isolation: isolate;
+  }
   .cm-scroll table{ margin: 6px; }
 
-  /* ---- Transactions panel ---- */
+  /* ---- Transactions: mirror the same shell/scroll as CM ---- */
   .tx-shell{
     margin:12px;
     border-radius:14px;
@@ -124,9 +137,13 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
   .tx-scroll{
-    max-height: 540px;             /* taller for tx list */
+    max-height: 540px;
     overflow-y: auto;
-    overflow-x: hidden;            /* kill bottom scrollbar */
+    overflow-x: hidden;  /* kill bottom scrollbar */
+    border-radius:12px;
+    /* critical so the header blur uses the rows as backdrop */
+    background: transparent;
+    isolation: isolate;
   }
   .tx-scroll table{ margin: 6px; }
 
@@ -170,12 +187,19 @@
   }
   .clickable-card-header .chev{ font-weight:700; opacity:.9; }
 
-  /* Hide the two items from the screenshot */
-  #recent-activity .section-heading,
-  #recent-activity #ra-asof { display:none !important; }
+  /* “Summary” accordion label color */
+  .summary-label { color: var(--text); }
 
   /* Transactions header refresh button alignment */
   #refresh-btn{ margin-left:auto; }
+
+  /* === Dashboard-only overrides to ensure blur wins over layout defaults === */
+  #recent-activity .table-modern thead th,
+  #recent-activity .table-modern thead td{
+    z-index: 7; /* sit above any global header styling */
+  }
+  /* Explicitly kill any extra ::before from other styles */
+  #recent-activity .table-modern thead th::before{ content:""; }
 </style>
 
 <!-- Header -->
