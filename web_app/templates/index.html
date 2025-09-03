@@ -22,14 +22,14 @@
     border-bottom: 1px solid var(--hair) !important;
     font-weight: 600;
   }
-  /* Header alignment like goals: a touch down/right, no hard-left slam */
+  /* Header alignment like goals */
   .card-header, .section-title{
     padding: .75rem 1rem;
     display:flex; align-items:center; gap:.5rem;
   }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Unified table look (matches goals / transactions) --- */
+  /* --- Table wrapper look (no sticky/blur here; layout.html handles that) --- */
   .table-wrap{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -46,34 +46,19 @@
     background:transparent;
   }
 
-  /* ===== Sticky, frosted header (match transactions) ===== */
-  /* Make the scrollers the backdrop sampling context */
-  .cm-scroll, .tx-scroll{
-    max-height: 42vh; /* tx-scroll overrides below */
+  /* ===== Scrollers for sticky headers (backdrop context) ===== */
+  .cm-scroll,
+  .tx-scroll{
+    /* heights so they actually scroll */
+    max-height: 42vh;                 /* tx-scroll overrides below */
     overflow: auto;
     border-radius:12px;
-    position: relative;            /* important for sticky + backdrop */
-    isolation: isolate;            /* keep effects local */
-    background: transparent;       /* allow rows to be “behind” */
+    position: relative;
+    isolation: isolate;               /* ensures blur samples rows, not ancestors */
+    background: transparent;          /* allow the blur to “see” the body rows */
   }
 
-  /* Put blur on the <th> itself (simpler + reliable) */
-  .cm-scroll .table-modern thead th,
-  .tx-scroll .table-modern thead th{
-    position: sticky;
-    top: 0;
-    z-index: 6;                                      /* above rows */
-    background: var(--thead-bg) !important;          /* semi-transparent token */
-    color: var(--table-head-fg, var(--text)) !important;
-    border-bottom: 1px solid var(--hair) !important;
-    font-weight: 700;
-    letter-spacing: .2px;
-    padding: .65rem .9rem;
-    backdrop-filter: saturate(120%) blur(6px);
-    -webkit-backdrop-filter: saturate(120%) blur(6px);
-  }
-
-  /* Body rows */
+  /* Body rows (visual only; sticky/blur is global) */
   .table-modern tbody td,
   .table-floating tbody td{
     border-top:1px solid var(--hair);
@@ -89,7 +74,7 @@
   .tx-neg { color:#c0392b; font-weight:600; }
   .tx-pos { color:#1e7e34; font-weight:600; }
 
-  /* --- Metric “bubbles” (used in Latest Month Totals) --- */
+  /* --- Metric “bubbles” (Latest Month Totals) --- */
   .metric-bubble{
     background:rgba(255,255,255,.04);
     border:1px solid var(--hair);
@@ -101,7 +86,7 @@
   .metric-value{ font-weight:700; font-size:1.25rem; }
   .metric-sub{ color:#31d4a1; font-weight:600; }
 
-  /* Provide comfortable in-card gutters so bubbles never touch shell edges */
+  /* Comfortable gutters so bubbles never touch shell edges */
   .metrics-row{ padding:12px 12px 6px; }
   .metrics-row .col-12, .metrics-row .col-md-4{ padding:8px; }
 
@@ -124,21 +109,28 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
   }
   .tx-scroll{
-    max-height: 540px;             /* taller for tx list */
+    max-height: 540px;                /* taller for transactions */
     overflow-y: auto;
-    overflow-x: hidden;            /* kill bottom scrollbar */
+    overflow-x: hidden;               /* kill bottom scrollbar */
   }
   .tx-scroll table{ margin: 6px; }
 
-  /* make content fit without bottom scrollbar */
+  /* Fit without bottom scrollbar */
   .tx-table{ table-layout: fixed; }
   .tx-table th, .tx-table td{ padding:.65rem .85rem; }
   .tx-table .col-date{ width:110px; white-space:nowrap; }
   .tx-table .col-amount{ width:130px; white-space:nowrap; text-align:right; }
   .tx-table .col-desc, .tx-table .col-cat{ width:auto; word-break:break-word; }
 
-  /* Header chips and labels */
-  .summary-label, .section-heading { color: var(--text); font-weight: 700; }
+  /* Clickable monthly header */
+  .clickable-card-header{
+    display:flex; align-items:center; gap:.6rem; user-select:none;
+    padding:.575rem .875rem; margin:.5rem; border-radius:12px;
+    background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
+    border:1px solid var(--hair);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .clickable-card-header .chev{ font-weight:700; opacity:.9; }
 
   /* Category tree */
   details > summary { list-style: none; cursor: pointer; user-select: none; }
@@ -161,18 +153,9 @@
     text-decoration:none;
   }
 
-  .clickable-card-header{
-    display:flex; align-items:center; gap:.6rem; user-select:none;
-    padding:.575rem .875rem; margin:.5rem; border-radius:12px;
-    background: color-mix(in oklab, var(--thead-bg) 78%, transparent);
-    border:1px solid var(--hair);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .clickable-card-header .chev{ font-weight:700; opacity:.9; }
-
-  /* Hide the two items from the screenshot */
+  /* Dashboard-only: hide “Recent Activity” title and “as of …” text */
   #recent-activity .section-heading,
-  #recent-activity #ra-asof { display:none !important; }
+  #recent-activity #ra-asof { display: none !important; }
 
   /* Transactions header refresh button alignment */
   #refresh-btn{ margin-left:auto; }
