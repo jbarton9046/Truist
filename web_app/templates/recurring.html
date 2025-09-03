@@ -310,24 +310,10 @@
   }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-  // Always return a colored chip class (deterministic fallback palette)
-  function chipColorClass(label){
-    const L = String(label||'').toLowerCase();
-    if (L.includes('utility') || L.includes('rent') || L.includes('mortgage')) return 'chip-blue';
-    if (L.includes('insurance')) return 'chip-green';
-    if (L.includes('subscription') || L.includes('xbox') || L.includes('netflix') || L.includes('spotify')) return 'chip-amber';
-    if (L.includes('internet') || L.includes('phone') || L.includes('mobile')) return 'chip-indigo';
-    const palette = ['chip-blue','chip-green','chip-amber','chip-indigo'];
-    let hash = 0;
-    for (let i = 0; i < L.length; i++) hash = ((hash << 5) - hash + L.charCodeAt(i)) | 0;
-    const idx = Math.abs(hash) % palette.length;
-    return palette[idx];
-  }
-
+  // Flat, blue text “chip” (click target only)
   function catChipBtn(label, key, path){
-    const cls = chipColorClass(label);
     const txt = escapeHtml(label || 'Category');
-    return `<button type="button" class="chip chip-btn ${cls}"
+    return `<button type="button" class="chip chip-btn"
               data-stream-key="${escapeHtml(key||'')}"
               data-cat="${escapeHtml(path.cat||'')}"
               data-sub="${escapeHtml(path.sub||'')}"
@@ -416,7 +402,7 @@
     leftoverEl.classList.toggle('text-danger', leftover < 0);
     document.getElementById('kpi-week').textContent     = money(data.this_week_due);
 
-    // Keep the KPI floor meter only
+    // Meter
     setFloorMeter(floor, income);
 
     // Predictive card values
@@ -475,6 +461,7 @@
         `;
         dueTbody.appendChild(tr);
 
+        // Canonicalize this chip’s text to match Category Builder rename
         const btn = tr.querySelector('.chip-btn');
         if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
       }
@@ -495,6 +482,7 @@
         const ssub = (btn.getAttribute('data-ssub') || '').trim();
         const level = ssub ? 'subsubcategory' : (sub ? 'subcategory' : 'category');
 
+        // Set drawer title to canonical label too
         let title = [cat, sub, ssub].filter(Boolean).join(' › ') || 'Category Manager';
         try{
           if (window.resolveCategoryLabel){
@@ -544,6 +532,7 @@
       return acc;
     }, {});
 
+    // Filter by search using deep category + freq
     const q = (searchEl.value || '').trim().toLowerCase();
     const filtered = streams.filter(s => {
       if (!q) return true;
@@ -576,7 +565,7 @@
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
             ${catBtnHtml}
-            ${warn?`<span class="badge variance-badge" title="Last charge &gt;20% above median">variance</span>`:''}
+            ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
           </div>
         </td>
         <td class="text-end">${money(s.amount)}</td>
@@ -591,13 +580,16 @@
       `;
       tbody.appendChild(tr);
 
+      // Canonicalize this chip’s text to match Category Builder rename
       const btn = tr.querySelector('.chip-btn');
       if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
     }
 
+    // CSV export for current view (category-first)
     exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
   }
 
+  // CSV (Category-first)
   function exportStreamsCsv(streams, txByKey){
     const rows = [
       ['Category','Amount','Count','Freq','Next'].join(',')
@@ -619,6 +611,7 @@
     URL.revokeObjectURL(url);
   }
 
+  // Events
   winSel.addEventListener('change', load);
   horSel.addEventListener('change', load);
   searchEl.addEventListener('input', renderStreamsTable);
@@ -674,28 +667,25 @@
 .kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
 #tile-floor.over .kpi-meter .fill{ background:#dc2626; }
 
-/* chips */
+/* ==== CATEGORY "CHIP" NOW FLAT BLUE TEXT ==== */
 .chip{
   display:inline-block;
-  border:1px solid var(--card-border);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
-  border-radius:999px;
-  padding:6px 12px;
-  font-size:14px;
-  font-weight:600;
-  line-height:1.1;
-  transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
+  background: transparent;
+  border: 0;
+  color: var(--text);            /* global accent ink (blue) */
+  padding: 0;                    /* no pill */
+  margin: 0;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.1;
 }
-.chip-btn{ cursor:pointer; box-shadow:0 1px 0 rgba(16,24,40,.05); }
-.chip-btn:hover{ background: rgba(255,255,255,.10); transform:translateY(-1px); }
-.chip-btn:active{ transform:translateY(0); }
-.chip-btn:focus{ outline:0; box-shadow:0 0 0 3px rgba(129,196,255,.25); }
-
-.chip-blue  { background: rgba(147,197,253,.12); color:#bfdbfe; border-color: rgba(147,197,253,.35); }
-.chip-green { background: rgba(134,239,172,.12); color:#bbf7d0; border-color: rgba(134,239,172,.35); }
-.chip-amber { background: rgba(253,230,138,.12); color:#fde68a; border-color: rgba(253,230,138,.35); }
-.chip-indigo{ background: rgba(199,210,254,.12); color:#c7d2fe; border-color: rgba(199,210,254,.35); }
+.chip-btn{
+  cursor:pointer;
+  text-decoration: none;
+}
+.chip-btn:hover{ text-decoration: underline; }
+.chip-btn:focus{ outline:2px solid color-mix(in oklab, var(--text) 45%, transparent); outline-offset:2px; }
 
 /* table UX */
 #streamsTable thead th.sortable { cursor: pointer; user-select: none; }
@@ -707,11 +697,11 @@
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
 .trend-cell { white-space: nowrap; min-width: 190px; }
 
-.streams-category .badge.variance-badge {
-  background: rgba(253,230,138,.15);
-  color: #fde68a;
-  border: 1px solid rgba(253,230,138,.35);
-  font-weight: 600;
+/* variance label as floating text, not a badge */
+.variance-tag{
+  font-size: .85rem;
+  color: color-mix(in oklab, var(--text) 70%, #fff 0%);
+  opacity: .85;
 }
 
 /* drawer fallback */
