@@ -1,116 +1,178 @@
 <!-- Right-side Category Manager drawer -->
-<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1"
-     id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel"
-     style="width:480px;" data-bs-backdrop="true">
-
-  <!-- Header (keeps same structure; adds .drawer-header for glass+sticky) -->
+<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
+  <!-- Header -->
   <div class="offcanvas-header drawer-header">
     <div class="d-flex flex-column">
-      <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
-        <!-- Breadcrumb (clickable). Give it both classes so CSS can style it. -->
-        <nav id="drawer-breadcrumb" class="drawer-breadcrumb drawer-path" aria-label="Path"></nav>
-        <!-- Keep original path label (hidden) so existing JS can still update it -->
+      <h5 class="offcanvas-title drawer-title" id="dashCategoryManagerLabel">
+        <!-- Breadcrumb (clickable) -->
+        <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
+        <!-- Keep original path label (hidden) so drawer.js can still update it -->
         <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
 
-      <div class="small text-muted">
-        Month:
-        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
-        &nbsp;•&nbsp;
-        <span id="drawer-total" class="fw-semibold">—</span>
+      <!-- Pins (month + net), same signature blue ink -->
+      <div class="small muted fw-semibold d-flex align-items-center gap-2 drawer-sub" style="background:transparent;border:0;box-shadow:none;padding:0;margin-top:.25rem;">
+        <label class="me-1">Month:</label>
+        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle" style="min-width:8.5rem;"></select>
+        <span class="ms-3">Net:</span>
+        <span id="drawer-total" class="drawer-value">—</span>
       </div>
     </div>
-
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
 
-  <!-- Body -->
   <div class="offcanvas-body">
-
-    <!-- Lightweight styles specific to this drawer’s internal widgets only.
-         (All glass/blur/sticky/scrollbar styling comes from neon-tech.css) -->
+    <!-- Inline styles scoped to drawer (keeps other pages untouched) -->
     <style>
-      .drawer-tabs { display:flex; gap:.5rem; border-bottom:1px solid var(--hair); margin-bottom:.6rem; }
-      .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:var(--text); }
-      .drawer-tab.active {
-        background: color-mix(in oklab, var(--thead-bg) 85%, transparent);
-        border:1px solid var(--hair);
-        border-bottom-color: transparent;
+      /* ---------- “Children” panel (FLOATING, no pills/white) ---------- */
+      .children-panel{
+        margin: .25rem 0 1rem;
+        padding: .75rem .875rem;
+        border-radius: 14px;
+        background:
+          linear-gradient(180deg,
+            color-mix(in oklab, var(--thead-bg) 90%, transparent) 0%,
+            color-mix(in oklab, var(--thead-bg) 72%, transparent) 100%);
+        border: 1px solid var(--hair);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.06),
+          0 12px 24px rgba(2,6,23,.30);
+        backdrop-filter: saturate(130%) blur(12px);
+        -webkit-backdrop-filter: saturate(130%) blur(12px);
       }
-      .child-pill {
-        display:inline-block; padding:.2rem .55rem; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer;
-        background: rgba(255,255,255,.06); border:1px solid var(--hair); border-radius:999px; color: var(--text);
+      /* keep class name “child-pill” for drawer.js, but visually a link */
+      .children-panel .child-pill{
+        appearance: none;
+        background: transparent !important;
+        border: 1px solid transparent !important;
+        color: var(--accent-ink) !important;
+        padding: .2rem .35rem;
+        margin: .15rem .35rem .15rem 0;
+        border-radius: 10px;
+        font-weight: 700;
+        text-decoration: none;
+        line-height: 1.25;
+        transition: border-color .15s ease, background .2s ease, transform .12s ease;
       }
-      .month-divider { background: color-mix(in oklab, var(--thead-bg) 82%, transparent); position:sticky; top:0; z-index:1; }
-      .month-divider td { font-weight:700; }
+      .children-panel .child-pill::before{ content: none !important; } /* remove bullets */
+      .children-panel .child-pill:hover{
+        background: rgba(158,203,255,.09) !important;
+        border-color: color-mix(in oklab, var(--accent-ink) 35%, transparent) !important;
+        text-decoration: none;
+      }
+      .children-panel .child-pill:active{ transform: translateY(1px); }
 
-      .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
-      .drawer-breadcrumb a { text-decoration:none; font-weight:600; color: var(--text); }
-      .drawer-breadcrumb a:hover { text-decoration:underline; }
-      .drawer-breadcrumb .sep { color: var(--muted); }
-      .drawer-breadcrumb .current { color: var(--text); font-weight:700; cursor:default; }
+      /* ---------- Drawer table: MATCH transactions.html ---------- */
+      .drawer-table-shell{
+        /* pull tint flush to the inner offcanvas edge */
+        margin-left: -12px; margin-right: -12px;
+        padding-left: 12px; padding-right: 12px;
+      }
+      .drawer-table-scroll{
+        max-height: 70vh;
+        overflow: auto;
+        border-radius: 14px;
+        isolation: isolate;
+        transform: translateZ(0);
+        background: transparent;
+        /* custom var for sticky month top; JS sets it precisely */
+        --drawer-thead-h: 44px;
+      }
+      /* unified surface */
+      #drawer-tx{
+        width:100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        color: var(--text);
+        background: transparent;
+      }
+      /* thead: frosted & sticky, exactly like transactions */
+      #drawer-tx thead th{
+        position: sticky; top: 0; z-index: 5;
+        background:
+          linear-gradient(180deg,
+            color-mix(in oklab, var(--thead-bg) 88%, transparent) 0%,
+            color-mix(in oklab, var(--thead-bg) 72%, transparent) 100%) !important;
+        backdrop-filter: saturate(120%) blur(10px);
+        -webkit-backdrop-filter: saturate(120%) blur(10px);
+        border-bottom: 1px solid var(--hair) !important;
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.06),
+          0 10px 18px rgba(2,6,23,.25);
+        font-weight: 800; letter-spacing: .2px;
+        padding: .9rem 1rem;
+      }
+      #drawer-tx thead th:first-child{ border-top-left-radius:12px; }
+      #drawer-tx thead th:last-child { border-top-right-radius:12px; }
 
-      .tx-pos { color:#1e7e34; font-weight:600; }
-      .tx-neg { color:#c0392b; font-weight:600; }
+      /* body rows: roomy, tidy, polished */
+      #drawer-tx tbody td{
+        padding: 1.05rem 1rem;
+        border-top: 1px solid var(--hair);
+        vertical-align: top;
+      }
+      #drawer-tx tbody tr:nth-child(odd){ background: rgba(255,255,255,.015); }
+      #drawer-tx tbody tr:hover{ background: rgba(255,255,255,.05); }
+
+      /* columns */
+      #drawer-tx .col-date    { width: 140px; white-space:nowrap; }
+      #drawer-tx .col-amount  { width: 160px; text-align:right; white-space:nowrap; }
+      #drawer-tx .col-desc    { width:auto; }
+      #drawer-tx .col-cat     { width: 260px; }
+
+      /* amounts color (match site) */
+      #drawer-tx .amt-neg{ color:#c0392b; font-weight:700; }
+      #drawer-tx .amt-pos{ color:#1e7e34; font-weight:700; }
+
+      /* Month separators: FROSTED & sticky under thead, full-width tint */
+      #drawer-tx tbody tr.month-divider > td{
+        position: sticky; top: var(--drawer-thead-h, 44px); z-index: 4;
+        background:
+          linear-gradient(180deg,
+            color-mix(in oklab, var(--thead-bg) 88%, transparent) 0%,
+            color-mix(in oklab, var(--thead-bg) 70%, transparent) 100%) !important;
+        backdrop-filter: saturate(120%) blur(10px);
+        -webkit-backdrop-filter: saturate(120%) blur(10px);
+        border-top: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,.06),
+          0 8px 14px rgba(2,6,23,.22);
+        font-weight: 800; letter-spacing:.2px;
+        padding: .75rem 1rem;
+        color: var(--accent-ink);
+      }
+      /* rounded when first visible */
+      #drawer-tx tbody > tr.month-divider:first-child > td{
+        border-top-left-radius: 12px; border-top-right-radius: 12px;
+      }
+
+      /* Category breadcrumb + header text tone */
+      .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a{ color:var(--accent-ink); font-weight:700; text-decoration:none; }
+      .drawer-breadcrumb a:hover{ text-decoration:underline; }
     </style>
 
-    <!-- Tabs (unchanged hooks) -->
-    <div class="drawer-tabs">
-      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
-      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
-      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
+    <!-- Children -->
+    <div class="mb-2"><strong>Children:</strong></div>
+    <div id="drawer-children" class="children-panel"></div>
+
+    <!-- Transactions table (mirrors transactions.html) -->
+    <div class="table-responsive drawer-table-scroll drawer-table-shell" id="drawer-table-wrap">
+      <table class="table table-modern align-middle mb-0" id="drawer-tx">
+        <thead>
+          <tr>
+            <th class="col-date">Date</th>
+            <th class="col-desc">Description</th>
+            <th class="col-amount">Amount</th>
+            <th class="col-cat">Category</th>
+          </tr>
+        </thead>
+        <tbody id="drawer-tx-body">
+          <!-- drawer.js renders rows + <tr class="month-divider"><td colspan="4">Aug 2025 — Net: … -->
+        </tbody>
+      </table>
     </div>
-
-    <!-- Pane: Overview -->
-    <div class="drawer-pane" data-pane="overview" style="display:block;">
-      <div class="mb-2">
-        <strong>Children:</strong>
-        <div id="drawer-children" class="mt-1"></div>
-      </div>
-
-      <!-- Use tx-scroll + table-floating so it matches the rest of the app -->
-      <div class="table-responsive tx-scroll" style="max-height:58vh; overflow:auto;">
-        <table class="table table-sm table-hover table-floating align-middle mb-0" id="drawer-tx">
-          <thead>
-            <tr>
-              <th style="width:110px;">Date</th>
-              <th>Description</th>
-              <th class="text-end" style="width:120px;">Amount</th>
-              <th style="width:180px;">Category</th>
-            </tr>
-          </thead>
-          <tbody id="drawer-tx-body">
-            <!-- filled by drawer.js -->
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Pane: Keywords -->
-    <div class="drawer-pane" data-pane="keywords" style="display:none;">
-      <div class="small text-muted mb-1">
-        Keywords attached to: <span id="kw-current-level" class="fw-semibold">(select a node)</span>.
-        Click × to remove. Case-insensitive “contains” match.
-      </div>
-      <div id="kw-list" class="mb-2"><span class="text-muted">No keywords yet.</span></div>
-      <div class="input-group input-group-sm" style="max-width:520px;">
-        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
-        <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
-      </div>
-    </div>
-
-    <!-- Pane: Actions -->
-    <div class="drawer-pane" data-pane="actions" style="display:none;">
-      <div class="d-grid gap-2" style="max-width:520px;">
-        <button id="drawer-inspect" class="btn btn-sm btn-outline-secondary">Inspect Path JSON</button>
-        <button id="drawer-rename"  class="btn btn-sm btn-outline-secondary">Rename Current Node</button>
-        <button id="drawer-upsert"  class="btn btn-sm btn-outline-primary">Create/Attach Child Under This Path</button>
-      </div>
-      <div class="small text-muted mt-2">These call your admin endpoints: inspect, rename, upsert.</div>
-    </div>
-
-    <!-- Extra dynamic area many pages fill; keep it -->
-    <div id="drawer-dynamic" class="p-3 pt-2"></div>
   </div>
 </div>
 
@@ -120,3 +182,30 @@
   window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
 </script>
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
+
+<!-- Micro-script: measure thead height and keep month dividers perfectly docked -->
+<script>
+(function(){
+  const oc = document.getElementById('dashCategoryManager');
+  function measureHead(){
+    const wrap = oc?.querySelector('.drawer-table-scroll');
+    const th   = oc?.querySelector('#drawer-tx thead');
+    if (!wrap || !th) return;
+    const h = Math.max(38, Math.round(th.getBoundingClientRect().height));
+    wrap.style.setProperty('--drawer-thead-h', h + 'px');
+  }
+  // When the drawer opens / content updates
+  oc?.addEventListener('shown.bs.offcanvas', () => {
+    requestAnimationFrame(measureHead);
+    setTimeout(measureHead, 200);
+    setTimeout(measureHead, 600);
+  });
+  // Re-measure on resize and when children links are clicked (layout shifts)
+  window.addEventListener('resize', measureHead, { passive:true });
+  oc?.addEventListener('click', (e) => {
+    if (e.target.closest('.child-pill')) setTimeout(measureHead, 250);
+  });
+  // Fallback initial measure (if drawer already visible)
+  setTimeout(measureHead, 300);
+})();
+</script>
