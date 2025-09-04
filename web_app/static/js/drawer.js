@@ -96,7 +96,7 @@
           state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
         } else {
           const order = ['cat','sub','ssub','sss'];
-          order.slice(idx+1).forEach(k => state.ctx[k] = '';
+          order.slice(idx + 1).forEach((k) => { state.ctx[k] = ''; });
           state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
         }
         fetchPathTx(state.ctx).catch(()=>{});
