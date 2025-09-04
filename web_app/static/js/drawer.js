@@ -1,4 +1,4 @@
-// static/js/drawer.js — neon-tech aligned drawer
+// static/js/drawer.js — neon-tech aligned drawer (with 2-line Description clamp)
 (function () {
   'use strict';
 
@@ -160,14 +160,14 @@
         '</tr>'
       );
 
-      // Data rows
+      // Data rows (Description wrapped in a span for 2-line clamp)
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
         const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');
         parts.push(
           '<tr>\n' +
           '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>\n' +
-          '  <td>'+escapeHTML(t.description || '')+'</td>\n' +
+          '  <td><span class="desc-clamp">'+escapeHTML(t.description || '')+'</span></td>\n' +
           '  <td class="text-end '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>\n' +
           '  <td>'+escapeHTML(catPath)+'</td>\n' +
           '</tr>\n'
@@ -252,7 +252,7 @@
       const monthsDesc = (state.months || []).slice().sort().reverse();
       monthsDesc.forEach(function(m){
         const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(m) + '</option>');
+        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
       });
       sel.innerHTML = opts.join('');
     }

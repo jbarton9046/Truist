@@ -30,11 +30,37 @@
         hyphens: manual !important;
         white-space: normal !important;
       }
-      /* Allow Description (col 2) to wrap naturally so long tokens don’t blow layout */
-      #dashCategoryManager #drawer-tx tbody td:nth-child(2){
+
+      /* Drawer: no horizontal scrollbar; only vertical scroll */
+      #dashCategoryManager .table-responsive{
+        overflow-y: auto !important;
+        overflow-x: hidden !important;   /* hide bottom bar */
+        max-height: 58vh;                /* keep your current height */
+      }
+      /* Make sure the table never forces horizontal overflow */
+      #dashCategoryManager #drawer-tx{
+        width: 100% !important;
+        table-layout: auto !important;   /* let columns shrink/grow naturally */
+      }
+      /* Keep Date/Amount on one line; let Description/Category wrap */
+      #dashCategoryManager #drawer-tx tbody td:nth-child(1),
+      #dashCategoryManager #drawer-tx tbody td:nth-child(3){
+        white-space: nowrap !important;
+      }
+      #dashCategoryManager #drawer-tx tbody td:nth-child(2),
+      #dashCategoryManager #drawer-tx tbody td:nth-child(4){
+        white-space: normal !important;
+        word-break: break-word !important;   /* wrap long tokens */
+        overflow-wrap: break-word !important;
+      }
+      /* Optional: clamp Description (col 2) to 2 lines with ellipsis */
+      #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden !important;
         word-break: break-word !important;
         overflow-wrap: break-word !important;
-        white-space: normal !important;
       }
 
       /* Breadcrumb + chips (theme-friendly) */
@@ -66,9 +92,6 @@
       .child-pill:active{ transform: translateY(1px); }
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
-
-      /* Let neon-tech.css control the table (thead visible + sticky; month divider sticky). */
-      #dashCategoryManager .table-responsive{ max-height:58vh; } /* scroll area height similar to before */
     </style>
 
     <!-- Tabs -->
