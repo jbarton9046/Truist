@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (neon-tech aligned) -->
+<!-- Right-side Category Manager drawer (neon-tech aligned, no horizontal scroll) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -29,38 +29,51 @@
         overflow-wrap: normal !important;
         hyphens: manual !important;
         white-space: normal !important;
+        box-sizing: border-box !important;
       }
 
-      /* Drawer: no horizontal scrollbar; only vertical scroll */
+      /* Drawer: vertical scroll only; never show horizontal bar */
       #dashCategoryManager .table-responsive{
         overflow-y: auto !important;
-        overflow-x: hidden !important;   /* hide bottom bar */
-        max-height: 58vh;                /* keep your current height */
+        overflow-x: hidden !important;
+        max-height: 58vh;
       }
-      /* Make sure the table never forces horizontal overflow */
+
+      /* Make table always fit the drawer width */
       #dashCategoryManager #drawer-tx{
         width: 100% !important;
-        table-layout: auto !important;   /* let columns shrink/grow naturally */
+        border-collapse: separate !important;
+        table-layout: fixed !important;              /* key for fitting columns */
       }
-      /* Keep Date/Amount on one line; let Description/Category wrap */
+
+      /* Column layout (percentages must sum to 100) */
+      #dashCategoryManager #drawer-tx col.col-date   { width: 24% !important; }
+      #dashCategoryManager #drawer-tx col.col-desc   { width: 40% !important; }
+      #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
+      #dashCategoryManager #drawer-tx col.col-cat    { width: 20% !important; }
+
+      /* Keep Date & Amount on one line; let Desc & Category wrap */
       #dashCategoryManager #drawer-tx tbody td:nth-child(1),
       #dashCategoryManager #drawer-tx tbody td:nth-child(3){
         white-space: nowrap !important;
+        font-variant-numeric: tabular-nums;
       }
       #dashCategoryManager #drawer-tx tbody td:nth-child(2),
       #dashCategoryManager #drawer-tx tbody td:nth-child(4){
         white-space: normal !important;
-        word-break: break-word !important;   /* wrap long tokens */
-        overflow-wrap: break-word !important;
-      }
-      /* Optional: clamp Description (col 2) to 2 lines with ellipsis */
-      #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden !important;
         word-break: break-word !important;
         overflow-wrap: break-word !important;
+        hyphens: auto !important;
+      }
+      /* Friendly wrap opportunities in Category paths like "A / B / C" */
+      #dashCategoryManager #drawer-tx tbody td:nth-child(4){
+        word-break: break-word !important;
+      }
+
+      /* Slightly tighter cell padding to buy width */
+      #dashCategoryManager #drawer-tx th,
+      #dashCategoryManager #drawer-tx td{
+        padding: .70rem .80rem !important;
       }
 
       /* Breadcrumb + chips (theme-friendly) */
@@ -92,6 +105,30 @@
       .child-pill:active{ transform: translateY(1px); }
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
+
+      /* --- OPTIONAL multi-line clamp for Description (OFF by default) ---
+      #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+        display: block !important;
+        line-height: 1.35;
+        max-height: calc(2 * 1.35em);      overflow: hidden !important;
+        text-overflow: ellipsis;           white-space: normal !important;
+        word-break: break-word !important; overflow-wrap: break-word !important;
+      }
+      @supports (-webkit-line-clamp: 2){
+        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+          display: -webkit-box !important;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          max-height: none;
+        }
+      }
+      @supports (line-clamp: 2){
+        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+          display: block !important;
+          line-clamp: 2;
+        }
+      }
+      ------------------------------------------------------------------- */
     </style>
 
     <!-- Tabs -->
@@ -107,6 +144,12 @@
 
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
+          <colgroup>
+            <col class="col-date">
+            <col class="col-desc">
+            <col class="col-amount">
+            <col class="col-cat">
+          </colgroup>
           <thead>
             <tr>
               <th>Date</th>

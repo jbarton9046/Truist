@@ -1,9 +1,9 @@
-// static/js/drawer.js — neon-tech aligned drawer (with 2-line Description clamp)
+// static/js/drawer.js — neon-tech aligned drawer (fits without horizontal scroll)
 (function () {
   'use strict';
 
   // Avoid double-load
-  if (window.openCategoryManager && window.openCategoryManager.__cl_neon === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -160,14 +160,14 @@
         '</tr>'
       );
 
-      // Data rows (Description wrapped in a span for 2-line clamp)
+      // Data rows (show full description/category; no clamp)
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
         const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');
         parts.push(
           '<tr>\n' +
           '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>\n' +
-          '  <td><span class="desc-clamp">'+escapeHTML(t.description || '')+'</span></td>\n' +
+          '  <td>'+escapeHTML(t.description || '')+'</td>\n' +
           '  <td class="text-end '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>\n' +
           '  <td>'+escapeHTML(catPath)+'</td>\n' +
           '</tr>\n'
@@ -379,7 +379,7 @@
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
   }
-  openCategoryManager.__cl_neon = true;
+  openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
   // Global click helper used around the site
