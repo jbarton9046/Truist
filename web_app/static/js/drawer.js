@@ -85,13 +85,21 @@
     return later[0] || available[available.length - 1];
   }
 
-  // Measure sticky header height and expose as CSS var on the scroller
+  // Measure sticky header height and month banner height; expose as CSS vars
   function calibrateStickyOffsets() {
     const scroller = QS('#dashCategoryManager .table-responsive');
-    const thead    = QS('#dashCategoryManager #drawer-tx thead');
-    if (!scroller || !thead) return;
-    const h = Math.ceil(thead.getBoundingClientRect().height || 0);
-    scroller.style.setProperty('--thead-h', h + 'px');
+    if (!scroller) return;
+
+    const thead = QS('#dashCategoryManager #drawer-tx thead');
+    const theadH = Math.ceil((thead && thead.getBoundingClientRect().height) || 0);
+    scroller.style.setProperty('--thead-h', (theadH || 44) + 'px');
+
+    // Measure first banner to set a consistent spacer height
+    const stick = QS('#dashCategoryManager #drawer-tx .month-stick');
+    if (stick) {
+      const mbh = Math.ceil(stick.getBoundingClientRect().height || 0);
+      if (mbh) scroller.style.setProperty('--month-banner-h', mbh + 'px');
+    }
   }
 
   // ---------- renderers ----------
@@ -190,11 +198,15 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month divider — sticky & frosted
+      // Month divider — spacer + sticky banner
       parts.push(
         '<tr class="month-divider" id="' + escapeHTML(monthId(k)) + '">\n' +
-        '  <td colspan="4"><span class="fw-bold">' + escapeHTML(g.label) + '</span> — ' +
-        '    <span class="' + netCls + '">Net: ' + fmtUSD(net) + '</span>' +
+        '  <td colspan="4">\n' +
+        '    <div class="month-space" aria-hidden="true"></div>\n' +
+        '    <div class="month-stick">\n' +
+        '      <span class="fw-bold">' + escapeHTML(g.label) + '</span>\n' +
+        '      <span class="net ' + netCls + '">Net: ' + fmtUSD(net) + '</span>\n' +
+        '    </div>\n' +
         '  </td>\n' +
         '</tr>'
       );
@@ -215,7 +227,7 @@
     }
 
     body.innerHTML = parts.join('');
-    calibrateStickyOffsets(); // ensure the month banner sits below the real THEAD height
+    calibrateStickyOffsets(); // ensure banner/thead offsets are correct after render
   }
 
   function scrollHost() { return QS('#dashCategoryManager .table-responsive'); }
@@ -432,6 +444,9 @@
     ensureOC();
     if (offcanvas) offcanvas.show();
 
+    // Calibrate immediately so first paint has the right offsets
+    calibrateStickyOffsets();
+
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
       cat:   (ctx && ctx.cat)   || '',
@@ -446,7 +461,7 @@
     fetchPathTx(state.ctx).catch((err) => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    // Recalibrate when drawer becomes visible
+    // Recalibrate when drawer becomes visible and after small layout settles
     if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', calibrateStickyOffsets, { once: true });
     setTimeout(calibrateStickyOffsets, 0);
     setTimeout(calibrateStickyOffsets, 100);
