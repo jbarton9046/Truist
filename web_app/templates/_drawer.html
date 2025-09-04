@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (RESTORED BASELINE) -->
+<!-- Right-side Category Manager drawer (RESTORED BASELINE + sticky month header) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column">
@@ -26,56 +26,82 @@
       .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
       .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
 
-      /* Children pills (original) */
+      /* Children pills (original; remove leading bullet) */
       .child-pill { display:inline-block; padding:.2rem .55rem; background:#f1f3f5; border-radius:999px; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer; }
-      .child-pill::before{ content:"• "; color:#6c757d; }
-
-      /* Month divider (original sticky strip) */
-      .month-divider { background:#f8f9fa; position:sticky; top:0; z-index:1; }
-      .month-divider td { font-weight:700; padding:.6rem .9rem; }
+      .child-pill::before{ content:none; }
 
       /* Basic tones from the old drawer */
       .tx-pos { color:#1e7e34; font-weight:600; }
       .tx-neg { color:#c0392b; font-weight:600; }
+
       .drawer-breadcrumb { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a { text-decoration:none; font-weight:600; }
       .drawer-breadcrumb a:hover { text-decoration:underline; }
       .drawer-breadcrumb .sep { color:#adb5bd; }
 
       /* ---------- HARD resets to undo any neon-tech drawer overrides ---------- */
-      /* Make the header plain sticky (no heavy blur/glass from global rules) */
-      #dashCategoryManager thead th{
-        position: sticky; top:0; z-index:2;
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-        background: var(--table-head-bg, #f8f9fa) !important;
-        color: var(--table-head-fg, inherit) !important;
-        border-bottom: 1px solid var(--hair, #e9ecef) !important;
-        box-shadow: none !important;
-        padding: .65rem .9rem !important;
-        white-space: nowrap; word-break: keep-all;
-      }
-      /* Month divider back to simple strip (no bleed/pseudo elements) */
-      #dashCategoryManager #drawer-tx .month-divider > td{
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-        background: #f8f9fa !important;
-        box-shadow: none !important;
-        border-top: 1px solid var(--hair, #e9ecef);
-        border-bottom: 1px solid var(--hair, #e9ecef);
-      }
-      #dashCategoryManager #drawer-tx .month-divider > td::before{ content:none !important; }
+      /* We will HIDE the thead entirely; month headers include column labels */
+      #dashCategoryManager #drawer-tx thead{ display:none !important; }
 
-      /* Column sizing like the simple original */
+      /* Column sizing like the simple original (also used to align sticky grid labels) */
       #dashCategoryManager #drawer-tx .col-date   { width:110px; white-space:nowrap; }
       #dashCategoryManager #drawer-tx .col-amount { width:130px; text-align:right; white-space:nowrap; }
       #dashCategoryManager #drawer-tx .col-desc,
       #dashCategoryManager #drawer-tx .col-cat    { width:auto; }
 
       /* Comfortable row padding, normal wrapping for Description only */
-      #dashCategoryManager #drawer-tx td{ padding:.9rem .9rem; vertical-align:top; }
+      #dashCategoryManager #drawer-tx td{ padding:.9rem .9rem; vertical-align:top; border-bottom:1px solid var(--hair, #e9ecef); }
+      #dashCategoryManager #drawer-tx tr:last-child td{ border-bottom:0; }
       #dashCategoryManager #drawer-tx td.col-desc{ white-space:normal; word-break:break-word; }
 
       /* Keep the scroller simple */
       #dashCategoryManager .table-responsive{ overflow:auto; border-radius:12px; }
+
+      /* ------------------------------------------------------------------ */
+      /* NEW: Combined sticky month header (month banner + column labels)   */
+      /* ------------------------------------------------------------------ */
+      /* The row that contains the sticky shell */
+      #dashCategoryManager #drawer-tx .month-sticky > td{
+        padding:0 !important; border:0 !important; background:transparent !important;
+      }
+      /* Sticky container itself */
+      #dashCategoryManager #drawer-tx .month-sticky .sticky-shell{
+        position: sticky; top: 0; z-index: 5;
+        background: var(--table-head-bg, #f8f9fa) !important;
+        color: var(--table-head-fg, inherit) !important;
+        border-top: 1px solid var(--hair, #e9ecef);
+        border-bottom: 1px solid var(--hair, #e9ecef);
+        box-shadow: 0 6px 12px rgba(0,0,0,.08);
+        padding: .55rem .9rem .5rem;
+      }
+
+      /* Month banner line */
+      #dashCategoryManager #drawer-tx .month-sticky .banner{
+        display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+        margin-bottom:.35rem;
+      }
+      #dashCategoryManager #drawer-tx .month-sticky .title a{
+        font-weight:700; text-decoration:none; color: var(--link, #0d6efd);
+      }
+      #dashCategoryManager #drawer-tx .month-sticky .net{
+        font-variant-numeric: tabular-nums; font-weight:600;
+      }
+      #dashCategoryManager #drawer-tx .month-sticky .net.neg{ color:#c0392b; }
+      #dashCategoryManager #drawer-tx .month-sticky .net.pos{ color:#1e7e34; }
+
+      /* Column labels placed under the month banner; align to table columns */
+      /* Use the same widths as the table using CSS variables for perfect alignment */
+      #dashCategoryManager #drawer-tx{
+        --col-date: 110px;
+        --col-amount: 130px;
+      }
+      #dashCategoryManager #drawer-tx .col-head{
+        display:grid;
+        grid-template-columns: var(--col-date) 1fr var(--col-amount) 1fr; /* Date | Desc | Amount | Category */
+        gap:.5rem;
+        font-size:.85rem; opacity:.85;
+      }
+      #dashCategoryManager #drawer-tx .col-head .amount{ justify-self:end; }
     </style>
 
     <!-- Tabs -->
@@ -91,6 +117,14 @@
 
       <div class="table-responsive" style="max-height:58vh; overflow:auto;">
         <table class="table table-sm align-middle mb-0" id="drawer-tx">
+          <!-- lock widths for the table so sticky grid labels align perfectly -->
+          <colgroup>
+            <col style="width:110px">
+            <col>
+            <col style="width:130px">
+            <col>
+          </colgroup>
+
           <thead>
             <tr>
               <th class="col-date">Date</th>
@@ -100,7 +134,11 @@
             </tr>
           </thead>
           <tbody id="drawer-tx-body">
-            <!-- drawer.js will render: rows + <tr class="month-divider"><td colspan="4">Aug 2025 — Net: … -->
+            <!-- drawer.js will render:
+                 1) <tr class="month-sticky"><td colspan="4">[sticky-shell]</td></tr>
+                 2) normal rows for that month
+                 3) next month, repeat (its sticky takes over as you scroll)
+            -->
           </tbody>
         </table>
       </div>
@@ -135,5 +173,30 @@
 <script>
   window.CL_URLS = window.CL_URLS || {};
   window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
+
+  /* ------------------------------------------------------------------
+     Helper you can paste into drawer.js to output the new month header.
+     Replace the old <tr class="month-divider">…</tr> with this.
+  -------------------------------------------------------------------*/
+  window.renderMonthSticky = function(label, netDisplay, netValue){
+    const netClass = (netValue||0) < 0 ? 'neg' : 'pos';
+    return `
+      <tr class="month-sticky">
+        <td colspan="4">
+          <div class="sticky-shell">
+            <div class="banner">
+              <div class="title"><a href="#">${label}</a></div>
+              <div class="net ${netClass}">Net: ${netDisplay}</div>
+            </div>
+            <div class="col-head">
+              <div>Date</div>
+              <div>Description</div>
+              <div class="amount">Amount</div>
+              <div>Category</div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  };
 </script>
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
