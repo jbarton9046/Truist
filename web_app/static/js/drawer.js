@@ -96,7 +96,7 @@
           state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
         } else {
           const order = ['cat','sub','ssub','sss'];
-          order.slice(idx+1).forEach(k => state.ctx[k] = '');
+          order.slice(idx+1).forEach(k => state.ctx[k] = '';
           state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
         }
         fetchPathTx(state.ctx).catch(()=>{});
@@ -160,7 +160,7 @@
         '</tr>'
       );
 
-      // Data rows (show full description/category; no clamp)
+      // Data rows (wrapping is handled by CSS in the template)
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
         const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');

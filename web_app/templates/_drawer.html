@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (neon-tech aligned, no horizontal scroll) -->
+<!-- Right-side Category Manager drawer (neon-tech aligned, fits without horizontal scroll) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -21,6 +21,24 @@
 
     <!-- ===== Drawer-only helpers (scoped) ===== -->
     <style>
+      /* --------- Typographic scaling for the drawer --------- */
+      #dashCategoryManager{
+        /* tune these if you want it tighter/looser later */
+        --cm-fsz:      0.92rem;   /* body cells */
+        --cm-fsz-th:   0.95rem;   /* header cells */
+        --cm-line:     1.28;      /* line-height for table text */
+        --cm-pad-y:    .58rem;    /* cell padding Y */
+        --cm-pad-x:    .70rem;    /* cell padding X */
+      }
+      @media (max-width: 520px){
+        #dashCategoryManager{
+          --cm-fsz:    0.86rem;
+          --cm-fsz-th: 0.90rem;
+          --cm-pad-y:  .52rem;
+          --cm-pad-x:  .64rem;
+        }
+      }
+
       /* Guardrails: keep LTR + sane wrapping ONLY inside the drawer table */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
@@ -43,14 +61,23 @@
       #dashCategoryManager #drawer-tx{
         width: 100% !important;
         border-collapse: separate !important;
-        table-layout: fixed !important;              /* key for fitting columns */
+        table-layout: fixed !important;     /* key for fitting columns */
+        font-size: var(--cm-fsz);
+        line-height: var(--cm-line);
       }
 
       /* Column layout (percentages must sum to 100) */
       #dashCategoryManager #drawer-tx col.col-date   { width: 24% !important; }
-      #dashCategoryManager #drawer-tx col.col-desc   { width: 40% !important; }
+      #dashCategoryManager #drawer-tx col.col-desc   { width: 44% !important; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
-      #dashCategoryManager #drawer-tx col.col-cat    { width: 20% !important; }
+      #dashCategoryManager #drawer-tx col.col-cat    { width: 16% !important; }
+
+      @media (max-width: 520px){
+        #dashCategoryManager #drawer-tx col.col-date   { width: 27% !important; }
+        #dashCategoryManager #drawer-tx col.col-desc   { width: 43% !important; }
+        #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
+        #dashCategoryManager #drawer-tx col.col-cat    { width: 14% !important; }
+      }
 
       /* Keep Date & Amount on one line; let Desc & Category wrap */
       #dashCategoryManager #drawer-tx tbody td:nth-child(1),
@@ -65,15 +92,14 @@
         overflow-wrap: break-word !important;
         hyphens: auto !important;
       }
-      /* Friendly wrap opportunities in Category paths like "A / B / C" */
-      #dashCategoryManager #drawer-tx tbody td:nth-child(4){
-        word-break: break-word !important;
-      }
 
       /* Slightly tighter cell padding to buy width */
       #dashCategoryManager #drawer-tx th,
       #dashCategoryManager #drawer-tx td{
-        padding: .70rem .80rem !important;
+        padding: var(--cm-pad-y) var(--cm-pad-x) !important;
+      }
+      #dashCategoryManager #drawer-tx thead th{
+        font-size: var(--cm-fsz-th) !important;
       }
 
       /* Breadcrumb + chips (theme-friendly) */
