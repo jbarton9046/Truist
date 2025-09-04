@@ -26,6 +26,15 @@
       .drawer-tab { padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:#495057; }
       .drawer-tab.active { background:#f8f9fa; border:1px solid #edf2f7; border-bottom-color:#f8f9fa; }
 
+    /* emergency guardrails inside the drawer */
+    #dashCategoryManager #drawer-tx * {
+      writing-mode: horizontal-tb !important;   /* defeat accidental vertical text */
+      word-break: normal !important;
+      overflow-wrap: normal !important;
+      hyphens: manual !important;
+    }
+
+
       /* Children pills (original; remove leading bullet) */
       .child-pill { display:inline-block; padding:.2rem .55rem; background:#f1f3f5; border-radius:999px; margin:.1rem .25rem 0 0; font-size:.85rem; cursor:pointer; }
       .child-pill::before{ content:none; }
