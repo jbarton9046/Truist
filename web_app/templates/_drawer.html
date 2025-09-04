@@ -54,6 +54,8 @@
 
       /* Drawer: vertical scroll only; never show horizontal bar */
       #dashCategoryManager .table-responsive{
+        /* SAFE DEFAULT so month-stick never overlaps on first paint */
+        --thead-h: 56px;
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: 58vh;
@@ -117,7 +119,7 @@
       }
       #dashCategoryManager #drawer-tx .month-divider .month-stick{
         position: sticky;
-        top: var(--thead-h, 44px);
+        top: var(--thead-h, 56px);
         z-index: 3; /* below thead, above rows */
         display: flex; align-items: center; justify-content: space-between; gap: .75rem;
         padding: .60rem var(--cm-pad-x);

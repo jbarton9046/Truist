@@ -91,7 +91,7 @@
     if (!scroller) return;
     const thead = QS('#dashCategoryManager #drawer-tx thead');
     const theadH = Math.ceil((thead && thead.getBoundingClientRect().height) || 0);
-    scroller.style.setProperty('--thead-h', (theadH || 44) + 'px');
+    scroller.style.setProperty('--thead-h', (theadH || 56) + 'px');
   }
 
   // deepest category label shown in "Cat" column
@@ -100,11 +100,17 @@
       if (Array.isArray(t.path) && t.path.length) return String(t.path[t.path.length - 1]);
       if (Array.isArray(t.category_path) && t.category_path.length) return String(t.category_path[t.category_path.length - 1]);
       const cands = [t.sss, t.ssub, t.subcategory2, t.subcategory, t.sub, t.category];
-      for (const c of cands) {
-        if (c && String(c).trim()) return String(c);
-      }
+      for (const c of cands) { if (c && String(c).trim()) return String(c); }
       return t.category || '';
     } catch { return t.category || ''; }
+  }
+
+  function scrollHost() { return QS('#dashCategoryManager .table-responsive'); }
+  function resetScrollTop(){
+    const host = scrollHost();
+    if (!host) return;
+    host.scrollTop = 0;
+    host.scrollLeft = 0;
   }
 
   // ---------- renderers ----------
@@ -234,7 +240,6 @@
     calibrateStickyOffsets(); // ensure banner/thead offsets are correct after render
   }
 
-  function scrollHost() { return QS('#dashCategoryManager .table-responsive'); }
   function scrollToMonth(key, smooth = true) {
     if (!key) return;
     if (String(key).toLowerCase() === 'all') return;
@@ -413,11 +418,7 @@
         await fetch(urls.RENAME_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            path: p.path,
-            new_name: to.trim(),
-            allow_hidden: p.allow_hidden,
-          }),
+          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden }),
         });
         fetchPathTx(state.ctx).catch(() => {});
         alert('Rename attempted (check the drawer).');
@@ -448,7 +449,9 @@
     ensureOC();
     if (offcanvas) offcanvas.show();
 
-    calibrateStickyOffsets(); // make sure first paint has correct top offset
+    // Make sure first paint has correct offset and clean scroll
+    calibrateStickyOffsets();
+    resetScrollTop();
 
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
@@ -464,7 +467,12 @@
     fetchPathTx(state.ctx).catch((err) => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', calibrateStickyOffsets, { once: true });
+    if (ocEl) {
+      ocEl.addEventListener('shown.bs.offcanvas', function(){
+        calibrateStickyOffsets();
+        resetScrollTop();
+      }, { once: true });
+    }
     setTimeout(calibrateStickyOffsets, 0);
     setTimeout(calibrateStickyOffsets, 100);
     window.addEventListener('resize', calibrateStickyOffsets);
