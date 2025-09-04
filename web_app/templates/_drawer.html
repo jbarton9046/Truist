@@ -19,24 +19,25 @@
 
   <div class="offcanvas-body">
 
-    <!-- Scoped drawer-only helpers -->
+    <!-- ===== Drawer-only helpers (scoped) ===== -->
     <style>
-      /* Emergency guardrails: kill accidental vertical text */
+      /* Guardrails: keep LTR + sane wrapping ONLY inside the drawer table */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
+        text-orientation: mixed !important;
         word-break: normal !important;
         overflow-wrap: normal !important;
         hyphens: manual !important;
         white-space: normal !important;
       }
-      /* But allow Description (col 2) to wrap naturally */
+      /* Allow Description (col 2) to wrap naturally so long tokens don’t blow layout */
       #dashCategoryManager #drawer-tx tbody td:nth-child(2){
         word-break: break-word !important;
         overflow-wrap: break-word !important;
         white-space: normal !important;
       }
 
-      /* Breadcrumb + chips (light styling; theme-friendly) */
+      /* Breadcrumb + chips (theme-friendly) */
       .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
       .drawer-breadcrumb a:hover{ text-decoration:underline; }
@@ -66,9 +67,8 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* Let neon-tech.css control table layout: thead visible + sticky; month divider sticky. */
-      #dashCategoryManager .tx-scroll{ background: transparent; isolation: isolate; }
-      #dashCategoryManager .table-responsive{ max-height:58vh; }
+      /* Let neon-tech.css control the table (thead visible + sticky; month divider sticky). */
+      #dashCategoryManager .table-responsive{ max-height:58vh; } /* scroll area height similar to before */
     </style>
 
     <!-- Tabs -->
@@ -82,7 +82,7 @@
     <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
 
-      <div class="table-responsive tx-scroll">
+      <div class="table-responsive">
         <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
           <thead>
             <tr>
@@ -93,7 +93,7 @@
             </tr>
           </thead>
           <tbody id="drawer-tx-body">
-            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4">... -->
+            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4">… -->
           </tbody>
         </table>
       </div>
