@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (modern frosted look + sticky month) -->
+<!-- Right-side Category Manager drawer (neon-tech aligned) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -18,155 +18,57 @@
   </div>
 
   <div class="offcanvas-body">
-    <!-- ===== Drawer styles (scoped) ===== -->
+
+    <!-- Scoped drawer-only helpers -->
     <style>
-      /* ---------- Tokens ---------- */
-      #dashCategoryManager {
-        --cm-radius: 16px;
-        --cm-inner-radius: 14px;
-        --cm-blur: 8px;
-        --cm-head-bg: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 85%, transparent);
-        --cm-head-bg-2: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent);
-        --cm-hair: var(--hair, rgba(255,255,255,.08));
-        --cm-ink: var(--table-head-fg, var(--text, #cfe3ff));
-        --cm-link: #9ecbff;
-        --cm-danger: #c0392b;
-        --cm-success: #1e7e34;
-        --cm-shadow: 0 10px 24px rgba(2,6,23,.35);
-      }
-
-      /* ---------- Header + Chromium look ---------- */
-      .drawer-breadcrumb { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
-      .drawer-breadcrumb a { text-decoration:none; color:var(--cm-link); font-weight:700; }
-      .drawer-breadcrumb a:hover { text-decoration:underline; }
-      .drawer-breadcrumb .sep { color:#8aa3c6; }
-      .muted { color: color-mix(in oklab, var(--cm-ink) 72%, transparent); }
-
-      /* ---------- Tabs (subtle) ---------- */
-      .drawer-tabs { display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--cm-hair); }
-      .drawer-tab { padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
-      .drawer-tab.active { background: var(--cm-head-bg); border:1px solid var(--cm-hair); border-bottom-color:var(--cm-head-bg); }
-
-      /* ---------- Safety rails: restore true table semantics (so <colgroup> works) ---------- */
-      #dashCategoryManager #drawer-tx {
-        display: table !important;
-        width: 100% !important;
-        table-layout: fixed !important;       /* stable columns */
-        border-collapse: separate !important;
-        border-spacing: 0 !important;
-        --col-date: 100px;
-        --col-amount: 110px;
-      }
-      /* we render column labels in the sticky month block */
-      #dashCategoryManager #drawer-tx thead { display:none !important; }
-      /* correct group + row + cell display values */
-      #dashCategoryManager #drawer-tx tbody { display: table-row-group !important; }
-      #dashCategoryManager #drawer-tx tr    { display: table-row !important; }
-      #dashCategoryManager #drawer-tx th,
-      #dashCategoryManager #drawer-tx td {
-        display: table-cell !important;
-        vertical-align: top;
-        padding: .85rem .9rem;
-        border-bottom: 1px solid var(--cm-hair, var(--hair, #e9ecef));
-        /* stop vertical text / per-character wrapping */
+      /* Emergency guardrails: kill accidental vertical text */
+      #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
-        text-orientation: mixed !important;
         word-break: normal !important;
-        overflow-wrap: break-word !important; /* only break long tokens */
+        overflow-wrap: normal !important;
         hyphens: manual !important;
         white-space: normal !important;
-        background: transparent !important;
-        color: var(--cm-ink);
       }
-      #dashCategoryManager #drawer-tx tr:last-child td { border-bottom: 0; }
+      /* But allow Description (col 2) to wrap naturally */
+      #dashCategoryManager #drawer-tx tbody td:nth-child(2){
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        white-space: normal !important;
+      }
 
-      /* column sizing & alignment */
-      #dashCategoryManager #drawer-tx .col-date {
-        width: var(--col-date);
-        white-space: nowrap !important;
-      }
-      #dashCategoryManager #drawer-tx .col-amount {
-        width: var(--col-amount);
-        white-space: nowrap !important;
-        text-align: right !important;
-        font-variant-numeric: tabular-nums;
-      }
-      #dashCategoryManager #drawer-tx .text-nowrap { white-space: nowrap; }
-      #dashCategoryManager #drawer-tx .tx-pos { color: var(--cm-success); font-weight: 600; }
-      #dashCategoryManager #drawer-tx .tx-neg { color: var(--cm-danger);  font-weight: 600; }
+      /* Breadcrumb + chips (light styling; theme-friendly) */
+      .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
+      .drawer-breadcrumb a:hover{ text-decoration:underline; }
+      .drawer-breadcrumb .sep{ color:#8aa3c6; }
+      .muted{ color: color-mix(in oklab, var(--text) 72%, transparent); }
 
-      /* ---------- Rows container ---------- */
-      #dashCategoryManager .tx-wrap {
-        position: relative;
-        border-radius: var(--cm-inner-radius);
-        box-shadow: var(--cm-shadow);
-        overflow: auto;
-        max-height: 58vh;
-        isolation: isolate; /* backdrop behaves properly */
+      /* Tabs (match neon-tech look) */
+      .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--hair); }
+      .drawer-tab{ padding:.4rem .7rem; border-radius:.6rem .6rem 0 0; text-decoration:none; color: var(--text); background: transparent; border:1px solid transparent; }
+      .drawer-tab:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); }
+      .drawer-tab.active{
+        background: linear-gradient(180deg, color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%, color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%);
+        border:1px solid var(--hair); border-bottom-color: transparent;
       }
-      /* subtle top/bottom fades inside scroller */
-      #dashCategoryManager .tx-wrap::before,
-      #dashCategoryManager .tx-wrap::after {
-        content:"";
-        position:absolute; left:0; right:0; height:18px; z-index:6; pointer-events:none;
-        background: linear-gradient(to bottom, rgba(0,0,0,.25), transparent);
-      }
-      #dashCategoryManager .tx-wrap::after { top:auto; bottom:0; transform: rotate(180deg); }
 
-      /* ---------- Sticky month block (banner + column labels) ---------- */
-      #dashCategoryManager #drawer-tx .month-sticky > td {
-        padding: 0 !important; border: 0 !important; background: transparent !important;
-      }
-      #dashCategoryManager #drawer-tx .month-sticky .sticky-shell {
-        position: sticky; top: 0; z-index: 5;
-        padding: .6rem .9rem .55rem;
-        border-top: 1px solid var(--cm-hair);
-        border-bottom: 1px solid var(--cm-hair);
-        backdrop-filter: saturate(140%) blur(var(--cm-blur));
-        -webkit-backdrop-filter: saturate(140%) blur(var(--cm-blur));
-        background: linear-gradient(180deg, var(--cm-head-bg) 0%, var(--cm-head-bg-2) 100%);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 18px rgba(2,6,23,.25);
-        color: var(--cm-ink);
-      }
-      #dashCategoryManager #drawer-tx .month-sticky .banner {
-        display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.4rem;
-      }
-      #dashCategoryManager #drawer-tx .month-sticky .title a {
-        color: var(--cm-link); font-weight:800; text-decoration:none; letter-spacing:.2px;
-      }
-      #dashCategoryManager #drawer-tx .month-sticky .title a:hover { text-decoration:underline; }
-      #dashCategoryManager #drawer-tx .month-sticky .net { font-variant-numeric: tabular-nums; font-weight:700; }
-      #dashCategoryManager #drawer-tx .month-sticky .net.neg { color: var(--cm-danger); }
-      #dashCategoryManager #drawer-tx .month-sticky .net.pos { color: var(--cm-success); }
-
-      #dashCategoryManager #drawer-tx .col-head {
-        display:grid;
-        grid-template-columns: var(--col-date) 1fr var(--col-amount) 1fr; /* Date | Desc | Amount | Category */
-        gap:.5rem; font-size:.85rem; opacity:.85; color: var(--cm-ink);
-      }
-      #dashCategoryManager #drawer-tx .col-head .amount { justify-self:end; }
-      #dashCategoryManager #drawer-tx .col-head > div { white-space: nowrap !important; } /* keep labels on one line */
-
-      /* ---------- Chips for children ---------- */
-      .child-pill {
+      /* “Child” chips (used by drawer.js) */
+      .child-pill{
         display:inline-flex; align-items:center; gap:.4rem;
         padding:.32rem .6rem; border-radius:999px;
-        border:1px solid var(--cm-hair);
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 40%, transparent);
-        color: var(--cm-ink);
-        cursor:pointer; line-height:1; font-size:.875rem;
+        border:1px solid var(--card-border);
+        background: linear-gradient(135deg, color-mix(in oklab, var(--card-bg) 80%, transparent) 0%, color-mix(in oklab, var(--card-bg) 60%, transparent) 100%);
+        color: var(--text); cursor:pointer; line-height:1; font-size:.875rem;
         transition: background .15s ease, border-color .15s ease, transform .05s ease;
       }
-      .child-pill:hover {
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent);
-        border-color: color-mix(in oklab, var(--cm-ink) 30%, transparent);
-      }
-      .child-pill:active { transform: translateY(1px); }
-      .child-pill .dot { width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
-      .child-pill .chev { font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
+      .child-pill:hover{ background: rgba(255,255,255,.07); border-color: var(--hair); }
+      .child-pill:active{ transform: translateY(1px); }
+      .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
+      .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* ---------- Small clean-ups ---------- */
-      #dashCategoryManager ul, #dashCategoryManager li { list-style:none; margin:0; padding:0; }
+      /* Let neon-tech.css control table layout: thead visible + sticky; month divider sticky. */
+      #dashCategoryManager .tx-scroll{ background: transparent; isolation: isolate; }
+      #dashCategoryManager .table-responsive{ max-height:58vh; }
     </style>
 
     <!-- Tabs -->
@@ -180,15 +82,19 @@
     <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
 
-      <div class="tx-wrap">
+      <div class="table-responsive tx-scroll">
         <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
-          <colgroup>
-            <col style="width:var(--col-date)">
-            <col>
-            <col style="width:var(--col-amount)">
-            <col>
-          </colgroup>
-          <tbody id="drawer-tx-body"></tbody>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody id="drawer-tx-body">
+            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4">... -->
+          </tbody>
         </table>
       </div>
     </div>

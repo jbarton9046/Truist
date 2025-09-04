@@ -1,16 +1,16 @@
-// static/js/drawer.js — Modern drawer, sticky month, actions wired
+// static/js/drawer.js
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_v4 === true) return;
+  // Avoid double-loading
+  if (window.openCategoryManager && window.openCategoryManager.__cl_v2 === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
 
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
-  const $   = id => document.getElementById(id);
-  const ocEl = $('dashCategoryManager');
+  const ocEl = document.getElementById('dashCategoryManager');
 
   let offcanvas = null;
   function ensureOC() {
@@ -19,6 +19,43 @@
     }
     return offcanvas;
   }
+
+  // Drawer-specific cosmetics (chips) – theme-friendly
+  function ensureDrawerStyles() {
+    if (document.getElementById('drawer-extra-styles')) return;
+    const css = `
+#dashCategoryManager #drawer-children{
+  display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+}
+/* Keep chip style aligned with dark glass */
+#dashCategoryManager .child-pill{
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.38rem .6rem; border-radius:999px;
+  border:1px solid var(--card-border);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--card-bg) 80%, transparent) 0%,
+      color-mix(in oklab, var(--card-bg) 60%, transparent) 100%
+    );
+  color: var(--text);
+  cursor:pointer; line-height:1; font-size:.875rem;
+  transition: background .15s ease, border-color .15s ease, transform .05s ease;
+}
+#dashCategoryManager .child-pill:hover{
+  background: rgba(255,255,255,.07);
+  border-color: var(--hair);
+}
+#dashCategoryManager .child-pill:active{ transform: translateY(1px); }
+#dashCategoryManager .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
+#dashCategoryManager .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
+    `;
+    const style = document.createElement('style');
+    style.id = 'drawer-extra-styles';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+  ensureDrawerStyles();
 
   const state = {
     ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '', allowHidden: false },
@@ -30,9 +67,10 @@
     showAll: false
   };
 
-  // ---------- helpers ----------
+  // -------- helpers --------
+  function $(id) { return document.getElementById(id); }
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
-  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(+n||0); } catch { return '$'+Number(+n||0).toFixed(2); } }
+  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(n||0); } catch { return '$'+Number(n||0).toFixed(2); } }
   function fmtDate(s) { return s || ''; }
   function escapeHTML(s){
     return String(s||'').replace(/[&<>"']/g, c => (
@@ -41,15 +79,6 @@
       c === '>' ? '&gt;'  :
       c === '"' ? '&quot;': '&#39;'
     ));
-  }
-  function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
-  function payloadForKeywords(){
-    const parts = pathParts(); const last = parts[parts.length-1] || '';
-    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
-  }
-  function payloadForActions(){
-    const parts = pathParts();
-    return { path: parts.join(' / '), name: parts[parts.length-1] || '', allow_hidden: state.ctx.allowHidden ? 1 : 0 };
   }
 
   function monthKeyFromDateStr(s){
@@ -73,68 +102,121 @@
     if (!available || !available.length) return '';
     const set = new Set(available);
     if (preferred && set.has(preferred)) return preferred;
+
     const earlier = available.filter(m => m <= preferred).sort().reverse();
     if (earlier.length) return earlier[0];
+
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
 
-  // ---------- renderers ----------
+  function currentPathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
+  function currentPathPayload(){
+    const parts = currentPathParts();
+    const last = parts[parts.length-1] || '';
+    return {
+      level: state.ctx.level || 'category',
+      cat: state.ctx.cat || '',
+      sub: state.ctx.sub || '',
+      ssub: state.ctx.ssub || '',
+      sss: state.ctx.sss || '',
+      path: parts.join(' / '),
+      name: last,
+      allow_hidden: state.ctx.allowHidden ? 1 : 0
+    };
+  }
+
   function renderBreadcrumb(){
-    const host = $('drawer-breadcrumb'); if (!host) return;
-    const parts = pathParts();
-    if (!parts.length){
-      host.innerHTML = '<a href="#" data-bc-index="-1">All Categories</a>';
-      return;
-    }
-    const segs = ['<a href="#" data-bc-index="-1">All Categories</a>'];
-    parts.forEach((p, i) => {
-      segs.push('<span class="sep">›</span>');
-      segs.push('<a href="#" data-bc-index="'+i+'">'+escapeHTML(p)+'</a>');
-    });
-    host.innerHTML = segs.join(' ');
-    host.querySelectorAll('a[data-bc-index]').forEach(a => {
-      a.addEventListener('click', function(e){
-        e.preventDefault();
-        const idx = Number(a.getAttribute('data-bc-index') || -1);
-        if (idx < 0){
-          state.ctx.level = 'category';
-          state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
-        } else {
-          const after = ['cat','sub','ssub','sss'];
-          after.slice(idx+1).forEach(k => state.ctx[k] = '');
-          state.ctx.level = ['category','subcategory','subsubcategory','sssubcategory'][idx] || 'category';
-        }
-        fetchPathTx(state.ctx).catch(()=>{});
-      }, { passive:false });
+    const bc = $('drawer-breadcrumb');
+    if (!bc) return;
+    const parts = currentPathParts();
+    bc.innerHTML = '';
+    if (!parts.length) { bc.textContent = '(All Categories)'; return; }
+    parts.forEach((p,i)=>{
+      if (i){
+        const sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.textContent = '/';
+        bc.appendChild(sep);
+      }
+      if (i === parts.length-1){
+        const cur = document.createElement('span');
+        cur.className = 'current';
+        cur.textContent = p;
+        bc.appendChild(cur);
+      } else {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.dataset.bcIndex = String(i);
+        a.textContent = p;
+        bc.appendChild(a);
+      }
     });
   }
 
-  function renderChildren(){
-    const host = $('drawer-children'); if (!host) return;
-    const kids = state.children || [];
-    if (!kids.length){ host.innerHTML = '<span class="muted">No children.</span>'; return; }
-    host.innerHTML = kids.map(function(name){
-      return '<span class="child-pill" data-child="'+escapeHTML(name)+'"><span class="dot"></span><span class="txt">'+escapeHTML(name)+'</span><span class="chev">›</span></span>';
-    }).join('');
-    host.querySelectorAll('.child-pill').forEach(pill => {
-      pill.addEventListener('click', function(){
-        const name = pill.getAttribute('data-child') || '';
-        if (!name) return;
-        if (!state.ctx.cat) { state.ctx.cat = name; state.ctx.level = 'category'; }
-        else if (!state.ctx.sub) { state.ctx.sub = name; state.ctx.level = 'subcategory'; }
-        else if (!state.ctx.ssub) { state.ctx.ssub = name; state.ctx.level = 'subsubcategory'; }
-        else { state.ctx.sss = name; state.ctx.level = 'sssubcategory'; }
-        fetchPathTx(state.ctx).catch(()=>{});
-      }, { passive:true });
-    });
+  document.addEventListener('click', (e)=>{
+    const link = e.target.closest('a[data-bc-index]');
+    if (!link) return;
+    e.preventDefault();
+    const idx = parseInt(link.getAttribute('data-bc-index'), 10);
+    const parts = currentPathParts().slice(0, idx+1);
+
+    state.ctx.cat  = parts[0] || '';
+    state.ctx.sub  = parts[1] || '';
+    state.ctx.ssub = parts[2] || '';
+    state.ctx.sss  = parts[3] || '';
+    state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
+
+    fetchPathTx(state.ctx).catch(()=>{});
+    refreshKeywords();
+  });
+
+  function renderPath(){
+    const p = ['cat','sub','ssub','sss'].map(k=>state.ctx[k]).filter(Boolean);
+    setText('drawer-selected-path', p.length ? p.join(' / ') : '(All Categories)');
+
+    const latest = state.months[state.months.length-1] || '';
+    const monthDisplay = state.showAll ? 'All months' : (state.ctx.month || latest);
+    setText('drawer-month', monthDisplay);
+
+    const net = Number(state.total || 0);
+    setText('drawer-total', fmtUSD(net) + ' net');
+
+    const host = $('drawer-children');
+    if (host){
+      if (state.children.length) {
+        host.innerHTML = state.children.map(function(n){
+          const label = escapeHTML(n);
+          const rawAttr = encodeURIComponent(String(n||''));
+          return '' +
+            '<button type="button" class="child-pill" data-child="'+rawAttr+'" title="Drill into '+label+'" aria-label="Drill into '+label+'">' +
+            '  <span class="dot" aria-hidden="true"></span>' +
+            '  <span class="label">'+label+'</span>' +
+            '  <span class="chev" aria-hidden="true">›</span>' +
+            '</button>';
+        }).join('');
+      } else {
+        host.innerHTML = '<span class="text-muted">No children.</span>';
+      }
+    }
+
+    const kwHdr = $('kw-current-level');
+    if (kwHdr) kwHdr.textContent = (p.length ? p.join(' / ') : '(All Categories)');
+
+    renderBreadcrumb();
   }
 
   function renderTx(){
-    const body = $('drawer-tx-body'); if (!body) return;
-    const rows = state.tx || [];
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="muted">No transactions.</td></tr>'; return; }
+    const body = $('drawer-tx-body');
+    if (!body) return;
 
+    const rows = state.tx || [];
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
+      return;
+    }
+
+    // group by YYYY-MM
     const groups = new Map();
     for (const t of rows){
       const key = monthKeyFromDateStr(t.date);
@@ -146,42 +228,31 @@
     }
 
     const keys = Array.from(groups.keys()).sort().reverse();
-
     const parts = [];
     for (const k of keys){
       const g = groups.get(k);
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
+      // Month divider — neon-tech.css makes this sticky & glassy
       parts.push(
-        '<tr class="month-sticky" id="'+escapeHTML(monthId(k))+'">\n' +
-        '  <td colspan="4">' +
-        '    <div class="sticky-shell">' +
-        '      <div class="banner">' +
-        '        <div class="title"><a href="#">' + escapeHTML(g.label) + '</a></div>' +
-        '        <div class="net ' + netCls + '">Net: ' + fmtUSD(net) + '</div>' +
-        '      </div>' +
-        '      <div class="col-head">' +
-        '        <div>Date</div>' +
-        '        <div>Description</div>' +
-        '        <div class="amount">Amount</div>' +
-        '        <div>Category</div>' +
-        '      </div>' +
-        '    </div>' +
+        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">\n' +
+        '  <td colspan="4">' + escapeHTML(g.label) + ' — ' +
+        '    <span class="' + netCls + '">Net: ' + fmtUSD(net) + '</span>' +
         '  </td>\n' +
         '</tr>'
       );
 
+      // Data rows
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
-        const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');
         parts.push(
           '<tr>\n' +
-          '  <td class="col-date text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
-          '  <td class="col-desc">' + escapeHTML(t.description || '') + '</td>\n' +
-          '  <td class="col-amount ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
-          '  <td class="col-cat">' + escapeHTML(catPath) + '</td>\n' +
-          '</tr>\n'
+          '  <td class="text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
+          '  <td>' + escapeHTML(t.description || '') + '</td>\n' +
+          '  <td class="text-end ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
+          '  <td>' + escapeHTML((t.category||"") + (t.subcategory?(" / "+t.subcategory):"")) + '</td>\n' +
+          '</tr>'
         );
       }
     }
@@ -189,30 +260,33 @@
     body.innerHTML = parts.join('');
   }
 
-  function scrollHost(){ return QS('#dashCategoryManager .tx-wrap'); }
+  function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
   function scrollToMonth(key, smooth=true){
     if (!key) return;
     if (String(key).toLowerCase() === 'all') return;
     const host = scrollHost();
-    const row  = $(monthId(key));
+    const row = document.getElementById(monthId(key));
     if (!host || !row) return;
-    const top = row.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
-    host.scrollTo({ top, behavior: smooth ? 'smooth' : 'instant' });
+    const hostTop = host.getBoundingClientRect().top;
+    const rowTop  = row.getBoundingClientRect().top;
+    const delta   = (rowTop - hostTop) - 8;
+    host.scrollTo({ top: host.scrollTop + delta, behavior: smooth ? 'smooth' : 'auto' });
   }
-  function scrollToPreferredMonth(preferredKey, smooth=true){
+  function scrollToPreferredMonth(preferredKey, smooth) {
+    if (!preferredKey || String(preferredKey).toLowerCase() === 'all') return;
     const key = nearestMonth(preferredKey, state.months);
     if (key && key !== state.ctx.month) {
       state.ctx.month = key;
       const sel = $('drawer-months');
       if (sel) sel.value = key;
+      setText('drawer-month', key);
     }
     if (state.ctx.month) scrollToMonth(state.ctx.month, smooth);
   }
 
-  // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
-    if (body) body.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
+    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
 
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
@@ -222,24 +296,26 @@
     if (ctx.sss)  params.set('sss',  ctx.sss);
     if (ctx.allowHidden) params.set('allow_hidden', '1');
 
+    // month param: support specific month OR "all"
     const monthLower = String(ctx.month || '').toLowerCase();
-    if (monthLower === 'all') params.set('month', 'all');
-    else if (ctx.month) params.set('month', ctx.month);
+    if (monthLower === 'all') {
+      params.set('month', 'all');
+    } else if (ctx.month) {
+      params.set('month', ctx.month);
+    }
 
+    // full history window on drawer
     params.set('months', 'all');
     params.set('_', Date.now().toString());
 
     const url = PATH_TXN_URL + '?' + params.toString();
-    let j = null;
-    try {
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) throw new Error(String(res.status));
-      j = await res.json();
-    } catch (err){
-      console.error('drawer fetchPathTx failed:', err);
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok){
+      console.error('drawer fetchPathTx failed:', res.status, await res.text());
       if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
       return;
     }
+    const j = await res.json();
 
     state.months = j.months || [];
     state.tx = j.transactions || [];
@@ -247,11 +323,19 @@
     state.total = j.total || 0;
     state.magnitude_total = j.magnitude_total || 0;
 
-    const serverMonth = String(j.month || '').toLowerCase();
-    state.showAll = (serverMonth === 'all') || (monthLower === 'all');
+    state.showAll = (String(j.month || '').toLowerCase() === 'all') || (monthLower === 'all');
 
-    setText('drawer-total', fmtUSD(state.total));
+    if (!state.showAll) {
+      const preferred = ctx.month || j.month || (state.months[state.months.length-1] || '');
+      state.ctx.month = nearestMonth(preferred, state.months);
+    } else {
+      state.ctx.month = 'all';
+    }
 
+    renderPath();
+    renderTx();
+
+    // Build <select> (All months + DESC months)
     const sel = $('drawer-months');
     if (sel){
       const opts = [];
@@ -259,113 +343,60 @@
       const monthsDesc = (state.months || []).slice().sort().reverse();
       monthsDesc.forEach(function(m){
         const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        const label = m; // or monthLabelFromKey(m)
-        opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(label) + '</option>');
+        opts.push('<option value="' + escapeHTML(m) + '"' + selAttr + '>' + escapeHTML(m) + '</option>');
       });
       sel.innerHTML = opts.join('');
     }
 
-    renderBreadcrumb();
-    renderChildren();
-    renderTx();
-
+    // Scroll to selected month (if not in All)
     setTimeout(function(){
-      if (!state.showAll) {
-        const pref = state.ctx.month || (state.months && state.months[0]);
-        if (pref) scrollToPreferredMonth(pref, false);
+      if (!state.showAll && state.ctx.month) {
+        scrollToPreferredMonth(state.ctx.month, false);
       }
     }, 0);
   }
 
-  // ---------- keywords (optional endpoints) ----------
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(payloadForKeywords());
+    const qp = new URLSearchParams(currentPathPayload());
     qp.set('_', Date.now().toString());
-    try {
-      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
-      return await res.json();
-    } catch { return { keywords: [] }; }
+    const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
+    try { return await res.json(); } catch { return { keywords: [] }; }
   }
+
+  async function refreshKeywords(){
+    const host = $('kw-list');
+    if (!host) return;
+    host.innerHTML = '<span class="text-muted">Loading…</span>';
+    try {
+      const data = await fetchKeywords();
+      const arr = (data && (data.keywords || data.kw || data.items)) || [];
+      host.innerHTML = arr.length ? arr.map(function(k){
+        const raw = encodeURIComponent(String(k||''));
+        return '<span class="kw-chip" data-kw="'+raw+'">' +
+               '  <span>'+escapeHTML(k)+'</span>' +
+               '  <span class="x" title="Remove" data-action="kw-remove" data-kw="'+raw+'">&times;</span>' +
+               '</span>';
+      }).join('') : '<span class="text-muted">No keywords yet.</span>';
+    } catch (e) {
+      host.innerHTML = '<span class="text-danger">Failed to load keywords: '+escapeHTML(e.message || String(e))+'</span>';
+    }
+  }
+
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
-    try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+    const payload = Object.assign({}, currentPathPayload(), { keyword: kw });
+    await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
-    try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
-  }
-  async function refreshKeywords(){
-    const host = $('kw-list'); if (!host) return;
-    host.innerHTML = '<span class="muted">Loading…</span>';
-    const j = await fetchKeywords();
-    const kws = (j && j.keywords) || [];
-    if (!kws.length){ host.innerHTML = '<span class="muted">No keywords yet.</span>'; return; }
-    host.innerHTML = kws.map(k => (
-      '<span class="badge text-bg-secondary me-1">' + escapeHTML(k) + ' <a href="#" data-kw="'+escapeHTML(k)+'" class="text-reset text-decoration-none ms-1" title="Remove">×</a></span>'
-    )).join('');
-    host.querySelectorAll('a[data-kw]').forEach(a => {
-      a.addEventListener('click', async function(e){
-        e.preventDefault();
-        await removeKeyword(a.getAttribute('data-kw') || '');
-        refreshKeywords();
-      });
-    });
+    const payload = Object.assign({}, currentPathPayload(), { keyword: kw, remove: true });
+    await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   }
 
-  // ---------- actions ----------
-  const btnInspect = document.getElementById('drawer-inspect');
-  const btnRename  = document.getElementById('drawer-rename');
-  const btnUpsert  = document.getElementById('drawer-upsert');
-
-  if (btnInspect && urls.INSPECT_URL){
-    btnInspect.addEventListener('click', async function(){
-      const p = payloadForActions();
-      const qp = new URLSearchParams(p);
-      try {
-        const res = await fetch(urls.INSPECT_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' }});
-        const j   = await res.json();
-        alert(JSON.stringify(j, null, 2));
-      } catch (e) { alert('Inspect failed.'); }
-    });
-  }
-  if (btnRename && urls.RENAME_URL){
-    btnRename.addEventListener('click', async function(){
-      const p = payloadForActions();
-      if (!p.path) { alert('Select a node to rename.'); return; }
-      const from = p.name || '(unnamed)';
-      const to   = prompt('Rename "' + from + '" to:', from);
-      if (!to || to.trim() === from) return;
-      try {
-        await fetch(urls.RENAME_URL, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
-        });
-        fetchPathTx(state.ctx).catch(()=>{});
-        alert('Rename attempted (check the drawer).');
-      } catch (e) { alert('Rename failed.'); }
-    });
-  }
-  if (btnUpsert && urls.UPSERT_URL){
-    btnUpsert.addEventListener('click', async function(){
-      const p = payloadForActions();
-      try {
-        await fetch(urls.UPSERT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ path: p.path, allow_hidden: p.allow_hidden })
-        });
-        alert('Upsert attempted.');
-      } catch (e) { alert('Upsert failed.'); }
-    });
-  }
-
-  // ---------- public open ----------
   function openCategoryManager(ctx){
-    ensureOC(); if (offcanvas) offcanvas.show();
+    ensureOC();
+    if (offcanvas) offcanvas.show();
 
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
@@ -378,15 +409,29 @@
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
-    fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
+    fetchPathTx(state.ctx).catch(function(err){ console.error('drawer fetchPathTx failed:', err); });
     refreshKeywords();
   }
-  openCategoryManager.__cl_v4 = true;
-  window.openCategoryManager = openCategoryManager;
+  openCategoryManager.__cl_v2 = true;
 
-  // ---------- global wiring ----------
-  window.dashManage = function(e, el){
-    e.preventDefault();
+  // Public exports
+  window.openCategoryManager = openCategoryManager;
+  window.DRAWER = window.DRAWER || {};
+  window.DRAWER.open = openCategoryManager;
+
+  // Convenience aliases
+  if (!window.openDrawerForPath) {
+    window.openDrawerForPath = function (state) { openCategoryManager(state || {}); };
+  }
+  if (!window.openDrawerForCategory) {
+    window.openDrawerForCategory = function (cat, opts) {
+      openCategoryManager({ level: 'category', cat: cat || '', allowHidden: !!(opts && opts.allowHidden) });
+    };
+  }
+
+  // Global click helper used around the site
+  window.dashManage = function (e, el) {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     const ctx = {
       level: el.getAttribute('data-level') || 'category',
       cat:   el.getAttribute('data-cat')   || '',
@@ -405,8 +450,8 @@
     tab.addEventListener('click', function(e){
       e.preventDefault();
       const target = tab.getAttribute('data-tab');
-      QSA('.drawer-tab').forEach(t => t.classList.remove('active'));
-      QSA('.drawer-pane').forEach(p => p.style.display = 'none');
+      QSA('.drawer-tab').forEach(function(t){ t.classList.remove('active'); });
+      QSA('.drawer-pane').forEach(function(p){ p.style.display='none'; });
       tab.classList.add('active');
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
@@ -414,18 +459,46 @@
     });
   });
 
-  // Month selector
+  // Month selector (supports “All months”)
   const monthSel = $('drawer-months');
   if (monthSel){
     monthSel.addEventListener('change', async function(e){
       const val = (e.target.value || '').toLowerCase();
       state.ctx.month = val || '';
       state.showAll = (val === 'all');
+
       await fetchPathTx(state.ctx);
+
+      if (!state.showAll && state.ctx.month) {
+        scrollToPreferredMonth(state.ctx.month, true);
+      }
+
+      const active = QS('.drawer-tab.active');
+      if (active && active.getAttribute('data-tab') === 'keywords') refreshKeywords();
     });
   }
 
-  // Keyword add
+  // Drill deeper via child chips
+  document.addEventListener('click', function(e){
+    const pill = e.target.closest('.child-pill');
+    if (!pill) return;
+    const name = decodeURIComponent(pill.getAttribute('data-child') || '');
+    if (state.ctx.sss) {
+      return;
+    } else if (state.ctx.ssub) {
+      state.ctx.sss = name; state.ctx.level = 'subsubsubcategory';
+    } else if (state.ctx.sub) {
+      state.ctx.ssub = name; state.ctx.level = 'subsubcategory';
+    } else if (state.ctx.cat) {
+      state.ctx.sub = name; state.ctx.level = 'subcategory';
+    } else {
+      state.ctx.cat = name; state.ctx.level = 'category';
+    }
+    fetchPathTx(state.ctx).catch(function(){});
+    refreshKeywords();
+  });
+
+  // Keywords add/remove
   const kwInput = $('kw-add-input');
   const kwAddBtn = $('kw-add-btn');
   if (kwAddBtn){
@@ -440,7 +513,7 @@
   if (kwInput){
     kwInput.addEventListener('keydown', async function(e){
       if (e.key === 'Enter'){
-        const kw = (kwInput && kwInput.value || '').trim();
+        const kw = (kwInput.value || '').trim();
         if (!kw) return;
         await addKeyword(kw);
         kwInput.value = '';
@@ -448,4 +521,46 @@
       }
     });
   }
+  document.addEventListener('click', async function(e){
+    const x = e.target.closest('[data-action="kw-remove"]');
+    if (!x) return;
+    const kw = decodeURIComponent(x.getAttribute('data-kw') || '');
+    await removeKeyword(kw);
+    refreshKeywords();
+  });
+
+  // Admin buttons (Actions tab)
+  const btnInspect = $('drawer-inspect');
+  const btnRename  = $('drawer-rename');
+  const btnUpsert  = $('drawer-upsert');
+
+  if (btnInspect && urls.INSPECT_URL){
+    btnInspect.addEventListener('click', async function(){
+      const res = await fetch(urls.INSPECT_URL + '?' + new URLSearchParams({ path: currentPathPayload().path, allow_hidden: state.ctx.allowHidden ? 1 : 0 }), { headers:{'Accept':'application/json'} });
+      const j = await res.json();
+      alert(JSON.stringify(j, null, 2));
+    });
+  }
+  if (btnRename && urls.RENAME_URL){
+    btnRename.addEventListener('click', async function(){
+      const p = currentPathPayload();
+      if (!p.path) return;
+      const oldName = p.name;
+      const newName = prompt('Rename "'+oldName+'" to:', oldName);
+      if (!newName || newName.trim() === oldName) return;
+      const payload = { path: p.path, new_name: newName.trim(), allow_hidden: state.ctx.allowHidden ? 1 : 0 };
+      await fetch(urls.RENAME_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      fetchPathTx(state.ctx).catch(function(){});
+      alert('Rename attempted. If it didn’t take, the server may have rejected it.');
+    });
+  }
+  if (btnUpsert && urls.UPSERT_URL){
+    btnUpsert.addEventListener('click', async function(){
+      const p = currentPathPayload();
+      const payload = { path: p.path, allow_hidden: state.ctx.allowHidden ? 1 : 0 };
+      await fetch(urls.UPSERT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      alert('Upsert attempted.');
+    });
+  }
+
 })();
