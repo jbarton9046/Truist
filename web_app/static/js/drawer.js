@@ -1,4 +1,4 @@
-// static/js/drawer.js (month-sticky version)
+// static/js/drawer.js (sticky month header + Actions wired)
 (function () {
   'use strict';
 
@@ -79,7 +79,7 @@
     ));
   }
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
-  function currentPathPayload(){
+  function currentPathPayloadDetailed(){
     const parts = pathParts();
     const last = parts[parts.length-1] || '';
     return {
@@ -89,6 +89,14 @@
       ssub: state.ctx.ssub || '',
       sss: state.ctx.sss || '',
       last
+    };
+  }
+  function actionPathPayload(){
+    const parts = pathParts();
+    return {
+      path: parts.join(' / '),
+      name: parts[parts.length-1] || '',
+      allow_hidden: state.ctx.allowHidden ? 1 : 0
     };
   }
 
@@ -344,10 +352,10 @@
     }, 0);
   }
 
-  // --- keyword helpers (used only if URLs provided) ---
+  // --- keyword helpers (only used if URLS provided) ---
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(currentPathPayload());
+    const qp = new URLSearchParams(currentPathPayloadDetailed());
     qp.set('_', Date.now().toString());
     try {
       const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
@@ -356,14 +364,14 @@
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, currentPathPayload(), { keyword: kw });
+    const payload = Object.assign({}, currentPathPayloadDetailed(), { keyword: kw });
     try {
       await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, currentPathPayload(), { keyword: kw, remove: true });
+    const payload = Object.assign({}, currentPathPayloadDetailed(), { keyword: kw, remove: true });
     try {
       await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     } catch {}
@@ -385,6 +393,62 @@
         await removeKeyword(a.getAttribute('data-kw') || '');
         refreshKeywords();
       });
+    });
+  }
+
+  // ----- Actions tab buttons (Inspect / Rename / Upsert) -----
+  const btnInspect = document.getElementById('drawer-inspect');
+  const btnRename  = document.getElementById('drawer-rename');
+  const btnUpsert  = document.getElementById('drawer-upsert');
+
+  if (btnInspect && urls.INSPECT_URL){
+    btnInspect.addEventListener('click', async function(){
+      const p = actionPathPayload();
+      const qp = new URLSearchParams(p);
+      try {
+        const res = await fetch(urls.INSPECT_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' }});
+        const j   = await res.json();
+        alert(JSON.stringify(j, null, 2));
+      } catch (e) {
+        alert('Inspect failed.');
+      }
+    });
+  }
+
+  if (btnRename && urls.RENAME_URL){
+    btnRename.addEventListener('click', async function(){
+      const p = actionPathPayload();
+      if (!p.path) { alert('Select a node to rename.'); return; }
+      const from = p.name || '(unnamed)';
+      const to   = prompt('Rename "' + from + '" to:', from);
+      if (!to || to.trim() === from) return;
+      try {
+        await fetch(urls.RENAME_URL, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
+        });
+        fetchPathTx(state.ctx).catch(()=>{});
+        alert('Rename attempted (check changes in the drawer).');
+      } catch (e) {
+        alert('Rename failed.');
+      }
+    });
+  }
+
+  if (btnUpsert && urls.UPSERT_URL){
+    btnUpsert.addEventListener('click', async function(){
+      const p = actionPathPayload();
+      try {
+        await fetch(urls.UPSERT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ path: p.path, allow_hidden: p.allow_hidden })
+        });
+        alert('Upsert attempted.');
+      } catch (e) {
+        alert('Upsert failed.');
+      }
     });
   }
 
@@ -446,7 +510,6 @@
       const val = (e.target.value || '').toLowerCase();
       state.ctx.month = val || '';
       state.showAll = (val === 'all');
-      // If "all", no scroll target; else we will scroll after render
       await fetchPathTx(state.ctx);
     });
   }

@@ -144,26 +144,7 @@
             <col style="width:130px">
             <col>
           </colgroup>
-
-          <!-- thead intentionally omitted (we hide any existing thead in CSS) -->
-
-          <tbody id="drawer-tx-body">
-            <!-- drawer.js will render per month:
-                 1) <tr class="month-sticky" id="mYYYY-MM"><td colspan="4">
-                        <div class="sticky-shell">
-                          <div class="banner">
-                            <div class="title"><a href="#">Aug 2025</a></div>
-                            <div class="net pos">Net: $1,234.56</div>
-                          </div>
-                          <div class="col-head">
-                            <div>Date</div><div>Description</div><div class="amount">Amount</div><div>Category</div>
-                          </div>
-                        </div>
-                     </td></tr>
-                 2) normal rows for that month
-                 3) next month repeats; its sticky will take over when reached
-            -->
-          </tbody>
+          <tbody id="drawer-tx-body"></tbody>
         </table>
       </div>
     </div>
@@ -193,34 +174,16 @@
   </div>
 </div>
 
-<!-- Tell drawer.js to use the unified endpoint, then load it -->
+<!-- CL_URLS for server endpoints (persistent-disk backed) -->
 <script>
   window.CL_URLS = window.CL_URLS || {};
   window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
-
-  /* Helper your drawer.js can call to output the new month header.
-     Replace any <tr class="month-divider">…</tr> usage with:
-     parts.push(window.renderMonthSticky(label, fmtUSD(net), net));
-  */
-  window.renderMonthSticky = function(label, netDisplay, netValue){
-    const netClass = (netValue||0) < 0 ? 'neg' : 'pos';
-    return `
-      <tr class="month-sticky" id="m-${String(label).replaceAll(/[^a-z0-9]+/gi,'-').toLowerCase()}">
-        <td colspan="4">
-          <div class="sticky-shell">
-            <div class="banner">
-              <div class="title"><a href="#">${label}</a></div>
-              <div class="net ${netClass}">Net: ${netDisplay}</div>
-            </div>
-            <div class="col-head">
-              <div>Date</div>
-              <div>Description</div>
-              <div class="amount">Amount</div>
-              <div>Category</div>
-            </div>
-          </div>
-        </td>
-      </tr>`;
-  };
+  window.CL_URLS.INSPECT_URL  = '/admin/categories/inspect';
+  window.CL_URLS.RENAME_URL   = '/admin/categories/rename';
+  window.CL_URLS.UPSERT_URL   = '/admin/categories/upsert';
+  /* Optional keyword endpoints (only used if provided) */
+  // window.CL_URLS.KW_GET_URL    = '/admin/keywords/get';
+  // window.CL_URLS.KW_ADD_URL    = '/admin/keywords/add';
+  // window.CL_URLS.KW_REMOVE_URL = '/admin/keywords/remove';
 </script>
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
