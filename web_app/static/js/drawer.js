@@ -1,9 +1,8 @@
-// static/js/drawer.js (sticky month header + Actions wired)
+// static/js/drawer.js — Modern drawer, sticky month, actions wired
 (function () {
   'use strict';
 
-  // Avoid double-loading
-  if (window.openCategoryManager && window.openCategoryManager.__cl_v3 === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_v4 === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -21,41 +20,6 @@
     return offcanvas;
   }
 
-  // Drawer-specific tiny style (child pills)
-  (function ensureDrawerStyles(){
-    if (document.getElementById('drawer-extra-styles')) return;
-    const css = `
-#dashCategoryManager #drawer-children{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
-#dashCategoryManager .child-pill{
-  display:inline-flex; align-items:center; gap:.4rem;
-  padding:.38rem .6rem; border-radius:999px;
-  border:1px solid var(--bs-border-color, #dee2e6);
-  background:var(--bs-body-bg, #fff);
-  color:var(--bs-body-color, #212529);
-  cursor:pointer; line-height:1; font-size:.875rem;
-  transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .05s ease;
-}
-#dashCategoryManager .child-pill:hover{
-  background: var(--bs-primary-bg-subtle, #e7f1ff);
-  border-color: var(--bs-primary, #0d6efd);
-  color: var(--bs-primary, #0d6efd);
-}
-#dashCategoryManager .child-pill:active{ transform: translateY(1px); }
-#dashCategoryManager .child-pill:focus{
-  outline:0; box-shadow: 0 0 0 .2rem rgba(13,110,253,.25);
-}
-#dashCategoryManager .child-pill .dot{
-  width:6px; height:6px; border-radius:50%;
-  background: currentColor; opacity:.65; display:inline-block;
-}
-#dashCategoryManager .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
-    `;
-    const style = document.createElement('style');
-    style.id = 'drawer-extra-styles';
-    style.textContent = css;
-    document.head.appendChild(style);
-  })();
-
   const state = {
     ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '', allowHidden: false },
     months: [],
@@ -66,9 +30,9 @@
     showAll: false
   };
 
-  // -------- helpers --------
+  // ---------- helpers ----------
   function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
-  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n||0); } catch { return '$'+Number(n||0).toFixed(2); } }
+  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(+n||0); } catch { return '$'+Number(+n||0).toFixed(2); } }
   function fmtDate(s) { return s || ''; }
   function escapeHTML(s){
     return String(s||'').replace(/[&<>"']/g, c => (
@@ -79,25 +43,13 @@
     ));
   }
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
-  function currentPathPayloadDetailed(){
-    const parts = pathParts();
-    const last = parts[parts.length-1] || '';
-    return {
-      level: state.ctx.level || 'category',
-      cat: state.ctx.cat || '',
-      sub: state.ctx.sub || '',
-      ssub: state.ctx.ssub || '',
-      sss: state.ctx.sss || '',
-      last
-    };
+  function payloadForKeywords(){
+    const parts = pathParts(); const last = parts[parts.length-1] || '';
+    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
   }
-  function actionPathPayload(){
+  function payloadForActions(){
     const parts = pathParts();
-    return {
-      path: parts.join(' / '),
-      name: parts[parts.length-1] || '',
-      allow_hidden: state.ctx.allowHidden ? 1 : 0
-    };
+    return { path: parts.join(' / '), name: parts[parts.length-1] || '', allow_hidden: state.ctx.allowHidden ? 1 : 0 };
   }
 
   function monthKeyFromDateStr(s){
@@ -117,22 +69,19 @@
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
 
-  // Find nearest available month (<= preferred, else next greater)
   function nearestMonth(preferred, available) {
     if (!available || !available.length) return '';
     const set = new Set(available);
     if (preferred && set.has(preferred)) return preferred;
-
     const earlier = available.filter(m => m <= preferred).sort().reverse();
     if (earlier.length) return earlier[0];
-
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
 
+  // ---------- renderers ----------
   function renderBreadcrumb(){
-    const host = $('drawer-breadcrumb');
-    if (!host) return;
+    const host = $('drawer-breadcrumb'); if (!host) return;
     const parts = pathParts();
     if (!parts.length){
       host.innerHTML = '<a href="#" data-bc-index="-1">All Categories</a>';
@@ -162,13 +111,9 @@
   }
 
   function renderChildren(){
-    const host = $('drawer-children');
-    if (!host) return;
+    const host = $('drawer-children'); if (!host) return;
     const kids = state.children || [];
-    if (!kids.length){
-      host.innerHTML = '<span class="text-muted">No children.</span>';
-      return;
-    }
+    if (!kids.length){ host.innerHTML = '<span class="muted">No children.</span>'; return; }
     host.innerHTML = kids.map(function(name){
       return '<span class="child-pill" data-child="'+escapeHTML(name)+'"><span class="dot"></span><span class="txt">'+escapeHTML(name)+'</span><span class="chev">›</span></span>';
     }).join('');
@@ -176,32 +121,20 @@
       pill.addEventListener('click', function(){
         const name = pill.getAttribute('data-child') || '';
         if (!name) return;
-        if (!state.ctx.cat) {
-          state.ctx.cat = name; state.ctx.level = 'category';
-        } else if (!state.ctx.sub) {
-          state.ctx.sub = name; state.ctx.level = 'subcategory';
-        } else if (!state.ctx.ssub) {
-          state.ctx.ssub = name; state.ctx.level = 'subsubcategory';
-        } else {
-          state.ctx.sss = name; state.ctx.level = 'sssubcategory';
-        }
+        if (!state.ctx.cat) { state.ctx.cat = name; state.ctx.level = 'category'; }
+        else if (!state.ctx.sub) { state.ctx.sub = name; state.ctx.level = 'subcategory'; }
+        else if (!state.ctx.ssub) { state.ctx.ssub = name; state.ctx.level = 'subsubcategory'; }
+        else { state.ctx.sss = name; state.ctx.level = 'sssubcategory'; }
         fetchPathTx(state.ctx).catch(()=>{});
       }, { passive:true });
     });
   }
 
-  // ---------------- RENDER TRANSACTIONS (with sticky month header) ----------------
   function renderTx(){
-    const body = $('drawer-tx-body');
-    if (!body) return;
+    const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="muted">No transactions.</td></tr>'; return; }
 
-    if (!rows.length){
-      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
-      return;
-    }
-
-    // group by month, compute net per group
     const groups = new Map();
     for (const t of rows){
       const key = monthKeyFromDateStr(t.date);
@@ -220,7 +153,6 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // sticky month banner + column labels
       parts.push(
         '<tr class="month-sticky" id="'+escapeHTML(monthId(k))+'">\n' +
         '  <td colspan="4">' +
@@ -240,16 +172,15 @@
         '</tr>'
       );
 
-      // rows for this month
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
         const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');
         parts.push(
           '<tr>\n' +
-          '  <td class="text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
-          '  <td>' + escapeHTML(t.description || '') + '</td>\n' +
-          '  <td class="text-end ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
-          '  <td>' + escapeHTML(catPath) + '</td>\n' +
+          '  <td class="col-date text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
+          '  <td class="col-desc">' + escapeHTML(t.description || '') + '</td>\n' +
+          '  <td class="col-amount ' + cls + '">' + fmtUSD(Math.abs(t.amount||0)) + '</td>\n' +
+          '  <td class="col-cat">' + escapeHTML(catPath) + '</td>\n' +
           '</tr>\n'
         );
       }
@@ -258,7 +189,7 @@
     body.innerHTML = parts.join('');
   }
 
-  function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
+  function scrollHost(){ return QS('#dashCategoryManager .tx-wrap'); }
   function scrollToMonth(key, smooth=true){
     if (!key) return;
     if (String(key).toLowerCase() === 'all') return;
@@ -278,10 +209,10 @@
     if (state.ctx.month) scrollToMonth(state.ctx.month, smooth);
   }
 
-  // ---------------- LOAD + WIRE ----------------
+  // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
-    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    if (body) body.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
 
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
@@ -292,12 +223,9 @@
     if (ctx.allowHidden) params.set('allow_hidden', '1');
 
     const monthLower = String(ctx.month || '').toLowerCase();
-    if (monthLower === 'all') {
-      params.set('month', 'all');
-    } else if (ctx.month) {
-      params.set('month', ctx.month);
-    }
-    // full history for drawer
+    if (monthLower === 'all') params.set('month', 'all');
+    else if (ctx.month) params.set('month', ctx.month);
+
     params.set('months', 'all');
     params.set('_', Date.now().toString());
 
@@ -322,10 +250,8 @@
     const serverMonth = String(j.month || '').toLowerCase();
     state.showAll = (serverMonth === 'all') || (monthLower === 'all');
 
-    // Stats header
     setText('drawer-total', fmtUSD(state.total));
 
-    // Months dropdown
     const sel = $('drawer-months');
     if (sel){
       const opts = [];
@@ -343,7 +269,6 @@
     renderChildren();
     renderTx();
 
-    // Jump to the preferred/nearest month after render
     setTimeout(function(){
       if (!state.showAll) {
         const pref = state.ctx.month || (state.months && state.months[0]);
@@ -352,10 +277,10 @@
     }, 0);
   }
 
-  // --- keyword helpers (only used if URLS provided) ---
+  // ---------- keywords (optional endpoints) ----------
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(currentPathPayloadDetailed());
+    const qp = new URLSearchParams(payloadForKeywords());
     qp.set('_', Date.now().toString());
     try {
       const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
@@ -364,26 +289,20 @@
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, currentPathPayloadDetailed(), { keyword: kw });
-    try {
-      await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    } catch {}
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
+    try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, currentPathPayloadDetailed(), { keyword: kw, remove: true });
-    try {
-      await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    } catch {}
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
+    try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
-
   async function refreshKeywords(){
-    const host = $('kw-list');
-    if (!host) return;
-    host.innerHTML = '<span class="text-muted">Loading…</span>';
+    const host = $('kw-list'); if (!host) return;
+    host.innerHTML = '<span class="muted">Loading…</span>';
     const j = await fetchKeywords();
     const kws = (j && j.keywords) || [];
-    if (!kws.length){ host.innerHTML = '<span class="text-muted">No keywords yet.</span>'; return; }
+    if (!kws.length){ host.innerHTML = '<span class="muted">No keywords yet.</span>'; return; }
     host.innerHTML = kws.map(k => (
       '<span class="badge text-bg-secondary me-1">' + escapeHTML(k) + ' <a href="#" data-kw="'+escapeHTML(k)+'" class="text-reset text-decoration-none ms-1" title="Remove">×</a></span>'
     )).join('');
@@ -396,28 +315,25 @@
     });
   }
 
-  // ----- Actions tab buttons (Inspect / Rename / Upsert) -----
+  // ---------- actions ----------
   const btnInspect = document.getElementById('drawer-inspect');
   const btnRename  = document.getElementById('drawer-rename');
   const btnUpsert  = document.getElementById('drawer-upsert');
 
   if (btnInspect && urls.INSPECT_URL){
     btnInspect.addEventListener('click', async function(){
-      const p = actionPathPayload();
+      const p = payloadForActions();
       const qp = new URLSearchParams(p);
       try {
         const res = await fetch(urls.INSPECT_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' }});
         const j   = await res.json();
         alert(JSON.stringify(j, null, 2));
-      } catch (e) {
-        alert('Inspect failed.');
-      }
+      } catch (e) { alert('Inspect failed.'); }
     });
   }
-
   if (btnRename && urls.RENAME_URL){
     btnRename.addEventListener('click', async function(){
-      const p = actionPathPayload();
+      const p = payloadForActions();
       if (!p.path) { alert('Select a node to rename.'); return; }
       const from = p.name || '(unnamed)';
       const to   = prompt('Rename "' + from + '" to:', from);
@@ -429,16 +345,13 @@
           body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
         });
         fetchPathTx(state.ctx).catch(()=>{});
-        alert('Rename attempted (check changes in the drawer).');
-      } catch (e) {
-        alert('Rename failed.');
-      }
+        alert('Rename attempted (check the drawer).');
+      } catch (e) { alert('Rename failed.'); }
     });
   }
-
   if (btnUpsert && urls.UPSERT_URL){
     btnUpsert.addEventListener('click', async function(){
-      const p = actionPathPayload();
+      const p = payloadForActions();
       try {
         await fetch(urls.UPSERT_URL, {
           method: 'POST',
@@ -446,16 +359,13 @@
           body: JSON.stringify({ path: p.path, allow_hidden: p.allow_hidden })
         });
         alert('Upsert attempted.');
-      } catch (e) {
-        alert('Upsert failed.');
-      }
+      } catch (e) { alert('Upsert failed.'); }
     });
   }
 
-  // Public entry
+  // ---------- public open ----------
   function openCategoryManager(ctx){
-    ensureOC();
-    if (offcanvas) offcanvas.show();
+    ensureOC(); if (offcanvas) offcanvas.show();
 
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
@@ -468,12 +378,13 @@
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
-    fetchPathTx(state.ctx).catch(function(err){ console.error('drawer fetchPathTx failed:', err); });
+    fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
   }
-  openCategoryManager.__cl_v3 = true;
+  openCategoryManager.__cl_v4 = true;
+  window.openCategoryManager = openCategoryManager;
 
-  // Wire global click for [data-manage]
+  // ---------- global wiring ----------
   window.dashManage = function(e, el){
     e.preventDefault();
     const ctx = {
@@ -494,8 +405,8 @@
     tab.addEventListener('click', function(e){
       e.preventDefault();
       const target = tab.getAttribute('data-tab');
-      QSA('.drawer-tab').forEach(function(t){ t.classList.remove('active'); });
-      QSA('.drawer-pane').forEach(function(p){ p.style.display='none'; });
+      QSA('.drawer-tab').forEach(t => t.classList.remove('active'));
+      QSA('.drawer-pane').forEach(p => p.style.display = 'none');
       tab.classList.add('active');
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
@@ -503,7 +414,7 @@
     });
   });
 
-  // Month selector: re-fetch the drawer for the selected month (supports "All months")
+  // Month selector
   const monthSel = $('drawer-months');
   if (monthSel){
     monthSel.addEventListener('change', async function(e){
@@ -514,7 +425,7 @@
     });
   }
 
-  // Keyword inputs
+  // Keyword add
   const kwInput = $('kw-add-input');
   const kwAddBtn = $('kw-add-btn');
   if (kwAddBtn){
@@ -537,7 +448,4 @@
       }
     });
   }
-
-  // Expose for pages to open programmatically
-  window.openCategoryManager = openCategoryManager;
 })();
