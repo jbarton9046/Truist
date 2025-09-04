@@ -85,21 +85,26 @@
     return later[0] || available[available.length - 1];
   }
 
-  // Measure sticky header height and month banner height; expose as CSS vars
+  // Measure sticky header height; expose as CSS var
   function calibrateStickyOffsets() {
     const scroller = QS('#dashCategoryManager .table-responsive');
     if (!scroller) return;
-
     const thead = QS('#dashCategoryManager #drawer-tx thead');
     const theadH = Math.ceil((thead && thead.getBoundingClientRect().height) || 0);
     scroller.style.setProperty('--thead-h', (theadH || 44) + 'px');
+  }
 
-    // Measure first banner to set a consistent spacer height
-    const stick = QS('#dashCategoryManager #drawer-tx .month-stick');
-    if (stick) {
-      const mbh = Math.ceil(stick.getBoundingClientRect().height || 0);
-      if (mbh) scroller.style.setProperty('--month-banner-h', mbh + 'px');
-    }
+  // deepest category label shown in "Cat" column
+  function deepestLabel(t){
+    try {
+      if (Array.isArray(t.path) && t.path.length) return String(t.path[t.path.length - 1]);
+      if (Array.isArray(t.category_path) && t.category_path.length) return String(t.category_path[t.category_path.length - 1]);
+      const cands = [t.sss, t.ssub, t.subcategory2, t.subcategory, t.sub, t.category];
+      for (const c of cands) {
+        if (c && String(c).trim()) return String(c);
+      }
+      return t.category || '';
+    } catch { return t.category || ''; }
   }
 
   // ---------- renderers ----------
@@ -198,11 +203,10 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month divider — spacer + sticky banner
+      // Month divider — sticky (no spacer)
       parts.push(
         '<tr class="month-divider" id="' + escapeHTML(monthId(k)) + '">\n' +
         '  <td colspan="4">\n' +
-        '    <div class="month-space" aria-hidden="true"></div>\n' +
         '    <div class="month-stick">\n' +
         '      <span class="fw-bold">' + escapeHTML(g.label) + '</span>\n' +
         '      <span class="net ' + netCls + '">Net: ' + fmtUSD(net) + '</span>\n' +
@@ -211,16 +215,16 @@
         '</tr>'
       );
 
-      // Data rows (wrapping is handled by CSS in the template)
+      // Data rows
       for (const t of g.items) {
         const cls = (parseFloat(t.amount || 0) < 0) ? 'tx-neg' : 'tx-pos';
-        const catPath = (t.category || '') + (t.subcategory ? (' / ' + t.subcategory) : '');
+        const catLeaf = deepestLabel(t);
         parts.push(
           '<tr>\n' +
           '  <td class="text-nowrap">' + escapeHTML(fmtDate(t.date)) + '</td>\n' +
           '  <td>' + escapeHTML(t.description || '') + '</td>\n' +
           '  <td class="text-end ' + cls + '">' + fmtUSD(Math.abs(t.amount || 0)) + '</td>\n' +
-          '  <td>' + escapeHTML(catPath) + '</td>\n' +
+          '  <td>' + escapeHTML(catLeaf || '') + '</td>\n' +
           '</tr>\n'
         );
       }
@@ -444,8 +448,7 @@
     ensureOC();
     if (offcanvas) offcanvas.show();
 
-    // Calibrate immediately so first paint has the right offsets
-    calibrateStickyOffsets();
+    calibrateStickyOffsets(); // make sure first paint has correct top offset
 
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
@@ -461,7 +464,6 @@
     fetchPathTx(state.ctx).catch((err) => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    // Recalibrate when drawer becomes visible and after small layout settles
     if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', calibrateStickyOffsets, { once: true });
     setTimeout(calibrateStickyOffsets, 0);
     setTimeout(calibrateStickyOffsets, 100);

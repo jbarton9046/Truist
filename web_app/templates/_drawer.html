@@ -29,7 +29,7 @@
         --cm-pad-y:    .58rem;    /* cell padding Y */
         --cm-pad-x:    .70rem;    /* cell padding X */
 
-        /* Month banner paint */
+        /* Month banner paint (opaque enough to avoid bleed) */
         --cm-month-bg: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.08)) 95%, #000 5%);
       }
       @media (max-width: 520px){
@@ -70,18 +70,18 @@
 
       /* Column layout (percentages must sum to 100) */
       #dashCategoryManager #drawer-tx col.col-date   { width: 24% !important; }
-      #dashCategoryManager #drawer-tx col.col-desc   { width: 44% !important; }
+      #dashCategoryManager #drawer-tx col.col-desc   { width: 42% !important; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
-      #dashCategoryManager #drawer-tx col.col-cat    { width: 16% !important; }
+      #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
 
       @media (max-width: 520px){
         #dashCategoryManager #drawer-tx col.col-date   { width: 27% !important; }
-        #dashCategoryManager #drawer-tx col.col-desc   { width: 43% !important; }
+        #dashCategoryManager #drawer-tx col.col-desc   { width: 39% !important; }
         #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
-        #dashCategoryManager #drawer-tx col.col-cat    { width: 14% !important; }
+        #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
       }
 
-      /* Keep Date & Amount on one line; let Desc & Category wrap */
+      /* Keep Date & Amount on one line; let Desc & Cat wrap */
       #dashCategoryManager #drawer-tx tbody td:nth-child(1),
       #dashCategoryManager #drawer-tx tbody td:nth-child(3){
         white-space: nowrap !important;
@@ -106,22 +106,15 @@
 
       /* THEAD above month banner */
       #dashCategoryManager .table-responsive thead{
-        position: sticky;
-        top: 0;
-        z-index: 4;
+        position: sticky; top: 0; z-index: 4;
       }
 
-      /* Month divider: spacer + sticky banner (prevents first-row overlap at open) */
+      /* Month divider: SINGLE sticky wrapper (no spacer) */
       #dashCategoryManager #drawer-tx .month-divider > td{
         padding: 0 !important;
         border: 0 !important;
         background: transparent !important;
       }
-      /* Reserves layout so first row never sits under the banner at first paint */
-      #dashCategoryManager #drawer-tx .month-divider .month-space{
-        height: var(--month-banner-h, 44px);
-      }
-      /* The element that actually sticks under the THEAD */
       #dashCategoryManager #drawer-tx .month-divider .month-stick{
         position: sticky;
         top: var(--thead-h, 44px);
@@ -146,14 +139,14 @@
       .offcanvas-backdrop{ z-index:1080 !important; }
       #dashCategoryManager *{ pointer-events:auto; }
 
-      /* Breadcrumb + chips (theme-friendly) */
+      /* Breadcrumb + chips */
       .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
       .drawer-breadcrumb a:hover{ text-decoration:underline; }
       .drawer-breadcrumb .sep{ color:#8aa3c6; }
       .muted{ color: color-mix(in oklab, var(--text) 72%, transparent); }
 
-      /* Tabs (match neon-tech look) */
+      /* Tabs */
       .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--hair); }
       .drawer-tab{ padding:.4rem .7rem; border-radius:.6rem .6rem 0 0; text-decoration:none; color: var(--text); background: transparent; border:1px solid transparent; }
       .drawer-tab:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); }
@@ -176,13 +169,15 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* --- OPTIONAL multi-line clamp for Description (OFF by default) ---
+      /* OPTIONAL: 2-line clamp for Description content (wrap with <span class="desc-clamp">…</span> to enable)
       #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
         display: block !important;
         line-height: 1.35;
-        max-height: calc(2 * 1.35em);      overflow: hidden !important;
-        text-overflow: ellipsis;           white-space: normal !important;
-        word-break: break-word !important; overflow-wrap: break-word !important;
+        max-height: calc(2 * 1.35em);
+        overflow: hidden !important;
+        text-overflow: ellipsis;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
       }
       @supports (-webkit-line-clamp: 2){
         #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
@@ -197,8 +192,7 @@
           display: block !important;
           line-clamp: 2;
         }
-      }
-      ------------------------------------------------------------------- */
+      } */
     </style>
 
     <!-- Tabs -->
@@ -225,11 +219,11 @@
               <th>Date</th>
               <th>Description</th>
               <th>Amount</th>
-              <th>Category</th>
+              <th>Cat</th>
             </tr>
           </thead>
           <tbody id="drawer-tx-body">
-            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4"><div class="month-space"></div><div class="month-stick">… -->
+            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4"><div class="month-stick">… -->
           </tbody>
         </table>
       </div>
@@ -274,29 +268,3 @@
   */
 </script>
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
-
-<!-- Fallback [data-manage] click handler & URL guard (resilient across pages) -->
-<script>
-  (function(){
-    window.CL_URLS = window.CL_URLS || {};
-    if (!window.CL_URLS.PATH_TXN_URL) window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
-
-    if (!window.dashManage) {
-      document.addEventListener('click', function(e){
-        const el = e.target.closest('[data-manage]');
-        if (!el) return;
-        e.preventDefault();
-        const ctx = {
-          level: el.getAttribute('data-level') || 'category',
-          cat:   el.getAttribute('data-cat')   || '',
-          sub:   el.getAttribute('data-sub')   || '',
-          ssub:  el.getAttribute('data-ssub')  || '',
-          sss:   el.getAttribute('data-sss')   || '',
-          month: el.getAttribute('data-month') || '',
-          allowHidden: !!(el.getAttribute('data-allow-hidden') || '')
-        };
-        if (window.openCategoryManager) window.openCategoryManager(ctx);
-      });
-    }
-  })();
-</script>
