@@ -15,8 +15,10 @@
 
   let offcanvas = null;
   function ensureOC() {
-    if (!offcanvas && window.bootstrap && window.bootstrap.Offcanvas && ocEl) {
-      offcanvas = new bootstrap.Offcanvas(ocEl);
+    const el = $('dashCategoryManager');
+    if (!el || !window.bootstrap || !window.bootstrap.Offcanvas) return null;
+    if (!offcanvas || !offcanvas._element || offcanvas._element !== el) {
+      try { offcanvas = new bootstrap.Offcanvas(el); } catch (_) { offcanvas = null; }
     }
     return offcanvas;
   }
@@ -71,6 +73,15 @@
     if (earlier.length) return earlier[0];
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
+  }
+
+  // Measure sticky header height and expose as CSS var on the scroller
+  function calibrateStickyOffsets(){
+    const scroller = QS('#dashCategoryManager .table-responsive');
+    const thead    = QS('#dashCategoryManager #drawer-tx thead');
+    if (!scroller || !thead) return;
+    const h = Math.ceil(thead.getBoundingClientRect().height || 0);
+    scroller.style.setProperty('--thead-h', h + 'px');
   }
 
   // ---------- renderers ----------
@@ -130,7 +141,7 @@
   function renderTx(){
     const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; calibrateStickyOffsets(); return; }
 
     // group by YYYY-MM
     const groups = new Map();
@@ -151,7 +162,7 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month divider — neon-tech.css makes this sticky & frosted
+      // Month divider — sticky & frosted
       parts.push(
         '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">\n' +
         '  <td colspan="4"><span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
@@ -176,6 +187,7 @@
     }
 
     body.innerHTML = parts.join('');
+    calibrateStickyOffsets(); // ensure the month banner sits below the real THEAD height
   }
 
   function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
@@ -226,6 +238,7 @@
     } catch (err){
       console.error('drawer fetchPathTx failed:', err);
       if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+      calibrateStickyOffsets();
       return;
     }
 
@@ -263,6 +276,7 @@
         const pref = state.ctx.month || (state.months && state.months[0]);
         if (pref) scrollToPreferredMonth(pref, false);
       }
+      calibrateStickyOffsets();
     }, 0);
   }
 
@@ -330,23 +344,28 @@
     });
   }
   if (btnRename && urls.RENAME_URL){
-    btnRename.addEventListener('click', async function(){
-      const p = payloadForActions();
-      if (!p.path) { alert('Select a node to rename.'); return; }
-      const from = p.name || '(unnamed)';
-      const to   = prompt('Rename "' + from + '" to:', from);
-      if (!to || to.trim() === from) return;
-      try {
-        await fetch(urls.RENAME_URL, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
-        });
-        fetchPathTx(state.ctx).catch(()=>{});
-        alert('Rename attempted (check the drawer).');
-      } catch (e) { alert('Rename failed.'); }
-    });
-  }
+  btnRename.addEventListener('click', async function(){
+    const p = payloadForActions();
+    if (!p.path) { alert('Select a node to rename.'); return; }
+    const from = p.name || '(unnamed)';
+    const to   = prompt('Rename "' + from + '" to:', from);
+    if (!to || to.trim() === from) return;
+    try {
+      await fetch(urls.RENAME_URL, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          path: p.path,
+          new_name: to.trim(),           // <-- fixed here
+          allow_hidden: p.allow_hidden
+        })
+      });
+      fetchPathTx(state.ctx).catch(()=>{});
+      alert('Rename attempted (check the drawer).');
+    } catch (e) { alert('Rename failed.'); }
+  });
+}
+
   if (btnUpsert && urls.UPSERT_URL){
     btnUpsert.addEventListener('click', async function(){
       const p = payloadForActions();
@@ -378,6 +397,12 @@
 
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
+
+    // Recalibrate when drawer becomes visible
+    if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', calibrateStickyOffsets, { once:true });
+    setTimeout(calibrateStickyOffsets, 0);
+    setTimeout(calibrateStickyOffsets, 100);
+    window.addEventListener('resize', calibrateStickyOffsets);
   }
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
@@ -409,6 +434,7 @@
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
+      setTimeout(calibrateStickyOffsets, 0);
     });
   });
 
@@ -421,6 +447,7 @@
       state.showAll = (val === 'all');
       await fetchPathTx(state.ctx);
       if (!state.showAll && state.ctx.month) scrollToPreferredMonth(state.ctx.month, true);
+      calibrateStickyOffsets();
     });
   }
 

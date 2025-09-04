@@ -102,6 +102,34 @@
         font-size: var(--cm-fsz-th) !important;
       }
 
+      /* Month divider — sticky just under sticky header */
+      #dashCategoryManager #drawer-tx .month-divider > td{
+        position: sticky;
+        top: var(--thead-h, 44px); /* updated dynamically by JS */
+        z-index: 3;                /* header sits above at z=4 */
+        backdrop-filter: saturate(120%) blur(6px);
+        -webkit-backdrop-filter: saturate(120%) blur(6px);
+        background:
+          linear-gradient(
+            180deg,
+            color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 90%, transparent) 0%,
+            color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent) 100%
+          ) !important;
+        border-top: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
+      }
+      /* Ensure THEAD is sticky above month divider */
+      #dashCategoryManager .table-responsive thead{
+        position: sticky;
+        top: 0;
+        z-index: 4;
+      }
+
+      /* Make sure the drawer is on top and clickable */
+      #dashCategoryManager{ z-index:1085 !important; pointer-events:auto !important; }
+      .offcanvas-backdrop{ z-index:1080 !important; }
+      #dashCategoryManager *{ pointer-events:auto; }
+
       /* Breadcrumb + chips (theme-friendly) */
       .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
@@ -230,3 +258,29 @@
   */
 </script>
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
+
+<!-- Fallback [data-manage] click handler & URL guard (resilient across pages) -->
+<script>
+  (function(){
+    window.CL_URLS = window.CL_URLS || {};
+    if (!window.CL_URLS.PATH_TXN_URL) window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
+
+    if (!window.dashManage) {
+      document.addEventListener('click', function(e){
+        const el = e.target.closest('[data-manage]');
+        if (!el) return;
+        e.preventDefault();
+        const ctx = {
+          level: el.getAttribute('data-level') || 'category',
+          cat:   el.getAttribute('data-cat')   || '',
+          sub:   el.getAttribute('data-sub')   || '',
+          ssub:  el.getAttribute('data-ssub')  || '',
+          sss:   el.getAttribute('data-sss')   || '',
+          month: el.getAttribute('data-month') || '',
+          allowHidden: !!(el.getAttribute('data-allow-hidden') || '')
+        };
+        if (window.openCategoryManager) window.openCategoryManager(ctx);
+      });
+    }
+  })();
+</script>
