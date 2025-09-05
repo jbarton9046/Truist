@@ -1,4 +1,5 @@
-<!-- Right-side Category Manager drawer (light-tint + heavy-blur headers, no horizontal scroll) -->
+<!-- templates/_drawer.html -->
+<!-- Right-side Category Manager drawer (neon-tech aligned, light-tint + heavy-blur headers, no horizontal scroll) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -32,7 +33,7 @@
 
         /* Match transactions.html: light tint from --thead-bg + heavier blur */
         --hdr-bg: var(--thead-bg, rgba(255,255,255,.06));
-        --hdr-blur: 14px;                 /* heavier blur so rows soften under */
+        --hdr-blur: 14px;                 /* heavier than page tables */
       }
       @media (max-width: 520px){
         #dashCategoryManager{
@@ -60,7 +61,8 @@
          Drawer scroller: vertical only, stable top
          ========================================== */
       #dashCategoryManager .table-responsive{
-        --thead-h: 44px;            /* JS updates this after open */
+        --thead-h: 44px;            /* JS updates after open; this is fallback */
+        --month-stick-nudge: 0px;   /* align month bar directly under THEAD */
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: 58vh;
@@ -80,7 +82,6 @@
       #dashCategoryManager #drawer-tx col.col-desc   { width: 42% !important; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
       #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
-
       @media (max-width: 520px){
         #dashCategoryManager #drawer-tx col.col-date   { width: 27% !important; }
         #dashCategoryManager #drawer-tx col.col-desc   { width: 39% !important; }
@@ -132,16 +133,22 @@
       /* =============================================
          Month divider: single sticky bar (same surface)
          ============================================= */
-      #dashCategoryManager #drawer-tx tr.month-row > td{
+      #dashCategoryManager #drawer-tx .month-divider > td{
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+      }
+      #dashCategoryManager #drawer-tx .month-divider .month-stick{
         position: sticky;
-        top: var(--thead-h);
+        top: calc(var(--thead-h, 44px) + var(--month-stick-nudge, 0px));
         z-index: 6;               /* just under THEAD */
         isolation: isolate;       /* prevents blend of adjacent months */
         mix-blend-mode: normal;
 
-        padding: .60rem var(--cm-pad-x) !important;
-        border-top: 1px solid var(--hair) !important;
-        border-bottom: 1px solid var(--hair) !important;
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        padding: .60rem var(--cm-pad-x);
+        border-top: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
 
         backdrop-filter: saturate(120%) blur(var(--hdr-blur));
         -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
@@ -152,9 +159,8 @@
         color: var(--table-head-fg, var(--text));
         font-weight:700; letter-spacing:.2px;
       }
-      #dashCategoryManager #drawer-tx tr.month-row.is-stuck { z-index: 8; }
-      #dashCategoryManager #drawer-tx .net.tx-neg{ color:#c0392b; font-weight:700; }
-      #dashCategoryManager #drawer-tx .net.tx-pos{ color:#1e7e34; font-weight:700; }
+      #dashCategoryManager #drawer-tx .month-divider .net.tx-neg{ color:#c0392b; font-weight:700; }
+      #dashCategoryManager #drawer-tx .month-divider .net.tx-pos{ color:#1e7e34; font-weight:700; }
 
       /* ======================
          Drawer interactivity
@@ -193,13 +199,20 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* Fallback if blur unsupported: make tint more opaque */
-      @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
-        #dashCategoryManager .table-responsive thead th,
-        #dashCategoryManager #drawer-tx tr.month-row > td{
-          background: rgba(20,30,50,.85) !important;
+      /* OPTIONAL clamping (left off by default)
+      #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+        display: block !important; line-height: 1.35; max-height: calc(2 * 1.35em);
+        overflow: hidden !important; text-overflow: ellipsis; word-break: break-word !important; overflow-wrap: break-word !important;
+      }
+      @supports (-webkit-line-clamp: 2){
+        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
+          display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: none;
         }
       }
+      @supports (line-clamp: 2){
+        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{ display: block !important; line-clamp: 2; }
+      }
+      */
     </style>
 
     <!-- Tabs -->
