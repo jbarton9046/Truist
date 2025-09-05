@@ -1,8 +1,8 @@
-// Drawer with “frozen” header/month: light tint + heavy blur, no initial overhang
+// Drawer (frozed look, NON-sticky header/month, children chips restored)
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen_nosticky === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -61,46 +61,9 @@
     return dt.toLocaleString(undefined, {month:'short', year:'numeric'});
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
-  function nearestMonth(preferred, available) {
-    if (!available || !available.length) return '';
-    const set = new Set(available);
-    if (preferred && set.has(preferred)) return preferred;
-    const earlier = available.filter(m => m <= preferred).sort().reverse();
-    if (earlier.length) return earlier[0];
-    const later = available.filter(m => m > preferred).sort();
-    return later[0] || available[available.length - 1];
-  }
   function deepestCat(t){
     const parts = [t.category, t.subcategory, t.ssub, t.sss, t.sub_cat, t.subcat, t.subcategory2].filter(Boolean);
     return parts.length ? parts[parts.length-1] : (t.category || '');
-  }
-
-  // ---------- sticky helpers ----------
-  function calibrateStickyOffsets(){
-    const scroller = QS('#dashCategoryManager .table-responsive');
-    const thead    = QS('#dashCategoryManager #drawer-tx thead');
-    if (!scroller || !thead) return;
-    const h = Math.round((thead.getBoundingClientRect().height) || 44);
-    scroller.style.setProperty('--thead-h', h + 'px');
-  }
-
-  function updateStickyMonth(){
-    const scroller = QS('#dashCategoryManager .table-responsive');
-    const body = $('drawer-tx-body');
-    if (!scroller || !body) return;
-
-    const rows = Array.from(body.querySelectorAll('tr.month-row'));
-    if (!rows.length) return;
-
-    const top = scroller.scrollTop;
-    const h = parseInt(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
-
-    // Mark the last month whose top has crossed the sticky boundary (header height)
-    let active = -1;
-    for (let i = 0; i < rows.length; i++){
-      if ((rows[i].offsetTop - top) <= h) active = i;
-    }
-    rows.forEach((r,i) => r.classList.toggle('is-stuck', i === active));
   }
 
   // ---------- renderers ----------
@@ -162,8 +125,6 @@
     const rows = state.tx || [];
     if (!rows.length){
       body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
-      calibrateStickyOffsets(); updateStickyMonth();
-      body.style.visibility = 'visible';
       return;
     }
 
@@ -186,7 +147,7 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month row — sticky/blur done on inner month-shell div
+      // Month row — NON-sticky, just styled
       parts.push(
         '<tr class="month-row" id="'+escapeHTML(monthId(k))+'">' +
         '  <td colspan="4"><div class="month-shell">' +
@@ -212,51 +173,21 @@
     }
 
     body.innerHTML = parts.join('');
-
-    // Double-RAF ensures layout is fully settled before offset + scroll
-    requestAnimationFrame(() => {
-      calibrateStickyOffsets();
-      requestAnimationFrame(() => {
-        updateStickyMonth();
-        const scroller = QS('#dashCategoryManager .table-responsive');
-        if (scroller && !state.showAll){
-          const pref = state.ctx.month || (state.months && state.months[0]);
-          const row  = pref && $(monthId(pref));
-          const h = parseInt(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
-          if (row) scroller.scrollTop = Math.max(row.offsetTop - h + 1, 0);
-        }
-        body.style.visibility = 'visible';
-      });
-    });
   }
 
-  function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
-  function scrollToMonth(key, smooth=true){
+  function scrollToMonth(key){
     if (!key) return;
     if (String(key).toLowerCase() === 'all') return;
-    const host = scrollHost();
+    const host = QS('#dashCategoryManager .table-responsive');
     const row  = $(monthId(key));
     if (!host || !row) return;
-    const h = parseInt(getComputedStyle(host).getPropertyValue('--thead-h')) || 44;
-    host.scrollTo({ top: Math.max(row.offsetTop - h + 1, 0), behavior: smooth ? 'smooth' : 'auto' });
-  }
-  function scrollToPreferredMonth(preferredKey, smooth=true){
-    const key = nearestMonth(preferredKey, state.months);
-    if (key && key !== state.ctx.month) {
-      state.ctx.month = key;
-      const sel = $('drawer-months');
-      if (sel) sel.value = key;
-    }
-    if (state.ctx.month) scrollToMonth(state.ctx.month, smooth);
+    host.scrollTop = row.offsetTop;
   }
 
   // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
-    if (body) {
-      body.style.visibility = 'hidden'; // avoid on-open overlap flash
-      body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
-    }
+    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
 
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
@@ -280,12 +211,7 @@
       j = await res.json();
     } catch (err){
       console.error('drawer fetchPathTx failed:', err);
-      if (body) {
-        body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
-        body.style.visibility = 'visible';
-      }
-      calibrateStickyOffsets();
-      updateStickyMonth();
+      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
       return;
     }
 
@@ -319,27 +245,22 @@
   }
 
   // ---------- keywords (optional endpoints) ----------
-  function payloadForKeywords(){
-    const parts = pathParts(); const last = parts[parts.length-1] || '';
-    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
-  }
+  function pathPayload(){ const parts = pathParts(); return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last: parts[parts.length-1] || '' }; }
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(payloadForKeywords());
+    const qp = new URLSearchParams(pathPayload());
     qp.set('_', Date.now().toString());
-    try {
-      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
-      return await res.json();
-    } catch { return { keywords: [] }; }
+    try { const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} }); return await res.json(); }
+    catch { return { keywords: [] }; }
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
+    const payload = Object.assign({}, pathPayload(), { keyword: kw });
     try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
+    const payload = Object.assign({}, pathPayload(), { keyword: kw, remove: true });
     try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function refreshKeywords(){
@@ -429,32 +350,10 @@
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
-    // Render
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
-
-    // Wire scroll watcher once
-    const scroller = QS('#dashCategoryManager .table-responsive');
-    if (scroller && !scroller.__watch){
-      scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
-      scroller.__watch = true;
-    }
-
-    // After drawer shows, calibrate again (fonts/metrics are ready)
-    const oc = $('dashCategoryManager');
-    if (oc){
-      oc.addEventListener('shown.bs.offcanvas', function(){
-        calibrateStickyOffsets();
-        updateStickyMonth();
-      }, { once:true });
-    }
-
-    window.addEventListener('resize', function(){
-      calibrateStickyOffsets();
-      updateStickyMonth();
-    });
   }
-  openCategoryManager.__cl_frozen = true;
+  openCategoryManager.__cl_frozen_nosticky = true;
   window.openCategoryManager = openCategoryManager;
 
   // Global click helper used around the site
@@ -484,7 +383,6 @@
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
-      requestAnimationFrame(()=>{ calibrateStickyOffsets(); updateStickyMonth(); });
     });
   });
 
@@ -496,9 +394,7 @@
       state.ctx.month = val || '';
       state.showAll = (val === 'all');
       await fetchPathTx(state.ctx);
-      if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month, true);
-      calibrateStickyOffsets();
-      updateStickyMonth();
+      if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month);
     });
   }
 })();
