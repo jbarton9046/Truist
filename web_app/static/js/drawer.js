@@ -1,15 +1,17 @@
-// static/js/drawer.js — neon-tech aligned drawer (fits without horizontal scroll)
+// neon-tech aligned drawer (light-tint + heavy-blur header & sticky month)
+// Keeps list readable above, unreadable under the month bar, no horizontal scroll
 (function () {
   'use strict';
 
+  // Avoid double-load
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
 
-  const QS  = (s) => document.querySelector(s);
-  const QSA = (s) => Array.from(document.querySelectorAll(s));
-  const $   = (id) => document.getElementById(id);
+  const QS  = s => document.querySelector(s);
+  const QSA = s => Array.from(document.querySelectorAll(s));
+  const $   = id => document.getElementById(id);
   const ocEl = $('dashCategoryManager');
 
   let offcanvas = null;
@@ -29,7 +31,7 @@
     children: [],
     total: 0,
     magnitude_total: 0,
-    showAll: false,
+    showAll: false
   };
 
   // ---------- helpers ----------
@@ -41,12 +43,10 @@
       c === '&' ? '&amp;' :
       c === '<' ? '&lt;'  :
       c === '>' ? '&gt;'  :
-      c === '"' ? '&quot;' : '&#39;'
+      c === '"' ? '&quot;': '&#39;'
     ));
   }
-
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
-
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
     const t = String(s).trim();
@@ -63,7 +63,6 @@
     return dt.toLocaleString(undefined, {month:'short', year:'numeric'});
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
-
   function nearestMonth(preferred, available) {
     if (!available || !available.length) return '';
     const set = new Set(available);
@@ -73,33 +72,38 @@
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
+  // Deepest category helper for display
+  function deepestCat(t){
+    const parts = [t.category, t.subcategory, t.ssub, t.sss, t.sub_cat, t.subcat, t.subcategory2].filter(Boolean);
+    return parts.length ? parts[parts.length-1] : (t.category || '');
+  }
 
-  // Measure sticky header height; expose as CSS var (smaller fallback)
+  // Measure sticky header height and expose as CSS var on the scroller
   function calibrateStickyOffsets(){
     const scroller = QS('#dashCategoryManager .table-responsive');
-    if (!scroller) return;
-    const thead = QS('#dashCategoryManager #drawer-tx thead');
-    const h = Math.ceil((thead && thead.getBoundingClientRect().height) || 0);
-    scroller.style.setProperty('--thead-h', (h || 44) + 'px');
+    const thead    = QS('#dashCategoryManager #drawer-tx thead');
+    if (!scroller || !thead) return;
+    const h = Math.round((thead.getBoundingClientRect().height) || 44);
+    scroller.style.setProperty('--thead-h', h + 'px');
   }
 
-  // deepest category label shown in "Cat" column
-  function deepestLabel(t){
-    try {
-      if (Array.isArray(t.path) && t.path.length) return String(t.path[t.path.length - 1]);
-      if (Array.isArray(t.category_path) && t.category_path.length) return String(t.category_path[t.category_path.length - 1]);
-      const cands = [t.sss, t.ssub, t.subcategory2, t.subcategory, t.sub, t.category];
-      for (const c of cands) if (c && String(c).trim()) return String(c);
-      return t.category || '';
-    } catch { return t.category || ''; }
-  }
+  // Ensure only one month row is visually “on top”
+  function updateStickyMonth(){
+    const scroller = QS('#dashCategoryManager .table-responsive');
+    const body = $('drawer-tx-body');
+    if (!scroller || !body) return;
 
-  function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
-  function resetScrollTop(){
-    const host = scrollHost();
-    if (!host) return;
-    host.scrollTop = 0;
-    host.scrollLeft = 0;
+    const rows = Array.from(body.querySelectorAll('tr.month-row'));
+    if (!rows.length) return;
+
+    const top = scroller.scrollTop;
+    let active = -1;
+    for (let i = 0; i < rows.length; i++){
+      const r = rows[i];
+      const y = r.offsetTop;        // offset within scroller
+      if (y <= top + 1) active = i; // +1 avoids flicker at boundaries
+    }
+    rows.forEach((r,i) => r.classList.toggle('is-stuck', i === active));
   }
 
   // ---------- renderers ----------
@@ -159,7 +163,7 @@
   function renderTx(){
     const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; calibrateStickyOffsets(); return; }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; calibrateStickyOffsets(); updateStickyMonth(); return; }
 
     // group by YYYY-MM
     const groups = new Map();
@@ -180,35 +184,34 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month divider — sticky (no spacer)
+      // Month row — sticky td (inside the scrollport)
       parts.push(
-        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">\n' +
-        '  <td colspan="4">\n' +
-        '    <div class="month-stick">\n' +
-        '      <span class="fw-bold">'+escapeHTML(g.label)+'</span>\n' +
-        '      <span class="net '+netCls+'">Net: '+fmtUSD(net)+'</span>\n' +
-        '    </div>\n' +
-        '  </td>\n' +
+        '<tr class="month-row" id="'+escapeHTML(monthId(k))+'">' +
+        '  <td colspan="4">' +
+        '    <span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
+        '    <span class="net '+netCls+'">Net: '+fmtUSD(net)+'</span>' +
+        '  </td>' +
         '</tr>'
       );
 
       // Data rows
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
-        const catLeaf = deepestLabel(t);
+        const catDisplay = deepestCat(t);
         parts.push(
-          '<tr>\n' +
-          '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>\n' +
-          '  <td>'+escapeHTML(t.description || '')+'</td>\n' +
-          '  <td class="text-end '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>\n' +
-          '  <td>'+escapeHTML(catLeaf || '')+'</td>\n' +
-          '</tr>\n'
+          '<tr>' +
+          '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>' +
+          '  <td>'+escapeHTML(t.description || '')+'</td>' +
+          '  <td class="text-end '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>' +
+          '  <td>'+escapeHTML(catDisplay)+'</td>' +
+          '</tr>'
         );
       }
     }
 
     body.innerHTML = parts.join('');
     calibrateStickyOffsets();
+    updateStickyMonth();
   }
 
   function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
@@ -218,7 +221,7 @@
     const host = scrollHost();
     const row  = $(monthId(key));
     if (!host || !row) return;
-    const top = row.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop - 8;
+    const top = row.offsetTop; // inside scroller
     host.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   }
   function scrollToPreferredMonth(preferredKey, smooth=true){
@@ -260,6 +263,7 @@
       console.error('drawer fetchPathTx failed:', err);
       if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
       calibrateStickyOffsets();
+      updateStickyMonth();
       return;
     }
 
@@ -298,6 +302,7 @@
         if (pref) scrollToPreferredMonth(pref, false);
       }
       calibrateStickyOffsets();
+      updateStickyMonth();
     }, 0);
   }
 
@@ -405,9 +410,6 @@
   function openCategoryManager(ctx){
     ensureOC(); if (offcanvas) offcanvas.show();
 
-    calibrateStickyOffsets(); // make sure first paint has correct top offset
-    const host = scrollHost(); if (host) { host.scrollTop = 0; host.scrollLeft = 0; }
-
     state.ctx = {
       level: (ctx && ctx.level) || 'category',
       cat:   (ctx && ctx.cat)   || '',
@@ -422,14 +424,22 @@
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
+    // Recalibrate when drawer becomes visible
     if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', function(){
       calibrateStickyOffsets();
-      const h = scrollHost(); if (h) { h.scrollTop = 0; h.scrollLeft = 0; }
+      updateStickyMonth();
     }, { once:true });
 
     setTimeout(calibrateStickyOffsets, 0);
-    setTimeout(calibrateStickyOffsets, 100);
-    window.addEventListener('resize', calibrateStickyOffsets);
+    setTimeout(updateStickyMonth, 0);
+
+    // Attach scroll listener once
+    const scroller = scrollHost();
+    if (scroller && !scroller.__cl_watch){
+      scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
+      scroller.__cl_watch = true;
+    }
+    window.addEventListener('resize', function(){ calibrateStickyOffsets(); updateStickyMonth(); });
   }
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
@@ -461,7 +471,7 @@
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
-      setTimeout(calibrateStickyOffsets, 0);
+      setTimeout(function(){ calibrateStickyOffsets(); updateStickyMonth(); }, 0);
     });
   });
 
@@ -475,7 +485,7 @@
       await fetchPathTx(state.ctx);
       if (!state.showAll && state.ctx.month) scrollToPreferredMonth(state.ctx.month, true);
       calibrateStickyOffsets();
+      updateStickyMonth();
     });
   }
-
 })();
