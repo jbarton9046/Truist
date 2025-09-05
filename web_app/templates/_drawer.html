@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (frozed look, NON-sticky header/month) -->
+<!-- Right-side Category Manager drawer (modern look, NO sticky) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -6,26 +6,10 @@
         <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
         <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
-      <div class="small muted d-flex align-items-center gap-2 flex-wrap">
+      <div class="small muted d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
-
-        <!-- Hidden native select (kept for compatibility) -->
-        <select id="drawer-months" class="visually-hidden"></select>
-
-        <!-- Custom frozed month dropdown -->
-        <div class="bt-select" id="drawer-months-ui">
-          <button type="button"
-                  class="bt-select-toggle"
-                  id="drawer-months-btn"
-                  aria-haspopup="listbox"
-                  aria-expanded="false"
-                  aria-controls="drawer-months-list">
-            <span class="bt-select-label">All months</span>
-            <span class="bt-caret" aria-hidden="true">▾</span>
-          </button>
-          <div class="bt-select-panel" id="drawer-months-list" role="listbox" tabindex="-1" hidden></div>
-        </div>
-
+        <!-- Native select stays in DOM; we visually replace it with Glass Select -->
+        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
         <span class="mx-1">•</span>
         <span>Total:</span>
         <span id="drawer-total" class="fw-semibold">—</span>
@@ -35,222 +19,161 @@
   </div>
 
   <div class="offcanvas-body">
-    <!-- ===== Drawer-only styles (scoped) ===== -->
+    <!-- ===== Drawer styles (scoped) ===== -->
     <style>
-      /* Tokens — match transactions.html “frozed” look (light tint + heavy blur) */
+      /* ---------- Tokens ---------- */
       #dashCategoryManager{
-        --cm-fsz:      0.92rem;
-        --cm-fsz-th:   0.95rem;
-        --cm-line:     1.28;
-        --cm-pad-y:    .58rem;
-        --cm-pad-x:    .70rem;
-
-        --hdr-bg: var(--thead-bg, rgba(255,255,255,.06)); /* light tint */
-        --hdr-blur: 14px;                                 /* heavy blur */
-
-        --panel-shadow: 0 20px 40px rgba(2,6,23,.40), 0 2px 10px rgba(2,6,23,.25);
-      }
-      @media (max-width: 520px){
-        #dashCategoryManager{
-          --cm-fsz:    0.86rem;
-          --cm-fsz-th: 0.90rem;
-          --cm-pad-y:  .52rem;
-          --cm-pad-x:  .64rem;
-        }
+        --cm-radius: 16px;
+        --cm-inner-radius: 14px;
+        --cm-hair: var(--hair, rgba(255,255,255,.08));
+        --cm-ink: var(--table-head-fg, var(--text, #cfe3ff));
+        --cm-link: #9ecbff;
+        --cm-danger: #c0392b;
+        --cm-success: #1e7e34;
+        --cm-shadow: 0 10px 24px rgba(2,6,23,.35);
       }
 
-      /* Emergency guardrails (stops vertical text weirdness) */
+      /* ---------- Header / breadcrumb ---------- */
+      .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+      .drawer-breadcrumb a{ text-decoration:none; color:var(--cm-link); font-weight:700; }
+      .drawer-breadcrumb a:hover{ text-decoration:underline; }
+      .drawer-breadcrumb .sep{ color:#8aa3c6; }
+      .muted{ color: color-mix(in oklab, var(--cm-ink) 72%, transparent); }
+
+      /* ---------- Tabs ---------- */
+      .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--cm-hair); }
+      .drawer-tab{ padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
+      .drawer-tab.active{ background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 90%, transparent); border:1px solid var(--cm-hair); border-bottom-color:transparent; }
+
+      /* ---------- Child pills ---------- */
+      .child-pill{
+        display:inline-flex; align-items:center; gap:.4rem;
+        padding:.32rem .6rem; border-radius:999px;
+        border:1px solid var(--cm-hair);
+        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 40%, transparent);
+        color: var(--cm-ink); cursor:pointer; line-height:1; font-size:.875rem;
+        transition: background .15s ease, border-color .15s ease, transform .05s ease;
+        margin:.15rem .25rem 0 0;
+      }
+      .child-pill:hover{
+        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent);
+        border-color: color-mix(in oklab, var(--cm-ink) 30%, transparent);
+      }
+      .child-pill:active{ transform: translateY(1px); }
+      .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
+      .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
+
+      /* ---------- Safety rails: table always horizontal text ---------- */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
-        text-orientation: mixed !important;
         word-break: normal !important;
         overflow-wrap: normal !important;
         hyphens: manual !important;
-        white-space: normal !important;
-        box-sizing: border-box !important;
       }
 
-      /* Drawer scroller: vertical only */
-      #dashCategoryManager .table-responsive{
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
+      /* ---------- Table visual (NO sticky) ---------- */
+      #dashCategoryManager .tx-wrap{
+        position: relative;
+        border-radius: var(--cm-inner-radius);
+        box-shadow: var(--cm-shadow);
+        overflow:auto;
         max-height: 58vh;
-        background: transparent;
-        isolation: isolate;
+        isolation:isolate;
+        background: var(--card-bg, rgba(255,255,255,.045));
+        border: 1px solid var(--card-border, rgba(255,255,255,.10));
       }
-
-      /* Table layout & widths */
-      #dashCategoryManager #drawer-tx{
-        width: 100% !important;
-        border-collapse: separate !important;
-        table-layout: fixed !important;
-        font-size: var(--cm-fsz);
-        line-height: var(--cm-line);
-      }
-      #dashCategoryManager #drawer-tx col.col-date   { width: 24% !important; }
-      #dashCategoryManager #drawer-tx col.col-desc   { width: 42% !important; }
-      #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
-      #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
-
-      @media (max-width: 520px){
-        #dashCategoryManager #drawer-tx col.col-date   { width: 27% !important; }
-        #dashCategoryManager #drawer-tx col.col-desc   { width: 39% !important; }
-        #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
-        #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
-      }
-
-      /* Keep Date & Amount on one line; Desc & Cat can wrap */
-      #dashCategoryManager #drawer-tx tbody td:nth-child(1),
-      #dashCategoryManager #drawer-tx tbody td:nth-child(3){
-        white-space: nowrap !important;
-        font-variant-numeric: tabular-nums;
-      }
-      #dashCategoryManager #drawer-tx tbody td:nth-child(2),
-      #dashCategoryManager #drawer-tx tbody td:nth-child(4){
-        white-space: normal !important;
-        word-break: break-word !important;
-        overflow-wrap: break-word !important;
-        hyphens: auto !important;
-      }
-
-      #dashCategoryManager #drawer-tx th,
-      #dashCategoryManager #drawer-tx td{
-        padding: var(--cm-pad-y) var(--cm-pad-x) !important;
-      }
-      #dashCategoryManager #drawer-tx thead th{ font-size: var(--cm-fsz-th) !important; }
-
-      /* THEAD — frozed style (NON-sticky now) */
+      #dashCategoryManager #drawer-tx{ width: 100%; border-collapse: separate; border-spacing:0; }
       #dashCategoryManager #drawer-tx thead th{
-        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        background: var(--hdr-bg) !important;
-        border-bottom: 1px solid var(--hair);
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.06),
-          0 10px 18px rgba(2, 6, 23, .25);
-        color: var(--table-head-fg, var(--text));
+        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 90%, transparent) !important;
+        color: var(--cm-ink) !important;
+        border-bottom:1px solid var(--cm-hair);
         font-weight:700; letter-spacing:.2px;
+        padding:.65rem .9rem;
       }
+      #dashCategoryManager #drawer-tx thead th:first-child{ border-top-left-radius:12px; }
+      #dashCategoryManager #drawer-tx thead th:last-child { border-top-right-radius:12px; }
 
-      /* Month row — same frozed skin but NOT sticky */
-      #dashCategoryManager #drawer-tx tr.month-row > td{
-        padding: 0 !important;
-        border: 0 !important;
+      #dashCategoryManager #drawer-tx td{
+        padding:.85rem .9rem;
+        border-top:1px solid var(--cm-hair);
+        color:var(--cm-ink);
+        vertical-align:top;
         background: transparent !important;
       }
-      #dashCategoryManager #drawer-tx tr.month-row > td .month-shell{
-        isolation: isolate;
-        padding: .60rem var(--cm-pad-x);
-        border-top: 1px solid var(--hair);
-        border-bottom: 1px solid var(--hair);
+      #dashCategoryManager #drawer-tx .text-nowrap{ white-space:nowrap; }
+      #dashCategoryManager #drawer-tx .tx-pos{ color: var(--cm-success); font-weight:600; }
+      #dashCategoryManager #drawer-tx .tx-neg{ color: var(--cm-danger); font-weight:600; }
 
-        background: var(--hdr-bg) !important;
-        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-
-        color: var(--table-head-fg, var(--text));
+      /* Month rows live in TBODY and are NOT sticky anymore */
+      #dashCategoryManager #drawer-tx tr.month-divider td{
+        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 85%, transparent) !important;
+        border-top:1px solid var(--cm-hair);
+        border-bottom:1px solid var(--cm-hair);
         font-weight:700; letter-spacing:.2px;
       }
-      #dashCategoryManager #drawer-tx .net.tx-neg{ color:#c0392b; font-weight:700; }
-      #dashCategoryManager #drawer-tx .net.tx-pos{ color:#1e7e34; font-weight:700; }
 
-      /* === Children chips (restored styling) === */
-      #dashCategoryManager .child-pill{
-        display:inline-flex; align-items:center; gap:.35rem;
-        padding:.34rem .62rem;
-        border-radius:999px;
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 45%, transparent);
-        border:1px solid var(--hair);
-        color: var(--text);
-        line-height:1; cursor:pointer; user-select:none;
-        transition: background .15s ease, border-color .15s ease, transform .05s ease;
-        margin: .15rem .35rem .15rem 0;
-      }
-      #dashCategoryManager .child-pill:hover{
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent);
-        border-color: color-mix(in oklab, var(--text) 24%, transparent);
-      }
-      #dashCategoryManager .child-pill:active{ transform: translateY(1px); }
-      #dashCategoryManager .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
-      #dashCategoryManager .child-pill .label{ font-weight:600; }
-      #dashCategoryManager .child-pill .chev{ font-weight:700; opacity:.7; transform: translateY(-1px); }
+      /* Column widths for fit (no horizontal scroll) */
+      #dashCategoryManager #drawer-tx col.col-date   { width: 100px; }
+      #dashCategoryManager #drawer-tx col.col-amount { width: 110px; }
+      #dashCategoryManager #drawer-tx col.col-cat    { width: 120px; }
+      #dashCategoryManager #drawer-tx td.amount{ text-align:right; font-variant-numeric: tabular-nums; }
+      #dashCategoryManager #drawer-tx td.cat{ white-space:nowrap; }
 
-      .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
-      .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
-      .drawer-breadcrumb a:hover{ text-decoration:underline; }
-      .drawer-breadcrumb .sep{ color:#8aa3c6; }
-      .muted{ color: color-mix(in oklab, var(--text) 72%, transparent); }
-      .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--hair); }
-      .drawer-tab{ padding:.4rem .7rem; border-radius:.6rem .6rem 0 0; text-decoration:none; color: var(--text); background: transparent; border:1px solid transparent; }
-      .drawer-tab:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); }
-      .drawer-tab.active{
-        background: linear-gradient(180deg, color-mix(in oklab, var(--thead-bg) 92%, transparent) 0%, color-mix(in oklab, var(--thead-bg) 78%, transparent) 100%);
-        border:1px solid var(--hair); border-bottom-color: transparent;
+      /* === GLASS SELECT (ported + compact) === */
+      #dashCategoryManager .gs-wrap{ position:relative; width:auto; display:inline-block; }
+      #dashCategoryManager .gs-native{
+        position:absolute; inset:0; width:100%; height:100%;
+        opacity:0; pointer-events:none;
       }
+      #dashCategoryManager .gs-trigger{
+        display:flex; align-items:center; gap:.5rem;
+        padding:.25rem .55rem; border-radius:10px; cursor:pointer; user-select:none;
+        background: color-mix(in oklab, var(--card-bg) 90%, transparent);
+        color: var(--cm-ink); border:1px solid var(--cm-hair);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 4px 14px rgba(0,0,0,.25);
+        font-size:.9rem; line-height:1.1;
+      }
+      #dashCategoryManager .gs-trigger:focus-visible{ outline:2px solid #80b3ff; outline-offset:2px; }
+      #dashCategoryManager .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:10ch; }
+      #dashCategoryManager .gs-caret{ opacity:.8; }
 
-      /* ===== Custom frozed select ===== */
-      #dashCategoryManager .bt-select{
-        position: relative;
-        display: inline-block;
-        z-index: 15; /* above table */
+      /* Body-level popup & scrim so it’s never clipped by drawer */
+      .gs-popup{
+        position: fixed;
+        min-width: 220px;
+        max-height:320px; overflow:auto;
+        z-index: 1090;
+        padding:6px; border-radius:14px; border:1px solid var(--card-border, rgba(255,255,255,.10));
+        background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 82%, transparent);
+        -webkit-backdrop-filter: blur(18px) saturate(140%);
+        backdrop-filter: blur(18px) saturate(140%);
+        box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
       }
-      #dashCategoryManager .bt-select-toggle{
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        padding: .35rem .65rem;
-        border-radius: 10px;
-        border: 1px solid var(--hair);
-        color: var(--text);
-        background: var(--hdr-bg);
-        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        line-height: 1.1;
+      .gs-list{ margin:0; padding:0; list-style:none; }
+      .gs-option{
+        padding:.5rem .65rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer;
+        color: var(--text, #cfe3ff);
       }
-      #dashCategoryManager .bt-caret{ opacity: .85; }
-      #dashCategoryManager .bt-select-panel{
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        min-width: 230px;
-        max-width: 300px;
-        width: max-content;
-        max-height: 320px;
-        overflow: auto;
-        padding: .35rem;
-        border-radius: 14px;
-        border: 1px solid var(--hair);
-        background: var(--hdr-bg);
-        backdrop-filter: saturate(120%) blur(18px);
-        -webkit-backdrop-filter: saturate(120%) blur(18px);
-        box-shadow: var(--panel-shadow);
+      .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
+      .gs-option[aria-selected="true"]{
+        background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35)
       }
-      #dashCategoryManager .bt-option{
-        display: flex;
-        width: 100%;
-        padding: .50rem .6rem;
-        border: 0;
-        border-radius: 10px;
-        background: transparent;
-        color: var(--text);
-        text-align: left;
-        cursor: pointer;
-      }
-      #dashCategoryManager .bt-option:hover{ background: rgba(255,255,255,.07); }
-      #dashCategoryManager .bt-option.selected{
-        background: rgba(255,255,255,.10);
-        font-weight: 700;
+      .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
+
+      .gs-scrim{
+        position:fixed; inset:0; z-index:1080;
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        backdrop-filter: blur(14px) saturate(140%);
+        background: rgba(8,12,20,.28);
       }
 
-      /* Fallback: if blur unsupported, increase opacity a bit */
-      @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
-        #dashCategoryManager #drawer-tx thead th,
-        #dashCategoryManager #drawer-tx tr.month-row > td .month-shell,
-        #dashCategoryManager .bt-select-toggle,
-        #dashCategoryManager .bt-select-panel{
-          background: rgba(20,30,50,.85) !important;
-        }
-      }
+      @keyframes gsPopIn { from { opacity:0; transform: translateY(6px) scale(.98); } to { opacity:1; transform: translateY(0) scale(1); } }
+      @keyframes gsFadeIn{ from { opacity:0; } to { opacity:1; } }
+      .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
+      .gs-scrim{ animation: gsFadeIn .12s ease-out; will-change: opacity; }
+
+      /* Small cleanups */
+      #dashCategoryManager ul, #dashCategoryManager li{ list-style:none; margin:0; padding:0; }
     </style>
 
     <!-- Tabs -->
@@ -264,24 +187,28 @@
     <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
 
-      <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
-          <colgroup>
-            <col class="col-date">
-            <col class="col-desc">
-            <col class="col-amount">
-            <col class="col-cat">
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Amount</th>
-              <th>Cat</th>
-            </tr>
-          </thead>
-          <tbody id="drawer-tx-body"></tbody>
-        </table>
+      <div class="tx-wrap">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
+            <colgroup>
+              <col class="col-date">
+              <col>
+              <col class="col-amount">
+              <col class="col-cat">
+            </colgroup>
+            <thead>
+              <tr class="small text-muted">
+                <th>Date</th>
+                <th>Description</th>
+                <th class="text-end">Amount</th>
+                <th>Cat</th>
+              </tr>
+            </thead>
+            <tbody id="drawer-tx-body">
+              <!-- filled by JS -->
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -293,7 +220,7 @@
       </div>
       <div id="kw-list" class="mb-2"><span class="muted">No keywords yet.</span></div>
       <div class="input-group input-group-sm">
-        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g. MOBILE DEPOSIT)">
+        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g., MOBILE DEPOSIT)">
         <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
       </div>
     </div>
@@ -323,4 +250,130 @@
   window.CL_URLS.KW_REMOVE_URL = '/admin/keywords/remove';
   */
 </script>
+
+<!-- === Glass Select small helper (wrap #drawer-months) === -->
+<script>
+(function(){
+  function wrapSelect(select){
+    if (!select || select.dataset.gsInit==='1') return;
+    select.dataset.gsInit='1';
+
+    // Wrapper next to native select
+    const wrap = document.createElement('div'); wrap.className='gs-wrap';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.classList.add('gs-native');
+
+    // trigger
+    const trigger = document.createElement('button');
+    trigger.type='button';
+    trigger.className='gs-trigger';
+    trigger.setAttribute('aria-haspopup','listbox');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.innerHTML = '<span class="gs-label"></span><span class="gs-caret">▾</span>';
+    wrap.insertBefore(trigger, select);
+    const labelEl = trigger.querySelector('.gs-label');
+
+    // popup + scrim at body level
+    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
+    const list  = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox'); popup.appendChild(list);
+    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden=true;
+
+    function syncLabel(){
+      const opt = select.selectedOptions[0];
+      labelEl.textContent = opt ? opt.textContent : 'Select…';
+    }
+
+    function placePopup(){
+      const r = trigger.getBoundingClientRect();
+      popup.style.left = Math.round(r.left) + 'px';
+      popup.style.top  = Math.round(r.bottom + 6) + 'px';
+      popup.style.minWidth = Math.max(220, Math.round(r.width)) + 'px';
+      popup.style.maxWidth = Math.round(Math.min(window.innerWidth - 24, r.width * 1.6)) + 'px';
+    }
+
+    function close(){
+      if (popup.hidden) return;
+      popup.hidden = true; scrim.hidden = true;
+      trigger.setAttribute('aria-expanded','false');
+      if (popup.parentNode !== wrap) wrap.appendChild(popup);
+      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    }
+    function open(){
+      if (!popup.parentNode || popup.parentNode === wrap) document.body.appendChild(popup);
+      if (!scrim.parentNode) document.body.appendChild(scrim);
+      scrim.hidden = false; popup.hidden = false;
+      trigger.setAttribute('aria-expanded','true');
+      placePopup(); popup.focus?.();
+      window.addEventListener('resize', onWin);
+      window.addEventListener('scroll', onWin, true);
+    }
+    function toggle(){ popup.hidden ? open() : close(); }
+    function onWin(){ placePopup(); }
+
+    function apply(value){
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles:true }));
+      syncLabel(); close();
+    }
+
+    function rebuild(){
+      list.innerHTML = '';
+      const opts = Array.from(select.options);
+      opts.forEach((o, idx)=>{
+        if (idx===1 && opts[0]?.disabled){
+          const hr = document.createElement('div'); hr.className='gs-divider'; list.appendChild(hr);
+        }
+        const li = document.createElement('li');
+        li.className='gs-option'; li.setAttribute('role','option'); li.dataset.value = o.value;
+        if (o.selected) li.setAttribute('aria-selected','true');
+        li.textContent = o.textContent;
+        li.addEventListener('click', ()=> apply(o.value));
+        li.addEventListener('mousemove', ()=>{
+          list.querySelectorAll('.gs-option[aria-current="true"]').forEach(x=>x.removeAttribute('aria-current'));
+          li.setAttribute('aria-current','true');
+        });
+        list.appendChild(li);
+      });
+      syncLabel();
+      // mirror native visibility (in case you hide the select)
+      trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
+    }
+
+    const mo = new MutationObserver(rebuild);
+    mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
+
+    // type ahead on trigger
+    let buf='', t=null;
+    function typeAhead(k){
+      buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
+      const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
+      if (f) apply(f.value);
+    }
+    trigger.addEventListener('keydown', (e)=>{
+      if (e.key===' '||e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); open(); return; }
+      if (/^[\w\s]$/.test(e.key)) typeAhead(e.key);
+    });
+
+    trigger.addEventListener('click', toggle);
+    scrim.addEventListener('click', close);
+    document.addEventListener('click', (e)=>{ if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close(); });
+
+    rebuild();
+  }
+
+  function initGlassSelect(){
+    const sel = document.getElementById('drawer-months');
+    if (sel) wrapSelect(sel);
+  }
+
+  // Run when drawer is shown (and once at load in case options already present)
+  if (document.readyState !== 'loading') initGlassSelect();
+  else document.addEventListener('DOMContentLoaded', initGlassSelect);
+  document.getElementById('dashCategoryManager')?.addEventListener('shown.bs.offcanvas', initGlassSelect, { once:false });
+})();
+</script>
+
 <script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
