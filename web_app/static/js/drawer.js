@@ -1,8 +1,8 @@
-// Drawer (frozed look, NON-sticky header/month, custom frozed month dropdown)
+// static/js/drawer.js — neon-tech aligned drawer (no sticky, emits cm:months for Glass Select)
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen_customsel === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -10,6 +10,7 @@
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
   const $   = id => document.getElementById(id);
+  const ocEl = $('dashCategoryManager');
 
   let offcanvas = null;
   function ensureOC() {
@@ -44,6 +45,7 @@
     ));
   }
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
+
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
     const t = String(s).trim();
@@ -60,9 +62,15 @@
     return dt.toLocaleString(undefined, {month:'short', year:'numeric'});
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
-  function deepestCat(t){
-    const parts = [t.category, t.subcategory, t.ssub, t.sss, t.sub_cat, t.subcat, t.subcategory2].filter(Boolean);
-    return parts.length ? parts[parts.length-1] : (t.category || '');
+
+  function nearestMonth(preferred, available) {
+    if (!available || !available.length) return '';
+    const set = new Set(available);
+    if (preferred && set.has(preferred)) return preferred;
+    const earlier = available.filter(m => m <= preferred).sort().reverse();
+    if (earlier.length) return earlier[0];
+    const later = available.filter(m => m > preferred).sort();
+    return later[0] || available[available.length - 1];
   }
 
   // ---------- renderers ----------
@@ -88,7 +96,7 @@
           state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
         } else {
           const order = ['cat','sub','ssub','sss'];
-          order.slice(idx + 1).forEach(k => { state.ctx[k] = ''; });
+          order.slice(idx + 1).forEach((k) => { state.ctx[k] = ''; });
           state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
         }
         fetchPathTx(state.ctx).catch(()=>{});
@@ -122,10 +130,7 @@
   function renderTx(){
     const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
-    if (!rows.length){
-      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
-      return;
-    }
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
 
     // group by YYYY-MM
     const groups = new Map();
@@ -137,7 +142,6 @@
       g.items.push(t);
       g.net += amt;
     }
-
     const keys = Array.from(groups.keys()).sort().reverse();
 
     const parts = [];
@@ -145,140 +149,28 @@
       const g = groups.get(k);
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
-
-      // Month row — NON-sticky, just styled
       parts.push(
-        '<tr class="month-row" id="'+escapeHTML(monthId(k))+'">' +
-        '  <td colspan="4"><div class="month-shell">' +
-        '    <span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
-        '    <span class="net '+netCls+'">Net: '+fmtUSD(net)+'</span>' +
-        '  </div></td>' +
+        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">' +
+        '  <td colspan="4"><span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
+        '    <span class="'+netCls+'">Net: '+fmtUSD(net)+'</span>' +
+        '  </td>' +
         '</tr>'
       );
-
-      // Data rows
       for (const t of g.items){
         const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
-        const catDisplay = deepestCat(t);
+        // deepest category name:
+        const catPath = (t.sssubcategory || t.subsubcategory || t.subcategory || t.category || '') || '';
         parts.push(
           '<tr>' +
           '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>' +
           '  <td>'+escapeHTML(t.description || '')+'</td>' +
-          '  <td class="text-end '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>' +
-          '  <td>'+escapeHTML(catDisplay)+'</td>' +
+          '  <td class="amount '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>' +
+          '  <td class="cat">'+escapeHTML(catPath)+'</td>' +
           '</tr>'
         );
       }
     }
-
     body.innerHTML = parts.join('');
-  }
-
-  function scrollToMonth(key){
-    if (!key) return;
-    if (String(key).toLowerCase() === 'all') return;
-    const host = QS('#dashCategoryManager .table-responsive');
-    const row  = $(monthId(key));
-    if (!host || !row) return;
-    host.scrollTop = row.offsetTop;
-  }
-
-  // ---------- custom month dropdown ----------
-  function closeMonthPanel(){
-    const panel = $('drawer-months-list');
-    const btn   = $('drawer-months-btn');
-    if (!panel || panel.hidden) return;
-    panel.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
-  }
-  function openMonthPanel(){
-    const panel = $('drawer-months-list');
-    const btn   = $('drawer-months-btn');
-    if (!panel) return;
-    panel.hidden = false;
-    if (btn) btn.setAttribute('aria-expanded', 'true');
-    panel.focus({ preventScroll: true });
-  }
-  function toggleMonthPanel(){
-    const panel = $('drawer-months-list');
-    if (!panel) return;
-    if (panel.hidden) openMonthPanel(); else closeMonthPanel();
-  }
-  function updateMonthLabel(){
-    const lbl = $('drawer-months-ui')?.querySelector('.bt-select-label');
-    if (!lbl) return;
-    const val = state.showAll ? 'all' : (state.ctx.month || '');
-    if (val === 'all' || !val) {
-      lbl.textContent = 'All months';
-    } else {
-      lbl.textContent = val;
-    }
-  }
-  function buildMonthUI(){
-    const panel = $('drawer-months-list');
-    const nativeSel = $('drawer-months');
-    if (!panel) return;
-
-    // Build native select options too (kept hidden)
-    if (nativeSel){
-      const opts = [];
-      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
-      const monthsDesc = (state.months || []).slice().sort().reverse();
-      monthsDesc.forEach(function(m){
-        const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
-      });
-      nativeSel.innerHTML = opts.join('');
-    }
-
-    // Custom panel
-    const items = [];
-    const selectedVal = state.showAll ? 'all' : (state.ctx.month || '');
-    items.push('<button type="button" class="bt-option'+(selectedVal==='all'?' selected':'')+'" role="option" data-value="all" aria-selected="'+(selectedVal==='all')+'">All months</button>');
-    const monthsDesc = (state.months || []).slice().sort().reverse();
-    monthsDesc.forEach(function(m){
-      const sel = (!state.showAll && m === state.ctx.month);
-      items.push('<button type="button" class="bt-option'+(sel?' selected':'')+'" role="option" data-value="'+m+'" aria-selected="'+sel+'">'+m+'</button>');
-    });
-    panel.innerHTML = items.join('');
-
-    // Bind item clicks
-    panel.querySelectorAll('.bt-option').forEach(btn => {
-      btn.addEventListener('click', async function(){
-        const val = btn.getAttribute('data-value') || '';
-        const lower = val.toLowerCase();
-        state.ctx.month = (lower === 'all') ? '' : val;
-        state.showAll = (lower === 'all');
-
-        updateMonthLabel();
-        closeMonthPanel();
-
-        await fetchPathTx(state.ctx);
-        if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month);
-      }, { passive: true });
-    });
-
-    updateMonthLabel();
-  }
-  function wireMonthUI(){
-    const btn = $('drawer-months-btn');
-    const panel = $('drawer-months-list');
-    const ui = $('drawer-months-ui');
-    if (!btn || !panel || !ui) return;
-
-    btn.addEventListener('click', function(e){
-      e.preventDefault();
-      toggleMonthPanel();
-    });
-
-    // Close on outside click
-    document.addEventListener('click', function(e){
-      if (!ui.contains(e.target)) closeMonthPanel();
-    });
-    // Close on escape
-    ui.addEventListener('keydown', function(e){
-      if (e.key === 'Escape'){ closeMonthPanel(); btn.focus(); }
-    });
   }
 
   // ---------- data ----------
@@ -322,32 +214,52 @@
     state.showAll = (serverMonth === 'all') || (monthLower === 'all');
 
     setText('drawer-total', fmtUSD(state.total));
-
     renderBreadcrumb();
     renderChildren();
     renderTx();
 
-    // (Re)build the custom month UI
-    buildMonthUI();
+    // Build native month <select> (for form state only)
+    const sel = $('drawer-months');
+    if (sel){
+      const opts = [];
+      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
+      const monthsDesc = (state.months || []).slice().sort().reverse();
+      const current = (!state.showAll && state.ctx.month) ? state.ctx.month : (monthsDesc[0] || '');
+      monthsDesc.forEach(function(m){
+        const selAttr = (m === current) ? ' selected' : '';
+        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
+      });
+      sel.innerHTML = opts.join('');
+      sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
+      // Emit event for Glass Select consumers
+      document.dispatchEvent(new CustomEvent('cm:months', {
+        detail: { months: monthsDesc, selected: sel.value || '', showAll: state.showAll }
+      }));
+    }
   }
 
   // ---------- keywords (optional endpoints) ----------
-  function pathPayload(){ const parts = pathParts(); return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last: parts[parts.length-1] || '' }; }
+  function payloadForKeywords(){
+    const parts = pathParts(); const last = parts[parts.length-1] || '';
+    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
+  }
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(pathPayload());
+    const qp = new URLSearchParams(payloadForKeywords());
     qp.set('_', Date.now().toString());
-    try { const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} }); return await res.json(); }
-    catch { return { keywords: [] }; }
+    try {
+      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
+      return await res.json();
+    } catch { return { keywords: [] }; }
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, pathPayload(), { keyword: kw });
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
     try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, pathPayload(), { keyword: kw, remove: true });
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
     try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function refreshKeywords(){
@@ -400,7 +312,11 @@
         await fetch(urls.RENAME_URL, {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
+          body: JSON.stringify({
+            path: p.path,
+            new_name: to.trim(),
+            allow_hidden: p.allow_hidden
+          })
         });
         fetchPathTx(state.ctx).catch(()=>{});
         alert('Rename attempted (check the drawer).');
@@ -439,14 +355,11 @@
 
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
-
-    // Wire custom month UI once
-    wireMonthUI();
   }
-  openCategoryManager.__cl_frozen_customsel = true;
+  openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
-  // Global click helper used around the site
+  // Global click helper
   window.dashManage = function(e, el){
     e.preventDefault();
     const ctx = {
@@ -475,4 +388,15 @@
       if (target === 'keywords') refreshKeywords();
     });
   });
+
+  // Month selector
+  const monthSel = $('drawer-months');
+  if (monthSel){
+    monthSel.addEventListener('change', async function(e){
+      const val = (e.target.value || '').toLowerCase();
+      state.ctx.month = val || '';
+      state.showAll = (val === 'all');
+      await fetchPathTx(state.ctx);
+    });
+  }
 })();
