@@ -1,5 +1,5 @@
 <!-- templates/_drawer.html -->
-<!-- Right-side Category Manager drawer (neon-tech aligned, frozen glass headers, no horizontal scroll) -->
+<!-- Right-side Category Manager drawer (neon-tech aligned, light-tint + heavy-blur headers, no horizontal scroll) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -31,11 +31,9 @@
         --cm-pad-y:    .58rem;
         --cm-pad-x:    .70rem;
 
-        /* FROZEN glass (milky, bright, nearly opaque; not black) */
-        --frozen-top: rgba(255,255,255,.18);   /* brighter at top */
-        --frozen-bot: rgba(255,255,255,.12);   /* softer at bottom */
-        --frozen-blur: 16px;                   /* heavy blur so list softens behind */
-        --frozen-ring: rgba(255,255,255,.12);  /* subtle edge ring */
+        /* Match transactions.html: light tint from --thead-bg + heavier blur */
+        --hdr-bg: var(--thead-bg, rgba(255,255,255,.06));
+        --hdr-blur: 14px;                 /* heavier than page tables */
       }
       @media (max-width: 520px){
         #dashCategoryManager{
@@ -64,7 +62,7 @@
          ========================================== */
       #dashCategoryManager .table-responsive{
         --thead-h: 44px;            /* JS updates after open; this is fallback */
-        --month-stick-nudge: -6px;  /* NEGATIVE pulls month bar up under THEAD */
+        --month-stick-nudge: 0px;   /* align month bar directly under THEAD */
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: 58vh;
@@ -84,7 +82,6 @@
       #dashCategoryManager #drawer-tx col.col-desc   { width: 42% !important; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
       #dashCategoryManager #drawer-tx col.col-cat    { width: 18% !important; }
-
       @media (max-width: 520px){
         #dashCategoryManager #drawer-tx col.col-date   { width: 27% !important; }
         #dashCategoryManager #drawer-tx col.col-desc   { width: 39% !important; }
@@ -114,7 +111,7 @@
       #dashCategoryManager #drawer-tx thead th{ font-size: var(--cm-fsz-th) !important; }
 
       /* ============================
-         FROZEN THEAD (milky, bright)
+         THEAD: light tint + heavy blur
          ============================ */
       #dashCategoryManager .table-responsive thead{
         position: sticky;
@@ -122,25 +119,19 @@
         z-index: 7; /* above month bars */
       }
       #dashCategoryManager .table-responsive thead th{
-        position: relative;
-        backdrop-filter: saturate(140%) blur(var(--frozen-blur)) brightness(1.05) contrast(1.02);
-        -webkit-backdrop-filter: saturate(140%) blur(var(--frozen-blur)) brightness(1.05) contrast(1.02);
-        background: linear-gradient(180deg, var(--frozen-top) 0%, var(--frozen-bot) 100%) !important;
+        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        background: var(--hdr-bg) !important;
         border-bottom: 1px solid var(--hair);
         box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.10),
+          inset 0 1px 0 rgba(255,255,255,.06),
           0 10px 18px rgba(2, 6, 23, .25);
         color: var(--table-head-fg, var(--text));
-      }
-      /* subtle frosted ring */
-      #dashCategoryManager .table-responsive thead th::after{
-        content:""; position:absolute; inset:0; pointer-events:none;
-        border:1px solid var(--frozen-ring); border-top:0; border-left:0; border-right:0;
-        border-radius: 0;
+        font-weight:700; letter-spacing:.2px;
       }
 
       /* =============================================
-         Month divider: single sticky "frozen" banner
+         Month divider: single sticky bar (same surface)
          ============================================= */
       #dashCategoryManager #drawer-tx .month-divider > td{
         padding: 0 !important;
@@ -151,7 +142,7 @@
         position: sticky;
         top: calc(var(--thead-h, 44px) + var(--month-stick-nudge, 0px));
         z-index: 6;               /* just under THEAD */
-        isolation: isolate;       /* prevents any blending with prior month */
+        isolation: isolate;       /* prevents blend of adjacent months */
         mix-blend-mode: normal;
 
         display: flex; align-items: center; justify-content: space-between; gap: .75rem;
@@ -159,14 +150,14 @@
         border-top: 1px solid var(--hair);
         border-bottom: 1px solid var(--hair);
 
-        /* FROZEN month bar: same surface & blur as THEAD */
-        backdrop-filter: saturate(140%) blur(var(--frozen-blur)) brightness(1.05) contrast(1.02);
-        -webkit-backdrop-filter: saturate(140%) blur(var(--frozen-blur)) brightness(1.05) contrast(1.02);
-        background: linear-gradient(180deg, var(--frozen-top) 0%, var(--frozen-bot) 100%) !important;
+        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        background: var(--hdr-bg) !important;
         box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.10),
-          0 10px 18px rgba(2, 6, 23, .25);
+          inset 0 1px 0 rgba(255,255,255,.06),
+          0 10px 18px rgba(2,6,23,.25);
         color: var(--table-head-fg, var(--text));
+        font-weight:700; letter-spacing:.2px;
       }
       #dashCategoryManager #drawer-tx .month-divider .net.tx-neg{ color:#c0392b; font-weight:700; }
       #dashCategoryManager #drawer-tx .month-divider .net.tx-pos{ color:#1e7e34; font-weight:700; }
