@@ -8,7 +8,7 @@
       </h5>
       <div class="small muted d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
-        <!-- Native select stays in DOM; we visually replace it with Glass Select -->
+        <!-- Native select (kept for data/wiring); visually replaced with Glass Select -->
         <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
         <span class="mx-1">•</span>
         <span>Total:</span>
@@ -45,7 +45,7 @@
       .drawer-tab{ padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
       .drawer-tab.active{ background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 90%, transparent); border:1px solid var(--cm-hair); border-bottom-color:transparent; }
 
-      /* ---------- Child pills ---------- */
+      /* ---------- Child pills (your original look) ---------- */
       .child-pill{
         display:inline-flex; align-items:center; gap:.4rem;
         padding:.32rem .6rem; border-radius:999px;
@@ -104,7 +104,7 @@
       #dashCategoryManager #drawer-tx .tx-pos{ color: var(--cm-success); font-weight:600; }
       #dashCategoryManager #drawer-tx .tx-neg{ color: var(--cm-danger); font-weight:600; }
 
-      /* Month rows live in TBODY and are NOT sticky anymore */
+      /* Month rows (non-sticky) */
       #dashCategoryManager #drawer-tx tr.month-divider td{
         background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 85%, transparent) !important;
         border-top:1px solid var(--cm-hair);
@@ -112,14 +112,14 @@
         font-weight:700; letter-spacing:.2px;
       }
 
-      /* Column widths for fit (no horizontal scroll) */
+      /* Column widths (fit without horizontal scroll) */
       #dashCategoryManager #drawer-tx col.col-date   { width: 100px; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 110px; }
       #dashCategoryManager #drawer-tx col.col-cat    { width: 120px; }
       #dashCategoryManager #drawer-tx td.amount{ text-align:right; font-variant-numeric: tabular-nums; }
       #dashCategoryManager #drawer-tx td.cat{ white-space:nowrap; }
 
-      /* === GLASS SELECT (ported + compact) === */
+      /* === GLASS SELECT (compact + body portal + blurred scrim) === */
       #dashCategoryManager .gs-wrap{ position:relative; width:auto; display:inline-block; }
       #dashCategoryManager .gs-native{
         position:absolute; inset:0; width:100%; height:100%;
@@ -137,7 +137,6 @@
       #dashCategoryManager .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:10ch; }
       #dashCategoryManager .gs-caret{ opacity:.8; }
 
-      /* Body-level popup & scrim so it’s never clipped by drawer */
       .gs-popup{
         position: fixed;
         min-width: 220px;
@@ -251,20 +250,20 @@
   */
 </script>
 
-<!-- === Glass Select small helper (wrap #drawer-months) === -->
+<!-- === Glass Select helper (wrap #drawer-months) === -->
 <script>
 (function(){
   function wrapSelect(select){
     if (!select || select.dataset.gsInit==='1') return;
     select.dataset.gsInit='1';
 
-    // Wrapper next to native select
+    // Wrapper
     const wrap = document.createElement('div'); wrap.className='gs-wrap';
     select.parentNode.insertBefore(wrap, select);
     wrap.appendChild(select);
     select.classList.add('gs-native');
 
-    // trigger
+    // Trigger
     const trigger = document.createElement('button');
     trigger.type='button';
     trigger.className='gs-trigger';
@@ -274,7 +273,7 @@
     wrap.insertBefore(trigger, select);
     const labelEl = trigger.querySelector('.gs-label');
 
-    // popup + scrim at body level
+    // Body-level popup & scrim
     const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
     const list  = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox'); popup.appendChild(list);
     const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden=true;
@@ -284,48 +283,37 @@
       labelEl.textContent = opt ? opt.textContent : 'Select…';
     }
 
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
     function placePopup(){
       const r = trigger.getBoundingClientRect();
-      popup.style.left = Math.round(r.left) + 'px';
-      popup.style.top  = Math.round(r.bottom + 6) + 'px';
-      popup.style.minWidth = Math.max(220, Math.round(r.width)) + 'px';
-      popup.style.maxWidth = Math.round(Math.min(window.innerWidth - 24, r.width * 1.6)) + 'px';
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const width = clamp(Math.max(220, r.width), 220, vw - 24);
+      popup.style.minWidth = width + 'px';
+      popup.style.maxWidth = width + 'px';
+
+      // Choose above or below depending on space
+      const popupH = Math.min(320, vh * 0.6);
+      popup.style.maxHeight = popupH + 'px';
+      const below = r.bottom + 6 + popupH <= vh ? true : (r.top - 6 - popupH < 0 ? true : false);
+      const top = below ? (r.bottom + 6) : (r.top - 6 - popupH);
+      const left = clamp(r.left, 12, vw - width - 12);
+
+      popup.style.left = Math.round(left) + 'px';
+      popup.style.top  = Math.round(top)  + 'px';
     }
 
-    function close(){
-      if (popup.hidden) return;
-      popup.hidden = true; scrim.hidden = true;
-      trigger.setAttribute('aria-expanded','false');
-      if (popup.parentNode !== wrap) wrap.appendChild(popup);
-      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
-      window.removeEventListener('resize', onWin);
-      window.removeEventListener('scroll', onWin, true);
-    }
-    function open(){
-      if (!popup.parentNode || popup.parentNode === wrap) document.body.appendChild(popup);
-      if (!scrim.parentNode) document.body.appendChild(scrim);
-      scrim.hidden = false; popup.hidden = false;
-      trigger.setAttribute('aria-expanded','true');
-      placePopup(); popup.focus?.();
-      window.addEventListener('resize', onWin);
-      window.addEventListener('scroll', onWin, true);
-    }
-    function toggle(){ popup.hidden ? open() : close(); }
-    function onWin(){ placePopup(); }
-
-    function apply(value){
-      select.value = value;
-      select.dispatchEvent(new Event('change', { bubbles:true }));
-      syncLabel(); close();
-    }
-
-    function rebuild(){
+    function buildOptions(){
       list.innerHTML = '';
       const opts = Array.from(select.options);
+      if (!opts.length){
+        const li = document.createElement('li');
+        li.className='gs-option'; li.setAttribute('aria-disabled','true');
+        li.textContent='Loading…';
+        list.appendChild(li);
+        return;
+      }
       opts.forEach((o, idx)=>{
-        if (idx===1 && opts[0]?.disabled){
-          const hr = document.createElement('div'); hr.className='gs-divider'; list.appendChild(hr);
-        }
         const li = document.createElement('li');
         li.className='gs-option'; li.setAttribute('role','option'); li.dataset.value = o.value;
         if (o.selected) li.setAttribute('aria-selected','true');
@@ -337,15 +325,45 @@
         });
         list.appendChild(li);
       });
-      syncLabel();
-      // mirror native visibility (in case you hide the select)
-      trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
     }
 
-    const mo = new MutationObserver(rebuild);
+    function close(){
+      if (popup.hidden) return;
+      popup.hidden = true; scrim.hidden = true;
+      trigger.setAttribute('aria-expanded','false');
+      if (popup.parentNode !== wrap) wrap.appendChild(popup);
+      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    }
+
+    function open(){
+      // Always rebuild right before open so options are fresh
+      buildOptions(); syncLabel();
+
+      if (popup.parentNode === wrap) document.body.appendChild(popup);
+      if (!scrim.parentNode) document.body.appendChild(scrim);
+      scrim.hidden = false; popup.hidden = false;
+      trigger.setAttribute('aria-expanded','true');
+      placePopup();
+      window.addEventListener('resize', onWin);
+      window.addEventListener('scroll', onWin, true);
+    }
+
+    function toggle(){ popup.hidden ? open() : close(); }
+    function onWin(){ placePopup(); }
+
+    function apply(value){
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles:true }));
+      syncLabel(); close();
+    }
+
+    // Observe option changes
+    const mo = new MutationObserver(()=>{ syncLabel(); });
     mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
 
-    // type ahead on trigger
+    // Type ahead on trigger
     let buf='', t=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
@@ -361,7 +379,8 @@
     scrim.addEventListener('click', close);
     document.addEventListener('click', (e)=>{ if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close(); });
 
-    rebuild();
+    // Initial label
+    syncLabel();
   }
 
   function initGlassSelect(){
@@ -369,10 +388,10 @@
     if (sel) wrapSelect(sel);
   }
 
-  // Run when drawer is shown (and once at load in case options already present)
+  // Init on load & whenever the drawer is shown
   if (document.readyState !== 'loading') initGlassSelect();
   else document.addEventListener('DOMContentLoaded', initGlassSelect);
-  document.getElementById('dashCategoryManager')?.addEventListener('shown.bs.offcanvas', initGlassSelect, { once:false });
+  document.getElementById('dashCategoryManager')?.addEventListener('shown.bs.offcanvas', initGlassSelect);
 })();
 </script>
 
