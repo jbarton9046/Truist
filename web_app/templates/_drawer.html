@@ -1,409 +1,402 @@
-<!-- Right-side Category Manager drawer (modern look, NO sticky) -->
-<div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
-  <div class="offcanvas-header">
-    <div class="d-flex flex-column gap-1">
-      <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
-        <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
-        <span id="drawer-selected-path" hidden>(All Categories)</span>
-      </h5>
-      <div class="small muted d-flex align-items-center flex-wrap gap-2">
-        <span>Month:</span>
-        <!-- Native select kept for data/wiring; visually replaced by Glass Select -->
-        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
-        <span class="mx-1">•</span>
-        <span>Total:</span>
-        <span id="drawer-total" class="fw-semibold">—</span>
-      </div>
-    </div>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
+// static/js/drawer.js — neon-tech aligned drawer (no sticky, emits cm:months for Glass Select)
+(function () {
+  'use strict';
 
-  <div class="offcanvas-body">
-    <!-- ===== Drawer styles (scoped) ===== -->
-    <style>
-      #dashCategoryManager{
-        --cm-radius: 16px;
-        --cm-inner-radius: 14px;
-        --cm-hair: var(--hair, rgba(255,255,255,.08));
-        --cm-ink: var(--table-head-fg, var(--text, #cfe3ff));
-        --cm-link: #9ecbff;
-        --cm-danger: #c0392b;
-        --cm-success: #1e7e34;
-        --cm-shadow: 0 10px 24px rgba(2,6,23,.35);
-      }
+  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
 
-      .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
-      .drawer-breadcrumb a{ text-decoration:none; color:var(--cm-link); font-weight:700; }
-      .drawer-breadcrumb a:hover{ text-decoration:underline; }
-      .drawer-breadcrumb .sep{ color:#8aa3c6; }
-      .muted{ color: color-mix(in oklab, var(--cm-ink) 72%, transparent); }
+  const urls = (window.CL_URLS || {});
+  const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
 
-      .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--cm-hair); }
-      .drawer-tab{ padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
-      .drawer-tab.active{ background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 90%, transparent); border:1px solid var(--cm-hair); border-bottom-color:transparent; }
+  const QS  = s => document.querySelector(s);
+  const QSA = s => Array.from(document.querySelectorAll(s));
+  const $   = id => document.getElementById(id);
+  const ocEl = $('dashCategoryManager');
 
-      /* Child pills (restored) */
-      .child-pill{
-        display:inline-flex; align-items:center; gap:.4rem;
-        padding:.32rem .6rem; border-radius:999px;
-        border:1px solid var(--cm-hair);
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 40%, transparent);
-        color: var(--cm-ink); cursor:pointer; line-height:1; font-size:.875rem;
-        transition: background .15s, border-color .15s, transform .05s;
-        margin:.15rem .25rem 0 0;
-      }
-      .child-pill:hover{
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 70%, transparent);
-        border-color: color-mix(in oklab, var(--cm-ink) 30%, transparent);
-      }
-      .child-pill:active{ transform: translateY(1px); }
-      .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
-      .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
-
-      /* Safety rails */
-      #dashCategoryManager #drawer-tx *{
-        writing-mode: horizontal-tb !important;
-        word-break: normal !important;
-        overflow-wrap: normal !important;
-        hyphens: manual !important;
-      }
-
-      /* Table (NO sticky) */
-      #dashCategoryManager .tx-wrap{
-        position: relative;
-        border-radius: var(--cm-inner-radius);
-        box-shadow: var(--cm-shadow);
-        overflow:auto;
-        max-height: 58vh;
-        isolation:isolate;
-        background: var(--card-bg, rgba(255,255,255,.045));
-        border: 1px solid var(--card-border, rgba(255,255,255,.10));
-      }
-      #dashCategoryManager #drawer-tx{ width: 100%; border-collapse: separate; border-spacing:0; }
-      #dashCategoryManager #drawer-tx thead th{
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 90%, transparent) !important;
-        color: var(--cm-ink) !important;
-        border-bottom:1px solid var(--cm-hair);
-        font-weight:700; letter-spacing:.2px;
-        padding:.65rem .9rem;
-      }
-      #dashCategoryManager #drawer-tx thead th:first-child{ border-top-left-radius:12px; }
-      #dashCategoryManager #drawer-tx thead th:last-child { border-top-right-radius:12px; }
-      #dashCategoryManager #drawer-tx td{
-        padding:.85rem .9rem;
-        border-top:1px solid var(--cm-hair);
-        color:var(--cm-ink);
-        vertical-align:top;
-        background: transparent !important;
-      }
-      #dashCategoryManager #drawer-tx .text-nowrap{ white-space:nowrap; }
-      #dashCategoryManager #drawer-tx .tx-pos{ color: var(--cm-success); font-weight:600; }
-      #dashCategoryManager #drawer-tx .tx-neg{ color: var(--cm-danger); font-weight:600; }
-      #dashCategoryManager #drawer-tx tr.month-divider td{
-        background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 85%, transparent) !important;
-        border-top:1px solid var(--cm-hair);
-        border-bottom:1px solid var(--cm-hair);
-        font-weight:700; letter-spacing:.2px;
-      }
-
-      #dashCategoryManager #drawer-tx col.col-date   { width: 100px; }
-      #dashCategoryManager #drawer-tx col.col-amount { width: 110px; }
-      #dashCategoryManager #drawer-tx col.col-cat    { width: 120px; }
-      #dashCategoryManager #drawer-tx td.amount{ text-align:right; font-variant-numeric: tabular-nums; }
-      #dashCategoryManager #drawer-tx td.cat{ white-space:nowrap; }
-
-      /* === GLASS SELECT (compact + body portal + blurred scrim) === */
-      #dashCategoryManager .gs-wrap{ position:relative; width:auto; display:inline-block; }
-      #dashCategoryManager .gs-native{ position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; }
-      #dashCategoryManager .gs-trigger{
-        display:flex; align-items:center; gap:.5rem;
-        padding:.25rem .55rem; border-radius:10px; cursor:pointer; user-select:none;
-        background: color-mix(in oklab, var(--card-bg) 90%, transparent);
-        color: var(--cm-ink); border:1px solid var(--cm-hair);
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 4px 14px rgba(0,0,0,.25);
-        font-size:.9rem; line-height:1.1;
-      }
-      #dashCategoryManager .gs-trigger:focus-visible{ outline:2px solid #80b3ff; outline-offset:2px; }
-      #dashCategoryManager .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:10ch; }
-      #dashCategoryManager .gs-caret{ opacity:.8; }
-
-      .gs-popup{
-        position: fixed;
-        min-width: 220px;
-        max-height:320px; overflow:auto;
-        z-index: 2100;
-        padding:6px; border-radius:14px; border:1px solid var(--card-border, rgba(255,255,255,.10));
-        background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 82%, transparent);
-        -webkit-backdrop-filter: blur(18px) saturate(140%);
-        backdrop-filter: blur(18px) saturate(140%);
-        box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
-      }
-      .gs-list{ margin:0; padding:0; list-style:none; }
-      .gs-option{ padding:.5rem .65rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer; color: var(--text, #cfe3ff); }
-      .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
-      .gs-option[aria-selected="true"]{ background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35) }
-      .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
-
-      .gs-scrim{
-        position:fixed; inset:0; z-index:2050;
-        -webkit-backdrop-filter: blur(14px) saturate(140%);
-        backdrop-filter: blur(14px) saturate(140%);
-        background: rgba(8,12,20,.28);
-      }
-      @keyframes gsPopIn { from { opacity:0; transform: translateY(6px) scale(.98); } to { opacity:1; transform: translateY(0) scale(1); } }
-      @keyframes gsFadeIn{ from { opacity:0; } to { opacity:1; } }
-      .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
-      .gs-scrim{ animation: gsFadeIn .12s ease-out; will-change: opacity; }
-
-      #dashCategoryManager ul, #dashCategoryManager li{ list-style:none; margin:0; padding:0; }
-    </style>
-
-    <!-- Tabs -->
-    <div class="drawer-tabs">
-      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
-      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
-      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
-    </div>
-
-    <!-- Pane: Overview -->
-    <div class="drawer-pane" data-pane="overview" style="display:block;">
-      <div class="mb-2"><strong>Children:</strong> <div id="drawer-children" class="mt-1"></div></div>
-
-      <div class="tx-wrap">
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0" id="drawer-tx" aria-label="Transactions by month">
-            <colgroup>
-              <col class="col-date">
-              <col>
-              <col class="col-amount">
-              <col class="col-cat">
-            </colgroup>
-            <thead>
-              <tr class="small text-muted">
-                <th>Date</th>
-                <th>Description</th>
-                <th class="text-end">Amount</th>
-                <th>Cat</th>
-              </tr>
-            </thead>
-            <tbody id="drawer-tx-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pane: Keywords -->
-    <div class="drawer-pane" data-pane="keywords" style="display:none;">
-      <div class="small muted mb-1">
-        Keywords attached to: <span id="kw-current-level" class="fw-semibold">(select a node)</span>.
-        Click × to remove. Case-insensitive “contains” match.
-      </div>
-      <div id="kw-list" class="mb-2"><span class="muted">No keywords yet.</span></div>
-      <div class="input-group input-group-sm">
-        <input id="kw-add-input" class="form-control" placeholder="Add keyword (e.g., MOBILE DEPOSIT)">
-        <button id="kw-add-btn" class="btn btn-outline-primary">Add</button>
-      </div>
-    </div>
-
-    <!-- Pane: Actions -->
-    <div class="drawer-pane" data-pane="actions" style="display:none;">
-      <div class="d-grid gap-2">
-        <button id="drawer-inspect" class="btn btn-sm btn-outline-secondary">Inspect Path JSON</button>
-        <button id="drawer-rename"  class="btn btn-sm btn-outline-secondary">Rename Current Node</button>
-        <button id="drawer-upsert"  class="btn btn-sm btn-outline-primary">Create/Attach Child Under This Path</button>
-      </div>
-      <div class="small muted mt-2">These call your admin endpoints: inspect, rename, upsert.</div>
-    </div>
-  </div>
-</div>
-
-<!-- Server endpoints (persistent) -->
-<script>
-  window.CL_URLS = window.CL_URLS || {};
-  window.CL_URLS.PATH_TXN_URL = '/api/path/transactions';
-  window.CL_URLS.INSPECT_URL  = '/admin/categories/inspect';
-  window.CL_URLS.RENAME_URL   = '/admin/categories/rename';
-  window.CL_URLS.UPSERT_URL   = '/admin/categories/upsert';
-  /* Optional keyword endpoints:
-  window.CL_URLS.KW_GET_URL    = '/admin/keywords/get';
-  window.CL_URLS.KW_ADD_URL    = '/admin/keywords/add';
-  window.CL_URLS.KW_REMOVE_URL = '/admin/keywords/remove';
-  */
-</script>
-
-<!-- === Glass Select helper (wrap #drawer-months) — robust against async population & replacement === -->
-<script>
-(function(){
-  function wrapSelect(select){
-    if (!select || select.dataset.gsInit==='1') return;
-    select.dataset.gsInit='1';
-
-    const wrap = document.createElement('div'); wrap.className='gs-wrap';
-    select.parentNode.insertBefore(wrap, select);
-    wrap.appendChild(select);
-    select.classList.add('gs-native');
-
-    const trigger = document.createElement('button');
-    trigger.type='button';
-    trigger.className='gs-trigger';
-    trigger.setAttribute('aria-haspopup','listbox');
-    trigger.setAttribute('aria-expanded','false');
-    trigger.innerHTML = '<span class="gs-label"></span><span class="gs-caret">▾</span>';
-    wrap.insertBefore(trigger, select);
-    const labelEl = trigger.querySelector('.gs-label');
-
-    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden = true;
-    const list  = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox'); popup.appendChild(list);
-    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden = true;
-
-    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
-
-    function syncLabel(){
-      const opt = select.selectedOptions[0];
-      labelEl.textContent = opt ? opt.textContent : 'Select…';
+  let offcanvas = null;
+  function ensureOC() {
+    const el = $('dashCategoryManager');
+    if (!el || !window.bootstrap || !window.bootstrap.Offcanvas) return null;
+    if (!offcanvas || !offcanvas._element || offcanvas._element !== el) {
+      try { offcanvas = new bootstrap.Offcanvas(el); } catch (_) { offcanvas = null; }
     }
+    return offcanvas;
+  }
 
-    function placePopup(){
-      const r = trigger.getBoundingClientRect();
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const width = clamp(Math.max(220, r.width), 220, vw - 24);
-      popup.style.minWidth = width + 'px';
-      popup.style.maxWidth = width + 'px';
+  const state = {
+    ctx: { level: 'category', cat: '', sub: '', ssub: '', sss: '', month: '', allowHidden: false },
+    months: [],
+    tx: [],
+    children: [],
+    total: 0,
+    magnitude_total: 0,
+    showAll: false
+  };
 
-      const popupH = Math.min(320, vh * 0.6);
-      popup.style.maxHeight = popupH + 'px';
-      const below = r.bottom + 6 + popupH <= vh ? true : (r.top - 6 - popupH < 0 ? true : false);
-      const top = below ? (r.bottom + 6) : (r.top - 6 - popupH);
-      const left = clamp(r.left, 12, vw - width - 12);
+  // ---------- helpers ----------
+  function setText(id, v) { const el = $(id); if (el) el.textContent = v == null ? '' : String(v); }
+  function fmtUSD(n) { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(+n||0); } catch { return '$'+Number(+n||0).toFixed(2); } }
+  function fmtDate(s) { return s || ''; }
+  function escapeHTML(s){
+    return String(s||'').replace(/[&<>"']/g, c => (
+      c === '&' ? '&amp;' :
+      c === '<' ? '&lt;'  :
+      c === '>' ? '&gt;'  :
+      c === '"' ? '&quot;': '&#39;'
+    ));
+  }
+  function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
 
-      popup.style.left = Math.round(left) + 'px';
-      popup.style.top  = Math.round(top)  + 'px';
+  function monthKeyFromDateStr(s){
+    if (!s) return '0000-00';
+    const t = String(s).trim();
+    if (t.includes('-')) return t.slice(0,7);
+    const parts = t.split('/');
+    const mm = parts[0], yyyy = parts[2];
+    if (yyyy && mm) return yyyy + '-' + String(mm).padStart(2,'0');
+    return '0000-00';
+  }
+  function monthLabelFromKey(k){
+    const parts = (k||'0000-00').split('-');
+    const yy = Number(parts[0]||0), mm = Math.max(1, Math.min(12, Number(parts[1]||1)));
+    const dt = new Date(yy, mm-1, 1);
+    return dt.toLocaleString(undefined, {month:'short', year:'numeric'});
+  }
+  function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
+
+  function nearestMonth(preferred, available) {
+    if (!available || !available.length) return '';
+    const set = new Set(available);
+    if (preferred && set.has(preferred)) return preferred;
+    const earlier = available.filter(m => m <= preferred).sort().reverse();
+    if (earlier.length) return earlier[0];
+    const later = available.filter(m => m > preferred).sort();
+    return later[0] || available[available.length - 1];
+  }
+
+  // ---------- renderers ----------
+  function renderBreadcrumb(){
+    const host = $('drawer-breadcrumb'); if (!host) return;
+    const parts = pathParts();
+    if (!parts.length){
+      host.innerHTML = '<a href="#" data-bc-index="-1">All Categories</a>';
+      return;
     }
-
-    function buildOptions(){
-      list.innerHTML = '';
-      const opts = Array.from(select.options);
-      if (!opts.length){
-        const li = document.createElement('li');
-        li.className='gs-option'; li.setAttribute('aria-disabled','true');
-        li.textContent='Loading…';
-        list.appendChild(li);
-        return false;
-      }
-      opts.forEach((o)=>{
-        const li = document.createElement('li');
-        li.className='gs-option'; li.setAttribute('role','option'); li.dataset.value = o.value;
-        if (o.selected) li.setAttribute('aria-selected','true');
-        li.textContent = o.textContent;
-        li.addEventListener('click', ()=> apply(o.value));
-        li.addEventListener('mousemove', ()=>{
-          list.querySelectorAll('.gs-option[aria-current="true"]').forEach(x=>x.removeAttribute('aria-current'));
-          li.setAttribute('aria-current','true');
-        });
-        list.appendChild(li);
-      });
-      return true;
-    }
-
-    let waitTimer = null, closeBound = null, resizeBound = null, scrollBound = null;
-
-    function close(){
-      if (popup.hidden) return;
-      popup.hidden = true; scrim.hidden = true;
-      trigger.setAttribute('aria-expanded','false');
-      if (popup.parentNode) popup.parentNode.removeChild(popup);
-      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
-      window.removeEventListener('resize', resizeBound);
-      window.removeEventListener('scroll', scrollBound, true);
-      document.removeEventListener('click', closeBound);
-      clearInterval(waitTimer); waitTimer = null;
-    }
-
-    function open(){
-      // Always attach to <body>
-      if (!popup.parentNode) document.body.appendChild(popup);
-      if (!scrim.parentNode) document.body.appendChild(scrim);
-      scrim.hidden = false; popup.hidden = false;
-      trigger.setAttribute('aria-expanded','true');
-
-      // Build now, then keep polling while options are loading
-      buildOptions(); syncLabel(); placePopup();
-
-      let waited = 0;
-      clearInterval(waitTimer);
-      waitTimer = setInterval(()=>{
-        if (select.options && select.options.length){
-          buildOptions(); placePopup(); clearInterval(waitTimer); waitTimer = null;
-        } else if (waited > 10000){ // up to 10s
-          clearInterval(waitTimer); waitTimer = null;
+    const segs = ['<a href="#" data-bc-index="-1">All Categories</a>'];
+    parts.forEach((p, i) => {
+      segs.push('<span class="sep">›</span>');
+      segs.push('<a href="#" data-bc-index="'+i+'">'+escapeHTML(p)+'</a>');
+    });
+    host.innerHTML = segs.join(' ');
+    host.querySelectorAll('a[data-bc-index]').forEach(a => {
+      a.addEventListener('click', function(e){
+        e.preventDefault();
+        const idx = Number(a.getAttribute('data-bc-index') || -1);
+        if (idx < 0){
+          state.ctx.level = 'category';
+          state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
+        } else {
+          const order = ['cat','sub','ssub','sss'];
+          order.slice(idx + 1).forEach((k) => { state.ctx[k] = ''; });
+          state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
         }
-        waited += 150;
-      }, 150);
-
-      resizeBound = ()=> placePopup();
-      scrollBound = ()=> placePopup();
-      window.addEventListener('resize', resizeBound);
-      window.addEventListener('scroll', scrollBound, true);
-
-      closeBound = (e)=>{
-        if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close();
-      };
-      document.addEventListener('click', closeBound);
-      scrim.addEventListener('click', close, { once:true });
-    }
-
-    function toggle(){ popup.hidden ? open() : close(); }
-
-    function apply(value){
-      select.value = value;
-      select.dispatchEvent(new Event('change', { bubbles:true }));
-      syncLabel(); close();
-    }
-
-    // Mutation observer — rebuild when options arrive/replace
-    const mo = new MutationObserver(()=>{
-      syncLabel();
-      if (!popup.hidden) { buildOptions(); placePopup(); }
+        fetchPathTx(state.ctx).catch(()=>{});
+      }, { passive:false });
     });
-    mo.observe(select, { childList:true, subtree:true, attributes:true });
-
-    // Type-ahead
-    let buf='', t=null;
-    function typeAhead(k){
-      buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
-      const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
-      if (f) apply(f.value);
-    }
-    trigger.addEventListener('keydown', (e)=>{
-      if (e.key===' '||e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); open(); return; }
-      if (/^[\w\s]$/.test(e.key)) typeAhead(e.key);
-    });
-
-    trigger.addEventListener('click', toggle);
-
-    // Initial label
-    syncLabel();
   }
 
-  function initGlassSelect(){
-    const sel = document.getElementById('drawer-months');
-    if (sel) wrapSelect(sel);
-  }
-
-  // If the select node is replaced, re-wrap the new one
-  const oc = document.getElementById('dashCategoryManager');
-  if (oc){
-    const selectWatcher = new MutationObserver(()=>{
-      const sel = document.getElementById('drawer-months');
-      if (sel && sel.dataset.gsInit!=='1') wrapSelect(sel);
+  function renderChildren(){
+    const host = $('drawer-children'); if (!host) return;
+    const kids = state.children || [];
+    if (!kids.length){ host.innerHTML = '<span class="text-muted">No children.</span>'; return; }
+    host.innerHTML = kids.map(function(name){
+      return '<button type="button" class="child-pill" data-child="'+encodeURIComponent(name)+'" title="Drill into '+escapeHTML(name)+'">' +
+               '<span class="dot" aria-hidden="true"></span>' +
+               '<span class="label">'+escapeHTML(name)+'</span>' +
+               '<span class="chev" aria-hidden="true">›</span>' +
+             '</button>';
+    }).join('');
+    host.querySelectorAll('.child-pill').forEach(pill => {
+      pill.addEventListener('click', function(){
+        const name = decodeURIComponent(pill.getAttribute('data-child') || '');
+        if (!state.ctx.cat) { state.ctx.cat = name; state.ctx.level = 'category'; }
+        else if (!state.ctx.sub) { state.ctx.sub = name; state.ctx.level = 'subcategory'; }
+        else if (!state.ctx.ssub) { state.ctx.ssub = name; state.ctx.level = 'subsubcategory'; }
+        else { state.ctx.sss = name; state.ctx.level = 'subsubsubcategory'; }
+        fetchPathTx(state.ctx).catch(()=>{});
+      }, { passive:true });
     });
-    selectWatcher.observe(oc, { childList:true, subtree:true });
   }
 
-  if (document.readyState !== 'loading') initGlassSelect();
-  else document.addEventListener('DOMContentLoaded', initGlassSelect);
-  oc?.addEventListener('shown.bs.offcanvas', initGlassSelect);
+  function renderTx(){
+    const body = $('drawer-tx-body'); if (!body) return;
+    const rows = state.tx || [];
+    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
+
+    // group by YYYY-MM
+    const groups = new Map();
+    for (const t of rows){
+      const key = monthKeyFromDateStr(t.date);
+      if (!groups.has(key)) groups.set(key, { label: monthLabelFromKey(key), items: [], net: 0 });
+      const g = groups.get(key);
+      const amt = Number(t.amount || 0);
+      g.items.push(t);
+      g.net += amt;
+    }
+    const keys = Array.from(groups.keys()).sort().reverse();
+
+    const parts = [];
+    for (const k of keys){
+      const g = groups.get(k);
+      const net = Number(g.net || 0);
+      const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
+      parts.push(
+        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">' +
+        '  <td colspan="4"><span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
+        '    <span class="'+netCls+'">Net: '+fmtUSD(net)+'</span>' +
+        '  </td>' +
+        '</tr>'
+      );
+      for (const t of g.items){
+        const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
+        // deepest category name:
+        const catPath = (t.sssubcategory || t.subsubcategory || t.subcategory || t.category || '') || '';
+        parts.push(
+          '<tr>' +
+          '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>' +
+          '  <td>'+escapeHTML(t.description || '')+'</td>' +
+          '  <td class="amount '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>' +
+          '  <td class="cat">'+escapeHTML(catPath)+'</td>' +
+          '</tr>'
+        );
+      }
+    }
+    body.innerHTML = parts.join('');
+  }
+
+  // ---------- data ----------
+  async function fetchPathTx(ctx){
+    const body = $('drawer-tx-body');
+    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+
+    const params = new URLSearchParams();
+    params.set('level', ctx.level || 'category');
+    if (ctx.cat)  params.set('cat',  ctx.cat);
+    if (ctx.sub)  params.set('sub',  ctx.sub);
+    if (ctx.ssub) params.set('ssub', ctx.ssub);
+    if (ctx.sss)  params.set('sss',  ctx.sss);
+    if (ctx.allowHidden) params.set('allow_hidden', '1');
+
+    const monthLower = String(ctx.month || '').toLowerCase();
+    if (monthLower === 'all') params.set('month', 'all');
+    else if (ctx.month) params.set('month', ctx.month);
+
+    params.set('months', 'all');
+    params.set('_', Date.now().toString());
+
+    let j;
+    try {
+      const res = await fetch(PATH_TXN_URL + '?' + params.toString(), { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error(String(res.status));
+      j = await res.json();
+    } catch (err){
+      console.error('drawer fetchPathTx failed:', err);
+      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+      return;
+    }
+
+    state.months = j.months || [];
+    state.tx = j.transactions || [];
+    state.children = j.children || [];
+    state.total = j.total || 0;
+    state.magnitude_total = j.magnitude_total || 0;
+
+    const serverMonth = String(j.month || '').toLowerCase();
+    state.showAll = (serverMonth === 'all') || (monthLower === 'all');
+
+    setText('drawer-total', fmtUSD(state.total));
+    renderBreadcrumb();
+    renderChildren();
+    renderTx();
+
+    // Build native month <select> (for form state only)
+    const sel = $('drawer-months');
+    if (sel){
+      const opts = [];
+      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
+      const monthsDesc = (state.months || []).slice().sort().reverse();
+      const current = (!state.showAll && state.ctx.month) ? state.ctx.month : (monthsDesc[0] || '');
+      monthsDesc.forEach(function(m){
+        const selAttr = (m === current) ? ' selected' : '';
+        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
+      });
+      sel.innerHTML = opts.join('');
+      sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
+      // Emit event for Glass Select consumers
+      document.dispatchEvent(new CustomEvent('cm:months', {
+        detail: { months: monthsDesc, selected: sel.value || '', showAll: state.showAll }
+      }));
+    }
+  }
+
+  // ---------- keywords (optional endpoints) ----------
+  function payloadForKeywords(){
+    const parts = pathParts(); const last = parts[parts.length-1] || '';
+    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
+  }
+  async function fetchKeywords(){
+    if (!urls.KW_GET_URL) return { keywords: [] };
+    const qp = new URLSearchParams(payloadForKeywords());
+    qp.set('_', Date.now().toString());
+    try {
+      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
+      return await res.json();
+    } catch { return { keywords: [] }; }
+  }
+  async function addKeyword(kw){
+    if (!urls.KW_ADD_URL || !kw) return;
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
+    try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+  }
+  async function removeKeyword(kw){
+    if (!urls.KW_REMOVE_URL || !kw) return;
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
+    try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+  }
+  async function refreshKeywords(){
+    const host = $('kw-list'); if (!host) return;
+    host.innerHTML = '<span class="text-muted">Loading…</span>';
+    const j = await fetchKeywords();
+    const kws = (j && j.keywords) || [];
+    if (!kws.length){ host.innerHTML = '<span class="text-muted">No keywords yet.</span>'; return; }
+    host.innerHTML = kws.map(k => (
+      '<span class="badge text-bg-secondary me-1">' + escapeHTML(k) + ' <a href="#" data-kw="'+encodeURIComponent(k)+'" class="text-reset text-decoration-none ms-1" title="Remove">×</a></span>'
+    )).join('');
+    host.querySelectorAll('a[data-kw]').forEach(a => {
+      a.addEventListener('click', async function(e){
+        e.preventDefault();
+        await removeKeyword(decodeURIComponent(a.getAttribute('data-kw') || ''));
+        refreshKeywords();
+      });
+    });
+  }
+
+  // ---------- actions ----------
+  function payloadForActions(){
+    const parts = pathParts();
+    return { path: parts.join(' / '), name: parts[parts.length-1] || '', allow_hidden: state.ctx.allowHidden ? 1 : 0 };
+  }
+
+  const btnInspect = document.getElementById('drawer-inspect');
+  const btnRename  = document.getElementById('drawer-rename');
+  const btnUpsert  = document.getElementById('drawer-upsert');
+
+  if (btnInspect && urls.INSPECT_URL){
+    btnInspect.addEventListener('click', async function(){
+      const p = payloadForActions();
+      const qp = new URLSearchParams(p);
+      try {
+        const res = await fetch(urls.INSPECT_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' }});
+        const j   = await res.json();
+        alert(JSON.stringify(j, null, 2));
+      } catch (e) { alert('Inspect failed.'); }
+    });
+  }
+  if (btnRename && urls.RENAME_URL){
+    btnRename.addEventListener('click', async function(){
+      const p = payloadForActions();
+      if (!p.path) { alert('Select a node to rename.'); return; }
+      const from = p.name || '(unnamed)';
+      const to   = prompt('Rename "' + from + '" to:', from);
+      if (!to || to.trim() === from) return;
+      try {
+        await fetch(urls.RENAME_URL, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({
+            path: p.path,
+            new_name: to.trim(),
+            allow_hidden: p.allow_hidden
+          })
+        });
+        fetchPathTx(state.ctx).catch(()=>{});
+        alert('Rename attempted (check the drawer).');
+      } catch (e) { alert('Rename failed.'); }
+    });
+  }
+
+  if (btnUpsert && urls.UPSERT_URL){
+    btnUpsert.addEventListener('click', async function(){
+      const p = payloadForActions();
+      try {
+        await fetch(urls.UPSERT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ path: p.path, allow_hidden: p.allow_hidden })
+        });
+        alert('Upsert attempted.');
+      } catch (e) { alert('Upsert failed.'); }
+    });
+  }
+
+  // ---------- public open ----------
+  function openCategoryManager(ctx){
+    ensureOC(); if (offcanvas) offcanvas.show();
+
+    state.ctx = {
+      level: (ctx && ctx.level) || 'category',
+      cat:   (ctx && ctx.cat)   || '',
+      sub:   (ctx && ctx.sub)   || '',
+      ssub:  (ctx && ctx.ssub)  || '',
+      sss:   (ctx && ctx.sss)   || '',
+      month: (ctx && ctx.month) || '',
+      allowHidden: !!(ctx && ctx.allowHidden)
+    };
+    state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
+
+    fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
+    refreshKeywords();
+  }
+  openCategoryManager.__cl_neon_fit = true;
+  window.openCategoryManager = openCategoryManager;
+
+  // Global click helper
+  window.dashManage = function(e, el){
+    e.preventDefault();
+    const ctx = {
+      level: el.getAttribute('data-level') || 'category',
+      cat:   el.getAttribute('data-cat')   || '',
+      sub:   el.getAttribute('data-sub')   || '',
+      ssub:  el.getAttribute('data-ssub')  || '',
+      sss:   el.getAttribute('data-sss')   || '',
+      month: el.getAttribute('data-month') || '',
+      allowHidden: !!(el.getAttribute('data-allow-hidden') || '')
+    };
+    openCategoryManager(ctx);
+    return false;
+  };
+
+  // Tabs
+  QSA('.drawer-tab').forEach(function(tab){
+    tab.addEventListener('click', function(e){
+      e.preventDefault();
+      const target = tab.getAttribute('data-tab');
+      QSA('.drawer-tab').forEach(t => t.classList.remove('active'));
+      QSA('.drawer-pane').forEach(p => p.style.display = 'none');
+      tab.classList.add('active');
+      const pane = QS('.drawer-pane[data-pane="'+target+'"]');
+      if (pane) pane.style.display = 'block';
+      if (target === 'keywords') refreshKeywords();
+    });
+  });
+
+  // Month selector
+  const monthSel = $('drawer-months');
+  if (monthSel){
+    monthSel.addEventListener('change', async function(e){
+      const val = (e.target.value || '').toLowerCase();
+      state.ctx.month = val || '';
+      state.showAll = (val === 'all');
+      await fetchPathTx(state.ctx);
+    });
+  }
 })();
-</script>
-
-<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
