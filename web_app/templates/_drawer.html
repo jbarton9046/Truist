@@ -21,7 +21,6 @@
   <div class="offcanvas-body">
     <!-- ===== Drawer styles (scoped) ===== -->
     <style>
-      /* ---------- Tokens ---------- */
       #dashCategoryManager{
         --cm-radius: 16px;
         --cm-inner-radius: 14px;
@@ -33,19 +32,17 @@
         --cm-shadow: 0 10px 24px rgba(2,6,23,.35);
       }
 
-      /* ---------- Header / breadcrumb ---------- */
       .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a{ text-decoration:none; color:var(--cm-link); font-weight:700; }
       .drawer-breadcrumb a:hover{ text-decoration:underline; }
       .drawer-breadcrumb .sep{ color:#8aa3c6; }
       .muted{ color: color-mix(in oklab, var(--cm-ink) 72%, transparent); }
 
-      /* ---------- Tabs ---------- */
       .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--cm-hair); }
       .drawer-tab{ padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
       .drawer-tab.active{ background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 90%, transparent); border:1px solid var(--cm-hair); border-bottom-color:transparent; }
 
-      /* ---------- Child pills (restored look) ---------- */
+      /* Child pills (restored) */
       .child-pill{
         display:inline-flex; align-items:center; gap:.4rem;
         padding:.32rem .6rem; border-radius:999px;
@@ -63,7 +60,7 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* ---------- Safety rails: horizontal text only ---------- */
+      /* Safety rails */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
         word-break: normal !important;
@@ -71,7 +68,7 @@
         hyphens: manual !important;
       }
 
-      /* ---------- Table visual (NO sticky rows) ---------- */
+      /* Table (NO sticky) */
       #dashCategoryManager .tx-wrap{
         position: relative;
         border-radius: var(--cm-inner-radius);
@@ -92,7 +89,6 @@
       }
       #dashCategoryManager #drawer-tx thead th:first-child{ border-top-left-radius:12px; }
       #dashCategoryManager #drawer-tx thead th:last-child { border-top-right-radius:12px; }
-
       #dashCategoryManager #drawer-tx td{
         padding:.85rem .9rem;
         border-top:1px solid var(--cm-hair);
@@ -103,8 +99,6 @@
       #dashCategoryManager #drawer-tx .text-nowrap{ white-space:nowrap; }
       #dashCategoryManager #drawer-tx .tx-pos{ color: var(--cm-success); font-weight:600; }
       #dashCategoryManager #drawer-tx .tx-neg{ color: var(--cm-danger); font-weight:600; }
-
-      /* Month rows (non-sticky) */
       #dashCategoryManager #drawer-tx tr.month-divider td{
         background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 85%, transparent) !important;
         border-top:1px solid var(--cm-hair);
@@ -112,7 +106,6 @@
         font-weight:700; letter-spacing:.2px;
       }
 
-      /* Column widths (fit without horizontal scroll) */
       #dashCategoryManager #drawer-tx col.col-date   { width: 100px; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 110px; }
       #dashCategoryManager #drawer-tx col.col-cat    { width: 120px; }
@@ -121,10 +114,7 @@
 
       /* === GLASS SELECT (compact + body portal + blurred scrim) === */
       #dashCategoryManager .gs-wrap{ position:relative; width:auto; display:inline-block; }
-      #dashCategoryManager .gs-native{
-        position:absolute; inset:0; width:100%; height:100%;
-        opacity:0; pointer-events:none;
-      }
+      #dashCategoryManager .gs-native{ position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; }
       #dashCategoryManager .gs-trigger{
         display:flex; align-items:center; gap:.5rem;
         padding:.25rem .55rem; border-radius:10px; cursor:pointer; user-select:none;
@@ -141,7 +131,7 @@
         position: fixed;
         min-width: 220px;
         max-height:320px; overflow:auto;
-        z-index: 2100; /* above offcanvas themes */
+        z-index: 2100;
         padding:6px; border-radius:14px; border:1px solid var(--card-border, rgba(255,255,255,.10));
         background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 82%, transparent);
         -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -149,14 +139,9 @@
         box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
       }
       .gs-list{ margin:0; padding:0; list-style:none; }
-      .gs-option{
-        padding:.5rem .65rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer;
-        color: var(--text, #cfe3ff);
-      }
+      .gs-option{ padding:.5rem .65rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer; color: var(--text, #cfe3ff); }
       .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
-      .gs-option[aria-selected="true"]{
-        background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35)
-      }
+      .gs-option[aria-selected="true"]{ background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35) }
       .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
 
       .gs-scrim{
@@ -165,7 +150,6 @@
         backdrop-filter: blur(14px) saturate(140%);
         background: rgba(8,12,20,.28);
       }
-
       @keyframes gsPopIn { from { opacity:0; transform: translateY(6px) scale(.98); } to { opacity:1; transform: translateY(0) scale(1); } }
       @keyframes gsFadeIn{ from { opacity:0; } to { opacity:1; } }
       .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
@@ -254,13 +238,11 @@
     if (!select || select.dataset.gsInit==='1') return;
     select.dataset.gsInit='1';
 
-    // Wrapper
     const wrap = document.createElement('div'); wrap.className='gs-wrap';
     select.parentNode.insertBefore(wrap, select);
     wrap.appendChild(select);
     select.classList.add('gs-native');
 
-    // Trigger
     const trigger = document.createElement('button');
     trigger.type='button';
     trigger.className='gs-trigger';
@@ -270,17 +252,16 @@
     wrap.insertBefore(trigger, select);
     const labelEl = trigger.querySelector('.gs-label');
 
-    // Body-level popup & scrim
-    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
+    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden = true;
     const list  = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox'); popup.appendChild(list);
-    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden=true;
+    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden = true;
+
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
     function syncLabel(){
       const opt = select.selectedOptions[0];
       labelEl.textContent = opt ? opt.textContent : 'Select…';
     }
-
-    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
     function placePopup(){
       const r = trigger.getBoundingClientRect();
@@ -307,7 +288,7 @@
         li.className='gs-option'; li.setAttribute('aria-disabled','true');
         li.textContent='Loading…';
         list.appendChild(li);
-        return;
+        return false;
       }
       opts.forEach((o)=>{
         const li = document.createElement('li');
@@ -321,7 +302,10 @@
         });
         list.appendChild(li);
       });
+      return true;
     }
+
+    let waitTimer = null, closeBound = null, resizeBound = null, scrollBound = null;
 
     function close(){
       if (popup.hidden) return;
@@ -329,40 +313,46 @@
       trigger.setAttribute('aria-expanded','false');
       if (popup.parentNode) popup.parentNode.removeChild(popup);
       if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
-      window.removeEventListener('resize', onWin);
-      window.removeEventListener('scroll', onWin, true);
-      clearInterval(waitTimer);
+      window.removeEventListener('resize', resizeBound);
+      window.removeEventListener('scroll', scrollBound, true);
+      document.removeEventListener('click', closeBound);
+      clearInterval(waitTimer); waitTimer = null;
     }
 
     function open(){
-      // Rebuild with current options
-      buildOptions(); syncLabel();
-
-      if (!popup.parentNode) document.body.appendChild(popup);   /* <-- FIX: always add to DOM */
+      // Always attach to <body>
+      if (!popup.parentNode) document.body.appendChild(popup);
       if (!scrim.parentNode) document.body.appendChild(scrim);
       scrim.hidden = false; popup.hidden = false;
       trigger.setAttribute('aria-expanded','true');
-      placePopup();
 
-      // If options are not ready yet, poll briefly and rebuild once they appear
+      // Build now, then keep polling while options are loading
+      buildOptions(); syncLabel(); placePopup();
+
       let waited = 0;
+      clearInterval(waitTimer);
       waitTimer = setInterval(()=>{
-        const has = select && select.options && select.options.length;
-        if (has || waited > 2000){
-          clearInterval(waitTimer);
-          if (!popup.hidden){
-            buildOptions(); placePopup();
-          }
+        if (select.options && select.options.length){
+          buildOptions(); placePopup(); clearInterval(waitTimer); waitTimer = null;
+        } else if (waited > 10000){ // up to 10s
+          clearInterval(waitTimer); waitTimer = null;
         }
         waited += 150;
       }, 150);
 
-      window.addEventListener('resize', onWin);
-      window.addEventListener('scroll', onWin, true);
+      resizeBound = ()=> placePopup();
+      scrollBound = ()=> placePopup();
+      window.addEventListener('resize', resizeBound);
+      window.addEventListener('scroll', scrollBound, true);
+
+      closeBound = (e)=>{
+        if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close();
+      };
+      document.addEventListener('click', closeBound);
+      scrim.addEventListener('click', close, { once:true });
     }
 
     function toggle(){ popup.hidden ? open() : close(); }
-    function onWin(){ placePopup(); }
 
     function apply(value){
       select.value = value;
@@ -370,18 +360,15 @@
       syncLabel(); close();
     }
 
-    // Observe option changes — rebuild live if open
-    const mo = new MutationObserver((muts)=>{
-      const childChanged = muts.some(m=>m.type==='childList');
-      if (childChanged && !popup.hidden){
-        buildOptions(); placePopup();
-      }
+    // Mutation observer — rebuild when options arrive/replace
+    const mo = new MutationObserver(()=>{
       syncLabel();
+      if (!popup.hidden) { buildOptions(); placePopup(); }
     });
-    mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
+    mo.observe(select, { childList:true, subtree:true, attributes:true });
 
-    // Type-ahead on trigger
-    let buf='', t=null, waitTimer=null;
+    // Type-ahead
+    let buf='', t=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
       const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
@@ -393,8 +380,6 @@
     });
 
     trigger.addEventListener('click', toggle);
-    scrim.addEventListener('click', close);
-    document.addEventListener('click', (e)=>{ if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close(); });
 
     // Initial label
     syncLabel();
@@ -405,7 +390,7 @@
     if (sel) wrapSelect(sel);
   }
 
-  // If the select node itself is replaced later, re-wrap the new one
+  // If the select node is replaced, re-wrap the new one
   const oc = document.getElementById('dashCategoryManager');
   if (oc){
     const selectWatcher = new MutationObserver(()=>{
@@ -415,7 +400,6 @@
     selectWatcher.observe(oc, { childList:true, subtree:true });
   }
 
-  // Init on load & whenever the drawer is shown
   if (document.readyState !== 'loading') initGlassSelect();
   else document.addEventListener('DOMContentLoaded', initGlassSelect);
   oc?.addEventListener('shown.bs.offcanvas', initGlassSelect);
