@@ -1,8 +1,8 @@
-// Drawer (frozed look, NON-sticky header/month, children chips restored)
+// Drawer (frozed look, NON-sticky header/month, custom frozed month dropdown)
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen_nosticky === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen_customsel === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -43,7 +43,6 @@
       c === '"' ? '&quot;': '&#39;'
     ));
   }
-
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -89,7 +88,7 @@
           state.ctx.cat = state.ctx.sub = state.ctx.ssub = state.ctx.sss = '';
         } else {
           const order = ['cat','sub','ssub','sss'];
-          order.slice(idx + 1).forEach((k) => { state.ctx[k] = ''; });
+          order.slice(idx + 1).forEach(k => { state.ctx[k] = ''; });
           state.ctx.level = ['category','subcategory','subsubcategory','subsubsubcategory'][idx] || 'category';
         }
         fetchPathTx(state.ctx).catch(()=>{});
@@ -184,6 +183,104 @@
     host.scrollTop = row.offsetTop;
   }
 
+  // ---------- custom month dropdown ----------
+  function closeMonthPanel(){
+    const panel = $('drawer-months-list');
+    const btn   = $('drawer-months-btn');
+    if (!panel || panel.hidden) return;
+    panel.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+  function openMonthPanel(){
+    const panel = $('drawer-months-list');
+    const btn   = $('drawer-months-btn');
+    if (!panel) return;
+    panel.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    panel.focus({ preventScroll: true });
+  }
+  function toggleMonthPanel(){
+    const panel = $('drawer-months-list');
+    if (!panel) return;
+    if (panel.hidden) openMonthPanel(); else closeMonthPanel();
+  }
+  function updateMonthLabel(){
+    const lbl = $('drawer-months-ui')?.querySelector('.bt-select-label');
+    if (!lbl) return;
+    const val = state.showAll ? 'all' : (state.ctx.month || '');
+    if (val === 'all' || !val) {
+      lbl.textContent = 'All months';
+    } else {
+      lbl.textContent = val;
+    }
+  }
+  function buildMonthUI(){
+    const panel = $('drawer-months-list');
+    const nativeSel = $('drawer-months');
+    if (!panel) return;
+
+    // Build native select options too (kept hidden)
+    if (nativeSel){
+      const opts = [];
+      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
+      const monthsDesc = (state.months || []).slice().sort().reverse();
+      monthsDesc.forEach(function(m){
+        const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
+        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
+      });
+      nativeSel.innerHTML = opts.join('');
+    }
+
+    // Custom panel
+    const items = [];
+    const selectedVal = state.showAll ? 'all' : (state.ctx.month || '');
+    items.push('<button type="button" class="bt-option'+(selectedVal==='all'?' selected':'')+'" role="option" data-value="all" aria-selected="'+(selectedVal==='all')+'">All months</button>');
+    const monthsDesc = (state.months || []).slice().sort().reverse();
+    monthsDesc.forEach(function(m){
+      const sel = (!state.showAll && m === state.ctx.month);
+      items.push('<button type="button" class="bt-option'+(sel?' selected':'')+'" role="option" data-value="'+m+'" aria-selected="'+sel+'">'+m+'</button>');
+    });
+    panel.innerHTML = items.join('');
+
+    // Bind item clicks
+    panel.querySelectorAll('.bt-option').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        const val = btn.getAttribute('data-value') || '';
+        const lower = val.toLowerCase();
+        state.ctx.month = (lower === 'all') ? '' : val;
+        state.showAll = (lower === 'all');
+
+        updateMonthLabel();
+        closeMonthPanel();
+
+        await fetchPathTx(state.ctx);
+        if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month);
+      }, { passive: true });
+    });
+
+    updateMonthLabel();
+  }
+  function wireMonthUI(){
+    const btn = $('drawer-months-btn');
+    const panel = $('drawer-months-list');
+    const ui = $('drawer-months-ui');
+    if (!btn || !panel || !ui) return;
+
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      toggleMonthPanel();
+    });
+
+    // Close on outside click
+    document.addEventListener('click', function(e){
+      if (!ui.contains(e.target)) closeMonthPanel();
+    });
+    // Close on escape
+    ui.addEventListener('keydown', function(e){
+      if (e.key === 'Escape'){ closeMonthPanel(); btn.focus(); }
+    });
+  }
+
   // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
@@ -230,18 +327,8 @@
     renderChildren();
     renderTx();
 
-    // Build month <select>
-    const sel = $('drawer-months');
-    if (sel){
-      const opts = [];
-      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
-      const monthsDesc = (state.months || []).slice().sort().reverse();
-      monthsDesc.forEach(function(m){
-        const selAttr = (!state.showAll && m === state.ctx.month) ? ' selected' : '';
-        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
-      });
-      sel.innerHTML = opts.join('');
-    }
+    // (Re)build the custom month UI
+    buildMonthUI();
   }
 
   // ---------- keywords (optional endpoints) ----------
@@ -352,8 +439,11 @@
 
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
+
+    // Wire custom month UI once
+    wireMonthUI();
   }
-  openCategoryManager.__cl_frozen_nosticky = true;
+  openCategoryManager.__cl_frozen_customsel = true;
   window.openCategoryManager = openCategoryManager;
 
   // Global click helper used around the site
@@ -385,16 +475,4 @@
       if (target === 'keywords') refreshKeywords();
     });
   });
-
-  // Month selector
-  const monthSel = $('drawer-months');
-  if (monthSel){
-    monthSel.addEventListener('change', async function(e){
-      const val = (e.target.value || '').toLowerCase();
-      state.ctx.month = val || '';
-      state.showAll = (val === 'all');
-      await fetchPathTx(state.ctx);
-      if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month);
-    });
-  }
 })();

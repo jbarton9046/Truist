@@ -6,10 +6,27 @@
         <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
         <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
-      <div class="small muted">
+      <div class="small muted d-flex align-items-center gap-2 flex-wrap">
         <span>Month:</span>
-        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
-        <span class="mx-2">•</span>
+
+        <!-- Hidden native select (kept for compatibility) -->
+        <select id="drawer-months" class="visually-hidden"></select>
+
+        <!-- Custom frozed month dropdown -->
+        <div class="bt-select" id="drawer-months-ui">
+          <button type="button"
+                  class="bt-select-toggle"
+                  id="drawer-months-btn"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="drawer-months-list">
+            <span class="bt-select-label">All months</span>
+            <span class="bt-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="bt-select-panel" id="drawer-months-list" role="listbox" tabindex="-1" hidden></div>
+        </div>
+
+        <span class="mx-1">•</span>
         <span>Total:</span>
         <span id="drawer-total" class="fw-semibold">—</span>
       </div>
@@ -30,6 +47,8 @@
 
         --hdr-bg: var(--thead-bg, rgba(255,255,255,.06)); /* light tint */
         --hdr-blur: 14px;                                 /* heavy blur */
+
+        --panel-shadow: 0 20px 40px rgba(2,6,23,.40), 0 2px 10px rgba(2,6,23,.25);
       }
       @media (max-width: 520px){
         #dashCategoryManager{
@@ -57,10 +76,10 @@
         overflow-x: hidden !important;
         max-height: 58vh;
         background: transparent;
-        isolation: isolate; /* harmless and keeps any blur sampling local */
+        isolation: isolate;
       }
 
-      /* Table layout & widths (fixed to prevent horizontal scroll) */
+      /* Table layout & widths */
       #dashCategoryManager #drawer-tx{
         width: 100% !important;
         border-collapse: separate !important;
@@ -169,10 +188,66 @@
         border:1px solid var(--hair); border-bottom-color: transparent;
       }
 
+      /* ===== Custom frozed select ===== */
+      #dashCategoryManager .bt-select{
+        position: relative;
+        display: inline-block;
+        z-index: 15; /* above table */
+      }
+      #dashCategoryManager .bt-select-toggle{
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .35rem .65rem;
+        border-radius: 10px;
+        border: 1px solid var(--hair);
+        color: var(--text);
+        background: var(--hdr-bg);
+        backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
+        line-height: 1.1;
+      }
+      #dashCategoryManager .bt-caret{ opacity: .85; }
+      #dashCategoryManager .bt-select-panel{
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 230px;
+        max-width: 300px;
+        width: max-content;
+        max-height: 320px;
+        overflow: auto;
+        padding: .35rem;
+        border-radius: 14px;
+        border: 1px solid var(--hair);
+        background: var(--hdr-bg);
+        backdrop-filter: saturate(120%) blur(18px);
+        -webkit-backdrop-filter: saturate(120%) blur(18px);
+        box-shadow: var(--panel-shadow);
+      }
+      #dashCategoryManager .bt-option{
+        display: flex;
+        width: 100%;
+        padding: .50rem .6rem;
+        border: 0;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+      }
+      #dashCategoryManager .bt-option:hover{ background: rgba(255,255,255,.07); }
+      #dashCategoryManager .bt-option.selected{
+        background: rgba(255,255,255,.10);
+        font-weight: 700;
+      }
+
       /* Fallback: if blur unsupported, increase opacity a bit */
       @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
         #dashCategoryManager #drawer-tx thead th,
-        #dashCategoryManager #drawer-tx tr.month-row > td .month-shell{
+        #dashCategoryManager #drawer-tx tr.month-row > td .month-shell,
+        #dashCategoryManager .bt-select-toggle,
+        #dashCategoryManager .bt-select-panel{
           background: rgba(20,30,50,.85) !important;
         }
       }
