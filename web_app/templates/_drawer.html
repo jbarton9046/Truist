@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (light-tint + heavy-blur headers, sticky month inside scroller) -->
+<!-- Right-side Category Manager drawer (frozen header + month, reliable blur) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -20,19 +20,16 @@
   <div class="offcanvas-body">
     <!-- ===== Drawer-only styles (scoped) ===== -->
     <style>
-      /* ======================
-         Tokens & sizing knobs
-         ====================== */
+      /* Tokens — match transactions.html “frozen” look (light tint + heavy blur) */
       #dashCategoryManager{
-        --cm-fsz:      0.92rem;   /* body cells */
-        --cm-fsz-th:   0.95rem;   /* header cells */
+        --cm-fsz:      0.92rem;
+        --cm-fsz-th:   0.95rem;
         --cm-line:     1.28;
         --cm-pad-y:    .58rem;
         --cm-pad-x:    .70rem;
 
-        /* Match transactions.html: light tint from --thead-bg + heavier blur */
-        --hdr-bg: var(--thead-bg, rgba(255,255,255,.06));
-        --hdr-blur: 14px;                 /* heavier blur so rows soften under */
+        --hdr-bg: var(--thead-bg, rgba(255,255,255,.06)); /* light tint */
+        --hdr-blur: 14px;                                 /* heavy blur */
       }
       @media (max-width: 520px){
         #dashCategoryManager{
@@ -43,9 +40,7 @@
         }
       }
 
-      /* ==========================
-         Emergency guardrails (scoped)
-         ========================== */
+      /* Emergency guardrails (stops vertical text weirdness) */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
         text-orientation: mixed !important;
@@ -56,19 +51,17 @@
         box-sizing: border-box !important;
       }
 
-      /* ==========================================
-         Drawer scroller: vertical only, stable top
-         ========================================== */
+      /* Drawer scroller: vertical only + isolate so blur samples rows, not the page */
       #dashCategoryManager .table-responsive{
-        --thead-h: 44px;            /* JS updates this after open */
+        --thead-h: 44px; /* measured by JS */
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: 58vh;
+        background: transparent;
+        isolation: isolate; /* critical for reliable backdrop sampling */
       }
 
-      /* =====================
-         Table layout & widths
-         ===================== */
+      /* Table layout & widths (fixed to prevent horizontal scroll) */
       #dashCategoryManager #drawer-tx{
         width: 100% !important;
         border-collapse: separate !important;
@@ -102,20 +95,17 @@
         hyphens: auto !important;
       }
 
-      /* Slightly tighter padding for width */
       #dashCategoryManager #drawer-tx th,
       #dashCategoryManager #drawer-tx td{
         padding: var(--cm-pad-y) var(--cm-pad-x) !important;
       }
       #dashCategoryManager #drawer-tx thead th{ font-size: var(--cm-fsz-th) !important; }
 
-      /* ============================
-         THEAD: light tint + heavy blur
-         ============================ */
+      /* THEAD — frozen style */
       #dashCategoryManager .table-responsive thead{
         position: sticky;
         top: 0;
-        z-index: 7; /* above month bars */
+        z-index: 7;
       }
       #dashCategoryManager .table-responsive thead th{
         backdrop-filter: saturate(120%) blur(var(--hdr-blur));
@@ -129,20 +119,20 @@
         font-weight:700; letter-spacing:.2px;
       }
 
-      /* =============================================
-         Month divider: sticky bar inside the scroller
-         (this is the key to blurring rows underneath)
-         ============================================= */
+      /* Month row — put sticky/blur on inner .month-shell DIV (more reliable than TD) */
       #dashCategoryManager #drawer-tx tr.month-row > td{
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+      }
+      #dashCategoryManager #drawer-tx tr.month-row > td .month-shell{
         position: sticky;
         top: var(--thead-h);
-        z-index: 6;               /* just under THEAD */
-        isolation: isolate;       /* prevents adjacent months blending */
-        mix-blend-mode: normal;
-
-        padding: .60rem var(--cm-pad-x) !important;
-        border-top: 1px solid var(--hair) !important;
-        border-bottom: 1px solid var(--hair) !important;
+        z-index: 6;
+        isolation: isolate;
+        padding: .60rem var(--cm-pad-x);
+        border-top: 1px solid var(--hair);
+        border-bottom: 1px solid var(--hair);
 
         background: var(--hdr-bg) !important;
         backdrop-filter: saturate(120%) blur(var(--hdr-blur));
@@ -151,25 +141,18 @@
         color: var(--table-head-fg, var(--text));
         font-weight:700; letter-spacing:.2px;
       }
-      #dashCategoryManager #drawer-tx tr.month-row.is-stuck { z-index: 8; }
+      #dashCategoryManager #drawer-tx tr.month-row.is-stuck > td .month-shell{ z-index: 8; }
       #dashCategoryManager #drawer-tx .net.tx-neg{ color:#c0392b; font-weight:700; }
       #dashCategoryManager #drawer-tx .net.tx-pos{ color:#1e7e34; font-weight:700; }
 
-      /* ======================
-         Drawer interactivity
-         ====================== */
-      #dashCategoryManager{ z-index:1085 !important; pointer-events:auto !important; }
+      /* Drawer interactivity & chrome */
+      #dashCategoryManager{ z-index:1085 !important; }
       .offcanvas-backdrop{ z-index:1080 !important; }
-      #dashCategoryManager *{ pointer-events:auto; }
-
-      /* Breadcrumb + chips */
       .drawer-breadcrumb{ display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
       .drawer-breadcrumb a{ text-decoration:none; font-weight:700; color: var(--accent-ink); }
       .drawer-breadcrumb a:hover{ text-decoration:underline; }
       .drawer-breadcrumb .sep{ color:#8aa3c6; }
       .muted{ color: color-mix(in oklab, var(--text) 72%, transparent); }
-
-      /* Tabs */
       .drawer-tabs{ display:flex; gap:.5rem; margin-bottom:.65rem; border-bottom:1px solid var(--hair); }
       .drawer-tab{ padding:.4rem .7rem; border-radius:.6rem .6rem 0 0; text-decoration:none; color: var(--text); background: transparent; border:1px solid transparent; }
       .drawer-tab:hover{ background: rgba(255,255,255,.06); border-color: var(--hair); }
@@ -178,24 +161,10 @@
         border:1px solid var(--hair); border-bottom-color: transparent;
       }
 
-      /* Child chips */
-      .child-pill{
-        display:inline-flex; align-items:center; gap:.4rem;
-        padding:.32rem .6rem; border-radius:999px;
-        border:1px solid var(--card-border);
-        background: linear-gradient(135deg, color-mix(in oklab, var(--card-bg) 80%, transparent) 0%, color-mix(in oklab, var(--card-bg) 60%, transparent) 100%);
-        color: var(--text); cursor:pointer; line-height:1; font-size:.875rem;
-        transition: background .15s ease, border-color .15s ease, transform .05s ease;
-      }
-      .child-pill:hover{ background: rgba(255,255,255,.07); border-color: var(--hair); }
-      .child-pill:active{ transform: translateY(1px); }
-      .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
-      .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
-
-      /* Fallback if blur unsupported: make tint more opaque */
+      /* Fallback: if blur unsupported, increase opacity a bit */
       @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
         #dashCategoryManager .table-responsive thead th,
-        #dashCategoryManager #drawer-tx tr.month-row > td{
+        #dashCategoryManager #drawer-tx tr.month-row > td .month-shell{
           background: rgba(20,30,50,.85) !important;
         }
       }

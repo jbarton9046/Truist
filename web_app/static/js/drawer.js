@@ -1,9 +1,8 @@
-// Drawer with light-tint + heavy blur on header and sticky month (inside scroller)
-// Prevents initial overhang by hiding tbody until header height is measured.
+// Drawer with “frozen” header/month: light tint + heavy blur, no initial overhang
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -44,6 +43,7 @@
       c === '"' ? '&quot;': '&#39;'
     ));
   }
+
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -88,7 +88,6 @@
     const scroller = QS('#dashCategoryManager .table-responsive');
     const body = $('drawer-tx-body');
     if (!scroller || !body) return;
-
     const rows = Array.from(body.querySelectorAll('tr.month-row'));
     if (!rows.length) return;
 
@@ -96,8 +95,7 @@
     let active = -1;
     for (let i = 0; i < rows.length; i++){
       const r = rows[i];
-      const y = r.offsetTop;        // offset within scroller
-      if (y <= top + 1) active = i; // +1 avoids boundary flicker
+      if (r.offsetTop <= top + 1) active = i;
     }
     rows.forEach((r,i) => r.classList.toggle('is-stuck', i === active));
   }
@@ -185,13 +183,13 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month row — sticky td (inside the scrollport)
+      // Month row — sticky/blur done on inner month-shell div
       parts.push(
         '<tr class="month-row" id="'+escapeHTML(monthId(k))+'">' +
-        '  <td colspan="4">' +
+        '  <td colspan="4"><div class="month-shell">' +
         '    <span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
         '    <span class="net '+netCls+'">Net: '+fmtUSD(net)+'</span>' +
-        '  </td>' +
+        '  </div></td>' +
         '</tr>'
       );
 
@@ -212,10 +210,20 @@
 
     body.innerHTML = parts.join('');
 
-    // Now that the table is in, measure, update, then reveal to avoid first-paint overlap
-    calibrateStickyOffsets();
-    updateStickyMonth();
-    body.style.visibility = 'visible';
+    // Double-RAF ensures layout is fully settled before offset + scroll
+    requestAnimationFrame(() => {
+      calibrateStickyOffsets();
+      requestAnimationFrame(() => {
+        updateStickyMonth();
+        const scroller = QS('#dashCategoryManager .table-responsive');
+        if (scroller && !state.showAll){
+          const pref = state.ctx.month || (state.months && state.months[0]);
+          const row  = pref && $(monthId(pref));
+          if (row) scroller.scrollTop = row.offsetTop; // align month under THEAD
+        }
+        body.style.visibility = 'visible';
+      });
+    });
   }
 
   function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
@@ -225,8 +233,7 @@
     const host = scrollHost();
     const row  = $(monthId(key));
     if (!host || !row) return;
-    const top = row.offsetTop; // inside scroller
-    host.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+    host.scrollTo({ top: row.offsetTop, behavior: smooth ? 'smooth' : 'auto' });
   }
   function scrollToPreferredMonth(preferredKey, smooth=true){
     const key = nearestMonth(preferredKey, state.months);
@@ -242,7 +249,7 @@
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
     if (body) {
-      body.style.visibility = 'hidden'; // avoid initial overhang flash
+      body.style.visibility = 'hidden'; // avoid on-open overlap flash
       body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
     }
 
@@ -304,26 +311,16 @@
       });
       sel.innerHTML = opts.join('');
     }
-
-    // Scroll to preferred month if not in "All"
-    setTimeout(function(){
-      if (!state.showAll) {
-        const pref = state.ctx.month || (state.months && state.months[0]);
-        if (pref) scrollToPreferredMonth(pref, false);
-      }
-      calibrateStickyOffsets();
-      updateStickyMonth();
-    }, 0);
   }
 
   // ---------- keywords (optional endpoints) ----------
-  function pathPartsForKeywords(){
+  function payloadForKeywords(){
     const parts = pathParts(); const last = parts[parts.length-1] || '';
     return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
   }
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(pathPartsForKeywords());
+    const qp = new URLSearchParams(payloadForKeywords());
     qp.set('_', Date.now().toString());
     try {
       const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
@@ -332,12 +329,12 @@
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, pathPartsForKeywords(), { keyword: kw });
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
     try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, pathPartsForKeywords(), { keyword: kw, remove: true });
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
     try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function refreshKeywords(){
@@ -390,11 +387,7 @@
         await fetch(urls.RENAME_URL, {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({
-            path: p.path,
-            new_name: to.trim(),
-            allow_hidden: p.allow_hidden
-          })
+          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
         });
         fetchPathTx(state.ctx).catch(()=>{});
         alert('Rename attempted (check the drawer).');
@@ -431,40 +424,32 @@
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
+    // Render
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    // Once drawer is visible, calibrate, set the “active” month, and reveal rows
+    // Wire scroll watcher once
     const scroller = QS('#dashCategoryManager .table-responsive');
-    if (scroller && !scroller.__cl_watch){
+    if (scroller && !scroller.__watch){
       scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
-      scroller.__cl_watch = true;
+      scroller.__watch = true;
     }
 
+    // After drawer shows, calibrate again (fonts/metrics are ready)
     const oc = $('dashCategoryManager');
     if (oc){
       oc.addEventListener('shown.bs.offcanvas', function(){
         calibrateStickyOffsets();
         updateStickyMonth();
-        const body = $('drawer-tx-body');
-        if (body) body.style.visibility = 'visible';
       }, { once:true });
     }
-
-    // Also do a quick async tick to catch immediate paints
-    setTimeout(function(){
-      calibrateStickyOffsets();
-      updateStickyMonth();
-      const body = $('drawer-tx-body');
-      if (body) body.style.visibility = 'visible';
-    }, 0);
 
     window.addEventListener('resize', function(){
       calibrateStickyOffsets();
       updateStickyMonth();
     });
   }
-  openCategoryManager.__cl_neon_fit = true;
+  openCategoryManager.__cl_frozen = true;
   window.openCategoryManager = openCategoryManager;
 
   // Global click helper used around the site
@@ -494,7 +479,7 @@
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
-      setTimeout(function(){ calibrateStickyOffsets(); updateStickyMonth(); }, 0);
+      requestAnimationFrame(()=>{ calibrateStickyOffsets(); updateStickyMonth(); });
     });
   });
 
@@ -506,7 +491,7 @@
       state.ctx.month = val || '';
       state.showAll = (val === 'all');
       await fetchPathTx(state.ctx);
-      if (!state.showAll && state.ctx.month) scrollToPreferredMonth(state.ctx.month, true);
+      if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month, true);
       calibrateStickyOffsets();
       updateStickyMonth();
     });
