@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager drawer (light-tint + heavy-blur headers, no horizontal scroll) -->
+<!-- Right-side Category Manager drawer (light-tint + heavy-blur headers, sticky month inside scroller) -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -32,7 +32,7 @@
 
         /* Match transactions.html: light tint from --thead-bg + heavier blur */
         --hdr-bg: var(--thead-bg, rgba(255,255,255,.06));
-        --hdr-blur: 52px;                 /* heavier blur so rows soften under */
+        --hdr-blur: 14px;                 /* heavier blur so rows soften under */
       }
       @media (max-width: 520px){
         #dashCategoryManager{
@@ -130,25 +130,24 @@
       }
 
       /* =============================================
-         Month divider: single sticky bar (same surface)
+         Month divider: sticky bar inside the scroller
+         (this is the key to blurring rows underneath)
          ============================================= */
       #dashCategoryManager #drawer-tx tr.month-row > td{
         position: sticky;
         top: var(--thead-h);
         z-index: 6;               /* just under THEAD */
-        isolation: isolate;       /* prevents blend of adjacent months */
+        isolation: isolate;       /* prevents adjacent months blending */
         mix-blend-mode: normal;
 
         padding: .60rem var(--cm-pad-x) !important;
         border-top: 1px solid var(--hair) !important;
         border-bottom: 1px solid var(--hair) !important;
 
+        background: var(--hdr-bg) !important;
         backdrop-filter: saturate(120%) blur(var(--hdr-blur));
         -webkit-backdrop-filter: saturate(120%) blur(var(--hdr-blur));
-        background: var(--hdr-bg) !important;
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,.06),
-          0 10px 18px rgba(2,6,23,.25);
+
         color: var(--table-head-fg, var(--text));
         font-weight:700; letter-spacing:.2px;
       }
@@ -229,7 +228,7 @@
               <th>Cat</th>
             </tr>
           </thead>
-          <tbody id="drawer-tx-body"></tbody>
+          <tbody id="drawer-tx-body" style="visibility:hidden;"></tbody>
         </table>
       </div>
     </div>

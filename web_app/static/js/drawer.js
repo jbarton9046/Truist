@@ -1,9 +1,8 @@
-// neon-tech aligned drawer (light-tint + heavy-blur header & sticky month)
-// Keeps list readable above, unreadable under the month bar, no horizontal scroll
+// Drawer with light-tint + heavy blur on header and sticky month (inside scroller)
+// Prevents initial overhang by hiding tbody until header height is measured.
 (function () {
   'use strict';
 
-  // Avoid double-load
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
 
   const urls = (window.CL_URLS || {});
@@ -12,7 +11,6 @@
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
   const $   = id => document.getElementById(id);
-  const ocEl = $('dashCategoryManager');
 
   let offcanvas = null;
   function ensureOC() {
@@ -72,13 +70,12 @@
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
-  // Deepest category helper for display
   function deepestCat(t){
     const parts = [t.category, t.subcategory, t.ssub, t.sss, t.sub_cat, t.subcat, t.subcategory2].filter(Boolean);
     return parts.length ? parts[parts.length-1] : (t.category || '');
   }
 
-  // Measure sticky header height and expose as CSS var on the scroller
+  // ---------- sticky helpers ----------
   function calibrateStickyOffsets(){
     const scroller = QS('#dashCategoryManager .table-responsive');
     const thead    = QS('#dashCategoryManager #drawer-tx thead');
@@ -87,7 +84,6 @@
     scroller.style.setProperty('--thead-h', h + 'px');
   }
 
-  // Ensure only one month row is visually “on top”
   function updateStickyMonth(){
     const scroller = QS('#dashCategoryManager .table-responsive');
     const body = $('drawer-tx-body');
@@ -101,7 +97,7 @@
     for (let i = 0; i < rows.length; i++){
       const r = rows[i];
       const y = r.offsetTop;        // offset within scroller
-      if (y <= top + 1) active = i; // +1 avoids flicker at boundaries
+      if (y <= top + 1) active = i; // +1 avoids boundary flicker
     }
     rows.forEach((r,i) => r.classList.toggle('is-stuck', i === active));
   }
@@ -163,7 +159,12 @@
   function renderTx(){
     const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; calibrateStickyOffsets(); updateStickyMonth(); return; }
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
+      calibrateStickyOffsets(); updateStickyMonth();
+      body.style.visibility = 'visible';
+      return;
+    }
 
     // group by YYYY-MM
     const groups = new Map();
@@ -210,8 +211,11 @@
     }
 
     body.innerHTML = parts.join('');
+
+    // Now that the table is in, measure, update, then reveal to avoid first-paint overlap
     calibrateStickyOffsets();
     updateStickyMonth();
+    body.style.visibility = 'visible';
   }
 
   function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
@@ -237,7 +241,10 @@
   // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
-    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    if (body) {
+      body.style.visibility = 'hidden'; // avoid initial overhang flash
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    }
 
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
@@ -261,7 +268,10 @@
       j = await res.json();
     } catch (err){
       console.error('drawer fetchPathTx failed:', err);
-      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+      if (body) {
+        body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+        body.style.visibility = 'visible';
+      }
       calibrateStickyOffsets();
       updateStickyMonth();
       return;
@@ -307,13 +317,13 @@
   }
 
   // ---------- keywords (optional endpoints) ----------
-  function payloadForKeywords(){
+  function pathPartsForKeywords(){
     const parts = pathParts(); const last = parts[parts.length-1] || '';
     return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
   }
   async function fetchKeywords(){
     if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(payloadForKeywords());
+    const qp = new URLSearchParams(pathPartsForKeywords());
     qp.set('_', Date.now().toString());
     try {
       const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
@@ -322,12 +332,12 @@
   }
   async function addKeyword(kw){
     if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
+    const payload = Object.assign({}, pathPartsForKeywords(), { keyword: kw });
     try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
     if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
+    const payload = Object.assign({}, pathPartsForKeywords(), { keyword: kw, remove: true });
     try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function refreshKeywords(){
@@ -424,22 +434,35 @@
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    // Recalibrate when drawer becomes visible
-    if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', function(){
-      calibrateStickyOffsets();
-      updateStickyMonth();
-    }, { once:true });
-
-    setTimeout(calibrateStickyOffsets, 0);
-    setTimeout(updateStickyMonth, 0);
-
-    // Attach scroll listener once
-    const scroller = scrollHost();
+    // Once drawer is visible, calibrate, set the “active” month, and reveal rows
+    const scroller = QS('#dashCategoryManager .table-responsive');
     if (scroller && !scroller.__cl_watch){
       scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
       scroller.__cl_watch = true;
     }
-    window.addEventListener('resize', function(){ calibrateStickyOffsets(); updateStickyMonth(); });
+
+    const oc = $('dashCategoryManager');
+    if (oc){
+      oc.addEventListener('shown.bs.offcanvas', function(){
+        calibrateStickyOffsets();
+        updateStickyMonth();
+        const body = $('drawer-tx-body');
+        if (body) body.style.visibility = 'visible';
+      }, { once:true });
+    }
+
+    // Also do a quick async tick to catch immediate paints
+    setTimeout(function(){
+      calibrateStickyOffsets();
+      updateStickyMonth();
+      const body = $('drawer-tx-body');
+      if (body) body.style.visibility = 'visible';
+    }, 0);
+
+    window.addEventListener('resize', function(){
+      calibrateStickyOffsets();
+      updateStickyMonth();
+    });
   }
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
