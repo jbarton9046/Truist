@@ -359,29 +359,6 @@
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
-  // --- Back-compat shims (old API names -> new openCategoryManager) ---
-  if (typeof window.openDrawerForPath !== 'function') {
-    window.openDrawerForPath = function(state){
-      try { openCategoryManager(state || {}); } catch (e) { console.error('openDrawerForPath shim failed', e); }
-    };
-  }
-  if (typeof window.openDrawerForCategory !== 'function') {
-    window.openDrawerForCategory = function(cat, opts){
-      try {
-        openCategoryManager({
-          level: 'category',
-          cat: cat || '',
-          sub: '',
-          ssub: '',
-          sss: '',
-          month: '',
-          allowHidden: !!(opts && opts.allowHidden)
-        });
-      } catch (e) { console.error('openDrawerForCategory shim failed', e); }
-    };
-  }
-  
-
   // Global click helper
   window.dashManage = function(e, el){
     e.preventDefault();
