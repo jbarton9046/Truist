@@ -45,7 +45,7 @@
       .drawer-tab{ padding:.4rem .7rem; border-radius:.55rem .55rem 0 0; text-decoration:none; color:var(--cm-ink); opacity:.85; }
       .drawer-tab.active{ background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 90%, transparent); border:1px solid var(--cm-hair); border-bottom-color:transparent; }
 
-      /* ---------- Child pills (your original look) ---------- */
+      /* ---------- Child pills (restored look) ---------- */
       .child-pill{
         display:inline-flex; align-items:center; gap:.4rem;
         padding:.32rem .6rem; border-radius:999px;
@@ -63,7 +63,7 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* ---------- Safety rails: keep table horizontal text ---------- */
+      /* ---------- Safety rails: horizontal text only ---------- */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
         word-break: normal !important;
@@ -71,7 +71,7 @@
         hyphens: manual !important;
       }
 
-      /* ---------- Table visual (NO sticky) ---------- */
+      /* ---------- Table visual (NO sticky rows) ---------- */
       #dashCategoryManager .tx-wrap{
         position: relative;
         border-radius: var(--cm-inner-radius);
@@ -250,7 +250,7 @@
   */
 </script>
 
-<!-- === Glass Select helper (wrap #drawer-months) === -->
+<!-- === Glass Select helper (wrap #drawer-months) — robust against async population & replacement === -->
 <script>
 (function(){
   function wrapSelect(select){
@@ -334,10 +334,11 @@
       if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
       window.removeEventListener('resize', onWin);
       window.removeEventListener('scroll', onWin, true);
+      clearInterval(waitTimer);
     }
 
     function open(){
-      // Always rebuild right before open so options are fresh
+      // Rebuild with whatever is there now
       buildOptions(); syncLabel();
 
       if (popup.parentNode === wrap) document.body.appendChild(popup);
@@ -345,6 +346,20 @@
       scrim.hidden = false; popup.hidden = false;
       trigger.setAttribute('aria-expanded','true');
       placePopup();
+
+      // If options are not ready yet, poll briefly and rebuild once they appear
+      let waited = 0;
+      waitTimer = setInterval(()=>{
+        const has = select && select.options && select.options.length;
+        if (has || waited > 2000){ // stop after 2s
+          clearInterval(waitTimer);
+          if (!popup.hidden){
+            buildOptions(); placePopup();
+          }
+        }
+        waited += 150;
+      }, 150);
+
       window.addEventListener('resize', onWin);
       window.addEventListener('scroll', onWin, true);
     }
@@ -358,10 +373,8 @@
       syncLabel(); close();
     }
 
-    // Observe option changes — if the select is populated later,
-    // rebuild the open popup immediately and reposition it.
+    // Observe option changes — rebuild live if open
     const mo = new MutationObserver((muts)=>{
-      // Any change in children/attributes can change visible content
       const childChanged = muts.some(m=>m.type==='childList');
       if (childChanged && !popup.hidden){
         buildOptions(); placePopup();
@@ -371,7 +384,7 @@
     mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
 
     // Type-ahead on trigger
-    let buf='', t=null;
+    let buf='', t=null, waitTimer=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
       const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
@@ -395,10 +408,20 @@
     if (sel) wrapSelect(sel);
   }
 
+  // If the select node itself is replaced later, re-wrap the new one
+  const oc = document.getElementById('dashCategoryManager');
+  if (oc){
+    const selectWatcher = new MutationObserver(()=>{
+      const sel = document.getElementById('drawer-months');
+      if (sel && sel.dataset.gsInit!=='1') wrapSelect(sel);
+    });
+    selectWatcher.observe(oc, { childList:true, subtree:true });
+  }
+
   // Init on load & whenever the drawer is shown
   if (document.readyState !== 'loading') initGlassSelect();
   else document.addEventListener('DOMContentLoaded', initGlassSelect);
-  document.getElementById('dashCategoryManager')?.addEventListener('shown.bs.offcanvas', initGlassSelect);
+  oc?.addEventListener('shown.bs.offcanvas', initGlassSelect);
 })();
 </script>
 
