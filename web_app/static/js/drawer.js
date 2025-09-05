@@ -1,10 +1,8 @@
-// neon-tech aligned drawer (light-tint + heavy-blur header & sticky month)
-// Keeps list readable above, unreadable under the month bar, no horizontal scroll
+// Drawer with “frozen” header/month: light tint + heavy blur, no initial overhang
 (function () {
   'use strict';
 
-  // Avoid double-load
-  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_frozen === true) return;
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
@@ -12,7 +10,6 @@
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
   const $   = id => document.getElementById(id);
-  const ocEl = $('dashCategoryManager');
 
   let offcanvas = null;
   function ensureOC() {
@@ -46,6 +43,7 @@
       c === '"' ? '&quot;': '&#39;'
     ));
   }
+
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -72,13 +70,12 @@
     const later = available.filter(m => m > preferred).sort();
     return later[0] || available[available.length - 1];
   }
-  // Deepest category helper for display
   function deepestCat(t){
     const parts = [t.category, t.subcategory, t.ssub, t.sss, t.sub_cat, t.subcat, t.subcategory2].filter(Boolean);
     return parts.length ? parts[parts.length-1] : (t.category || '');
   }
 
-  // Measure sticky header height and expose as CSS var on the scroller
+  // ---------- sticky helpers ----------
   function calibrateStickyOffsets(){
     const scroller = QS('#dashCategoryManager .table-responsive');
     const thead    = QS('#dashCategoryManager #drawer-tx thead');
@@ -87,7 +84,6 @@
     scroller.style.setProperty('--thead-h', h + 'px');
   }
 
-  // Ensure only one month row is visually “on top”
   function updateStickyMonth(){
     const scroller = QS('#dashCategoryManager .table-responsive');
     const body = $('drawer-tx-body');
@@ -97,11 +93,12 @@
     if (!rows.length) return;
 
     const top = scroller.scrollTop;
+    const h = parseInt(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
+
+    // Mark the last month whose top has crossed the sticky boundary (header height)
     let active = -1;
     for (let i = 0; i < rows.length; i++){
-      const r = rows[i];
-      const y = r.offsetTop;        // offset within scroller
-      if (y <= top + 1) active = i; // +1 avoids flicker at boundaries
+      if ((rows[i].offsetTop - top) <= h) active = i;
     }
     rows.forEach((r,i) => r.classList.toggle('is-stuck', i === active));
   }
@@ -163,7 +160,12 @@
   function renderTx(){
     const body = $('drawer-tx-body'); if (!body) return;
     const rows = state.tx || [];
-    if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; calibrateStickyOffsets(); updateStickyMonth(); return; }
+    if (!rows.length){
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>';
+      calibrateStickyOffsets(); updateStickyMonth();
+      body.style.visibility = 'visible';
+      return;
+    }
 
     // group by YYYY-MM
     const groups = new Map();
@@ -184,13 +186,13 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
 
-      // Month row — sticky td (inside the scrollport)
+      // Month row — sticky/blur done on inner month-shell div
       parts.push(
         '<tr class="month-row" id="'+escapeHTML(monthId(k))+'">' +
-        '  <td colspan="4">' +
+        '  <td colspan="4"><div class="month-shell">' +
         '    <span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
         '    <span class="net '+netCls+'">Net: '+fmtUSD(net)+'</span>' +
-        '  </td>' +
+        '  </div></td>' +
         '</tr>'
       );
 
@@ -210,8 +212,22 @@
     }
 
     body.innerHTML = parts.join('');
-    calibrateStickyOffsets();
-    updateStickyMonth();
+
+    // Double-RAF ensures layout is fully settled before offset + scroll
+    requestAnimationFrame(() => {
+      calibrateStickyOffsets();
+      requestAnimationFrame(() => {
+        updateStickyMonth();
+        const scroller = QS('#dashCategoryManager .table-responsive');
+        if (scroller && !state.showAll){
+          const pref = state.ctx.month || (state.months && state.months[0]);
+          const row  = pref && $(monthId(pref));
+          const h = parseInt(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
+          if (row) scroller.scrollTop = Math.max(row.offsetTop - h + 1, 0);
+        }
+        body.style.visibility = 'visible';
+      });
+    });
   }
 
   function scrollHost(){ return QS('#dashCategoryManager .table-responsive'); }
@@ -221,8 +237,8 @@
     const host = scrollHost();
     const row  = $(monthId(key));
     if (!host || !row) return;
-    const top = row.offsetTop; // inside scroller
-    host.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
+    const h = parseInt(getComputedStyle(host).getPropertyValue('--thead-h')) || 44;
+    host.scrollTo({ top: Math.max(row.offsetTop - h + 1, 0), behavior: smooth ? 'smooth' : 'auto' });
   }
   function scrollToPreferredMonth(preferredKey, smooth=true){
     const key = nearestMonth(preferredKey, state.months);
@@ -237,7 +253,10 @@
   // ---------- data ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
-    if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    if (body) {
+      body.style.visibility = 'hidden'; // avoid on-open overlap flash
+      body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    }
 
     const params = new URLSearchParams();
     params.set('level', ctx.level || 'category');
@@ -261,7 +280,10 @@
       j = await res.json();
     } catch (err){
       console.error('drawer fetchPathTx failed:', err);
-      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+      if (body) {
+        body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+        body.style.visibility = 'visible';
+      }
       calibrateStickyOffsets();
       updateStickyMonth();
       return;
@@ -294,16 +316,6 @@
       });
       sel.innerHTML = opts.join('');
     }
-
-    // Scroll to preferred month if not in "All"
-    setTimeout(function(){
-      if (!state.showAll) {
-        const pref = state.ctx.month || (state.months && state.months[0]);
-        if (pref) scrollToPreferredMonth(pref, false);
-      }
-      calibrateStickyOffsets();
-      updateStickyMonth();
-    }, 0);
   }
 
   // ---------- keywords (optional endpoints) ----------
@@ -380,11 +392,7 @@
         await fetch(urls.RENAME_URL, {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({
-            path: p.path,
-            new_name: to.trim(),
-            allow_hidden: p.allow_hidden
-          })
+          body: JSON.stringify({ path: p.path, new_name: to.trim(), allow_hidden: p.allow_hidden })
         });
         fetchPathTx(state.ctx).catch(()=>{});
         alert('Rename attempted (check the drawer).');
@@ -421,27 +429,32 @@
     };
     state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
 
+    // Render
     fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
     refreshKeywords();
 
-    // Recalibrate when drawer becomes visible
-    if (ocEl) ocEl.addEventListener('shown.bs.offcanvas', function(){
+    // Wire scroll watcher once
+    const scroller = QS('#dashCategoryManager .table-responsive');
+    if (scroller && !scroller.__watch){
+      scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
+      scroller.__watch = true;
+    }
+
+    // After drawer shows, calibrate again (fonts/metrics are ready)
+    const oc = $('dashCategoryManager');
+    if (oc){
+      oc.addEventListener('shown.bs.offcanvas', function(){
+        calibrateStickyOffsets();
+        updateStickyMonth();
+      }, { once:true });
+    }
+
+    window.addEventListener('resize', function(){
       calibrateStickyOffsets();
       updateStickyMonth();
-    }, { once:true });
-
-    setTimeout(calibrateStickyOffsets, 0);
-    setTimeout(updateStickyMonth, 0);
-
-    // Attach scroll listener once
-    const scroller = scrollHost();
-    if (scroller && !scroller.__cl_watch){
-      scroller.addEventListener('scroll', updateStickyMonth, { passive:true });
-      scroller.__cl_watch = true;
-    }
-    window.addEventListener('resize', function(){ calibrateStickyOffsets(); updateStickyMonth(); });
+    });
   }
-  openCategoryManager.__cl_neon_fit = true;
+  openCategoryManager.__cl_frozen = true;
   window.openCategoryManager = openCategoryManager;
 
   // Global click helper used around the site
@@ -471,7 +484,7 @@
       const pane = QS('.drawer-pane[data-pane="'+target+'"]');
       if (pane) pane.style.display = 'block';
       if (target === 'keywords') refreshKeywords();
-      setTimeout(function(){ calibrateStickyOffsets(); updateStickyMonth(); }, 0);
+      requestAnimationFrame(()=>{ calibrateStickyOffsets(); updateStickyMonth(); });
     });
   });
 
@@ -483,7 +496,7 @@
       state.ctx.month = val || '';
       state.showAll = (val === 'all');
       await fetchPathTx(state.ctx);
-      if (!state.showAll && state.ctx.month) scrollToPreferredMonth(state.ctx.month, true);
+      if (!state.showAll && state.ctx.month) scrollToMonth(state.ctx.month, true);
       calibrateStickyOffsets();
       updateStickyMonth();
     });
