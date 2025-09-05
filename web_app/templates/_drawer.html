@@ -25,11 +25,9 @@
       #dashCategoryManager{
         --cm-fsz:      0.92rem;   /* body cells */
         --cm-fsz-th:   0.95rem;   /* header cells */
-        --cm-line:     1.28;      /* line-height for table text */
-        --cm-pad-y:    .58rem;    /* cell padding Y */
-        --cm-pad-x:    .70rem;    /* cell padding X */
-
-        /* Month banner paint (opaque enough to avoid bleed) */
+        --cm-line:     1.28;
+        --cm-pad-y:    .58rem;
+        --cm-pad-x:    .70rem;
         --cm-month-bg: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.08)) 95%, #000 5%);
       }
       @media (max-width: 520px){
@@ -52,10 +50,11 @@
         box-sizing: border-box !important;
       }
 
-      /* Drawer: vertical scroll only; never show horizontal bar */
+      /* Drawer: vertical scroll only; never show horizontal bar
+         Also seed safe defaults so the month bar never overlaps on first paint. */
       #dashCategoryManager .table-responsive{
-        /* SAFE DEFAULT so month-stick never overlaps on first paint */
-        --thead-h: 56px;
+        --thead-h: 44px;                /* smaller fallback */
+        --month-stick-nudge: -6px;      /* NEGATIVE pulls the sticky UP */
         overflow-y: auto !important;
         overflow-x: hidden !important;
         max-height: 58vh;
@@ -65,12 +64,12 @@
       #dashCategoryManager #drawer-tx{
         width: 100% !important;
         border-collapse: separate !important;
-        table-layout: fixed !important;     /* key for fitting columns */
+        table-layout: fixed !important;
         font-size: var(--cm-fsz);
         line-height: var(--cm-line);
       }
 
-      /* Column layout (percentages must sum to 100) */
+      /* Column layout */
       #dashCategoryManager #drawer-tx col.col-date   { width: 24% !important; }
       #dashCategoryManager #drawer-tx col.col-desc   { width: 42% !important; }
       #dashCategoryManager #drawer-tx col.col-amount { width: 16% !important; }
@@ -119,7 +118,7 @@
       }
       #dashCategoryManager #drawer-tx .month-divider .month-stick{
         position: sticky;
-        top: var(--thead-h, 56px);
+        top: calc(var(--thead-h, 44px) + var(--month-stick-nudge, 0px)); /* flipped direction */
         z-index: 3; /* below thead, above rows */
         display: flex; align-items: center; justify-content: space-between; gap: .75rem;
         padding: .60rem var(--cm-pad-x);
@@ -157,7 +156,7 @@
         border:1px solid var(--hair); border-bottom-color: transparent;
       }
 
-      /* “Child” chips (used by drawer.js) */
+      /* Child chips */
       .child-pill{
         display:inline-flex; align-items:center; gap:.4rem;
         padding:.32rem .6rem; border-radius:999px;
@@ -171,30 +170,21 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* OPTIONAL: 2-line clamp for Description content (wrap with <span class="desc-clamp">…</span> to enable)
+      /* OPTIONAL clamping commented out for now (leave as reference) */
+      /*
       #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
-        display: block !important;
-        line-height: 1.35;
-        max-height: calc(2 * 1.35em);
-        overflow: hidden !important;
-        text-overflow: ellipsis;
-        word-break: break-word !important;
-        overflow-wrap: break-word !important;
+        display: block !important; line-height: 1.35; max-height: calc(2 * 1.35em);
+        overflow: hidden !important; text-overflow: ellipsis; word-break: break-word !important; overflow-wrap: break-word !important;
       }
       @supports (-webkit-line-clamp: 2){
         #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
-          display: -webkit-box !important;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 2;
-          max-height: none;
+          display: -webkit-box !important; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: none;
         }
       }
       @supports (line-clamp: 2){
-        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{
-          display: block !important;
-          line-clamp: 2;
-        }
-      } */
+        #dashCategoryManager #drawer-tx tbody td:nth-child(2) .desc-clamp{ display: block !important; line-clamp: 2; }
+      }
+      */
     </style>
 
     <!-- Tabs -->
@@ -224,9 +214,7 @@
               <th>Cat</th>
             </tr>
           </thead>
-          <tbody id="drawer-tx-body">
-            <!-- drawer.js will render rows + <tr class="month-divider"><td colspan="4"><div class="month-stick">… -->
-          </tbody>
+          <tbody id="drawer-tx-body"></tbody>
         </table>
       </div>
     </div>
