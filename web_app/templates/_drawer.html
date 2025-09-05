@@ -8,7 +8,7 @@
       </h5>
       <div class="small muted d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
-        <!-- Native select (kept for data/wiring); visually replaced with Glass Select -->
+        <!-- Native select kept for data/wiring; visually replaced by Glass Select -->
         <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
         <span class="mx-1">•</span>
         <span>Total:</span>
@@ -52,7 +52,7 @@
         border:1px solid var(--cm-hair);
         background: color-mix(in oklab, var(--thead-bg, rgba(255,255,255,.06)) 40%, transparent);
         color: var(--cm-ink); cursor:pointer; line-height:1; font-size:.875rem;
-        transition: background .15s ease, border-color .15s ease, transform .05s ease;
+        transition: background .15s, border-color .15s, transform .05s;
         margin:.15rem .25rem 0 0;
       }
       .child-pill:hover{
@@ -141,7 +141,7 @@
         position: fixed;
         min-width: 220px;
         max-height:320px; overflow:auto;
-        z-index: 1090;
+        z-index: 2100; /* above offcanvas themes */
         padding:6px; border-radius:14px; border:1px solid var(--card-border, rgba(255,255,255,.10));
         background: color-mix(in oklab, var(--card-bg, rgba(255,255,255,.045)) 82%, transparent);
         -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -160,7 +160,7 @@
       .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
 
       .gs-scrim{
-        position:fixed; inset:0; z-index:1080;
+        position:fixed; inset:0; z-index:2050;
         -webkit-backdrop-filter: blur(14px) saturate(140%);
         backdrop-filter: blur(14px) saturate(140%);
         background: rgba(8,12,20,.28);
@@ -171,7 +171,6 @@
       .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
       .gs-scrim{ animation: gsFadeIn .12s ease-out; will-change: opacity; }
 
-      /* Small cleanups */
       #dashCategoryManager ul, #dashCategoryManager li{ list-style:none; margin:0; padding:0; }
     </style>
 
@@ -203,9 +202,7 @@
                 <th>Cat</th>
               </tr>
             </thead>
-            <tbody id="drawer-tx-body">
-              <!-- filled by JS -->
-            </tbody>
+            <tbody id="drawer-tx-body"></tbody>
           </table>
         </div>
       </div>
@@ -330,7 +327,7 @@
       if (popup.hidden) return;
       popup.hidden = true; scrim.hidden = true;
       trigger.setAttribute('aria-expanded','false');
-      if (popup.parentNode !== wrap) wrap.appendChild(popup);
+      if (popup.parentNode) popup.parentNode.removeChild(popup);
       if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
       window.removeEventListener('resize', onWin);
       window.removeEventListener('scroll', onWin, true);
@@ -338,10 +335,10 @@
     }
 
     function open(){
-      // Rebuild with whatever is there now
+      // Rebuild with current options
       buildOptions(); syncLabel();
 
-      if (popup.parentNode === wrap) document.body.appendChild(popup);
+      if (!popup.parentNode) document.body.appendChild(popup);   /* <-- FIX: always add to DOM */
       if (!scrim.parentNode) document.body.appendChild(scrim);
       scrim.hidden = false; popup.hidden = false;
       trigger.setAttribute('aria-expanded','true');
@@ -351,7 +348,7 @@
       let waited = 0;
       waitTimer = setInterval(()=>{
         const has = select && select.options && select.options.length;
-        if (has || waited > 2000){ // stop after 2s
+        if (has || waited > 2000){
           clearInterval(waitTimer);
           if (!popup.hidden){
             buildOptions(); placePopup();
