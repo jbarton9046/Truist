@@ -63,7 +63,7 @@
       .child-pill .dot{ width:6px; height:6px; border-radius:50%; background: currentColor; opacity:.65; display:inline-block; }
       .child-pill .chev{ font-weight:700; opacity:.7; line-height:1; transform: translateY(-1px); }
 
-      /* ---------- Safety rails: table always horizontal text ---------- */
+      /* ---------- Safety rails: keep table horizontal text ---------- */
       #dashCategoryManager #drawer-tx *{
         writing-mode: horizontal-tb !important;
         word-break: normal !important;
@@ -292,7 +292,6 @@
       popup.style.minWidth = width + 'px';
       popup.style.maxWidth = width + 'px';
 
-      // Choose above or below depending on space
       const popupH = Math.min(320, vh * 0.6);
       popup.style.maxHeight = popupH + 'px';
       const below = r.bottom + 6 + popupH <= vh ? true : (r.top - 6 - popupH < 0 ? true : false);
@@ -313,7 +312,7 @@
         list.appendChild(li);
         return;
       }
-      opts.forEach((o, idx)=>{
+      opts.forEach((o)=>{
         const li = document.createElement('li');
         li.className='gs-option'; li.setAttribute('role','option'); li.dataset.value = o.value;
         if (o.selected) li.setAttribute('aria-selected','true');
@@ -359,11 +358,19 @@
       syncLabel(); close();
     }
 
-    // Observe option changes
-    const mo = new MutationObserver(()=>{ syncLabel(); });
+    // Observe option changes — if the select is populated later,
+    // rebuild the open popup immediately and reposition it.
+    const mo = new MutationObserver((muts)=>{
+      // Any change in children/attributes can change visible content
+      const childChanged = muts.some(m=>m.type==='childList');
+      if (childChanged && !popup.hidden){
+        buildOptions(); placePopup();
+      }
+      syncLabel();
+    });
     mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
 
-    // Type ahead on trigger
+    // Type-ahead on trigger
     let buf='', t=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
