@@ -374,6 +374,71 @@
 
     {% include "_drawer.html" %}
 
+    <!-- ADDED: global drawer wiring (matches Category Builder behavior) -->
+    <script>
+      (function(){
+        // lazy-load drawer.js once (if not already present)
+        async function ensureDrawer(){
+          if (window.openDrawerForPath || window.openCategoryManager) return true;
+          if (!window.__drawerLoad){
+            window.__drawerLoad = new Promise((resolve,reject)=>{
+              const s=document.createElement('script');
+              s.src = "{{ url_for('static', filename='js/drawer.js') }}?v=wire";
+              s.onload = resolve;
+              s.onerror = reject;
+              document.body.appendChild(s);
+            });
+          }
+          try { await window.__drawerLoad; return true; }
+          catch(e){ console.error('drawer.js load failed', e); return false; }
+        }
+
+        // used by [data-manage] and by explicit onclick calls
+        window.dashManage = async function(ev, el){
+          if (ev && ev.preventDefault) ev.preventDefault();
+          el = el || (ev && ev.currentTarget) || null;
+          const ds = el ? el.dataset : {};
+          const state = {
+            level: ds.level || 'category',
+            cat:   ds.cat   || '',
+            sub:   ds.sub   || '',
+            ssub:  ds.ssub  || '',
+            sss:   ds.sss   || '',
+            month: ds.month || '',
+            allowHidden: (ds.allowHidden === 'true') || true
+          };
+
+          const ok = await ensureDrawer();
+          if (!ok){ alert('Drawer UI not loaded yet.'); return false; }
+
+          if (typeof window.openDrawerForPath === 'function'){
+            window.openDrawerForPath(state);
+          } else if (typeof window.openDrawerForCategory === 'function' && state.level === 'category'){
+            window.openDrawerForCategory(state.cat, { allowHidden: true });
+          } else if (typeof window.openCategoryManager === 'function'){
+            window.openCategoryManager(state);
+          } else {
+            alert('Drawer UI not loaded yet.');
+          }
+          return false;
+        };
+
+        // polyfill: map openDrawerForCategory -> openDrawerForPath if only that exists
+        document.addEventListener('DOMContentLoaded', function(){
+          setTimeout(function(){
+            if (window.openDrawerForPath && !window.openDrawerForCategory){
+              window.openDrawerForCategory = function(cat, opts){
+                window.openDrawerForPath({
+                  level: 'category', cat: cat||'', sub:'', ssub:'', sss:'',
+                  allowHidden: !!(opts && opts.allowHidden)
+                });
+              };
+            }
+          }, 0);
+        }, { once:true });
+      })();
+    </script>
+
     <script>
       // Global [data-manage] click handler
       (function(){
