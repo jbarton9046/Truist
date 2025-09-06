@@ -1,4 +1,4 @@
-<!-- Right-side Category Manager -->
+<!-- Offcanvas Drawer -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
@@ -6,79 +6,103 @@
         <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
       </h5>
 
-      <!-- Header controls: Month + Total -->
-      <div class="small muted d-flex align-items-center flex-wrap gap-2">
+      <!-- Header controls: Month (Glass) + Total -->
+      <div class="small d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
 
-        <!-- Hidden native select (kept for state & JS), your month page controls this via events -->
+        <!-- Hidden native select (state source for JS) -->
         <select id="drawer-months" class="d-none"></select>
 
-        <!-- Visible month control: BLUE link that opens your month page -->
-        <a href="#" id="drawer-months-display" class="month-link text-primary">Latest month</a>
+        <!-- Glass month control -->
+        <div id="drawer-months-glass" class="glass-select">
+          <button id="drawer-months-btn" class="glass-btn" type="button">
+            <span id="drawer-months-label">Latest month</span>
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <div id="drawer-months-menu" class="glass-menu" hidden>
+            <button class="glass-item" data-value="">Latest month</button>
+            <button class="glass-item" data-value="all">All months</button>
+            <div class="glass-divider"></div>
+            <div id="drawer-months-list" class="glass-list"></div>
+          </div>
+        </div>
 
         <span class="mx-1">•</span>
         <span>Total:</span>
         <span id="drawer-total" class="fw-semibold">—</span>
       </div>
     </div>
-
     <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
 
   <style>
-    /* Keep your existing palette; only add minimal utilities used by the drawer */
+    /* Basic structure */
     .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
     .drawer-breadcrumb .sep{ opacity:.6; }
-    .muted{ opacity:.9; }
-    .drawer-tabbar{ display:flex; gap:.4rem; border-bottom:1px solid var(--hair, rgba(255,255,255,.08)); margin:.25rem 0 .75rem; }
+    .drawer-tabbar{ display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.08); margin:.25rem 0 .75rem; }
     .drawer-tab{ padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:inherit; }
-    .drawer-tab.active{ background:var(--hair, rgba(255,255,255,.08)); border:1px solid var(--hair, rgba(255,255,255,.12)); border-bottom-color:transparent; }
+    .drawer-tab.active{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-bottom-color:transparent; }
     .drawer-pane{ display:none; }
-    .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
     .mono{ font-variant-numeric: tabular-nums; }
+    .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
 
-    /* === CHILDREN PILLS — restore blue link style to match the app === */
+    /* Blue pill look (used for children + cat) */
+    .pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .75rem; border-radius:999px;
+           border:1px solid rgba(80,150,255,.35); background:rgba(80,150,255,.08); color:#7fb2ff; line-height:1;
+           text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s; }
+    .pill:hover{ background:rgba(80,150,255,.14); border-color:rgba(80,150,255,.5); color:#a9caff; }
+    .pill .chev{ opacity:.7; }
     .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
-    .pill-link{
-      display:inline-block;
-      padding:.35rem .75rem;
-      border-radius:999px;
-      text-decoration:none;
-      border:1px solid rgba(80,150,255,.35);       /* subtle outline */
-      background:rgba(80,150,255,.08);             /* soft blue fill */
-      color:#7fb2ff;                                /* BLUE text */
-      line-height:1;
-      transition:background .15s ease, border-color .15s ease, color .15s ease;
-    }
-    .pill-link:hover{ background:rgba(80,150,255,.14); border-color:rgba(80,150,255,.5); color:#a9caff; }
-    .pill-link:active{ background:rgba(80,150,255,.2); }
+    .pill-sm{ padding:.25rem .55rem; font-size:.875rem; cursor:default; }
 
-    /* Month link (blue) */
-    .month-link{ text-decoration: none; }
-    .month-link:hover{ text-decoration: underline; }
+    /* Glass select (blurred) */
+    .glass-select{ position:relative; }
+    .glass-btn{
+      display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .6rem; border-radius:.6rem;
+      border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      color:#cfe1ff; line-height:1; box-shadow: 0 1px 0 rgba(0,0,0,.25) inset;
+    }
+    .glass-btn:hover{ background:rgba(255,255,255,.14); }
+    .glass-menu{
+      position:absolute; top:100%; left:0; margin-top:.35rem; min-width:210px; z-index:1051;
+      border:1px solid rgba(255,255,255,.18); background:rgba(12,16,28,.65);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-radius:.75rem; padding:.35rem; box-shadow: 0 8px 32px rgba(0,0,0,.35);
+    }
+    .glass-item{
+      display:block; width:100%; text-align:left; padding:.4rem .6rem; border-radius:.5rem; color:#d9e7ff; background:transparent; border:0;
+    }
+    .glass-item:hover{ background:rgba(255,255,255,.08); }
+    .glass-divider{ height:1px; background:rgba(255,255,255,.15); margin:.25rem 0; }
+    .glass-list{ max-height:260px; overflow:auto; }
   </style>
 
   <div class="offcanvas-body">
-
     <!-- Tabs -->
     <div class="drawer-tabbar">
-      <a href="#" class="drawer-tab active" data-target="transactions">Overview</a>
-      <a href="#" class="drawer-tab" data-target="keywords">Keywords</a>
-      <a href="#" class="drawer-tab" data-target="actions">Actions</a>
+      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
+      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
+      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
     </div>
 
-    <!-- Children pills -->
+    <!-- Children -->
     <div class="mb-2">
       <div class="fw-semibold mb-1">Children:</div>
       <div id="drawer-children" class="pill-row"></div>
     </div>
 
-    <!-- Overview (Transactions) -->
-    <div class="drawer-pane" data-pane="transactions" style="display:block;">
+    <!-- Overview -->
+    <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead>
-            <tr><th class="w-25">Date</th><th>Description</th><th class="text-end w-25">Amount</th><th class="w-25">Cat</th></tr>
+            <tr>
+              <th class="w-25">Date</th>
+              <th>Description</th>
+              <th class="text-end w-25">Amount</th>
+              <th class="w-25">Cat</th>
+            </tr>
           </thead>
           <tbody id="drawer-tx-body">
             <tr><td colspan="4" class="text-muted">Loading…</td></tr>
@@ -96,80 +120,10 @@
       <div id="kw-list" class="d-flex flex-wrap gap-2 small"></div>
     </div>
 
-    <!-- Actions (unchanged; wired in JS via runAction(kind)) -->
+    <!-- Actions -->
     <div class="drawer-pane" data-pane="actions">
-      <!-- (Keep your real buttons; these are placeholders you can remove if you already render your set) -->
-      <div class="d-flex flex-wrap gap-2 mb-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="rename">Rename</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="merge">Merge</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="hide">Hide</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-action="unhide">Unhide</button>
-      </div>
-      <div class="small text-muted">Your <code>drawer.js</code> listens for <code>[data-action]</code> and calls <code>runAction(kind)</code>.</div>
+      <!-- your existing buttons/listeners can live here; JS exposes runAction(kind) -->
+      <div class="small text-muted">Use <code>[data-action]</code> buttons and hook them via <code>runAction(kind)</code> in drawer.js.</div>
     </div>
-
   </div>
 </div>
-
-<!-- Scrim for non-Bootstrap fallback -->
-<div id="drawer-scrim" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1040;"></div>
-
-<!-- Tiny inline glue so the Month control talks to your month page -->
-<script>
-(function(){
-  const sel   = document.getElementById('drawer-months');      // hidden select (JS state)
-  const link  = document.getElementById('drawer-months-display');
-
-  function labelFor(v){
-    if (!v) return 'Latest month';
-    if (String(v).toLowerCase() === 'all') return 'All months';
-    // Show like "Sep 2025" if possible (JS fills select with YYYY-MM and emits cm:months)
-    try {
-      const [yy, mm] = String(v).split('-').map(Number);
-      const dt = new Date(yy, (mm||1)-1, 1);
-      return dt.toLocaleString(undefined, { month:'short', year:'numeric' });
-    } catch { return v; }
-  }
-
-  // When drawer.js updates month select or emits cm:months, keep the blue label in sync
-  function syncLabel(){
-    const val = sel ? sel.value : '';
-    if (link) link.textContent = labelFor(val);
-  }
-
-  // Your month page listens to cm:months to populate its UI
-  document.addEventListener('cm:months', function(){ syncLabel(); }, false);
-
-  // When the user picks a month on your custom page, dispatch cm:month-picked with {value}
-  document.addEventListener('cm:month-picked', function(ev){
-    const v = ev && ev.detail && ev.detail.value;
-    if (typeof v === 'undefined' || !sel) return;
-    sel.value = v;
-    // Trigger the native 'change' your drawer.js already listens for
-    const evt = new Event('change', { bubbles:true });
-    sel.dispatchEvent(evt);
-    syncLabel();
-  }, false);
-
-  // Clicking the blue month label should open your month page
-  if (link){
-    link.addEventListener('click', function(e){
-      e.preventDefault();
-      // Let your month page open itself; we pass currently selected + all months via the event detail
-      const months = (function(){
-        // Try to read options from hidden select (populated by drawer.js)
-        if (!sel) return [];
-        return Array.from(sel.options).map(o => o.value).filter(Boolean);
-      })();
-      try {
-        document.dispatchEvent(new CustomEvent('cm:months-open', {
-          detail: { selected: sel ? sel.value : '', months: months }
-        }));
-      } catch {}
-    }, false);
-  }
-
-  // Initial sync for server-rendered cases
-  syncLabel();
-})();
-</script>
