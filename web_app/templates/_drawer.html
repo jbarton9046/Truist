@@ -1,38 +1,61 @@
-<!-- Right-side Category Manager drawer (modern look, NO sticky header to avoid mixin issues) -->
+<!-- Right-side Category Manager -->
 <div class="offcanvas offcanvas-end manage-drawer" tabindex="-1" id="dashCategoryManager" aria-labelledby="dashCategoryManagerLabel" style="width:480px;">
   <div class="offcanvas-header">
     <div class="d-flex flex-column gap-1">
       <h5 class="offcanvas-title" id="dashCategoryManagerLabel">
         <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
-        <span id="drawer-selected-path" hidden>(All Categories)</span>
       </h5>
+
+      <!-- Header controls: Month + Total -->
       <div class="small muted d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
-        <select id="drawer-months" class="form-select form-select-sm d-inline-block w-auto align-middle"></select>
+
+        <!-- Hidden native select (kept for state & JS), your month page controls this via events -->
+        <select id="drawer-months" class="d-none"></select>
+
+        <!-- Visible month control: BLUE link that opens your month page -->
+        <a href="#" id="drawer-months-display" class="month-link text-primary">Latest month</a>
+
         <span class="mx-1">•</span>
         <span>Total:</span>
         <span id="drawer-total" class="fw-semibold">—</span>
       </div>
     </div>
-    <!-- Bootstrap close button (works if Bootstrap present) -->
+
     <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
 
   <style>
-    /* Drawer theming; safe with your neon-tech.css */
+    /* Keep your existing palette; only add minimal utilities used by the drawer */
     .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
-    .drawer-breadcrumb .crumb{ background:var(--hair,rgba(255,255,255,.06)); padding:.2rem .5rem; border-radius:999px; }
     .drawer-breadcrumb .sep{ opacity:.6; }
-    .muted{ opacity:.85; }
+    .muted{ opacity:.9; }
     .drawer-tabbar{ display:flex; gap:.4rem; border-bottom:1px solid var(--hair, rgba(255,255,255,.08)); margin:.25rem 0 .75rem; }
     .drawer-tab{ padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:inherit; }
     .drawer-tab.active{ background:var(--hair, rgba(255,255,255,.08)); border:1px solid var(--hair, rgba(255,255,255,.12)); border-bottom-color:transparent; }
     .drawer-pane{ display:none; }
     .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
     .mono{ font-variant-numeric: tabular-nums; }
-    .child-pill{ display:inline-flex; align-items:center; gap:.35rem; line-height:1; padding:.35rem .6rem; border-radius:999px; border:1px solid var(--hair, rgba(255,255,255,.12)); background:var(--hair, rgba(255,255,255,.05)); cursor:pointer; }
-    .child-pill .dot{ width:.45rem; height:.45rem; border-radius:50%; background:currentColor; opacity:.65; }
-    .child-pill .chev{ opacity:.65; }
+
+    /* === CHILDREN PILLS — restore blue link style to match the app === */
+    .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
+    .pill-link{
+      display:inline-block;
+      padding:.35rem .75rem;
+      border-radius:999px;
+      text-decoration:none;
+      border:1px solid rgba(80,150,255,.35);       /* subtle outline */
+      background:rgba(80,150,255,.08);             /* soft blue fill */
+      color:#7fb2ff;                                /* BLUE text */
+      line-height:1;
+      transition:background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .pill-link:hover{ background:rgba(80,150,255,.14); border-color:rgba(80,150,255,.5); color:#a9caff; }
+    .pill-link:active{ background:rgba(80,150,255,.2); }
+
+    /* Month link (blue) */
+    .month-link{ text-decoration: none; }
+    .month-link:hover{ text-decoration: underline; }
   </style>
 
   <div class="offcanvas-body">
@@ -44,23 +67,18 @@
       <a href="#" class="drawer-tab" data-target="actions">Actions</a>
     </div>
 
-    <!-- Children block (dynamic buttons injected by JS) -->
+    <!-- Children pills -->
     <div class="mb-2">
       <div class="fw-semibold mb-1">Children:</div>
-      <div id="drawer-children" class="d-flex flex-wrap gap-2 small"></div>
+      <div id="drawer-children" class="pill-row"></div>
     </div>
 
-    <!-- Transactions (Overview) pane -->
+    <!-- Overview (Transactions) -->
     <div class="drawer-pane" data-pane="transactions" style="display:block;">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead>
-            <tr>
-              <th class="w-25">Date</th>
-              <th>Description</th>
-              <th class="text-end w-25">Amount</th>
-              <th class="w-25">Cat</th>
-            </tr>
+            <tr><th class="w-25">Date</th><th>Description</th><th class="text-end w-25">Amount</th><th class="w-25">Cat</th></tr>
           </thead>
           <tbody id="drawer-tx-body">
             <tr><td colspan="4" class="text-muted">Loading…</td></tr>
@@ -69,7 +87,7 @@
       </div>
     </div>
 
-    <!-- Keywords pane -->
+    <!-- Keywords -->
     <div class="drawer-pane" data-pane="keywords">
       <div class="d-flex align-items-center gap-2 mb-2">
         <input id="kw-add-input" class="form-control form-control-sm" placeholder="Add keyword…" />
@@ -78,24 +96,80 @@
       <div id="kw-list" class="d-flex flex-wrap gap-2 small"></div>
     </div>
 
-    <!-- Actions pane (wired by your drawer.js runAction(kind) calls) -->
+    <!-- Actions (unchanged; wired in JS via runAction(kind)) -->
     <div class="drawer-pane" data-pane="actions">
-      <!-- You can place action buttons here and bind them in drawer.js via runAction('yourKind') -->
+      <!-- (Keep your real buttons; these are placeholders you can remove if you already render your set) -->
       <div class="d-flex flex-wrap gap-2 mb-2">
-        <!-- Example buttons (safe to keep or replace with your real set) -->
         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="rename">Rename</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="merge">Merge</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="hide">Hide</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-action="unhide">Unhide</button>
       </div>
-      <div class="small text-muted">
-        These are placeholders; your <code>drawer.js</code> can listen for clicks on
-        <code>[data-action]</code> and call <code>runAction(kind)</code>.
-      </div>
+      <div class="small text-muted">Your <code>drawer.js</code> listens for <code>[data-action]</code> and calls <code>runAction(kind)</code>.</div>
     </div>
 
   </div>
 </div>
 
-<!-- Fallback scrim for non-Bootstrap mode (used only if bootstrap.Offcanvas not present) -->
+<!-- Scrim for non-Bootstrap fallback -->
 <div id="drawer-scrim" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1040;"></div>
+
+<!-- Tiny inline glue so the Month control talks to your month page -->
+<script>
+(function(){
+  const sel   = document.getElementById('drawer-months');      // hidden select (JS state)
+  const link  = document.getElementById('drawer-months-display');
+
+  function labelFor(v){
+    if (!v) return 'Latest month';
+    if (String(v).toLowerCase() === 'all') return 'All months';
+    // Show like "Sep 2025" if possible (JS fills select with YYYY-MM and emits cm:months)
+    try {
+      const [yy, mm] = String(v).split('-').map(Number);
+      const dt = new Date(yy, (mm||1)-1, 1);
+      return dt.toLocaleString(undefined, { month:'short', year:'numeric' });
+    } catch { return v; }
+  }
+
+  // When drawer.js updates month select or emits cm:months, keep the blue label in sync
+  function syncLabel(){
+    const val = sel ? sel.value : '';
+    if (link) link.textContent = labelFor(val);
+  }
+
+  // Your month page listens to cm:months to populate its UI
+  document.addEventListener('cm:months', function(){ syncLabel(); }, false);
+
+  // When the user picks a month on your custom page, dispatch cm:month-picked with {value}
+  document.addEventListener('cm:month-picked', function(ev){
+    const v = ev && ev.detail && ev.detail.value;
+    if (typeof v === 'undefined' || !sel) return;
+    sel.value = v;
+    // Trigger the native 'change' your drawer.js already listens for
+    const evt = new Event('change', { bubbles:true });
+    sel.dispatchEvent(evt);
+    syncLabel();
+  }, false);
+
+  // Clicking the blue month label should open your month page
+  if (link){
+    link.addEventListener('click', function(e){
+      e.preventDefault();
+      // Let your month page open itself; we pass currently selected + all months via the event detail
+      const months = (function(){
+        // Try to read options from hidden select (populated by drawer.js)
+        if (!sel) return [];
+        return Array.from(sel.options).map(o => o.value).filter(Boolean);
+      })();
+      try {
+        document.dispatchEvent(new CustomEvent('cm:months-open', {
+          detail: { selected: sel ? sel.value : '', months: months }
+        }));
+      } catch {}
+    }, false);
+  }
+
+  // Initial sync for server-rendered cases
+  syncLabel();
+})();
+</script>
