@@ -374,7 +374,7 @@
 
     {% include "_drawer.html" %}
 
-    <!-- ADDED: global drawer wiring (matches Category Builder behavior) -->
+    <!-- ADDED: global drawer wiring (Category Builder behavior everywhere) -->
     <script>
       (function(){
         // lazy-load drawer.js once (if not already present)
@@ -393,7 +393,7 @@
           catch(e){ console.error('drawer.js load failed', e); return false; }
         }
 
-        // used by [data-manage] and by explicit onclick calls
+        // canonical open function (used by [data-manage] & any onclick handlers)
         window.dashManage = async function(ev, el){
           if (ev && ev.preventDefault) ev.preventDefault();
           el = el || (ev && ev.currentTarget) || null;
@@ -405,7 +405,7 @@
             ssub:  ds.ssub  || '',
             sss:   ds.sss   || '',
             month: ds.month || '',
-            allowHidden: (ds.allowHidden === 'true') || true
+            allowHidden: (ds.allowHidden === 'false') ? false : true
           };
 
           const ok = await ensureDrawer();
@@ -422,6 +422,17 @@
           }
           return false;
         };
+
+        // delegate clicks for multiple legacy openers across pages
+        document.addEventListener('click', function (e) {
+          const el =
+            e.target.closest('[data-manage]') ||
+            e.target.closest('.view-drawer') ||
+            e.target.closest('.drawer-link') ||
+            e.target.closest('[data-open="drawer"]');
+          if (!el) return;
+          if (window.dashManage) window.dashManage(e, el);
+        });
 
         // polyfill: map openDrawerForCategory -> openDrawerForPath if only that exists
         document.addEventListener('DOMContentLoaded', function(){
@@ -440,7 +451,7 @@
     </script>
 
     <script>
-      // Global [data-manage] click handler
+      // Global [data-manage] click handler (kept)
       (function(){
         document.addEventListener('click', function (e) {
           const el = e.target.closest('[data-manage]');

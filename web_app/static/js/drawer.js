@@ -41,12 +41,28 @@
       document.querySelector('input[type="search"], input[type="text"]');
 
     const host = $('dashCategoryManager');
-    if (!host || !ref) return;
+    if (!host) return;
+
+    // theme-based fallbacks that match Category Builder styling
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent-ink').trim() || '#9ecbff';
+    const fallbackBg     = `color-mix(in oklab, ${accent} 14%, transparent)`;
+    const fallbackBorder = `color-mix(in oklab, ${accent} 40%, transparent)`;
+    const fallbackFg     = accent;
+
+    if (!ref) {
+      host.style.setProperty('--pill-bg', fallbackBg);
+      host.style.setProperty('--pill-border', fallbackBorder);
+      host.style.setProperty('--pill-fg', fallbackFg);
+      host.style.setProperty('--pill-bg-hover', `color-mix(in oklab, ${accent} 22%, transparent)`);
+      host.style.setProperty('--pill-border-hover', `color-mix(in oklab, ${accent} 58%, transparent)`);
+      host.style.setProperty('--pill-fg-hover', fallbackFg);
+      return;
+    }
 
     const cs = getComputedStyle(ref);
-    const bg = cs.backgroundColor || 'rgba(80,150,255,.08)';
-    const fg = cs.color || '#7fb2ff';
-    const bc = (cs.borderColor && cs.borderColor !== 'rgba(0, 0, 0, 0)') ? cs.borderColor : fg;
+    const bg = cs.backgroundColor || fallbackBg;
+    const fg = cs.color || fallbackFg;
+    const bc = (cs.borderColor && cs.borderColor !== 'rgba(0, 0, 0, 0)') ? cs.borderColor : fallbackBorder;
 
     const toHover = (rgb, alpha) => {
       if (rgb.startsWith('rgba(')) return rgb;
