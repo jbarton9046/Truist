@@ -70,7 +70,7 @@
     }
     .glass-btn:hover{ background:rgba(255,255,255,.14); }
 
-    /* ---------- FULL overlay selector (looks like your “Select category…” panel) ---------- */
+    /* ---------- FULL overlay selector (matches your glass panel style) ---------- */
     #drawer-months-overlay[hidden]{ display:none; }
     #drawer-months-overlay{
       position:fixed; inset:0; z-index:1055; background:rgba(0,0,0,.45);
@@ -159,11 +159,11 @@
   <div class="glass-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-months-title">
     <div class="hdr" id="drawer-months-title">Select month…</div>
     <div class="list" id="drawer-months-overlay-list">
-      <!-- items injected by JS: Latest, All, divider, months -->
+      <!-- static header items -->
       <div class="glass-item" data-value="">Latest month</div>
       <div class="glass-item" data-value="all">All months</div>
       <div class="glass-divider"></div>
-      <!-- months go here -->
+      <!-- dynamic months inserted by JS -->
     </div>
     <div class="panel-actions">
       <button type="button" class="btn-ghost" id="drawer-months-cancel">Close</button>

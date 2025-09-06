@@ -1,16 +1,16 @@
-// Drawer UI — keeps Overview/Keywords/Actions; blue pills synced to "Filter keywords…" field;
-// FULL overlay month selector (like your category glass panel); legacy openers preserved.
+// Drawer UI — Overview/Keywords/Actions intact; blue pills synced to "Filter keywords…" field;
+// FULL overlay month selector; proper loaders; legacy openers preserved.
 (function(){
   'use strict';
 
-  // Already loaded? keep openers and bail.
+  // If already present, keep openers and exit
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
     if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>window.openCategoryManager(state||{});
     if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>window.openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
     return;
   }
 
-  // URLs (server may override)
+  // URLs (server may override via window.CL_URLS)
   const urls = window.CL_URLS || {};
   const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
   const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
@@ -94,7 +94,7 @@
     });
   }
 
-  // ---------- children (blue pills) ----------
+  // ---------- children (pills) ----------
   function renderChildren(){
     const host=$('drawer-children'); if(!host) return;
     const kids=state.children||[];
@@ -128,7 +128,7 @@
     const keys=Array.from(groups.keys()).sort().reverse();
 
     body.innerHTML = keys.map(k=>{
-      const g=groups.get(k); const net=Number(g.net||0); const netCls=net< 0?'tx-neg':'tx-pos';
+      const g=groups.get(k); const net=Number(g.net||0); const netCls=net<0?'tx-neg':'tx-pos';
       const header = `<tr class="month-divider" id="${esc(monthId(k))}"><td colspan="4"><span class="fw-bold">${esc(g.label)}</span> — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`;
       const items = g.items.map(t=>{
         const amt=Number(t.amount||0), cls=amt<0?'tx-neg':'tx-pos';
@@ -153,7 +153,7 @@
     const sel=$('drawer-months'); if(!sel) return;
     const arr = Array.from(new Set((state.months||[]).filter(Boolean))).sort().reverse();
 
-    // hidden select
+    // hidden select (state)
     sel.innerHTML='';
     [['','Latest month'],['all','All months']].forEach(([val,lbl])=>{
       const o=document.createElement('option'); o.value=val; o.textContent=lbl; sel.appendChild(o);
@@ -162,10 +162,9 @@
     sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
     setMonthLabel(sel.value);
 
-    // overlay list
+    // overlay list (keep first 3 nodes: Latest, All, divider)
     const list = $('drawer-months-overlay-list');
     if (list){
-      // keep the first 3 nodes (Latest, All, divider), then append months
       list.querySelectorAll('[data-value]:not([data-value=""]):not([data-value="all"])').forEach(n=>n.remove());
       arr.forEach(m=>{
         const btn = document.createElement('div');
@@ -176,7 +175,7 @@
       });
     }
 
-    // notify any external listeners (kept for back-compat)
+    // event for any external listeners
     try {
       document.dispatchEvent(new CustomEvent('cm:months', { detail: { months: arr, selected: sel.value||'', showAll: state.showAll }}));
     } catch {}
@@ -199,11 +198,9 @@
     on(overlay, 'click', (e)=>{ if (e.target === overlay) close(); });
 
     on(list, 'click', (e)=>{
-      const it = e.target.closest('.glass-item'); if (!it) return;
+      const it = e.target.closest('.glass-item'); if(!it) return;
       const v = it.getAttribute('data-value') || '';
-      sel.value = v;
-      setMonthLabel(v);
-      close();
+      sel.value = v; setMonthLabel(v); close();
       sel.dispatchEvent(new Event('change',{bubbles:true}));
     });
   })();
@@ -224,17 +221,19 @@
     host.querySelectorAll('a[data-kw]').forEach(a=>on(a,'click',async e=>{ e.preventDefault(); await removeKeyword(decodeURIComponent(a.dataset.kw||'')); refreshKeywords(); }));
   }
 
-  // ---------- actions (unchanged) ----------
+  // ---------- actions (preserved) ----------
   function payloadForActions(){ return Object.assign({}, state.ctx); }
   async function runAction(kind){
     const payload=Object.assign({ kind }, payloadForActions());
     try{ const r=await fetch(ACTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); return await r.json(); }catch{return{ok:false}}
   }
-  // (wire with: document.addEventListener('click', e => { const b=e.target.closest('[data-action]'); if(!b) return; runAction(b.dataset.action); });)
+  // (wire up externally if needed)
 
   // ---------- fetch ----------
   async function fetchPathTx(ctx){
     const body=$('drawer-tx-body'); if(body) body.innerHTML='<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+    const kids=$('drawer-children'); if (kids) kids.innerHTML='<span class="text-muted">Loading…</span>';
+
     const q=new URLSearchParams();
     q.set('level',ctx.level||'category');
     if (ctx.cat)  q.set('cat',ctx.cat);
@@ -248,7 +247,7 @@
 
     let j;
     try { const r=await fetch(PATH_TXN_URL+'?'+q.toString(),{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error(r.status); j=await r.json(); }
-    catch(e){ console.error('fetchPathTx',e); if(body) body.innerHTML='<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>'; return; }
+    catch(e){ console.error('fetchPathTx',e); if(body) body.innerHTML='<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>'; if(kids) kids.textContent='Failed to load.'; return; }
 
     state.months = Array.isArray(j.months)?j.months:(Array.isArray(j.month_list)?j.month_list:[]);
     state.tx = Array.isArray(j.tx)?j.tx:(Array.isArray(j.transactions)?j.transactions:[]);
@@ -267,7 +266,7 @@
     syncPillPaletteFromKeywordField();
   }
 
-  // ---------- tabs (overview/keywords/actions) ----------
+  // ---------- tabs ----------
   QSA('.drawer-tab').forEach(tab=>{
     on(tab,'click',e=>{
       e.preventDefault();
@@ -280,7 +279,7 @@
     });
   });
 
-  // ---------- month select change (overlay sets this value and dispatches change) ----------
+  // ---------- month select change (overlay sets this) ----------
   const monthSel=$('drawer-months');
   if (monthSel){
     on(monthSel,'change',async e=>{
