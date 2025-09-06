@@ -2,10 +2,22 @@
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
+    if (typeof window.openDrawerForPath !== 'function') {
+      window.openDrawerForPath = function(state){ try { window.openCategoryManager(state || {}); } catch(e){ console.error(e); } };
+    }
+    if (typeof window.openDrawerForCategory !== 'function') {
+      window.openDrawerForCategory = function(cat, opts){ try { window.openCategoryManager({ level:'category', cat: cat || '', allowHidden: !!(opts && opts.allowHidden) }); } catch(e){ console.error(e); } };
+    }
+    return;
+  }
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
+  const KW_GET_URL = (KW_GET_URL) || '/admin/api/keywords_for_name';
+  const KW_ADD_URL = (KW_ADD_URL) || '/admin/api/keyword_add';
+  const KW_REMOVE_URL = (KW_REMOVE_URL) || '/admin/api/keyword_remove';
+
 
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
@@ -244,23 +256,23 @@
     return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
   }
   async function fetchKeywords(){
-    if (!urls.KW_GET_URL) return { keywords: [] };
+    if (!KW_GET_URL) return { keywords: [] };
     const qp = new URLSearchParams(payloadForKeywords());
     qp.set('_', Date.now().toString());
     try {
-      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
+      const res = await fetch(KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
       return await res.json();
     } catch { return { keywords: [] }; }
   }
   async function addKeyword(kw){
-    if (!urls.KW_ADD_URL || !kw) return;
+    if (!KW_ADD_URL || !kw) return;
     const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
-    try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+    try { await fetch(KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function removeKeyword(kw){
-    if (!urls.KW_REMOVE_URL || !kw) return;
+    if (!KW_REMOVE_URL || !kw) return;
     const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
-    try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+    try { await fetch(KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
   }
   async function refreshKeywords(){
     const host = $('kw-list'); if (!host) return;
@@ -358,13 +370,13 @@
   }
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
-  // Back-compat aliases: do not override if already defined
-  if (typeof window.openDrawerForPath !== 'function') {
-    window.openDrawerForPath = function(state){ try { openCategoryManager(state || {}); } catch (e) { console.error(e); } };
-  }
-  if (typeof window.openDrawerForCategory !== 'function') {
-    window.openDrawerForCategory = function(cat, opts){ try { openCategoryManager({ level:'category', cat: cat || '', allowHidden: !!(opts && opts.allowHidden) }); } catch (e) { console.error(e); } };
-  }
+// Back-compat aliases for pages that call old names
+if (typeof window.openDrawerForPath !== 'function') {
+  window.openDrawerForPath = function(state){ try { openCategoryManager(state || {}); } catch (e) { console.error(e); } };
+}
+if (typeof window.openDrawerForCategory !== 'function') {
+  window.openDrawerForCategory = function(cat, opts){ try { openCategoryManager({ level: 'category', cat: cat || '', allowHidden: !!(opts && opts.allowHidden) }); } catch (e) { console.error(e); } };
+}
 
 
   // Global click helper
