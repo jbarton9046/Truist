@@ -1,8 +1,8 @@
-// static/js/drawer.js — full drawer UI (transactions, children, months, keywords) with back-compat openers
+// static/js/drawer.js — full drawer UI (transactions, children, months, keywords, actions) + back-compat openers
 (function () {
   'use strict';
 
-  // If a previous instance already attached, still expose the old names then return
+  // If already loaded, still provide legacy openers then return
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
     if (typeof window.openDrawerForPath !== 'function') {
       window.openDrawerForPath = function(state){ try { window.openCategoryManager(state || {}); } catch(e){ console.error(e); } };
@@ -13,7 +13,7 @@
     return;
   }
 
-  // URLs (server can override via window.CL_URLS)
+  // URLs (your server can override via window.CL_URLS)
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
   const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
@@ -52,6 +52,7 @@
     ));
   }
   function pathParts(){ return [state.ctx.cat, state.ctx.sub, state.ctx.ssub, state.ctx.sss].filter(Boolean); }
+  function fmtDate(s){ return s || ''; }
 
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
@@ -105,24 +106,23 @@
   function renderChildren(){
     const host = $('drawer-children'); if (!host) return;
     const kids = state.children || [];
-    if (!kids.length){ host.innerHTML = '<div class="text-muted">No child categories.</div>'; return; }
-    host.innerHTML = kids.map(c => (
-      '<button type="button" class="btn btn-sm btn-outline-secondary me-1" data-child="'+escapeHTML(c)+'">'+escapeHTML(c)+'</button>'
-    )).join(' ');
-    host.querySelectorAll('button[data-child]').forEach(btn => {
-      btn.addEventListener('click', function(){
-        const label = btn.getAttribute('data-child') || '';
-        // advance one level down based on current level
-        const levels = ['category','subcategory','subsubcategory','subsubsubcategory'];
-        const keys   = ['cat','sub','ssub','sss'];
-        const idx = Math.max(0, levels.indexOf(state.ctx.level));
-        const nextIdx = Math.min(keys.length-1, idx+1);
-        state.ctx.level = levels[nextIdx];
-        state.ctx[keys[nextIdx]] = label;
-        // clear any deeper keys
-        for (let i = nextIdx+1; i < keys.length; i++) state.ctx[keys[i]] = '';
+    if (!kids.length){ host.innerHTML = '<span class="text-muted">No children.</span>'; return; }
+    host.innerHTML = kids.map(function(name){
+      return '<button type="button" class="child-pill" data-child="'+encodeURIComponent(name)+'" title="Drill into '+escapeHTML(name)+'">' +
+               '<span class="dot" aria-hidden="true"></span>' +
+               '<span class="label">'+escapeHTML(name)+'</span>' +
+               '<span class="chev" aria-hidden="true">›</span>' +
+             '</button>';
+    }).join('');
+    host.querySelectorAll('.child-pill').forEach(pill => {
+      pill.addEventListener('click', function(){
+        const name = decodeURIComponent(pill.getAttribute('data-child') || '');
+        if (!state.ctx.cat) { state.ctx.cat = name; state.ctx.level = 'category'; }
+        else if (!state.ctx.sub) { state.ctx.sub = name; state.ctx.level = 'subcategory'; }
+        else if (!state.ctx.ssub) { state.ctx.ssub = name; state.ctx.level = 'subsubcategory'; }
+        else { state.ctx.sss = name; state.ctx.level = 'subsubsubcategory'; }
         fetchPathTx(state.ctx).catch(()=>{});
-      });
+      }, { passive:true });
     });
   }
 
@@ -132,7 +132,6 @@
     const rows = state.tx || [];
     if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
 
-    // group by month
     const groups = new Map();
     for (const t of rows){
       const key = monthKeyFromDateStr(t.date);
@@ -161,10 +160,10 @@
         const amtCls = amt < 0 ? 'tx-neg' : 'tx-pos';
         parts.push(
           '<tr>'+
-          '  <td class="mono">'+escapeHTML(t.date || '')+'</td>'+
+          '  <td class="mono">'+escapeHTML(fmtDate(t.date || ''))+'</td>'+
           '  <td>'+escapeHTML(t.description || '')+'</td>'+
           '  <td class="mono text-end '+amtCls+'">'+fmtUSD(amt)+'</td>'+
-          '  <td><span class="badge text-bg-secondary">'+escapeHTML(t.cat || '')+'</span></td>'+
+          '  <td><span class="badge text-bg-secondary">'+escapeHTML(t.cat || t.category || '')+'</span></td>'+
           '</tr>'
         );
       }
@@ -187,7 +186,6 @@
     addOpt('all', 'All months', cur === 'all');
     arr.forEach(m => addOpt(m, monthLabelFromKey(m), cur === m));
 
-    // emit to any listening Glass Select
     try {
       document.dispatchEvent(new CustomEvent('cm:months', {
         detail: { months: arr, selected: sel.value || '', showAll: state.showAll }
@@ -204,8 +202,8 @@
       sub: state.ctx.sub||'',
       ssub: state.ctx.ssub||'',
       sss: state.ctx.sss||'',
-      name: last,  // required by backend
-      last: last   // retained for back-compat
+      name: last,   // required by backend
+      last: last    // kept for back-compat
     };
   }
   async function fetchKeywords(){
@@ -245,7 +243,7 @@
     });
   }
 
-  // ---------- Actions (unchanged API) ----------
+  // ---------- Actions wiring (kept) ----------
   function payloadForActions(){ return Object.assign({}, state.ctx); }
   async function runAction(kind){
     const payload = Object.assign({ kind }, payloadForActions());
@@ -254,6 +252,7 @@
       return await res.json();
     } catch { return { ok:false }; }
   }
+  // Example: document.body.addEventListener('click', e => { const b=e.target.closest('[data-action]'); if(!b) return; runAction(b.dataset.action); });
 
   // ---------- Fetch path data ----------
   async function fetchPathTx(ctx){
@@ -272,26 +271,36 @@
     if (ml === 'all') params.set('month', 'all');
     else if (ctx.month) params.set('month', ctx.month);
 
+    params.set('_', Date.now().toString());
+
+    let j;
     try {
       const res = await fetch(PATH_TXN_URL + '?' + params.toString(), { headers: { 'Accept': 'application/json' } });
-      const j = await res.json();
-
-      state.months = Array.isArray(j.months) ? j.months : [];
-      state.tx = Array.isArray(j.tx) ? j.tx : [];
-      state.children = Array.isArray(j.children) ? j.children : [];
-      state.total = Number(j.total || 0);
-      state.magnitude_total = Number(j.magnitude_total || 0);
-
-      const totalEl = $('drawer-total'); if (totalEl) totalEl.textContent = fmtUSD(state.total);
-      renderBreadcrumb();
-      renderChildren();
-      renderTx();
-      renderMonthsAndEmit();
-
-    } catch (e) {
-      console.error('fetchPathTx failed', e);
-      if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Failed to load.</td></tr>';
+      if (!res.ok) throw new Error(String(res.status));
+      j = await res.json();
+    } catch (err){
+      console.error('fetchPathTx failed:', err);
+      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
+      return;
     }
+
+    state.months = Array.isArray(j.months) ? j.months : (Array.isArray(j.month_list) ? j.month_list : []);
+    // ✅ FIX: accept either `tx` or `transactions`
+    state.tx = Array.isArray(j.tx) ? j.tx : (Array.isArray(j.transactions) ? j.transactions : []);
+    // children fallbacks
+    state.children = Array.isArray(j.children) ? j.children : (Array.isArray(j.kids) ? j.kids : (Array.isArray(j.child) ? j.child : []));
+    // totals fallbacks
+    state.total = Number(j.total ?? j.net_total ?? j.sum ?? 0);
+    state.magnitude_total = Number(j.magnitude_total ?? j.abs_total ?? 0);
+
+    const serverMonth = String(j.month || '').toLowerCase();
+    state.showAll = (serverMonth === 'all') || (ml === 'all');
+
+    const totalEl = $('drawer-total'); if (totalEl) totalEl.textContent = fmtUSD(state.total);
+    renderBreadcrumb();
+    renderChildren();
+    renderTx();
+    renderMonthsAndEmit();
   }
 
   // ---------- Tabs ----------
@@ -317,7 +326,6 @@
       state.showAll = (val.toLowerCase() === 'all');
       await fetchPathTx(state.ctx);
 
-      // jump to month divider if present
       if (val && val !== 'all'){
         const anchor = document.getElementById(monthId(val));
         if (anchor) anchor.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -363,7 +371,6 @@
     renderBreadcrumb();
     fetchPathTx(state.ctx).catch(()=>{});
 
-    // try bootstrap offcanvas, fallback to simple show
     const el = $('dashCategoryManager');
     if (!el) return;
     const oc = ensureOC();
@@ -384,7 +391,7 @@
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
-  // Back-compat names (don’t override if already present)
+  // Back-compat names
   if (typeof window.openDrawerForPath !== 'function') {
     window.openDrawerForPath = function(state){ try { openCategoryManager(state || {}); } catch(e){ console.error(e); } };
   }
