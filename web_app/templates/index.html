@@ -569,38 +569,4 @@ window.toggleCategoryList = function(key){
 };
 </script>
 
-<script>
-(function(){
-  async function ensureDrawerLoaded(){
-    if (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function') return true;
-    await new Promise((resolve) => {
-      var s=document.createElement('script');
-      s.src="{{ url_for('static', filename='js/drawer.js') }}?v=hotfix";
-      s.onload=resolve; s.onerror=resolve;
-      document.body.appendChild(s);
-    });
-    if (typeof window.openCategoryManager === 'function' && typeof window.openDrawerForPath !== 'function'){
-      window.openDrawerForPath = function(state){ window.openCategoryManager(state||{}); };
-    }
-    return (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function');
-  }
-
-  document.addEventListener('click', async function(e){
-    var btn = e.target.closest && e.target.closest('.drawer-link');
-    if (!btn) return;
-    e.preventDefault();
-
-    var level = btn.dataset.level;
-    var vals = (typeof readValues === 'function') ? readValues() : {cat:'',sub:'',ssub:'',sss:''};
-    var cat=vals.cat, sub=vals.sub, ssub=vals.ssub, sss=vals.sss;
-
-    var state = { level:level||'category', cat:cat, sub:sub, ssub:ssub, sss:sss, allowHidden:true };
-    if (!(await ensureDrawerLoaded())) { alert('Drawer UI failed to load.'); return; }
-
-    if (typeof window.openDrawerForPath==='function') window.openDrawerForPath(state);
-    else if (typeof window.openCategoryManager==='function') window.openCategoryManager(state);
-  });
-})();
-</script>
-
 {% endblock %}
