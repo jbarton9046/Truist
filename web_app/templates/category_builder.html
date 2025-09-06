@@ -1591,5 +1591,47 @@
   };
 })();
 </script>
+<!-- Drawer lazy-loader (append once, keeps your page code intact) -->
+<script>
+(function(){
+  async function ensureDrawerLoaded(){
+    if (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function') return true;
+    await new Promise((resolve) => {
+      var s=document.createElement('script');
+      s.src="{{ url_for('static', filename='js/drawer.js') }}?v=cb_hotfix";
+      s.onload=resolve; s.onerror=resolve;
+      document.body.appendChild(s);
+    });
+    if (typeof window.openCategoryManager === 'function' && typeof window.openDrawerForPath !== 'function'){
+      window.openDrawerForPath = function(state){ window.openCategoryManager(state||{}); };
+    }
+    return (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function');
+  }
+
+  document.addEventListener('click', async function(e){
+    var btn = e.target.closest && e.target.closest('.drawer-link');
+    if (!btn) return;
+    e.preventDefault();
+
+    var level = btn.dataset.level;
+    // Assuming your page has readValues() that returns {cat,sub,ssub,sss}
+    var vals = (typeof readValues === 'function') ? readValues() : {cat:'',sub:'',ssub:'',sss:''};
+    var cat=vals.cat, sub=vals.sub, ssub=vals.ssub, sss=vals.sss;
+
+    if (level==='category' && !cat) return alert('Pick a Category first.');
+    if (level==='subcategory' && (!cat||!sub)) return alert('Pick a Category and Subcategory first.');
+    if (level==='subsubcategory' && (!cat||!sub||!ssub)) return alert('Pick a Category, Subcategory, and Sub-subcategory first.');
+    if (level==='subsubsubcategory' && (!cat||!sub||!ssub||!sss)) return alert('Pick a full path first.');
+
+    var state = { level:level, cat:cat, sub:sub, ssub:ssub, sss:sss, allowHidden:true };
+
+    if (!(await ensureDrawerLoaded())) { alert('Drawer UI failed to load.'); return; }
+
+    if (typeof window.openDrawerForPath==='function') window.openDrawerForPath(state);
+    else if (typeof window.openCategoryManager==='function') window.openCategoryManager(state);
+    else alert('Drawer UI still unavailable.');
+  });
+})();
+</script>
 
 {% endblock %}
