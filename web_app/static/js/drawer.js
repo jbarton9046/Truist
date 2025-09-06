@@ -1,13 +1,15 @@
-// Drawer UI — blue pills + glass month bar, with Overview/Keywords/Actions and legacy openers
+// Drawer UI — preserves Overview/Keywords/Actions; blue pills synced to "Filter keywords…" field; glass month control
 (function(){
   'use strict';
 
+  // If already loaded, keep legacy openers and exit
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
-    if (!window.openDrawerForPath)      window.openDrawerForPath      = (state)=>window.openCategoryManager(state||{});
-    if (!window.openDrawerForCategory)  window.openDrawerForCategory  = (cat,opts)=>window.openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
+    if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>window.openCategoryManager(state||{});
+    if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>window.openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
     return;
   }
 
+  // URLs (server can override via window.CL_URLS)
   const urls = window.CL_URLS || {};
   const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
   const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
@@ -15,6 +17,7 @@
   const KW_REMOVE_URL = urls.KW_REMOVE_URL || '/admin/api/keyword_remove';
   const ACTION_URL    = urls.ACTION_URL    || '/admin/api/category_action';
 
+  // DOM helpers
   const QS  = s=>document.querySelector(s);
   const QSA = s=>Array.from(document.querySelectorAll(s));
   const $   = id=>document.getElementById(id);
@@ -29,6 +32,37 @@
   };
   const pathParts = ()=>[state.ctx.cat,state.ctx.sub,state.ctx.ssub,state.ctx.sss].filter(Boolean);
 
+  // ---------- color sync: match pills to the "Filter keywords…" field ----------
+  function syncPillPaletteFromKeywordField() {
+    const ref =
+      document.querySelector('input[placeholder*="Filter keywords" i]') ||
+      document.querySelector('.keywords-panel input.form-control') ||
+      document.querySelector('input[type="search"], input[type="text"]');
+
+    const host = document.getElementById('dashCategoryManager');
+    if (!host) return;
+    if (!ref) return; // keep CSS fallbacks
+
+    const cs = getComputedStyle(ref);
+    const bg = cs.backgroundColor || 'rgba(80,150,255,.08)';
+    const fg = cs.color || '#7fb2ff';
+    const bc = (cs.borderColor && cs.borderColor !== 'rgba(0, 0, 0, 0)') ? cs.borderColor : fg;
+
+    const toHover = (rgb, alpha) => {
+      if (rgb.startsWith('rgba(')) return rgb;
+      if (rgb.startsWith('rgb(')) return rgb.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+      return rgb;
+    };
+
+    host.style.setProperty('--pill-bg', bg);
+    host.style.setProperty('--pill-border', bc);
+    host.style.setProperty('--pill-fg', fg);
+    host.style.setProperty('--pill-bg-hover', toHover(bg, 0.9));
+    host.style.setProperty('--pill-border-hover', toHover(bc, 0.9));
+    host.style.setProperty('--pill-fg-hover', fg);
+  }
+
+  // ---------- months helpers ----------
   function monthKeyFromDateStr(s){
     if (!s) return '0000-00';
     const t=String(s).trim();
@@ -41,7 +75,7 @@
   }
   const monthId = k => 'm-'+String(k||'').replace(/[^0-9-]/g,'');
 
-  // Breadcrumb (blue links)
+  // ---------- breadcrumb ----------
   function renderBreadcrumb(){
     const host=$('drawer-breadcrumb'); if(!host) return;
     const parts=pathParts();
@@ -50,17 +84,17 @@
     parts.forEach((p,i)=>{ segs.push('<span class="sep">›</span>'); segs.push('<a class="link-primary" href="#" data-bc-index="'+i+'">'+esc(p)+'</a>'); });
     host.innerHTML = segs.join(' ');
     host.querySelectorAll('a[data-bc-index]').forEach(a=>{
-      on(a,'click',e=>{
+      on(a,'click', function(e){
         e.preventDefault();
         const idx=Number(a.getAttribute('data-bc-index')||-1);
         if (idx<0){ state.ctx.level='category'; state.ctx.cat=state.ctx.sub=state.ctx.ssub=state.ctx.sss=''; }
         else { ['cat','sub','ssub','sss'].slice(idx+1).forEach(k=>state.ctx[k]=''); state.ctx.level=['category','subcategory','subsubcategory','subsubsubcategory'][idx]||'category'; }
         fetchPathTx(state.ctx);
-      },{passive:false});
+      }, {passive:false});
     });
   }
 
-  // Children — blue pills
+  // ---------- children (pills) ----------
   function renderChildren(){
     const host=$('drawer-children'); if(!host) return;
     const kids=state.children||[];
@@ -75,11 +109,11 @@
         else if (!state.ctx.ssub) state.ctx.ssub=name, state.ctx.level='subsubcategory';
         else state.ctx.sss=name, state.ctx.level='subsubsubcategory';
         fetchPathTx(state.ctx);
-      },{passive:true});
+      }, {passive:true});
     });
   }
 
-  // Transactions — Cat column blue pill
+  // ---------- transactions (Cat column uses pill) ----------
   function renderTx(){
     const body=$('drawer-tx-body'); if(!body) return;
     const rows=state.tx||[];
@@ -110,7 +144,7 @@
     }).join('');
   }
 
-  // Glass Month control
+  // ---------- glass month control ----------
   function setMonthLabel(v){
     const lbl = !v ? 'Latest month' : (String(v).toLowerCase()==='all'?'All months':monthLabelFromKey(v));
     const el=$('drawer-months-label'); if (el) el.textContent=lbl;
@@ -126,13 +160,11 @@
     sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
     setMonthLabel(sel.value);
 
-    // Build glass menu list
     const list=$('drawer-months-list');
     if (list){
       list.innerHTML = arr.map(m=>`<button class="glass-item" data-value="${m}">${monthLabelFromKey(m)}</button>`).join('');
     }
 
-    // Emit event for any external listeners (your month overlay, etc.)
     try {
       document.dispatchEvent(new CustomEvent('cm:months', { detail: { months: arr, selected: sel.value||'', showAll: state.showAll }}));
     } catch {}
@@ -141,30 +173,22 @@
     const btn=$('drawer-months-btn'), menu=$('drawer-months-menu'), sel=$('drawer-months');
     if (!btn || !menu || !sel) return;
 
-    on(btn,'click',e=>{
-      e.preventDefault();
-      menu.hidden = !menu.hidden;
-    });
-
+    on(btn,'click',e=>{ e.preventDefault(); menu.hidden = !menu.hidden; });
     on(document,'click',e=>{
       if (!menu.hidden) {
         const within = e.target.closest && e.target.closest('#drawer-months-glass');
         if (!within) menu.hidden = true;
       }
     });
-
     on(menu,'click',e=>{
-      const it=e.target.closest('.glass-item');
-      if (!it) return;
+      const it=e.target.closest('.glass-item'); if(!it) return;
       const v=it.getAttribute('data-value')||'';
-      sel.value = v;
-      setMonthLabel(v);
-      menu.hidden = true;
+      sel.value = v; setMonthLabel(v); menu.hidden = true;
       sel.dispatchEvent(new Event('change',{bubbles:true}));
     });
   })();
 
-  // Keywords
+  // ---------- keywords ----------
   function payloadForKeywords(){
     const parts=pathParts(); const last=parts[parts.length-1]||'';
     return { level:state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', name:last, last:last };
@@ -180,16 +204,16 @@
     host.querySelectorAll('a[data-kw]').forEach(a=>on(a,'click',async e=>{ e.preventDefault(); await removeKeyword(decodeURIComponent(a.dataset.kw||'')); refreshKeywords(); }));
   }
 
-  // Actions (kept)
+  // ---------- actions (preserved) ----------
   function payloadForActions(){ return Object.assign({}, state.ctx); }
   async function runAction(kind){
-    const payload=Object.assign({kind},payloadForActions());
+    const payload=Object.assign({ kind }, payloadForActions());
     try{ const r=await fetch(ACTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); return await r.json(); }catch{return{ok:false}}
   }
-  // Example hook:
+  // Example global hook if you render [data-action] buttons:
   // document.addEventListener('click',e=>{ const b=e.target.closest('[data-action]'); if(!b) return; runAction(b.dataset.action); });
 
-  // Fetcher
+  // ---------- fetch ----------
   async function fetchPathTx(ctx){
     const body=$('drawer-tx-body'); if(body) body.innerHTML='<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
     const q=new URLSearchParams();
@@ -219,9 +243,12 @@
     renderChildren();
     renderTx();
     renderMonthsAndEmit();
+
+    // ensure pill colors sync after render
+    syncPillPaletteFromKeywordField();
   }
 
-  // Tabs (overview/keywords/actions — matches HTML data attributes)
+  // ---------- tabs (overview/keywords/actions) ----------
   QSA('.drawer-tab').forEach(tab=>{
     on(tab,'click',e=>{
       e.preventDefault();
@@ -234,18 +261,18 @@
     });
   });
 
-  // Month select change (Glass buttons dispatch this too)
+  // ---------- month select change (Glass buttons dispatch this too) ----------
   const monthSel=$('drawer-months');
   if (monthSel){
     on(monthSel,'change',async e=>{
       const v=(e.target.value||'').trim();
       state.ctx.month=v||''; state.showAll=(String(v).toLowerCase()==='all');
       await fetchPathTx(state.ctx);
-      if (v && v!=='all'){ const anchor=$(`#${monthId(v)}`); if (anchor) anchor.scrollIntoView({behavior:'smooth', block:'start'}); }
+      if (v && v!=='all'){ const anchor=document.getElementById(monthId(v)); if (anchor) anchor.scrollIntoView({behavior:'smooth', block:'start'}); }
     });
   }
 
-  // Keyword add
+  // ---------- keyword add ----------
   const addInput=$('kw-add-input'), addBtn=$('kw-add-btn');
   if (addInput && addBtn){
     const commit=()=>{ const kw=(addInput.value||'').trim(); if(!kw) return; addKeyword(kw).then(()=>{ addInput.value=''; refreshKeywords();}); };
@@ -253,7 +280,7 @@
     on(addInput,'keydown',e=>{ if(e.key==='Enter') commit(); });
   }
 
-  // Open/Close
+  // ---------- open / close ----------
   let offcanvas=null;
   function ensureOC(){
     const el=$('dashCategoryManager'); if(!el) return null;
@@ -268,8 +295,13 @@
     state.ctx.level=c.level||'category';
     state.ctx.cat=c.cat||''; state.ctx.sub=c.sub||''; state.ctx.ssub=c.ssub||''; state.ctx.sss=c.sss||'';
     state.ctx.month=c.month||''; state.ctx.allowHidden=!!c.allowHidden;
+
     renderBreadcrumb();
     fetchPathTx(state.ctx);
+
+    // sync pill palette to page field
+    syncPillPaletteFromKeywordField();
+
     const el=$('dashCategoryManager'); if(!el) return;
     const oc=ensureOC(); if(oc&&oc.show) oc.show(); else { el.classList.add('show'); el.style.display='block'; }
   }
@@ -279,6 +311,7 @@
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
+  // Legacy openers for older pages (Index, etc.)
   if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>openCategoryManager(state||{});
   if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
 })();
