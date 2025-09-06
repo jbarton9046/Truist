@@ -2,10 +2,21 @@
 (function () {
   'use strict';
 
-  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) return;
+  if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
+  if (typeof window.openDrawerForPath !== 'function') {
+    window.openDrawerForPath = function(state){ window.openCategoryManager(state||{}); };
+  }
+  if (typeof window.openDrawerForCategory !== 'function') {
+    window.openDrawerForCategory = function(cat, opts){ window.openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) }); };
+  }
+  return;
+}
 
   const urls = (window.CL_URLS || {});
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
+  const KW_GET_URL    = (window.CL_URLS && window.CL_URLS.KW_GET_URL)    || '/admin/api/keywords_for_name';
+  const KW_ADD_URL    = (window.CL_URLS && window.CL_URLS.KW_ADD_URL)    || '/admin/api/keyword_add';
+  const KW_REMOVE_URL = (window.CL_URLS && window.CL_URLS.KW_REMOVE_URL) || '/admin/api/keyword_remove';
 
   const QS  = s => document.querySelector(s);
   const QSA = s => Array.from(document.querySelectorAll(s));
@@ -63,16 +74,6 @@
   }
   function monthId(k){ return 'm-' + String(k||'').replace(/[^0-9-]/g,''); }
 
-  function nearestMonth(preferred, available) {
-    if (!available || !available.length) return '';
-    const set = new Set(available);
-    if (preferred && set.has(preferred)) return preferred;
-    const earlier = available.filter(m => m <= preferred).sort().reverse();
-    if (earlier.length) return earlier[0];
-    const later = available.filter(m => m > preferred).sort();
-    return later[0] || available[available.length - 1];
-  }
-
   // ---------- renderers ----------
   function renderBreadcrumb(){
     const host = $('drawer-breadcrumb'); if (!host) return;
@@ -107,23 +108,21 @@
   function renderChildren(){
     const host = $('drawer-children'); if (!host) return;
     const kids = state.children || [];
-    if (!kids.length){ host.innerHTML = '<span class="text-muted">No children.</span>'; return; }
-    host.innerHTML = kids.map(function(name){
-      return '<button type="button" class="child-pill" data-child="'+encodeURIComponent(name)+'" title="Drill into '+escapeHTML(name)+'">' +
-               '<span class="dot" aria-hidden="true"></span>' +
-               '<span class="label">'+escapeHTML(name)+'</span>' +
-               '<span class="chev" aria-hidden="true">›</span>' +
-             '</button>';
-    }).join('');
-    host.querySelectorAll('.child-pill').forEach(pill => {
-      pill.addEventListener('click', function(){
-        const name = decodeURIComponent(pill.getAttribute('data-child') || '');
-        if (!state.ctx.cat) { state.ctx.cat = name; state.ctx.level = 'category'; }
-        else if (!state.ctx.sub) { state.ctx.sub = name; state.ctx.level = 'subcategory'; }
-        else if (!state.ctx.ssub) { state.ctx.ssub = name; state.ctx.level = 'subsubcategory'; }
-        else { state.ctx.sss = name; state.ctx.level = 'subsubsubcategory'; }
+    if (!kids.length){ host.innerHTML = '<div class="text-muted">No child categories.</div>'; return; }
+    host.innerHTML = kids.map(c => (
+      '<button type="button" class="btn btn-sm btn-outline-secondary me-1" data-child="'+escapeHTML(c)+'">'+escapeHTML(c)+'</button>'
+    )).join(' ');
+    host.querySelectorAll('button[data-child]').forEach(btn => {
+      btn.addEventListener('click', function(){
+        const label = btn.getAttribute('data-child') || '';
+        const order = ['','','sub','ssub','sss'];
+        const k = order[['category','subcategory','subsubcategory','subsubsubcategory'].indexOf(state.ctx.level) + 1] || 'sub';
+        state.ctx.level = (state.ctx.level === 'category') ? 'subcategory'
+                         : (state.ctx.level === 'subcategory') ? 'subsubcategory'
+                         : 'subsubsubcategory';
+        state.ctx[k] = label;
         fetchPathTx(state.ctx).catch(()=>{});
-      }, { passive:true });
+      });
     });
   }
 
@@ -132,7 +131,6 @@
     const rows = state.tx || [];
     if (!rows.length){ body.innerHTML = '<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
 
-    // group by YYYY-MM
     const groups = new Map();
     for (const t of rows){
       const key = monthKeyFromDateStr(t.date);
@@ -150,22 +148,21 @@
       const net = Number(g.net || 0);
       const netCls = net < 0 ? 'tx-neg' : 'tx-pos';
       parts.push(
-        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">' +
-        '  <td colspan="4"><span class="fw-bold">'+escapeHTML(g.label)+'</span> — ' +
-        '    <span class="'+netCls+'">Net: '+fmtUSD(net)+'</span>' +
-        '  </td>' +
+        '<tr class="month-divider" id="'+escapeHTML(monthId(k))+'">'+
+        '  <td colspan="4"><span class="fw-bold">'+escapeHTML(g.label)+'</span> — '+
+        '    <span class="'+netCls+'">Net: '+fmtUSD(net)+'</span>'+
+        '  </td>'+
         '</tr>'
       );
       for (const t of g.items){
-        const cls = (parseFloat(t.amount||0) < 0) ? 'tx-neg' : 'tx-pos';
-        // deepest category name:
-        const catPath = (t.sssubcategory || t.subsubcategory || t.subcategory || t.category || '') || '';
+        const amt = Number(t.amount || 0);
+        const amtCls = amt < 0 ? 'tx-neg' : 'tx-pos';
         parts.push(
-          '<tr>' +
-          '  <td class="text-nowrap">'+escapeHTML(fmtDate(t.date))+'</td>' +
-          '  <td>'+escapeHTML(t.description || '')+'</td>' +
-          '  <td class="amount '+cls+'">'+fmtUSD(Math.abs(t.amount||0))+'</td>' +
-          '  <td class="cat">'+escapeHTML(catPath)+'</td>' +
+          '<tr>'+
+          '  <td class="mono">'+escapeHTML(fmtDate(t.date || ''))+'</td>'+
+          '  <td>'+escapeHTML(t.description || '')+'</td>'+
+          '  <td class="mono text-end '+amtCls+'">'+fmtUSD(amt)+'</td>'+
+          '  <td><span class="badge text-bg-secondary">'+escapeHTML(t.cat || '')+'</span></td>'+
           '</tr>'
         );
       }
@@ -173,7 +170,69 @@
     body.innerHTML = parts.join('');
   }
 
-  // ---------- data ----------
+  // ---------- months select & glass emitter ----------
+  function renderMonthsAndEmit(){
+    const sel = $('drawer-months'); if (!sel) return;
+    const arr = (state.months || []).slice().sort().reverse(); // desc
+    sel.innerHTML = '';
+    const opt = (v,lbl,selq) => `<option value="${escapeHTML(v)}"${selq?' selected':''}>${escapeHTML(lbl)}</option>`;
+    const cur = String(state.ctx.month || '');
+    const out = [];
+    out.push(opt('', 'Latest month', cur === ''));
+    out.push(opt('all', 'All months', cur === 'all'));
+    arr.forEach(m => out.push(opt(m, monthLabelFromKey(m), cur === m)));
+    sel.innerHTML = out.join('');
+
+    // emit for Glass Select widgets listening
+    try {
+      document.dispatchEvent(new CustomEvent('cm:months', {
+        detail: { months: arr, selected: cur, showAll: state.showAll }
+      }));
+    } catch {}
+  }
+
+  // ---------- keywords ----------
+  function payloadForKeywords(){
+    const parts = pathParts(); const last = parts[parts.length-1] || '';
+    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', name: last, last };
+  }
+  async function fetchKeywords(){
+    const qp = new URLSearchParams(payloadForKeywords());
+    qp.set('_', Date.now().toString());
+    try {
+      const res = await fetch(KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
+      return await res.json();
+    } catch { return { keywords: [] }; }
+  }
+  async function addKeyword(kw){
+    if (!kw) return;
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
+    try { await fetch(KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+  }
+  async function removeKeyword(kw){
+    if (!kw) return;
+    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
+    try { await fetch(KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
+  }
+  async function refreshKeywords(){
+    const host = $('kw-list'); if (!host) return;
+    host.innerHTML = '<span class="text-muted">Loading…</span>';
+    const j = await fetchKeywords();
+    const kws = (j && j.keywords) || [];
+    if (!kws.length){ host.innerHTML = '<span class="text-muted">No keywords yet.</span>'; return; }
+    host.innerHTML = kws.map(k => (
+      '<span class="badge text-bg-secondary me-1">'+escapeHTML(k)+' <a href="#" data-kw="'+encodeURIComponent(k)+'" class="text-reset text-decoration-none ms-1" title="Remove">×</a></span>'
+    )).join('');
+    host.querySelectorAll('a[data-kw]').forEach(a => {
+      a.addEventListener('click', async function(e){
+        e.preventDefault();
+        await removeKeyword(decodeURIComponent(a.getAttribute('data-kw') || ''));
+        refreshKeywords();
+      });
+    });
+  }
+
+  // ---------- data fetch ----------
   async function fetchPathTx(ctx){
     const body = $('drawer-tx-body');
     if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
@@ -190,192 +249,29 @@
     if (monthLower === 'all') params.set('month', 'all');
     else if (ctx.month) params.set('month', ctx.month);
 
-    params.set('months', 'all');
-    params.set('_', Date.now().toString());
-
-    let j;
     try {
       const res = await fetch(PATH_TXN_URL + '?' + params.toString(), { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) throw new Error(String(res.status));
-      j = await res.json();
-    } catch (err){
-      console.error('drawer fetchPathTx failed:', err);
-      if (body) body.innerHTML = '<tr><td colspan="4" class="text-danger">Failed to load.</td></tr>';
-      return;
-    }
+      const j = await res.json();
 
-    state.months = j.months || [];
-    state.tx = j.transactions || [];
-    state.children = j.children || [];
-    state.total = j.total || 0;
-    state.magnitude_total = j.magnitude_total || 0;
+      state.months = Array.isArray(j.months) ? j.months : [];
+      state.tx = Array.isArray(j.tx) ? j.tx : [];
+      state.children = Array.isArray(j.children) ? j.children : [];
+      state.total = Number(j.total || 0);
+      state.magnitude_total = Number(j.magnitude_total || 0);
 
-    const serverMonth = String(j.month || '').toLowerCase();
-    state.showAll = (serverMonth === 'all') || (monthLower === 'all');
+      setText('drawer-total', fmtUSD(state.total));
+      renderBreadcrumb();
+      renderChildren();
+      renderTx();
+      renderMonthsAndEmit();
 
-    setText('drawer-total', fmtUSD(state.total));
-    renderBreadcrumb();
-    renderChildren();
-    renderTx();
-
-    // Build native month <select> (for form state only)
-    const sel = $('drawer-months');
-    if (sel){
-      const opts = [];
-      opts.push('<option value="all"' + (state.showAll ? ' selected' : '') + '>All months</option>');
-      const monthsDesc = (state.months || []).slice().sort().reverse();
-      const current = (!state.showAll && state.ctx.month) ? state.ctx.month : (monthsDesc[0] || '');
-      monthsDesc.forEach(function(m){
-        const selAttr = (m === current) ? ' selected' : '';
-        opts.push('<option value="' + m + '"' + selAttr + '>' + m + '</option>');
-      });
-      sel.innerHTML = opts.join('');
-      sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
-      // Emit event for Glass Select consumers
-      document.dispatchEvent(new CustomEvent('cm:months', {
-        detail: { months: monthsDesc, selected: sel.value || '', showAll: state.showAll }
-      }));
+    } catch (e) {
+      console.error('fetchPathTx failed', e);
+      if (body) body.innerHTML = '<tr><td colspan="4" class="text-muted">Failed to load.</td></tr>';
     }
   }
 
-  // ---------- keywords (optional endpoints) ----------
-  function payloadForKeywords(){
-    const parts = pathParts(); const last = parts[parts.length-1] || '';
-    return { level: state.ctx.level||'category', cat:state.ctx.cat||'', sub:state.ctx.sub||'', ssub:state.ctx.ssub||'', sss:state.ctx.sss||'', last };
-  }
-  async function fetchKeywords(){
-    if (!urls.KW_GET_URL) return { keywords: [] };
-    const qp = new URLSearchParams(payloadForKeywords());
-    qp.set('_', Date.now().toString());
-    try {
-      const res = await fetch(urls.KW_GET_URL + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
-      return await res.json();
-    } catch { return { keywords: [] }; }
-  }
-  async function addKeyword(kw){
-    if (!urls.KW_ADD_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw });
-    try { await fetch(urls.KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
-  }
-  async function removeKeyword(kw){
-    if (!urls.KW_REMOVE_URL || !kw) return;
-    const payload = Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true });
-    try { await fetch(urls.KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); } catch {}
-  }
-  async function refreshKeywords(){
-    const host = $('kw-list'); if (!host) return;
-    host.innerHTML = '<span class="text-muted">Loading…</span>';
-    const j = await fetchKeywords();
-    const kws = (j && j.keywords) || [];
-    if (!kws.length){ host.innerHTML = '<span class="text-muted">No keywords yet.</span>'; return; }
-    host.innerHTML = kws.map(k => (
-      '<span class="badge text-bg-secondary me-1">' + escapeHTML(k) + ' <a href="#" data-kw="'+encodeURIComponent(k)+'" class="text-reset text-decoration-none ms-1" title="Remove">×</a></span>'
-    )).join('');
-    host.querySelectorAll('a[data-kw]').forEach(a => {
-      a.addEventListener('click', async function(e){
-        e.preventDefault();
-        await removeKeyword(decodeURIComponent(a.getAttribute('data-kw') || ''));
-        refreshKeywords();
-      });
-    });
-  }
-
-  // ---------- actions ----------
-  function payloadForActions(){
-    const parts = pathParts();
-    return { path: parts.join(' / '), name: parts[parts.length-1] || '', allow_hidden: state.ctx.allowHidden ? 1 : 0 };
-  }
-
-  const btnInspect = document.getElementById('drawer-inspect');
-  const btnRename  = document.getElementById('drawer-rename');
-  const btnUpsert  = document.getElementById('drawer-upsert');
-
-  if (btnInspect && urls.INSPECT_URL){
-    btnInspect.addEventListener('click', async function(){
-      const p = payloadForActions();
-      const qp = new URLSearchParams(p);
-      try {
-        const res = await fetch(urls.INSPECT_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' }});
-        const j   = await res.json();
-        alert(JSON.stringify(j, null, 2));
-      } catch (e) { alert('Inspect failed.'); }
-    });
-  }
-  if (btnRename && urls.RENAME_URL){
-    btnRename.addEventListener('click', async function(){
-      const p = payloadForActions();
-      if (!p.path) { alert('Select a node to rename.'); return; }
-      const from = p.name || '(unnamed)';
-      const to   = prompt('Rename "' + from + '" to:', from);
-      if (!to || to.trim() === from) return;
-      try {
-        await fetch(urls.RENAME_URL, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({
-            path: p.path,
-            new_name: to.trim(),
-            allow_hidden: p.allow_hidden
-          })
-        });
-        fetchPathTx(state.ctx).catch(()=>{});
-        alert('Rename attempted (check the drawer).');
-      } catch (e) { alert('Rename failed.'); }
-    });
-  }
-
-  if (btnUpsert && urls.UPSERT_URL){
-    btnUpsert.addEventListener('click', async function(){
-      const p = payloadForActions();
-      try {
-        await fetch(urls.UPSERT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ path: p.path, allow_hidden: p.allow_hidden })
-        });
-        alert('Upsert attempted.');
-      } catch (e) { alert('Upsert failed.'); }
-    });
-  }
-
-  // ---------- public open ----------
-  function openCategoryManager(ctx){
-    ensureOC(); if (offcanvas) offcanvas.show();
-
-    state.ctx = {
-      level: (ctx && ctx.level) || 'category',
-      cat:   (ctx && ctx.cat)   || '',
-      sub:   (ctx && ctx.sub)   || '',
-      ssub:  (ctx && ctx.ssub)  || '',
-      sss:   (ctx && ctx.sss)   || '',
-      month: (ctx && ctx.month) || '',
-      allowHidden: !!(ctx && ctx.allowHidden)
-    };
-    state.showAll = (String(state.ctx.month || '').toLowerCase() === 'all');
-
-    fetchPathTx(state.ctx).catch(err => console.error('drawer fetchPathTx failed:', err));
-    refreshKeywords();
-  }
-  openCategoryManager.__cl_neon_fit = true;
-  window.openCategoryManager = openCategoryManager;
-
-  // Global click helper
-  window.dashManage = function(e, el){
-    e.preventDefault();
-    const ctx = {
-      level: el.getAttribute('data-level') || 'category',
-      cat:   el.getAttribute('data-cat')   || '',
-      sub:   el.getAttribute('data-sub')   || '',
-      ssub:  el.getAttribute('data-ssub')  || '',
-      sss:   el.getAttribute('data-sss')   || '',
-      month: el.getAttribute('data-month') || '',
-      allowHidden: !!(el.getAttribute('data-allow-hidden') || '')
-    };
-    openCategoryManager(ctx);
-    return false;
-  };
-
-  // Tabs
+  // ---------- tabs + month select ----------
   QSA('.drawer-tab').forEach(function(tab){
     tab.addEventListener('click', function(e){
       e.preventDefault();
@@ -389,7 +285,6 @@
     });
   });
 
-  // Month selector
   const monthSel = $('drawer-months');
   if (monthSel){
     monthSel.addEventListener('change', async function(e){
@@ -398,5 +293,36 @@
       state.showAll = (val === 'all');
       await fetchPathTx(state.ctx);
     });
+  }
+
+  // ---- public opener ----
+  function openCategoryManager(ctx){
+    const c = ctx || {};
+    state.ctx.level = c.level || 'category';
+    state.ctx.cat   = c.cat || '';
+    state.ctx.sub   = c.sub || '';
+    state.ctx.ssub  = c.ssub || '';
+    state.ctx.sss   = c.sss || '';
+    state.ctx.month = c.month || '';
+    state.ctx.allowHidden = !!c.allowHidden;
+
+    renderBreadcrumb();
+    fetchPathTx(state.ctx).catch(()=>{});
+
+    const el = $('dashCategoryManager');
+    if (!el) return;
+    let oc = null;
+    try { oc = ensureOC(); } catch(e) { oc = null; }
+    if (oc && typeof oc.show === 'function') oc.show();
+    else { el.classList.add('show'); el.style.display = 'block'; }
+  }
+
+  // export + back-compat
+  window.openCategoryManager = openCategoryManager;
+  if (typeof window.openDrawerForPath !== 'function') {
+    window.openDrawerForPath = function(state){ openCategoryManager(state||{}); };
+  }
+  if (typeof window.openDrawerForCategory !== 'function') {
+    window.openDrawerForCategory = function(cat, opts){ openCategoryManager({ level:'category', cat: cat||'', allowHidden: !!(opts && opts.allowHidden) }); };
   }
 })();
