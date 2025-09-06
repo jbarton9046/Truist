@@ -1,15 +1,16 @@
-// Drawer UI — preserves Overview/Keywords/Actions; blue pills synced to "Filter keywords…" field; glass month control
+// Drawer UI — keeps Overview/Keywords/Actions; blue pills synced to "Filter keywords…" field;
+// FULL overlay month selector (like your category glass panel); legacy openers preserved.
 (function(){
   'use strict';
 
-  // If already loaded, keep legacy openers and exit
+  // Already loaded? keep openers and bail.
   if (window.openCategoryManager && window.openCategoryManager.__cl_neon_fit === true) {
     if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>window.openCategoryManager(state||{});
     if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>window.openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
     return;
   }
 
-  // URLs (server can override via window.CL_URLS)
+  // URLs (server may override)
   const urls = window.CL_URLS || {};
   const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
   const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
@@ -32,16 +33,15 @@
   };
   const pathParts = ()=>[state.ctx.cat,state.ctx.sub,state.ctx.ssub,state.ctx.sss].filter(Boolean);
 
-  // ---------- color sync: match pills to the "Filter keywords…" field ----------
+  // ---------- sync pill colors to "Filter keywords…" field ----------
   function syncPillPaletteFromKeywordField() {
     const ref =
       document.querySelector('input[placeholder*="Filter keywords" i]') ||
       document.querySelector('.keywords-panel input.form-control') ||
       document.querySelector('input[type="search"], input[type="text"]');
 
-    const host = document.getElementById('dashCategoryManager');
-    if (!host) return;
-    if (!ref) return; // keep CSS fallbacks
+    const host = $('dashCategoryManager');
+    if (!host || !ref) return;
 
     const cs = getComputedStyle(ref);
     const bg = cs.backgroundColor || 'rgba(80,150,255,.08)';
@@ -94,7 +94,7 @@
     });
   }
 
-  // ---------- children (pills) ----------
+  // ---------- children (blue pills) ----------
   function renderChildren(){
     const host=$('drawer-children'); if(!host) return;
     const kids=state.children||[];
@@ -113,7 +113,7 @@
     });
   }
 
-  // ---------- transactions (Cat column uses pill) ----------
+  // ---------- transactions (Cat column pill) ----------
   function renderTx(){
     const body=$('drawer-tx-body'); if(!body) return;
     const rows=state.tx||[];
@@ -128,7 +128,7 @@
     const keys=Array.from(groups.keys()).sort().reverse();
 
     body.innerHTML = keys.map(k=>{
-      const g=groups.get(k); const net=Number(g.net||0); const netCls=net<0?'tx-neg':'tx-pos';
+      const g=groups.get(k); const net=Number(g.net||0); const netCls=net< 0?'tx-neg':'tx-pos';
       const header = `<tr class="month-divider" id="${esc(monthId(k))}"><td colspan="4"><span class="fw-bold">${esc(g.label)}</span> — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`;
       const items = g.items.map(t=>{
         const amt=Number(t.amount||0), cls=amt<0?'tx-neg':'tx-pos';
@@ -144,7 +144,7 @@
     }).join('');
   }
 
-  // ---------- glass month control ----------
+  // ---------- FULL overlay month selector ----------
   function setMonthLabel(v){
     const lbl = !v ? 'Latest month' : (String(v).toLowerCase()==='all'?'All months':monthLabelFromKey(v));
     const el=$('drawer-months-label'); if (el) el.textContent=lbl;
@@ -152,6 +152,8 @@
   function renderMonthsAndEmit(){
     const sel=$('drawer-months'); if(!sel) return;
     const arr = Array.from(new Set((state.months||[]).filter(Boolean))).sort().reverse();
+
+    // hidden select
     sel.innerHTML='';
     [['','Latest month'],['all','All months']].forEach(([val,lbl])=>{
       const o=document.createElement('option'); o.value=val; o.textContent=lbl; sel.appendChild(o);
@@ -160,30 +162,48 @@
     sel.value = state.showAll ? 'all' : (state.ctx.month || sel.value || '');
     setMonthLabel(sel.value);
 
-    const list=$('drawer-months-list');
+    // overlay list
+    const list = $('drawer-months-overlay-list');
     if (list){
-      list.innerHTML = arr.map(m=>`<button class="glass-item" data-value="${m}">${monthLabelFromKey(m)}</button>`).join('');
+      // keep the first 3 nodes (Latest, All, divider), then append months
+      list.querySelectorAll('[data-value]:not([data-value=""]):not([data-value="all"])').forEach(n=>n.remove());
+      arr.forEach(m=>{
+        const btn = document.createElement('div');
+        btn.className = 'glass-item';
+        btn.setAttribute('data-value', m);
+        btn.textContent = monthLabelFromKey(m);
+        list.appendChild(btn);
+      });
     }
 
+    // notify any external listeners (kept for back-compat)
     try {
       document.dispatchEvent(new CustomEvent('cm:months', { detail: { months: arr, selected: sel.value||'', showAll: state.showAll }}));
     } catch {}
   }
-  (function bindGlass(){
-    const btn=$('drawer-months-btn'), menu=$('drawer-months-menu'), sel=$('drawer-months');
-    if (!btn || !menu || !sel) return;
+  (function bindMonthOverlay(){
+    const openBtn = $('drawer-months-open');
+    const overlay = $('drawer-months-overlay');
+    const cancel  = $('drawer-months-cancel');
+    const list    = $('drawer-months-overlay-list');
+    const sel     = $('drawer-months');
 
-    on(btn,'click',e=>{ e.preventDefault(); menu.hidden = !menu.hidden; });
-    on(document,'click',e=>{
-      if (!menu.hidden) {
-        const within = e.target.closest && e.target.closest('#drawer-months-glass');
-        if (!within) menu.hidden = true;
-      }
-    });
-    on(menu,'click',e=>{
-      const it=e.target.closest('.glass-item'); if(!it) return;
-      const v=it.getAttribute('data-value')||'';
-      sel.value = v; setMonthLabel(v); menu.hidden = true;
+    if (!openBtn || !overlay || !list || !sel) return;
+
+    const close = ()=>{ overlay.hidden = true; document.removeEventListener('keydown', esc); };
+    const esc   = (e)=>{ if (e.key === 'Escape') close(); };
+
+    on(openBtn, 'click', (e)=>{ e.preventDefault(); overlay.hidden = false; document.addEventListener('keydown', esc); });
+
+    on(cancel, 'click', close);
+    on(overlay, 'click', (e)=>{ if (e.target === overlay) close(); });
+
+    on(list, 'click', (e)=>{
+      const it = e.target.closest('.glass-item'); if (!it) return;
+      const v = it.getAttribute('data-value') || '';
+      sel.value = v;
+      setMonthLabel(v);
+      close();
       sel.dispatchEvent(new Event('change',{bubbles:true}));
     });
   })();
@@ -204,14 +224,13 @@
     host.querySelectorAll('a[data-kw]').forEach(a=>on(a,'click',async e=>{ e.preventDefault(); await removeKeyword(decodeURIComponent(a.dataset.kw||'')); refreshKeywords(); }));
   }
 
-  // ---------- actions (preserved) ----------
+  // ---------- actions (unchanged) ----------
   function payloadForActions(){ return Object.assign({}, state.ctx); }
   async function runAction(kind){
     const payload=Object.assign({ kind }, payloadForActions());
     try{ const r=await fetch(ACTION_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); return await r.json(); }catch{return{ok:false}}
   }
-  // Example global hook if you render [data-action] buttons:
-  // document.addEventListener('click',e=>{ const b=e.target.closest('[data-action]'); if(!b) return; runAction(b.dataset.action); });
+  // (wire with: document.addEventListener('click', e => { const b=e.target.closest('[data-action]'); if(!b) return; runAction(b.dataset.action); });)
 
   // ---------- fetch ----------
   async function fetchPathTx(ctx){
@@ -244,7 +263,7 @@
     renderTx();
     renderMonthsAndEmit();
 
-    // ensure pill colors sync after render
+    // sync pill palette after render too
     syncPillPaletteFromKeywordField();
   }
 
@@ -261,7 +280,7 @@
     });
   });
 
-  // ---------- month select change (Glass buttons dispatch this too) ----------
+  // ---------- month select change (overlay sets this value and dispatches change) ----------
   const monthSel=$('drawer-months');
   if (monthSel){
     on(monthSel,'change',async e=>{
@@ -299,7 +318,7 @@
     renderBreadcrumb();
     fetchPathTx(state.ctx);
 
-    // sync pill palette to page field
+    // match pill colors to page's keyword field
     syncPillPaletteFromKeywordField();
 
     const el=$('dashCategoryManager'); if(!el) return;
@@ -311,7 +330,7 @@
   openCategoryManager.__cl_neon_fit = true;
   window.openCategoryManager = openCategoryManager;
 
-  // Legacy openers for older pages (Index, etc.)
+  // Legacy openers for older pages
   if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>openCategoryManager(state||{});
   if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
 })();

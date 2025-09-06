@@ -6,26 +6,18 @@
         <nav id="drawer-breadcrumb" class="drawer-breadcrumb"></nav>
       </h5>
 
-      <!-- Header controls: Month (Glass) + Total -->
+      <!-- Header controls: Month + Total -->
       <div class="small d-flex align-items-center flex-wrap gap-2">
         <span>Month:</span>
 
         <!-- Hidden native select (state source for JS) -->
         <select id="drawer-months" class="d-none"></select>
 
-        <!-- Glass month control -->
-        <div id="drawer-months-glass" class="glass-select">
-          <button id="drawer-months-btn" class="glass-btn" type="button">
-            <span id="drawer-months-label">Latest month</span>
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-          <div id="drawer-months-menu" class="glass-menu" hidden>
-            <button class="glass-item" data-value="">Latest month</button>
-            <button class="glass-item" data-value="all">All months</button>
-            <div class="glass-divider"></div>
-            <div id="drawer-months-list" class="glass-list"></div>
-          </div>
-        </div>
+        <!-- Button that opens the FULL overlay selector -->
+        <button id="drawer-months-open" class="glass-btn" type="button">
+          <span id="drawer-months-label">Latest month</span>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
 
         <span class="mx-1">•</span>
         <span>Total:</span>
@@ -47,9 +39,9 @@
     .mono{ font-variant-numeric: tabular-nums; }
     .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
 
-    /* ---------- Pills: use variables that JS syncs to the “Filter keywords…” field ---------- */
+    /* ---------- Pills: colors are set from the “Filter keywords…” field by JS ---------- */
     #dashCategoryManager{
-      --pill-bg: rgba(80,150,255,.08);            /* fallbacks if field not found */
+      --pill-bg: rgba(80,150,255,.08);            /* fallback if field not found */
       --pill-bg-hover: rgba(80,150,255,.14);
       --pill-border: rgba(80,150,255,.35);
       --pill-border-hover: rgba(80,150,255,.50);
@@ -69,8 +61,7 @@
     .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
     .pill .chev{ opacity:.7; }
 
-    /* ---------- Glass select (blurred) ---------- */
-    .glass-select{ position:relative; }
+    /* ---------- Small “glass” button in header ---------- */
     .glass-btn{
       display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .6rem; border-radius:.6rem;
       border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10);
@@ -78,18 +69,40 @@
       color:#cfe1ff; line-height:1; box-shadow: 0 1px 0 rgba(0,0,0,.25) inset;
     }
     .glass-btn:hover{ background:rgba(255,255,255,.14); }
-    .glass-menu{
-      position:absolute; top:100%; left:0; margin-top:.35rem; min-width:220px; z-index:1051;
-      border:1px solid rgba(255,255,255,.18); background:rgba(12,16,28,.65);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border-radius:.75rem; padding:.35rem; box-shadow: 0 8px 32px rgba(0,0,0,.35);
+
+    /* ---------- FULL overlay selector (looks like your “Select category…” panel) ---------- */
+    #drawer-months-overlay[hidden]{ display:none; }
+    #drawer-months-overlay{
+      position:fixed; inset:0; z-index:1055; background:rgba(0,0,0,.45);
+      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+      display:flex; align-items:center; justify-content:center; padding:2rem;
+    }
+    .glass-panel{
+      width:min(720px, 92vw); max-height:min(72vh, 640px); overflow:hidden;
+      border-radius:1rem; border:1px solid rgba(255,255,255,.16);
+      background:linear-gradient(180deg, rgba(16,24,40,.70), rgba(16,24,40,.82));
+      box-shadow:0 20px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      display:flex; flex-direction:column;
+    }
+    .glass-panel .hdr{
+      padding: .9rem 1.1rem; font-weight:600; color:#cfe1ff;
+      border-bottom:1px solid rgba(255,255,255,.12);
+    }
+    .glass-panel .list{
+      overflow:auto; padding:.35rem .35rem 1rem;
     }
     .glass-item{
-      display:block; width:100%; text-align:left; padding:.4rem .6rem; border-radius:.5rem; color:#d9e7ff; background:transparent; border:0;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:.6rem .9rem; margin:.15rem .25rem; border-radius:.65rem;
+      color:#d9e7ff; background:transparent; border:0; width:calc(100% - .5rem);
+      text-align:left;
     }
     .glass-item:hover{ background:rgba(255,255,255,.08); }
-    .glass-divider{ height:1px; background:rgba(255,255,255,.15); margin:.25rem 0; }
-    .glass-list{ max-height:260px; overflow:auto; }
+    .glass-divider{ height:1px; background:rgba(255,255,255,.12); margin:.25rem .5rem; }
+    .panel-actions{ display:flex; gap:.5rem; justify-content:flex-end; padding:.7rem .9rem; border-top:1px solid rgba(255,255,255,.12); }
+    .btn-ghost{ padding:.45rem .75rem; border-radius:.6rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#e6f0ff; }
+    .btn-ghost:hover{ background:rgba(255,255,255,.12); }
   </style>
 
   <div class="offcanvas-body">
@@ -136,8 +149,24 @@
 
     <!-- Actions -->
     <div class="drawer-pane" data-pane="actions">
-      <!-- Place your real action buttons here and hook with runAction(kind) in drawer.js -->
       <div class="small text-muted">Hook <code>[data-action]</code> buttons to <code>runAction(kind)</code> in <code>drawer.js</code>.</div>
+    </div>
+  </div>
+</div>
+
+<!-- FULL overlay (month picker) -->
+<div id="drawer-months-overlay" hidden>
+  <div class="glass-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-months-title">
+    <div class="hdr" id="drawer-months-title">Select month…</div>
+    <div class="list" id="drawer-months-overlay-list">
+      <!-- items injected by JS: Latest, All, divider, months -->
+      <div class="glass-item" data-value="">Latest month</div>
+      <div class="glass-item" data-value="all">All months</div>
+      <div class="glass-divider"></div>
+      <!-- months go here -->
+    </div>
+    <div class="panel-actions">
+      <button type="button" class="btn-ghost" id="drawer-months-cancel">Close</button>
     </div>
   </div>
 </div>
