@@ -824,7 +824,7 @@
     if (prev.ssubNew) oneBarEnterNew('ssub'); else oneBarExitNew('ssub', false);
     if (prev.sssNew)  oneBarEnterNew('sss');  else oneBarExitNew('sss', false);
 
-    /* NEW: refresh custom glass selects after options change */
+    /* refresh custom glass selects after options change */
     if (window.refreshGlassSelects) window.refreshGlassSelects();
   }
 
@@ -895,6 +895,8 @@
     }
     kwInput.focus();
   }
+  /* make available to Keyword panel script */
+  window.applyPathToLeft = applyPathToLeft;
 
   /* ---------- manage area (modal) ---------- */
   function qs(obj){
@@ -1064,7 +1066,7 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* ---------- NEW: “View drawer” buttons wiring ---------- */
+  /* ---------- NEW: “View drawer” buttons wiring (uses universal drawer from layout) ---------- */
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.drawer-link');
     if (!btn) return;
@@ -1082,8 +1084,8 @@
 
     if (typeof window.openDrawerForPath === 'function') {
       window.openDrawerForPath(state);
-    } else if (typeof window.openDrawerForCategory === 'function' && level === 'category') {
-      window.openDrawerForCategory(cat, { allowHidden: true });
+    } else if (typeof window.openCategoryManager === 'function' && level === 'category') {
+      window.openCategoryManager(cat, { allowHidden: true });
     } else {
       alert('Drawer UI not loaded yet.');
     }
@@ -1553,24 +1555,7 @@
 })();
 </script>
 
-{% include "_drawer.html" %}
-<script src="{{ url_for('static', filename='js/drawer.js') }}"></script>
-<script>
-  if (!window.openDrawerForCategory && window.openDrawerForPath) {
-    window.openDrawerForCategory = function (cat, opts = {}) {
-      window.openDrawerForPath({
-        level: "category",
-        cat,
-        sub: "",
-        ssub: "",
-        sss: "",
-        allowHidden: !!opts.allowHidden
-      });
-    };
-  }
-</script>
-
-<!-- ensure drawer data includes allow_hidden=1 -->
+<!-- ensure drawer data includes allow_hidden=1 for inspect calls -->
 <script>
 (function(){
   const origFetch = window.fetch;
@@ -1589,48 +1574,6 @@
     } catch(e) {}
     return origFetch(input, init);
   };
-})();
-</script>
-<!-- Drawer lazy-loader (append once, keeps your page code intact) -->
-<script>
-(function(){
-  async function ensureDrawerLoaded(){
-    if (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function') return true;
-    await new Promise((resolve) => {
-      var s=document.createElement('script');
-      s.src="{{ url_for('static', filename='js/drawer.js') }}?v=cb_hotfix";
-      s.onload=resolve; s.onerror=resolve;
-      document.body.appendChild(s);
-    });
-    if (typeof window.openCategoryManager === 'function' && typeof window.openDrawerForPath !== 'function'){
-      window.openDrawerForPath = function(state){ window.openCategoryManager(state||{}); };
-    }
-    return (typeof window.openDrawerForPath === 'function' || typeof window.openCategoryManager === 'function');
-  }
-
-  document.addEventListener('click', async function(e){
-    var btn = e.target.closest && e.target.closest('.drawer-link');
-    if (!btn) return;
-    e.preventDefault();
-
-    var level = btn.dataset.level;
-    // Assuming your page has readValues() that returns {cat,sub,ssub,sss}
-    var vals = (typeof readValues === 'function') ? readValues() : {cat:'',sub:'',ssub:'',sss:''};
-    var cat=vals.cat, sub=vals.sub, ssub=vals.ssub, sss=vals.sss;
-
-    if (level==='category' && !cat) return alert('Pick a Category first.');
-    if (level==='subcategory' && (!cat||!sub)) return alert('Pick a Category and Subcategory first.');
-    if (level==='subsubcategory' && (!cat||!sub||!ssub)) return alert('Pick a Category, Subcategory, and Sub-subcategory first.');
-    if (level==='subsubsubcategory' && (!cat||!sub||!ssub||!sss)) return alert('Pick a full path first.');
-
-    var state = { level:level, cat:cat, sub:sub, ssub:ssub, sss:sss, allowHidden:true };
-
-    if (!(await ensureDrawerLoaded())) { alert('Drawer UI failed to load.'); return; }
-
-    if (typeof window.openDrawerForPath==='function') window.openDrawerForPath(state);
-    else if (typeof window.openCategoryManager==='function') window.openCategoryManager(state);
-    else alert('Drawer UI still unavailable.');
-  });
 })();
 </script>
 
