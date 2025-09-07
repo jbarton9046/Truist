@@ -2,15 +2,12 @@
 {% block content %}
 
 <style>
-  /* NOTE: This page now relies on the global dark theme from layout.html.
-     We intentionally avoid redefining --text / --muted or the page background
-     so the accent-ink (light blue) drives ALL text here as requested. */
-
-  .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
-  .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  /* All styles scoped under .goals-page so we never touch the global drawer */
+  .goals-page .page-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .goals-page .actions { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
 
   /* ---------- Floating cards ---------- */
-  .stat-card, .panel{
+  .goals-page .stat-card, .goals-page .panel{
     background:var(--card-bg) !important;
     border:1px solid var(--card-border) !important;
     border-radius:16px !important;
@@ -19,17 +16,17 @@
     backdrop-filter:saturate(120%) blur(4px);
     color:var(--text);
   }
-  .panel { padding:.75rem; }
-  .panel-title { font-weight:600; margin-bottom:.5rem; }
+  .goals-page .panel { padding:.75rem; }
+  .goals-page .panel-title { font-weight:600; margin-bottom:.5rem; }
 
-  .small-note { font-size:.9rem; color:var(--muted); }
-  .pill { padding:.15rem .5rem; border:1px solid var(--hair); border-radius:999px; font-size:.85rem; background: rgba(255,255,255,.06); color:var(--text); }
+  .goals-page .small-note { font-size:.9rem; color:var(--muted); }
+  .goals-page .pill { padding:.15rem .5rem; border:1px solid var(--hair); border-radius:999px; font-size:.85rem; background: rgba(255,255,255,.06); color:var(--text); }
 
-  .name-link { text-decoration:none; color:inherit; cursor:pointer; }
-  .name-link:hover { text-decoration:underline; }
+  .goals-page .name-link { text-decoration:none; color:inherit; cursor:pointer; }
+  .goals-page .name-link:hover { text-decoration:underline; }
 
   /* ---------- Floating table container ---------- */
-  .table-responsive{
+  .goals-page .table-responsive{
     border:1px solid var(--card-border);
     border-radius:14px;
     overflow:hidden;
@@ -38,29 +35,29 @@
   }
 
   /* ---------- Floating table ---------- */
-  .table-floating{
+  .goals-page .table-floating{
     width:100%;
     border-collapse:separate;
     border-spacing:0;
     color:var(--text);
     background:transparent;
   }
-  .table-floating thead th{
+  .goals-page .table-floating thead th{
     background:var(--thead-bg) !important;
     color:var(--table-head-fg, var(--text)) !important;
     border-bottom:1px solid var(--hair);
     position:sticky; top:var(--sticky-top); z-index:2;
     font-weight:700; letter-spacing:.2px;
   }
-  .table-floating tbody td{
+  .goals-page .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
   }
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+  .goals-page .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .goals-page .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
   /* Ensure top summary mini-table matches all other tables */
-  .mini-table thead th {
+  .goals-page .mini-table thead th {
     background: var(--thead-bg) !important;
     color: var(--table-head-fg, var(--text)) !important;
     border-color: var(--hair) !important;
@@ -68,56 +65,56 @@
   }
 
   /* ---------- ALL tables on this page: force LEFT alignment ---------- */
-  .table-floating th,
-  .table-floating td { text-align:left !important; }
+  .goals-page .table-floating th,
+  .goals-page .table-floating td { text-align:left !important; }
 
   /* Goals table specifics */
-  .goals-table { table-layout: fixed; }
-  .goals-table th, .goals-table td { padding:.55rem .6rem; }
+  .goals-page .goals-table { table-layout: fixed; }
+  .goals-page .goals-table th, .goals-page .goals-table td { padding:.55rem .6rem; }
 
   /* Input styling inside the goals table */
-  .input-dark .input-group-text{
+  .goals-page .input-dark .input-group-text{
     background:rgba(255,255,255,.10);
     border-color:var(--hair);
     color:color-mix(in oklab, var(--accent-ink) 85%, white);
   }
-  .input-dark .form-control{
+  .goals-page .input-dark .form-control{
     background:rgba(0,0,0,.25);
     border-color:var(--hair);
     color:var(--text);
     text-align:left !important;
   }
-  .input-dark .form-control:focus{
+  .goals-page .input-dark .form-control:focus{
     background:rgba(0,0,0,.35);
     box-shadow:0 0 0 .2rem color-mix(in oklab, #7c3aed 25%, transparent);
     color:var(--text);
   }
 
   /* variance coloring */
-  .ok  { color: #34d399; font-weight:600; }
-  .bad { color: #f87171;  font-weight:600; }
+  .goals-page .ok  { color: #34d399; font-weight:600; }
+  .goals-page .bad { color: #f87171;  font-weight:600; }
 
   /* spark bars */
-  .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
-  .spark > i { display:block; width:6px; background:rgba(173,216,255,.7); border-radius:2px 2px 0 0; }
+  .goals-page .spark { display:flex; gap:1px; height:18px; align-items:flex-end; }
+  .goals-page .spark > i { display:block; width:6px; background:rgba(173,216,255,.7); border-radius:2px 2px 0 0; }
 
   /* summary grid (top two cards) */
-  .summary-grid { display:grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
-  @media (max-width: 992px){ .summary-grid { grid-template-columns: 1fr; } }
+  .goals-page .summary-grid { display:grid; grid-template-columns: 1.3fr 1fr; gap: 1rem; }
+  @media (max-width: 992px){ .goals-page .summary-grid { grid-template-columns: 1fr; } }
 
   /* goal meter */
-  .meter{
+  .goals-page .meter{
     width:100%; height:12px; border-radius:999px;
     background:rgba(255,255,255,.06); overflow:hidden; margin:.35rem 0 .25rem;
     border:1px solid var(--hair);
   }
-  .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
-  .meter.over > .fill { background:#ef4444; }
+  .goals-page .meter > .fill { height:100%; width:0%; background:#22c55e; transition:width .25s ease; }
+  .goals-page .meter.over > .fill { background:#ef4444; }
 
-  canvas { background:transparent !important; }
+  .goals-page canvas { background:transparent !important; }
 </style>
 
-<div class="container mt-4">
+<div class="goals-page container mt-4">
   <div class="page-header">
     <h3 class="m-0">Monthly Goals</h3>
     <div class="actions">
