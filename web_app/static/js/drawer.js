@@ -348,4 +348,29 @@
   // Legacy openers for older pages
   if (!window.openDrawerForPath)     window.openDrawerForPath     = (state)=>openCategoryManager(state||{});
   if (!window.openDrawerForCategory) window.openDrawerForCategory = (cat,opts)=>openCategoryManager({ level:'category', cat:cat||'', allowHidden:!!(opts&&opts.allowHidden) });
+
+  // >>> ADDED: universal [data-manage] wiring to match Category Builder across all pages <<<
+  if (!window.dashManage) {
+    window.dashManage = function(e, el){
+      try{
+        if (e) e.preventDefault();
+        if (!el) return;
+        const ds = el.dataset || {};
+        const inferLevel =
+          ds.level ||
+          (ds.sss ? 'subsubsubcategory' :
+           ds.ssub ? 'subsubcategory' :
+           ds.sub ? 'subcategory' : 'category');
+        openCategoryManager({
+          level: inferLevel,
+          cat: ds.cat || '',
+          sub: ds.sub || '',
+          ssub: ds.ssub || '',
+          sss: ds.sss || '',
+          month: ds.month || '',
+          allowHidden: (ds.allowHidden === 'false') ? false : true
+        });
+      }catch(_){}
+    };
+  }
 })();
