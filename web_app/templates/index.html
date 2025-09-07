@@ -2,7 +2,7 @@
 {% block content %}
 
 <style>
-  /* --- Page-specific polish (uses global dark tokens from layout.html) --- */
+  /* --- Page-specific polish to match goals.html --- */
 
   /* Title row */
   .budget-title { letter-spacing:.2px; }
@@ -30,7 +30,7 @@
   }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Table look (layout.html handles base sticky; we only add shell + body visuals) --- */
+  /* --- Table look (match goals spacing/typography) --- */
   .table-wrap{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -45,6 +45,10 @@
     border-spacing:0;
     color:var(--text);
     background:transparent;
+    font-size:.95rem;                  /* tighter, like goals */
+  }
+  .table-modern th, .table-modern td{ /* consistent paddings with goals */
+    padding:.55rem .8rem;
   }
 
   /* Body rows */
@@ -72,7 +76,7 @@
     box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
   }
   .metric-title{ font-weight:600; margin-bottom:.25rem; color:var(--text); }
-  .metric-value{ font-weight:700; font-size:1.25rem; }
+  .metric-value{ font-weight:700; font-size:1.1rem; }   /* slightly tighter */
   .metric-sub{ color:#31d4a1; font-weight:600; }
 
   .metrics-row{ padding:12px 12px 6px; }
@@ -115,12 +119,26 @@
   }
   .tx-scroll table{ margin: 6px; }
 
-  /* make content fit without bottom scrollbar */
+  /* make content fit without bottom scrollbar; keep categories on one line */
   .tx-table{ table-layout: fixed; }
-  .tx-table th, .tx-table td{ padding:.65rem .85rem; }
+  .tx-table th, .tx-table td{ padding:.55rem .8rem; }
   .tx-table .col-date{ width:110px; white-space:nowrap; }
   .tx-table .col-amount{ width:130px; white-space:nowrap; text-align:right; }
-  .tx-table .col-desc, .tx-table .col-cat{ width:auto; word-break:break-word; }
+  .tx-table .col-desc{ width:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tx-table .col-cat{ width:160px; white-space:nowrap; } /* ensures "Box Stores" stays on one line */
+
+  /* Pill chips (match drawer/goals look) */
+  .pill{
+    display:inline-flex; align-items:center; gap:.35rem;
+    padding:.2rem .55rem;
+    border-radius:999px;
+    border:1px solid var(--hair);
+    background: color-mix(in oklab, var(--accent-ink) 12%, transparent);
+    color: var(--accent-ink);
+    font-weight:600;
+    line-height:1;
+  }
+  .pill-sm{ padding:.15rem .5rem; font-size:.85rem; }
 
   /* Clickable monthly header */
   .clickable-card-header{
@@ -274,12 +292,12 @@
           <div class="tx-shell">
             <div class="tx-scroll">
               <table class="table table-sm table-modern align-middle mb-0 tx-table" id="ra-recent">
-                <thead>
+                <thead class="small">
                   <tr>
                     <th class="col-date">Date</th>
                     <th class="col-desc">Description</th>
                     <th class="col-amount text-end">Amount</th>
-                    <th class="col-cat">Category</th>
+                    <th class="col-cat">Cat</th>
                   </tr>
                 </thead>
                 <tbody id="ra-recent-body"></tbody>
@@ -395,14 +413,18 @@
       }
 
       const rows = d.recent_txs || [];
-      raBody.innerHTML = rows.length ? rows.map(t => (
-        '<tr>' +
-          '<td class="mono">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
-          '<td>' + safe(t.desc) + '</td>' +
-          '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
-          '<td>' + safe(t.category) + (t.subcategory ? ' › ' + safe(t.subcategory) : '') + '</td>' +
-        '</tr>'
-      )).join('') : '<tr><td colspan="4" class="text-center muted py-3">No recent transactions.</td></tr>';
+      raBody.innerHTML = rows.length ? rows.map(t => {
+        const label = (t.subcategory && String(t.subcategory).trim()) ? t.subcategory : (t.category || '');
+        const full  = (t.category || '') + (t.subcategory ? ' › ' + t.subcategory : '');
+        return (
+          '<tr>' +
+            '<td class="mono">' + safe(String(t.date||'').slice(0,10)) + '</td>' +
+            '<td class="col-desc" title="'+safe(t.desc)+'">' + safe(t.desc) + '</td>' +
+            '<td class="text-end mono">' + fmtMoney(t.amount) + '</td>' +
+            '<td class="col-cat"><span class="pill pill-sm" title="'+safe(full)+'">' + safe(label) + '</span></td>' +
+          '</tr>'
+        );
+      }).join('') : '<tr><td colspan="4" class="text-center muted py-3">No recent transactions.</td></tr>';
     }catch(err){
       console.error('Recent activity error:', err);
       raBody.innerHTML = '<tr><td colspan="4" class="text-danger text-center py-3">Couldn’t load recent activity: ' + safe(err?.message||err) + '</td></tr>';
