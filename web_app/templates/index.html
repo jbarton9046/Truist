@@ -2,7 +2,7 @@
 {% block content %}
 
 <style>
-  /* --- Page-specific polish to match goals.html --- */
+  /* --- Page-specific polish to match goals.html without touching the drawer --- */
 
   /* Title row */
   .budget-title { letter-spacing:.2px; }
@@ -30,7 +30,7 @@
   }
   .section-title .muted { margin-left:.25rem; }
 
-  /* --- Table look (match goals spacing/typography) --- */
+  /* --- Table look (match goals spacing/typography) — SCOPED to this page --- */
   .table-wrap{
     border:1px solid var(--card-border);
     border-radius:14px;
@@ -38,8 +38,8 @@
     box-shadow:0 8px 24px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.04);
     overflow:hidden;
   }
-  .table-floating,
-  .table-modern{
+  #recent-activity .table-floating,
+  #recent-activity .table-modern{
     width:100%;
     border-collapse:separate;
     border-spacing:0;
@@ -47,20 +47,21 @@
     background:transparent;
     font-size:.95rem;                  /* tighter, like goals */
   }
-  .table-modern th, .table-modern td{ /* consistent paddings with goals */
+  #recent-activity .table-modern th,
+  #recent-activity .table-modern td{   /* consistent paddings with goals */
     padding:.55rem .8rem;
   }
 
   /* Body rows */
-  .table-modern tbody td,
-  .table-floating tbody td{
+  #recent-activity .table-modern tbody td,
+  #recent-activity .table-floating tbody td{
     border-top:1px solid var(--hair);
     vertical-align:middle;
   }
-  .table-modern tbody tr:nth-child(odd),
-  .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-modern tbody tr:hover,
-  .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
+  #recent-activity .table-modern tbody tr:nth-child(odd),
+  #recent-activity .table-floating tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  #recent-activity .table-modern tbody tr:hover,
+  #recent-activity .table-floating tbody tr:hover{ background:rgba(255,255,255,.05); }
 
   .mono { font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted) !important; }
@@ -127,8 +128,8 @@
   .tx-table .col-desc{ width:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .tx-table .col-cat{ width:160px; white-space:nowrap; } /* ensures "Box Stores" stays on one line */
 
-  /* Pill chips (match drawer/goals look) */
-  .pill{
+  /* Pill chips (match drawer/goals look) — SCOPED so drawer stays global */
+  #recent-activity .pill{
     display:inline-flex; align-items:center; gap:.35rem;
     padding:.2rem .55rem;
     border-radius:999px;
@@ -138,7 +139,7 @@
     font-weight:600;
     line-height:1;
   }
-  .pill-sm{ padding:.15rem .5rem; font-size:.85rem; }
+  #recent-activity .pill-sm{ padding:.15rem .5rem; font-size:.85rem; }
 
   /* Clickable monthly header */
   .clickable-card-header{
@@ -204,53 +205,6 @@
   #recent-activity #ra-asof,
   #ra-months,
   #ra-windows { display:none !important; }
-</style>
-
-<!-- ✨ Index-only drawer tweaks (scoped to the offcanvas) -->
-<style>
-  /* Make breadcrumb/link text in the drawer match app text color */
-  #dashCategoryManager #drawer-breadcrumb a{
-    color: var(--text) !important;
-    text-decoration: none;
-  }
-  #dashCategoryManager #drawer-breadcrumb a:hover{
-    color:#fff !important;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  /* Drawer transactions table: tighten spacing, set fixed layout */
-  #dashCategoryManager .offcanvas-body table{
-    table-layout: fixed;
-  }
-  #dashCategoryManager .offcanvas-body table th,
-  #dashCategoryManager .offcanvas-body table td{
-    padding:.55rem .8rem;
-    vertical-align: middle;
-  }
-
-  /* Column sizing + alignment:
-     1 = Date, 2 = Description, 3 = Amount, 4 = Category */
-  #dashCategoryManager .offcanvas-body table td:nth-child(1){
-    width:110px; white-space:nowrap;
-  }
-  #dashCategoryManager .offcanvas-body table td:nth-child(2){
-    width:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  /* Amount: left-align so it sits closer to the description */
-  #dashCategoryManager .offcanvas-body table td:nth-child(3){
-    width:120px; text-align:left !important;
-  }
-  /* Category (chip) — keep on one line */
-  #dashCategoryManager .offcanvas-body table td:nth-child(4){
-    width:150px; white-space:nowrap;
-  }
-  #dashCategoryManager .offcanvas-body table td:nth-child(4) .pill{
-    white-space: nowrap;
-  }
-  #dashCategoryManager .offcanvas-body table td:nth-child(4) .pill.pill-sm{
-    font-size:.85rem; padding:.15rem .5rem;
-  }
 </style>
 
 <!-- Header -->
