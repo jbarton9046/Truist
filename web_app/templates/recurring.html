@@ -199,16 +199,16 @@
 
   function setFloorMeter(floor, income){
     const bar = document.getElementById('kpi-floor-meter');
-    const sub = document.getElementById('kpi-floor-sub');
+    const subEl = document.getElementById('kpi-floor-sub');
     const tile = document.getElementById('tile-floor');
     if (income > 0){
       const pct = Math.min(140, Math.max(0, (floor / income) * 100));
       bar.style.width = pct.toFixed(0) + '%';
-      sub.textContent = `${pct.toFixed(0)}% of income`;
+      subEl.textContent = `${pct.toFixed(0)}% of income`;
       tile.classList.toggle('over', pct > 100);
     } else {
       bar.style.width = '0%';
-      sub.textContent = 'no income set';
+      subEl.textContent = 'no income set';
       tile.classList.remove('over');
     }
   }
@@ -310,15 +310,17 @@
   }
   function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-  // Flat, blue text “chip” (click target only)
-  function catChipBtn(label, key, path){
+  /* Chip that opens the UNIVERSAL drawer via dashManage (from layout.html) */
+  function catChip(label, path){
     const txt = escapeHtml(label || 'Category');
-    return `<button type="button" class="chip chip-btn"
-              data-stream-key="${escapeHtml(key||'')}"
+    const level = path.ssub ? 'subsubcategory' : (path.sub ? 'subcategory' : 'category');
+    return `<a href="#" class="chip link-manage"
+              data-manage
+              data-level="${escapeHtml(level)}"
               data-cat="${escapeHtml(path.cat||'')}"
               data-sub="${escapeHtml(path.sub||'')}"
               data-ssub="${escapeHtml(path.ssub||'')}"
-            >${txt}</button>`;
+              onclick="return dashManage(event, this);">${txt}</a>`;
   }
 
   // ---------- Sorting helpers ----------
@@ -371,7 +373,6 @@
   }
 
   let cachedData = null;
-  let delegationBound = false;
 
   async function load() {
     const win = winSel.value;
@@ -381,7 +382,6 @@
     const data = await res.json();
     cachedData = data;
 
-    // Predictive block (fallback safe)
     const pm = data.projected_month || {
       income_recurring: Number(data.income_recurring || 0),
       variable_income_monthly: Number(data.variable_income_monthly || 0),
@@ -402,10 +402,9 @@
     leftoverEl.classList.toggle('text-danger', leftover < 0);
     document.getElementById('kpi-week').textContent     = money(data.this_week_due);
 
-    // Meter
     setFloorMeter(floor, income);
 
-    // Predictive card values
+    // Projected card
     document.getElementById('pmRecurring').textContent = money(pm.income_recurring || 0);
     document.getElementById('pmVariable').textContent  = money(pm.variable_income_monthly || 0);
     document.getElementById('pmExpected').textContent  = money(pm.income_expected || 0);
@@ -447,7 +446,7 @@
         }
         const deep = subset.length ? deepCategoryForStream(subset) : (u.category || 'Other');
         const path = subset.length ? categoryPathForLabel(subset, deep) : { cat: u.category || 'Other', sub:'', ssub:'', sss:'' };
-        const chip = catChipBtn(deep, key, path);
+        const chip = catChip(deep, path);
 
         const label = u.days === 0 ? '<span class="badge text-bg-danger">Today</span>' :
                       u.days === 1 ? '1 day' : `${u.days} days`;
@@ -461,9 +460,10 @@
         `;
         dueTbody.appendChild(tr);
 
-        // Canonicalize this chip’s text to match Category Builder rename
-        const btn = tr.querySelector('.chip-btn');
-        if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
+        if (window.canonicalizeChip) {
+          const a = tr.querySelector('.chip.link-manage');
+          if (a) window.canonicalizeChip(a);
+        }
       }
     }
 
@@ -471,51 +471,6 @@
     renderStreamsTable();
     bindSort();
     setSortIndicators();
-
-    // One-time delegation for drawer opens (both tables)
-    if (!delegationBound){
-      delegationBound = true;
-
-      const openFromBtn = async (btn) => {
-        const cat  = (btn.getAttribute('data-cat')  || '').trim();
-        const sub  = (btn.getAttribute('data-sub')  || '').trim();
-        const ssub = (btn.getAttribute('data-ssub') || '').trim();
-        const level = ssub ? 'subsubcategory' : (sub ? 'subcategory' : 'category');
-
-        // Set drawer title to canonical label too
-        let title = [cat, sub, ssub].filter(Boolean).join(' › ') || 'Category Manager';
-        try{
-          if (window.resolveCategoryLabel){
-            const lbl = await window.resolveCategoryLabel({cat, sub, ssub});
-            if (lbl) title = lbl;
-          }
-        }catch{}
-
-        if (typeof window.openCategoryManager === 'function'){
-          window.openCategoryManager({ level, cat, sub, ssub, sss:'' });
-          return;
-        }
-        const ocEl = document.getElementById('dashCategoryManager');
-        if (ocEl) {
-          const titleEl = document.getElementById('dashCategoryManagerLabel');
-          if (titleEl) titleEl.textContent = title;
-          const dyn = document.getElementById('drawer-dynamic');
-          if (dyn) dyn.innerHTML = `<div class="muted">Select a category to load details…</div>`;
-          try { bootstrap.Offcanvas.getOrCreateInstance(ocEl).show(); } catch {}
-          return;
-        }
-        alert('Shared drawer not found. Ensure templates/_drawer.html is included.');
-      };
-
-      document.getElementById('streamsTable').addEventListener('click', (e)=>{
-        const btn = e.target.closest('.chip-btn');
-        if (btn) openFromBtn(btn);
-      });
-      document.getElementById('dueSoonTable').addEventListener('click', (e)=>{
-        const btn = e.target.closest('.chip-btn');
-        if (btn) openFromBtn(btn);
-      });
-    }
   }
 
   function renderStreamsTable(){
@@ -558,13 +513,13 @@
 
       const deepLabel = deepCategoryForStream(subset);
       const path = categoryPathForLabel(subset, deepLabel);
-      const catBtnHtml = catChipBtn(deepLabel, key, path);
+      const chipHtml = catChip(deepLabel, path);
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
-            ${catBtnHtml}
+            ${chipHtml}
             ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
           </div>
         </td>
@@ -580,12 +535,13 @@
       `;
       tbody.appendChild(tr);
 
-      // Canonicalize this chip’s text to match Category Builder rename
-      const btn = tr.querySelector('.chip-btn');
-      if (window.canonicalizeChip && btn) window.canonicalizeChip(btn);
+      if (window.canonicalizeChip) {
+        const a = tr.querySelector('.chip.link-manage');
+        if (a) window.canonicalizeChip(a);
+      }
     }
 
-    // CSV export for current view (category-first)
+    // CSV export for current view
     exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
   }
 
@@ -667,25 +623,22 @@
 .kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
 #tile-floor.over .kpi-meter .fill{ background:#dc2626; }
 
-/* ==== CATEGORY "CHIP" NOW FLAT BLUE TEXT ==== */
+/* ==== CATEGORY "CHIP" AS TEXT LINK (universal drawer) ==== */
 .chip{
   display:inline-block;
   background: transparent;
   border: 0;
-  color: var(--text);            /* global accent ink (blue) */
-  padding: 0;                    /* no pill */
+  color: var(--text);
+  padding: 0;
   margin: 0;
   border-radius: 0;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.1;
-}
-.chip-btn{
-  cursor:pointer;
   text-decoration: none;
 }
-.chip-btn:hover{ text-decoration: underline; }
-.chip-btn:focus{ outline:2px solid color-mix(in oklab, var(--text) 45%, transparent); outline-offset:2px; }
+.chip:hover{ text-decoration: underline; }
+.chip:focus{ outline:2px solid color-mix(in oklab, var(--text) 45%, transparent); outline-offset:2px; }
 
 /* table UX */
 #streamsTable thead th.sortable { cursor: pointer; user-select: none; }
@@ -697,16 +650,11 @@
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
 .trend-cell { white-space: nowrap; min-width: 190px; }
 
-/* variance label as floating text, not a badge */
+/* variance label */
 .variance-tag{
   font-size: .85rem;
   color: color-mix(in oklab, var(--text) 70%, #fff 0%);
   opacity: .85;
 }
-
-/* drawer fallback */
-.kv{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
-.kv .k{ color: var(--muted); }
-.kv .v{ color: var(--text); }
 </style>
 {% endblock %}
