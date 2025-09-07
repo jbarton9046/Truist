@@ -206,6 +206,53 @@
   #ra-windows { display:none !important; }
 </style>
 
+<!-- ✨ Index-only drawer tweaks (scoped to the offcanvas) -->
+<style>
+  /* Make breadcrumb/link text in the drawer match app text color */
+  #dashCategoryManager #drawer-breadcrumb a{
+    color: var(--text) !important;
+    text-decoration: none;
+  }
+  #dashCategoryManager #drawer-breadcrumb a:hover{
+    color:#fff !important;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* Drawer transactions table: tighten spacing, set fixed layout */
+  #dashCategoryManager .offcanvas-body table{
+    table-layout: fixed;
+  }
+  #dashCategoryManager .offcanvas-body table th,
+  #dashCategoryManager .offcanvas-body table td{
+    padding:.55rem .8rem;
+    vertical-align: middle;
+  }
+
+  /* Column sizing + alignment:
+     1 = Date, 2 = Description, 3 = Amount, 4 = Category */
+  #dashCategoryManager .offcanvas-body table td:nth-child(1){
+    width:110px; white-space:nowrap;
+  }
+  #dashCategoryManager .offcanvas-body table td:nth-child(2){
+    width:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  /* Amount: left-align so it sits closer to the description */
+  #dashCategoryManager .offcanvas-body table td:nth-child(3){
+    width:120px; text-align:left !important;
+  }
+  /* Category (chip) — keep on one line */
+  #dashCategoryManager .offcanvas-body table td:nth-child(4){
+    width:150px; white-space:nowrap;
+  }
+  #dashCategoryManager .offcanvas-body table td:nth-child(4) .pill{
+    white-space: nowrap;
+  }
+  #dashCategoryManager .offcanvas-body table td:nth-child(4) .pill.pill-sm{
+    font-size:.85rem; padding:.15rem .5rem;
+  }
+</style>
+
 <!-- Header -->
 <div class="container mt-3 mb-2">
   <div class="d-flex align-items-center justify-content-center">
