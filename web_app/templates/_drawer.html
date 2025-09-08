@@ -102,6 +102,41 @@
     .panel-actions{ display:flex; gap:.5rem; justify-content:flex-end; padding:.7rem .9rem; border-top:1px solid rgba(255,255,255,.12); }
     .btn-ghost{ padding:.45rem .75rem; border-radius:.6rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#e6f0ff; }
     .btn-ghost:hover{ background:rgba(255,255,255,.12); }
+
+    /* ---------- Keywords pills: tiny × in the upper-right corner ---------- */
+    #kw-list .pill{
+      position: relative;
+      padding-right: 1.35rem; /* room for the close button */
+    }
+    #kw-list .pill .pill-close{
+      position: absolute;
+      top: -6px;            /* sits slightly over the rim */
+      right: -6px;
+      width: 16px;
+      height: 16px;
+      line-height: 14px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      border: 1px solid var(--pill-border);
+      background: rgba(0,0,0,.35);
+      color: var(--pill-fg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: transform .1s ease, background .15s ease, border-color .15s ease;
+    }
+    #kw-list .pill .pill-close:hover{
+      transform: scale(1.05);
+      background: rgba(0,0,0,.5);
+      border-color: var(--pill-border-hover);
+    }
+    #kw-list .pill .pill-close:focus{
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(255,255,255,.25);
+    }
   </style>
 
   <div class="offcanvas-body">
@@ -170,7 +205,7 @@
   </div>
 </div>
 
-<!-- Local, non-conflicting helpers to ensure Keywords tab works even if global controller isn't present -->
+<!-- Local, non-conflicting helpers -->
 <script>
 (function(){
   'use strict';
@@ -197,6 +232,10 @@
   const KW_ADD_URL    = urls.KW_ADD_URL    || '/admin/api/keyword_add';
   const KW_REMOVE_URL = urls.KW_REMOVE_URL || '/admin/api/keyword_remove';
 
+  const esc = (s)=> String(s ?? '').replace(/[&<>"']/g, c => (
+    c==='&' ? '&amp;' : c==='<' ? '&lt;' : c==='>' ? '&gt;' : c==='"' ? '&quot;' : '&#39;'
+  ));
+
   function ctxFromBreadcrumb(){
     // Prefer explicit anchors with data-bc-index (set by the main drawer JS)
     const anchors = dash.querySelectorAll('#drawer-breadcrumb a');
@@ -222,14 +261,10 @@
     if (parts[2]) { ctx.ssub = parts[2]; ctx.level = 'subsubcategory'; }
     if (parts[3]) { ctx.sss  = parts[3]; ctx.level = 'subsubsubcategory'; }
 
-    // The API expects name/last = deepest segment
     const last = parts[parts.length - 1] || ctx.cat || '';
     ctx.name = last;
     ctx.last = last;
-
-    // Pass allow_hidden like the main fetcher does
     ctx.allow_hidden = '1';
-
     return ctx;
   }
 
@@ -262,17 +297,20 @@
       const kws = (j && (j.keywords || j.kws || [])) || [];
       host.innerHTML = kws.length
         ? kws.map(k => `
-            <span class="pill pill-sm">
-              ${String(k)}
-              <a href="#" data-kw="${encodeURIComponent(k)}" class="ms-2 text-reset" title="Remove">×</a>
+            <span class="pill pill-sm" data-kw-label="${esc(k)}" title="${esc(k)}">
+              <span class="label">${esc(k)}</span>
+              <button type="button"
+                      class="pill-close"
+                      data-kw="${encodeURIComponent(k)}"
+                      aria-label="Remove ${esc(k)}">×</button>
             </span>
           `).join(' ')
         : '<span class="text-muted">No keywords yet.</span>';
 
-      host.querySelectorAll('a[data-kw]').forEach(a => {
-        a.addEventListener('click', async (e) => {
+      host.querySelectorAll('.pill-close').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
           e.preventDefault();
-          await removeKeywordLocal(decodeURIComponent(a.dataset.kw || ''));
+          await removeKeywordLocal(decodeURIComponent(btn.dataset.kw || ''));
           refreshKeywordsLocal();
         });
       });
