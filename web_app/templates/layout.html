@@ -376,10 +376,11 @@
 
     <!-- Drawer config: set API endpoints BEFORE the controller runs -->
     <script>
-      // Keep your explicit settings but add safe fallbacks and the missing keys.
+      // Keep explicit settings, but add defaults so either /api/keywords_for_name or /api/keywords will work.
       window.CL_URLS = Object.assign({
         PATH_TXN_URL : '/api/path/transactions',
         ACTION_URL   : '/admin/api/category_action',
+        // Your backend may expose only one of these; the controller will try both.
         KW_GET_URL   : '/api/keywords_for_name',
         KW_ADD_URL   : '/api/keyword_add',
         KW_REMOVE_URL: '/api/keyword_remove'
@@ -457,38 +458,65 @@
       const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
       const ACTION_URL    = urls.ACTION_URL    || '/admin/api/category_action';
 
-      // For keywords we’ll try the configured one first, then the other flavor.
+      // Keyword endpoints: try both flavors (name-based and path-based)
       const KW_GET_CANDIDATES = Array.from(new Set([
-        urls.KW_GET_URL, '/api/keywords_for_name', '/admin/api/keywords_for_name'
-      ].filter(Boolean)));
-      const KW_ADD_CANDIDATES = Array.from(new Set([
-        urls.KW_ADD_URL, '/api/keyword_add', '/admin/api/keyword_add'
-      ].filter(Boolean)));
-      const KW_REM_CANDIDATES = Array.from(new Set([
-        urls.KW_REMOVE_URL, '/api/keyword_remove', '/admin/api/keyword_remove'
+        urls.KW_GET_URL,
+        '/api/keywords_for_name', '/admin/api/keywords_for_name',
+        '/api/keywords',          '/admin/api/keywords'
       ].filter(Boolean)));
 
-      async function tryGetJson(bases, queryParams){
-        const qp = new URLSearchParams(queryParams||{});
-        qp.set('_', Date.now());
+      const KW_ADD_CANDIDATES = Array.from(new Set([
+        urls.KW_ADD_URL,
+        '/api/keyword_add', '/admin/api/keyword_add',
+        '/api/keywords',    '/admin/api/keywords'
+      ].filter(Boolean)));
+
+      const KW_REM_CANDIDATES = Array.from(new Set([
+        urls.KW_REMOVE_URL,
+        '/api/keyword_remove', '/admin/api/keyword_remove',
+        '/api/keywords',       '/admin/api/keywords'
+      ].filter(Boolean)));
+
+      // Helpers that adapt to endpoint shape
+      async function tryGetJson(bases, query){
         let lastErr = null;
         for (const base of bases){
-          try {
+          const qp = new URLSearchParams();
+          if (/keywords_for_name/.test(base)) {
+            qp.set('name', query.name || '');
+          } else {
+            // /api/keywords (path-based)
+            ['level','cat','sub','ssub','sss'].forEach(k => { if (query[k]) qp.set(k, query[k]); });
+            // also include name for backends that accept it
+            qp.set('name', query.name || '');
+          }
+          qp.set('_', Date.now());
+          try{
             const r = await fetch(base + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
             if (r.ok) return await r.json();
             lastErr = new Error('GET ' + base + ' → ' + r.status);
-          } catch(e){ lastErr = e; }
+          }catch(e){ lastErr = e; }
         }
         throw lastErr || new Error('No keyword GET endpoint succeeded');
       }
-      async function tryPostJson(bases, payload){
+
+      async function tryPostJson(bases, payload, action){ // action: 'add' | 'remove'
         let lastErr = null;
         for (const base of bases){
-          try {
-            const r = await fetch(base, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload||{}) });
-            if (r.ok) return await (r.headers.get('content-type')||'').includes('json') ? r.json() : r.text();
+          let body = { ...payload };
+          // If posting to unified /api/keywords, include an action flag so backends can switch.
+          if (/\/api\/keywords$/.test(base) || /\/admin\/api\/keywords$/.test(base)) {
+            body = { ...body, action: action, remove: action === 'remove' };
+          }
+          try{
+            const r = await fetch(base, {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify(body)
+            });
+            if (r.ok) return ((r.headers.get('content-type')||'').includes('json')) ? r.json() : r.text();
             lastErr = new Error('POST ' + base + ' → ' + r.status);
-          } catch(e){ lastErr = e; }
+          }catch(e){ lastErr = e; }
         }
         throw lastErr || new Error('No keyword POST endpoint succeeded');
       }
@@ -713,12 +741,12 @@
       }
       async function addKeyword(kw){
         if(!kw) return;
-        try { await tryPostJson(KW_ADD_CANDIDATES, Object.assign({}, payloadForKeywords(), { keyword: kw })); }
+        try { await tryPostJson(KW_ADD_CANDIDATES, Object.assign({}, payloadForKeywords(), { keyword: kw }), 'add'); }
         catch(e){ console.error(e); }
       }
       async function removeKeyword(kw){
         if(!kw) return;
-        try { await tryPostJson(KW_REM_CANDIDATES, Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true })); }
+        try { await tryPostJson(KW_REM_CANDIDATES, Object.assign({}, payloadForKeywords(), { keyword: kw, remove: true }), 'remove'); }
         catch(e){ console.error(e); }
       }
 
