@@ -29,17 +29,50 @@
   </div>
 
   <style>
-    /* ---------- Base layout ---------- */
-    .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
-    .drawer-breadcrumb .sep{ opacity:.6; }
-    .drawer-tabbar{ display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.08); margin:.25rem 0 .75rem; }
-    .drawer-tab{ padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:inherit; }
-    .drawer-tab.active{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-bottom-color:transparent; }
-    .drawer-pane{ display:none; }
+    /* ---------- Base layout & THEME FIXES (scoped to the drawer) ---------- */
+    #dashCategoryManager,
+    #dashCategoryManager .offcanvas-header,
+    #dashCategoryManager .offcanvas-body { color: var(--text); }
+
+    #dashCategoryManager a { color: var(--accent-ink); }
+    #dashCategoryManager a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+
+    #dashCategoryManager .text-muted,
+    #dashCategoryManager .muted { color: var(--muted) !important; }
+
+    #dashCategoryManager .form-control,
+    #dashCategoryManager .form-select {
+      color: var(--text);
+      background: rgba(0,0,0,.25);
+      border-color: var(--hair);
+    }
+    #dashCategoryManager .form-control::placeholder { color: color-mix(in oklab, var(--accent-ink) 65%, white); }
+
+    #dashCategoryManager .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+    #dashCategoryManager .drawer-breadcrumb .sep{ opacity:.6; }
+
+    #dashCategoryManager .drawer-tabbar{
+      display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.08); margin:.25rem 0 .75rem;
+    }
+    #dashCategoryManager .drawer-tab{
+      padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:var(--text);
+    }
+    #dashCategoryManager .drawer-tab.active{
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-bottom-color:transparent;
+    }
+    #dashCategoryManager .drawer-pane{ display:none; }
+
+    #dashCategoryManager table thead th{
+      background: var(--thead-bg) !important;
+      color: var(--table-head-fg, var(--text)) !important;
+      border-bottom: 1px solid var(--hair);
+    }
+    #dashCategoryManager table td, #dashCategoryManager table th{ color: var(--text); }
+
     .mono{ font-variant-numeric: tabular-nums; }
     .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
 
-    /* ---------- Pills: colors driven by global accent; identical across pages ---------- */
+    /* ---------- Pills: colors driven by global accent ---------- */
     #dashCategoryManager{
       --pill-fg: var(--accent-ink);
       --pill-bg: color-mix(in oklab, var(--accent-ink) 14%, transparent);
@@ -54,7 +87,7 @@
       text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s;
     }
     #dashCategoryManager .pill:hover{
-      background:var(--pill-bg-hover); color:var(--pill-fg-hover, var(--pill-fg)); border-color:var(--pill-border-hover);
+      background:var(--pill-bg-hover); color:var(--pill-fg); border-color:var(--pill-border-hover);
     }
     #dashCategoryManager .pill-sm{ padding:.25rem .55rem; font-size:.875rem; cursor:default; }
     .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
@@ -88,9 +121,7 @@
       padding: .9rem 1.1rem; font-weight:600; color:#cfe1ff;
       border-bottom:1px solid rgba(255,255,255,.12);
     }
-    .glass-panel .list{
-      overflow:auto; padding:.35rem .35rem 1rem;
-    }
+    .glass-panel .list{ overflow:auto; padding:.35rem .35rem 1rem; }
     .glass-item{
       display:flex; align-items:center; justify-content:space-between;
       padding:.6rem .9rem; margin:.15rem .25rem; border-radius:.65rem;
@@ -104,39 +135,17 @@
     .btn-ghost:hover{ background:rgba(255,255,255,.12); }
 
     /* ---------- Keywords pills: tiny × in the upper-right corner ---------- */
-    #kw-list .pill{
-      position: relative;
-      padding-right: 1.35rem; /* room for the close button */
-    }
+    #kw-list .pill{ position: relative; padding-right: 1.35rem; }
     #kw-list .pill .pill-close{
-      position: absolute;
-      top: -6px;            /* sits slightly over the rim */
-      right: -6px;
-      width: 16px;
-      height: 16px;
-      line-height: 14px;
-      font-size: 11px;
-      font-weight: 700;
-      border-radius: 999px;
-      border: 1px solid var(--pill-border);
-      background: rgba(0,0,0,.35);
-      color: var(--pill-fg);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      padding: 0;
+      position: absolute; top: -6px; right: -6px;
+      width: 16px; height: 16px; line-height: 14px; font-size: 11px; font-weight: 700;
+      border-radius: 999px; border: 1px solid var(--pill-border);
+      background: rgba(0,0,0,.35); color: var(--pill-fg);
+      display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
       transition: transform .1s ease, background .15s ease, border-color .15s ease;
     }
-    #kw-list .pill .pill-close:hover{
-      transform: scale(1.05);
-      background: rgba(0,0,0,.5);
-      border-color: var(--pill-border-hover);
-    }
-    #kw-list .pill .pill-close:focus{
-      outline: none;
-      box-shadow: 0 0 0 2px rgba(255,255,255,.25);
-    }
+    #kw-list .pill .pill-close:hover{ transform: scale(1.05); background: rgba(0,0,0,.5); border-color: var(--pill-border-hover); }
+    #kw-list .pill .pill-close:focus{ outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
   </style>
 
   <div class="offcanvas-body">
@@ -226,66 +235,98 @@
     showPane(this.getAttribute('data-tab') || 'overview');
   }));
 
-  /* ---------- Keywords (robust ctx + required params `name`/`last`) ---------- */
+  /* ---------- Keywords: robust endpoints & context ---------- */
   const urls = window.CL_URLS || {};
-  const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
-  const KW_ADD_URL    = urls.KW_ADD_URL    || '/admin/api/keyword_add';
-  const KW_REMOVE_URL = urls.KW_REMOVE_URL || '/admin/api/keyword_remove';
+  const GET_ENDPOINTS = [urls.KW_GET_URL, '/admin/api/keywords_for_name', '/api/keywords_for_name', '/api/keywords'].filter(Boolean);
+  const ADD_ENDPOINTS = [urls.KW_ADD_URL, '/admin/api/keyword_add', '/api/keyword_add'].filter(Boolean);
+  const DEL_ENDPOINTS = [urls.KW_REMOVE_URL, '/admin/api/keyword_remove', '/api/keyword_remove'].filter(Boolean);
 
   const esc = (s)=> String(s ?? '').replace(/[&<>"']/g, c => (
     c==='&' ? '&amp;' : c==='<' ? '&lt;' : c==='>' ? '&gt;' : c==='"' ? '&quot;' : '&#39;'
   ));
 
   function ctxFromBreadcrumb(){
-    // Prefer explicit anchors with data-bc-index (set by the main drawer JS)
     const anchors = dash.querySelectorAll('#drawer-breadcrumb a');
     const parts = [];
     anchors.forEach(a=>{
       const idx = (a.getAttribute('data-bc-index') || '');
-      if (idx === '' || idx === '-1') return; // skip "All Categories"
+      if (idx === '' || idx === '-1') return;
       const t = (a.textContent || '').trim();
       if (t) parts.push(t);
     });
-
-    // Fallback: split visible text by separator if no anchors found
     if (!parts.length) {
       const raw = (dash.querySelector('#drawer-breadcrumb')?.textContent || '')
         .replace(/All Categories/i,'')
         .split('›').map(s=>s.trim()).filter(Boolean);
       raw.forEach(s=>parts.push(s));
     }
-
     const ctx = { level:'category', cat:'', sub:'', ssub:'', sss:'' };
     if (parts[0]) ctx.cat  = parts[0];
     if (parts[1]) { ctx.sub  = parts[1]; ctx.level = 'subcategory'; }
     if (parts[2]) { ctx.ssub = parts[2]; ctx.level = 'subsubcategory'; }
     if (parts[3]) { ctx.sss  = parts[3]; ctx.level = 'subsubsubcategory'; }
-
     const last = parts[parts.length - 1] || ctx.cat || '';
     ctx.name = last;
     ctx.last = last;
+
+    // month (if present)
+    const monthSel = document.getElementById('drawer-months');
+    const monthVal = monthSel?.value || '';
+    if (monthVal && monthVal !== 'all') ctx.month = monthVal;
+
     ctx.allow_hidden = '1';
     return ctx;
   }
 
-  async function fetchKeywordsLocal(){
-    const ctx = ctxFromBreadcrumb();
-    const qp = new URLSearchParams(ctx); qp.set('_', Date.now());
-    const r = await fetch(KW_GET_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' } });
-    if (!r.ok) return { keywords: [] };
-    try { return await r.json(); } catch { return { keywords: [] }; }
+  function buildQuery(ctx){
+    const p = new URLSearchParams();
+    // both naming styles to be safe:
+    p.set('cat', ctx.cat || '');           p.set('category', ctx.cat || '');
+    p.set('sub', ctx.sub || '');           p.set('subcategory', ctx.sub || '');
+    p.set('ssub', ctx.ssub || '');         p.set('subsubcategory', ctx.ssub || '');
+    p.set('sss', ctx.sss || '');           p.set('subsubsubcategory', ctx.sss || '');
+    p.set('name', ctx.name || '');
+    p.set('last', ctx.last || ctx.name || '');
+    if (ctx.month) p.set('month', ctx.month);
+    p.set('allow_hidden','1');
+    p.set('_', Date.now());
+    return p.toString();
   }
 
-  async function addKeywordLocal(kw){
-    const ctx = ctxFromBreadcrumb();
-    const body = JSON.stringify(Object.assign({}, ctx, { keyword: kw }));
-    try { await fetch(KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body }); } catch {}
+  async function tryGetKeywords(ctx){
+    const qs = buildQuery(ctx);
+    for (const ep of GET_ENDPOINTS){
+      try{
+        const r = await fetch(ep + (ep.includes('?') ? '&' : '?') + qs, { headers: { 'Accept':'application/json' }, credentials:'same-origin' });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const arr = j?.keywords || j?.kws || j?.items || [];
+        if (Array.isArray(arr) && arr.length) return arr;
+      }catch{}
+    }
+    return [];
   }
 
-  async function removeKeywordLocal(kw){
-    const ctx = ctxFromBreadcrumb();
-    const body = JSON.stringify(Object.assign({}, ctx, { keyword: kw, remove: true }));
-    try { await fetch(KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body }); } catch {}
+  async function tryAddKeyword(ctx, kw){
+    const body = Object.assign({}, ctx, { keyword: kw });
+    for (const ep of ADD_ENDPOINTS){
+      try{
+        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body) });
+        if (r.ok) return true;
+      }catch{}
+    }
+    return false;
+  }
+
+  async function tryRemoveKeyword(ctx, kw){
+    const body = Object.assign({}, ctx, { keyword: kw, remove: true });
+    for (const ep of DEL_ENDPOINTS){
+      try{
+        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body) });
+        if (r.ok) return true;
+      }catch{}
+    }
+    return false;
   }
 
   async function refreshKeywordsLocal(){
@@ -293,8 +334,8 @@
     if (!host) return;
     host.innerHTML = '<span class="text-muted">Loading…</span>';
     try{
-      const j = await fetchKeywordsLocal();
-      const kws = (j && (j.keywords || j.kws || [])) || [];
+      const ctx = ctxFromBreadcrumb();
+      const kws = await tryGetKeywords(ctx);
       host.innerHTML = kws.length
         ? kws.map(k => `
             <span class="pill pill-sm" data-kw-label="${esc(k)}" title="${esc(k)}">
@@ -310,11 +351,12 @@
       host.querySelectorAll('.pill-close').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.preventDefault();
-          await removeKeywordLocal(decodeURIComponent(btn.dataset.kw || ''));
-          refreshKeywordsLocal();
+          const kw = decodeURIComponent(btn.dataset.kw || '');
+          const ok = await tryRemoveKeyword(ctx, kw);
+          if (ok) refreshKeywordsLocal();
         });
       });
-    }catch(e){
+    }catch{
       host.innerHTML = '<span class="text-danger">Failed to load keywords.</span>';
     }
   }
@@ -325,15 +367,18 @@
     const commit = async () => {
       const kw = (addInput.value || '').trim();
       if (!kw) return;
-      await addKeywordLocal(kw);
-      addInput.value = '';
-      refreshKeywordsLocal();
+      const ctx = ctxFromBreadcrumb();
+      const ok = await tryAddKeyword(ctx, kw);
+      if (ok) {
+        addInput.value = '';
+        refreshKeywordsLocal();
+      }
     };
     addBtn.addEventListener('click', (e)=>{ e.preventDefault(); commit(); });
     addInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') commit(); });
   }
 
-  // When the offcanvas shows: if Keywords tab is already active, refresh immediately.
+  // When the offcanvas shows: if Keywords tab is active, refresh immediately.
   document.addEventListener('show.bs.offcanvas', function(ev){
     if (ev.target && ev.target.id === 'dashCategoryManager') {
       const activeTab = dash.querySelector('.drawer-tab.active')?.getAttribute('data-tab') || 'overview';
