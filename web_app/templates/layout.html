@@ -376,14 +376,15 @@
 
     <!-- Drawer config: set API endpoints BEFORE the controller runs -->
     <script>
-      // Keep explicit settings, but add defaults so either /api/keywords_for_name or /api/keywords will work.
+      // Use your working admin/api defaults; pages can still override via window.CL_URLS.
       window.CL_URLS = Object.assign({
         PATH_TXN_URL : '/api/path/transactions',
         ACTION_URL   : '/admin/api/category_action',
-        // Your backend may expose only one of these; the controller will try both.
-        KW_GET_URL   : '/api/keywords_for_name',
-        KW_ADD_URL   : '/api/keyword_add',
-        KW_REMOVE_URL: '/api/keyword_remove'
+
+        // IMPORTANT: these default to admin/api to match Category Builder behavior.
+        KW_GET_URL   : '/admin/api/keywords_for_name',
+        KW_ADD_URL   : '/admin/api/keyword_add',
+        KW_REMOVE_URL: '/admin/api/keyword_remove'
       }, window.CL_URLS || {});
     </script>
 
@@ -441,7 +442,7 @@
     <script>
     /*
       Drawer UI — Overview/Keywords/Actions intact; pills & palette; overlay month selector;
-      robust endpoints with fallbacks between /api and /admin/api; global [data-manage] delegate.
+      robust endpoints with fallbacks between /admin/api, /admin/categories and /api; global [data-manage] delegate.
     */
     (function(){
       'use strict';
@@ -458,59 +459,73 @@
       const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
       const ACTION_URL    = urls.ACTION_URL    || '/admin/api/category_action';
 
-      // Keyword endpoints: try all flavors (name-based & unified; api/admin/categories)
-      const KW_GET_CANDIDATES = Array.from(new Set([
+      // Normalize/guard candidate lists
+      const normalizeBases = (arr=[]) => {
+        const out = [];
+        arr.forEach(s => {
+          if (!s || typeof s !== 'string') return;
+          const t = s.trim();
+          if (!t || /^undefined$/i.test(t) || /^null$/i.test(t)) return;
+          const absolute = /^(https?:)?\/\//i.test(t) || t.startsWith('/');
+          const fixed = absolute ? t : ('/' + t);
+          if (!out.includes(fixed)) out.push(fixed);
+        });
+        return out;
+      };
+
+      // Keyword endpoints: try name- and path-based APIs across admin/api, admin/categories, and api.
+      const KW_GET_CANDIDATES = normalizeBases([
         urls.KW_GET_URL,
-        '/api/keywords_for_name', '/admin/api/keywords_for_name',
-        '/api/keywords',          '/admin/api/keywords',
-        // builder-style variants:
-        '/admin/categories/keywords_for_name',
-        '/admin/categories/keywords',
-        '/categories/keywords_for_name',
-        '/categories/keywords'
-      ].filter(Boolean)));
+        '/admin/api/keywords_for_name',      '/api/keywords_for_name',
+        '/admin/categories/keywords_for_name','/categories/keywords_for_name',
+        '/admin/api/keywords',               '/api/keywords',
+        '/admin/categories/keywords',        '/categories/keywords'
+      ]);
 
-      const KW_ADD_CANDIDATES = Array.from(new Set([
+      const KW_ADD_CANDIDATES = normalizeBases([
         urls.KW_ADD_URL,
-        '/api/keyword_add', '/admin/api/keyword_add',
-        '/api/keywords',    '/admin/api/keywords',
-        // builder-style variants:
-        '/admin/categories/keyword_add',
-        '/admin/categories/keywords',
-        '/categories/keyword_add',
-        '/categories/keywords'
-      ].filter(Boolean)));
+        '/admin/api/keyword_add',            '/api/keyword_add',
+        '/admin/categories/keyword_add',     '/categories/keyword_add',
+        '/admin/api/keywords',               '/api/keywords',
+        '/admin/categories/keywords',        '/categories/keywords'
+      ]);
 
-      const KW_REM_CANDIDATES = Array.from(new Set([
+      const KW_REM_CANDIDATES = normalizeBases([
         urls.KW_REMOVE_URL,
-        '/api/keyword_remove', '/admin/api/keyword_remove',
-        '/api/keywords',       '/admin/api/keywords',
-        // builder-style variants:
-        '/admin/categories/keyword_remove',
-        '/admin/categories/keywords',
-        '/categories/keyword_remove',
-        '/categories/keywords'
-      ].filter(Boolean)));
+        '/admin/api/keyword_remove',         '/api/keyword_remove',
+        '/admin/categories/keyword_remove',  '/categories/keyword_remove',
+        '/admin/api/keywords',               '/api/keywords',
+        '/admin/categories/keywords',        '/categories/keywords'
+      ]);
 
-      // Helpers that adapt to endpoint shape
-      async function tryGetJson(bases, query){
+      async function tryGetJson(bases, queryParams){
+        const qpBase = new URLSearchParams(queryParams||{});
+        qpBase.set('_', Date.now());
         let lastErr = null;
+
         for (const base of bases){
-          const qp = new URLSearchParams();
-          if (/keywords_for_name/.test(base)) {
-            qp.set('name', query.name || '');
-          } else {
-            // unified ".../keywords" style expects path bits
-            ['level','cat','sub','ssub','sss'].forEach(k => { if (query[k]) qp.set(k, query[k]); });
-            // include name for backends that accept it
-            if (query.name) qp.set('name', query.name);
-          }
-          qp.set('_', Date.now());
-          try{
+          try {
+            const isByName = /keywords_for_name/i.test(base);
+            const isUnified = /\/keywords(?:$|\?)/i.test(base);
+            const qp = new URLSearchParams();
+
+            // Always pass path context to help backends that accept it
+            ['level','cat','sub','ssub','sss'].forEach(k => { if (queryParams && queryParams[k]) qp.set(k, queryParams[k]); });
+
+            if (isByName) {
+              const name = (queryParams && (queryParams.name || queryParams.last)) || '';
+              qp.set('name', name);
+            } else if (isUnified) {
+              // unified /keywords might support either 'name' or path – include both
+              if (queryParams && (queryParams.name || queryParams.last)) qp.set('name', (queryParams.name || queryParams.last));
+            }
+
+            qp.set('_', Date.now());
+
             const r = await fetch(base + '?' + qp.toString(), { headers:{'Accept':'application/json'} });
             if (r.ok) return await r.json();
             lastErr = new Error('GET ' + base + ' → ' + r.status);
-          }catch(e){ lastErr = e; }
+          } catch(e){ lastErr = e; }
         }
         throw lastErr || new Error('No keyword GET endpoint succeeded');
       }
@@ -518,20 +533,22 @@
       async function tryPostJson(bases, payload, action){ // action: 'add' | 'remove'
         let lastErr = null;
         for (const base of bases){
-          let body = { ...payload };
-          // If posting to a unified ".../keywords" endpoint, send an action hint.
-          if (/(\/(admin\/)?(api|categories)\/keywords)$/.test(base)) {
-            body = { ...body, action: action, remove: action === 'remove' };
-          }
           try{
+            let body = { ...payload };
+            // For unified /keywords POST, include action flags to route server-side
+            if (/\/keywords(?:$|\?)/i.test(base)) {
+              body = { ...body, action: action, remove: (action === 'remove') };
+            }
             const r = await fetch(base, {
               method:'POST',
               headers:{'Content-Type':'application/json'},
-              body: JSON.stringify(body)
+              body: JSON.stringify(body || {})
             });
-            if (r.ok) return ((r.headers.get('content-type')||'').includes('json')) ? r.json() : r.text();
+            if (r.ok) {
+              return ((r.headers.get('content-type')||'').includes('json')) ? r.json() : r.text();
+            }
             lastErr = new Error('POST ' + base + ' → ' + r.status);
-          }catch(e){ lastErr = e; }
+          } catch(e){ lastErr = e; }
         }
         throw lastErr || new Error('No keyword POST endpoint succeeded');
       }
@@ -826,7 +843,7 @@
           return;
         }
 
-        state.months = Array.isArray(j.months)?j.months:(Array.isArray(j.month_list)?j.month_list:[]);
+        state.months = Array.isArray(j.months)?j.months:(Array.isArray(j.month_list)?j.month_list:[]); 
         state.tx = Array.isArray(j.tx)?j.tx:(Array.isArray(j.transactions)?j.transactions:[]);
         state.children = Array.isArray(j.children)?j.children:(Array.isArray(j.kids)?j.kids:(Array.isArray(j.child)?j.child:[]));
         state.total = Number(j.total ?? j.net_total ?? j.sum ?? 0);
