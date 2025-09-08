@@ -458,23 +458,38 @@
       const PATH_TXN_URL  = urls.PATH_TXN_URL  || '/api/path/transactions';
       const ACTION_URL    = urls.ACTION_URL    || '/admin/api/category_action';
 
-      // Keyword endpoints: try both flavors (name-based and path-based)
+      // Keyword endpoints: try all flavors (name-based & unified; api/admin/categories)
       const KW_GET_CANDIDATES = Array.from(new Set([
         urls.KW_GET_URL,
         '/api/keywords_for_name', '/admin/api/keywords_for_name',
-        '/api/keywords',          '/admin/api/keywords'
+        '/api/keywords',          '/admin/api/keywords',
+        // builder-style variants:
+        '/admin/categories/keywords_for_name',
+        '/admin/categories/keywords',
+        '/categories/keywords_for_name',
+        '/categories/keywords'
       ].filter(Boolean)));
 
       const KW_ADD_CANDIDATES = Array.from(new Set([
         urls.KW_ADD_URL,
         '/api/keyword_add', '/admin/api/keyword_add',
-        '/api/keywords',    '/admin/api/keywords'
+        '/api/keywords',    '/admin/api/keywords',
+        // builder-style variants:
+        '/admin/categories/keyword_add',
+        '/admin/categories/keywords',
+        '/categories/keyword_add',
+        '/categories/keywords'
       ].filter(Boolean)));
 
       const KW_REM_CANDIDATES = Array.from(new Set([
         urls.KW_REMOVE_URL,
         '/api/keyword_remove', '/admin/api/keyword_remove',
-        '/api/keywords',       '/admin/api/keywords'
+        '/api/keywords',       '/admin/api/keywords',
+        // builder-style variants:
+        '/admin/categories/keyword_remove',
+        '/admin/categories/keywords',
+        '/categories/keyword_remove',
+        '/categories/keywords'
       ].filter(Boolean)));
 
       // Helpers that adapt to endpoint shape
@@ -485,10 +500,10 @@
           if (/keywords_for_name/.test(base)) {
             qp.set('name', query.name || '');
           } else {
-            // /api/keywords (path-based)
+            // unified ".../keywords" style expects path bits
             ['level','cat','sub','ssub','sss'].forEach(k => { if (query[k]) qp.set(k, query[k]); });
-            // also include name for backends that accept it
-            qp.set('name', query.name || '');
+            // include name for backends that accept it
+            if (query.name) qp.set('name', query.name);
           }
           qp.set('_', Date.now());
           try{
@@ -504,8 +519,8 @@
         let lastErr = null;
         for (const base of bases){
           let body = { ...payload };
-          // If posting to unified /api/keywords, include an action flag so backends can switch.
-          if (/\/api\/keywords$/.test(base) || /\/admin\/api\/keywords$/.test(base)) {
+          // If posting to a unified ".../keywords" endpoint, send an action hint.
+          if (/(\/(admin\/)?(api|categories)\/keywords)$/.test(base)) {
             body = { ...body, action: action, remove: action === 'remove' };
           }
           try{
