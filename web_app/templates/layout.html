@@ -374,6 +374,16 @@
 
     {% include "_drawer.html" %}
 
+    <!-- Drawer config: set API endpoints BEFORE the controller runs -->
+    <script>
+      window.CL_URLS = window.CL_URLS || {};
+      Object.assign(window.CL_URLS, {
+        KW_GET_URL: '/admin/api/keywords_for_name',
+        KW_ADD_URL: '/admin/api/keyword_add',
+        KW_REMOVE_URL: '/admin/api/keyword_remove'
+      });
+    </script>
+
     <!-- UNIVERSAL DRAWER CONTROLLER (inline; replaces external drawer.js) -->
     <script>
     /*
