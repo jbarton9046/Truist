@@ -41,7 +41,6 @@
 
     /* ---------- Pills: colors driven by global accent; identical across pages ---------- */
     #dashCategoryManager{
-      /* tie pill palette to your site accent so it matches Category Builder/tabs */
       --pill-fg: var(--accent-ink);
       --pill-bg: color-mix(in oklab, var(--accent-ink) 14%, transparent);
       --pill-border: color-mix(in oklab, var(--accent-ink) 40%, transparent);
@@ -170,3 +169,115 @@
     </div>
   </div>
 </div>
+
+<!-- Local, non-conflicting helpers to ensure Keywords tab works even if global controller isn't present -->
+<script>
+(function(){
+  'use strict';
+
+  /* ---------- Tab switching (safe if global also handles it) ---------- */
+  const dash = document.getElementById('dashCategoryManager');
+  if (!dash) return;
+
+  const tabs  = dash.querySelectorAll('.drawer-tab');
+  const panes = dash.querySelectorAll('.drawer-pane');
+
+  function showPane(name){
+    tabs.forEach(t => t.classList.toggle('active', (t.dataset.tab === name)));
+    panes.forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none');
+    if (name === 'keywords') refreshKeywordsLocal();
+  }
+
+  tabs.forEach(t => t.addEventListener('click', function(e){
+    e.preventDefault();
+    const target = this.getAttribute('data-tab') || 'overview';
+    showPane(target);
+  }));
+
+  /* ---------- Keywords (local fallback; uses breadcrumb to build context) ---------- */
+  const urls = window.CL_URLS || {};
+  const KW_GET_URL    = urls.KW_GET_URL    || '/admin/api/keywords_for_name';
+  const KW_ADD_URL    = urls.KW_ADD_URL    || '/admin/api/keyword_add';
+  const KW_REMOVE_URL = urls.KW_REMOVE_URL || '/admin/api/keyword_remove';
+
+  function currentPathCtx(){
+    // Gather breadcrumb anchors that have a bc-index (global breadcrumb renderer sets these)
+    const nodes = dash.querySelectorAll('#drawer-breadcrumb a[data-bc-index]');
+    const parts = Array.from(nodes)
+      .filter(a => (a.getAttribute('data-bc-index') || '') !== '-1')
+      .map(a => (a.textContent || '').trim())
+      .filter(Boolean);
+
+    const ctx = { level:'category', cat:'', sub:'', ssub:'', sss:'' };
+    if (parts[0]) ctx.cat  = parts[0];
+    if (parts[1]) { ctx.sub  = parts[1]; ctx.level='subcategory'; }
+    if (parts[2]) { ctx.ssub = parts[2]; ctx.level='subsubcategory'; }
+    if (parts[3]) { ctx.sss  = parts[3]; ctx.level='subsubsubcategory'; }
+    return ctx;
+  }
+
+  async function fetchKeywordsLocal(){
+    const ctx = currentPathCtx();
+    const qp = new URLSearchParams(ctx); qp.set('_', Date.now());
+    const r = await fetch(KW_GET_URL + '?' + qp.toString(), { headers:{ 'Accept':'application/json' } });
+    if (!r.ok) return { keywords: [] };
+    try { return await r.json(); } catch { return { keywords: [] }; }
+  }
+
+  async function addKeywordLocal(kw){
+    const ctx = currentPathCtx();
+    const body = JSON.stringify(Object.assign({}, ctx, { keyword: kw }));
+    try { await fetch(KW_ADD_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body }); } catch {}
+  }
+
+  async function removeKeywordLocal(kw){
+    const ctx = currentPathCtx();
+    const body = JSON.stringify(Object.assign({}, ctx, { keyword: kw, remove: true }));
+    try { await fetch(KW_REMOVE_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body }); } catch {}
+  }
+
+  async function refreshKeywordsLocal(){
+    const host = dash.querySelector('#kw-list');
+    if (!host) return;
+    host.innerHTML = '<span class="text-muted">Loading…</span>';
+    try{
+      const j = await fetchKeywordsLocal();
+      const kws = (j && (j.keywords || j.kws || [])) || [];
+      host.innerHTML = kws.length
+        ? kws.map(k => `<span class="pill pill-sm">${k}<a href="#" data-kw="${encodeURIComponent(k)}" class="ms-2 text-reset" title="Remove">×</a></span>`).join(' ')
+        : '<span class="text-muted">No keywords yet.</span>';
+
+      host.querySelectorAll('a[data-kw]').forEach(a => {
+        a.addEventListener('click', async (e) => {
+          e.preventDefault();
+          await removeKeywordLocal(decodeURIComponent(a.dataset.kw || ''));
+          refreshKeywordsLocal();
+        });
+      });
+    }catch(e){
+      host.innerHTML = '<span class="text-danger">Failed to load keywords.</span>';
+    }
+  }
+
+  const addBtn   = dash.querySelector('#kw-add-btn');
+  const addInput = dash.querySelector('#kw-add-input');
+  if (addBtn && addInput){
+    const commit = async () => {
+      const kw = (addInput.value || '').trim();
+      if (!kw) return;
+      await addKeywordLocal(kw);
+      addInput.value = '';
+      refreshKeywordsLocal();
+    };
+    addBtn.addEventListener('click', (e)=>{ e.preventDefault(); commit(); });
+    addInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') commit(); });
+  }
+
+  // When the offcanvas shows, default to Overview; Keywords will refresh when its tab is opened
+  document.addEventListener('show.bs.offcanvas', function(ev){
+    if (ev.target && ev.target.id === 'dashCategoryManager') {
+      showPane('overview');
+    }
+  });
+})();
+</script>
