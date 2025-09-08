@@ -29,13 +29,10 @@
   </div>
 
   <style>
-    /* ---------- Base layout & THEME FIXES (scoped to the drawer) ---------- */
+    /* ---------- Base layout & THEME (scoped to the drawer) ---------- */
     #dashCategoryManager,
     #dashCategoryManager .offcanvas-header,
     #dashCategoryManager .offcanvas-body { color: var(--text); }
-
-    #dashCategoryManager a { color: var(--accent-ink); }
-    #dashCategoryManager a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
 
     #dashCategoryManager .text-muted,
     #dashCategoryManager .muted { color: var(--muted) !important; }
@@ -48,9 +45,34 @@
     }
     #dashCategoryManager .form-control::placeholder { color: color-mix(in oklab, var(--accent-ink) 65%, white); }
 
-    #dashCategoryManager .drawer-breadcrumb{ display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
-    #dashCategoryManager .drawer-breadcrumb .sep{ opacity:.6; }
+    /* ---------- Breadcrumb: chip-style, professional look ---------- */
+    #dashCategoryManager .drawer-breadcrumb{
+      display:flex; flex-wrap:wrap; align-items:center;
+      gap:.35rem .45rem;
+    }
+    #dashCategoryManager .drawer-breadcrumb a{
+      display:inline-flex; align-items:center; gap:.4rem;
+      max-width: 100%;
+      padding:.28rem .6rem; border-radius:.6rem;
+      background: color-mix(in oklab, var(--accent-ink) 12%, transparent);
+      color: var(--text); border:1px solid var(--hair);
+      text-decoration:none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+      transition: background .15s ease, border-color .15s ease, transform .05s ease;
+    }
+    #dashCategoryManager .drawer-breadcrumb a:hover{
+      background: color-mix(in oklab, var(--accent-ink) 18%, transparent);
+      border-color: color-mix(in oklab, var(--accent-ink) 48%, transparent);
+    }
+    #dashCategoryManager .drawer-breadcrumb a .crumb-text{
+      display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width: 12rem;
+    }
+    #dashCategoryManager .drawer-breadcrumb a:not(:last-child)::after{
+      content:"›"; margin-left:.35rem; opacity:.65;
+    }
 
+    /* ---------- Tabs ---------- */
     #dashCategoryManager .drawer-tabbar{
       display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.08); margin:.25rem 0 .75rem;
     }
@@ -62,6 +84,7 @@
     }
     #dashCategoryManager .drawer-pane{ display:none; }
 
+    /* ---------- Table theme ---------- */
     #dashCategoryManager table thead th{
       background: var(--thead-bg) !important;
       color: var(--table-head-fg, var(--text)) !important;
@@ -87,7 +110,7 @@
       text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s;
     }
     #dashCategoryManager .pill:hover{
-      background:var(--pill-bg-hover); color:var(--pill-fg); border-color:var(--pill-border-hover);
+      background:var(--pill-bg-hover); border-color:var(--pill-border-hover);
     }
     #dashCategoryManager .pill-sm{ padding:.25rem .55rem; font-size:.875rem; cursor:default; }
     .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
@@ -246,14 +269,14 @@
   ));
 
   function ctxFromBreadcrumb(){
+    // Collect visible breadcrumb text in order
     const anchors = dash.querySelectorAll('#drawer-breadcrumb a');
     const parts = [];
     anchors.forEach(a=>{
-      const idx = (a.getAttribute('data-bc-index') || '');
-      if (idx === '' || idx === '-1') return;
-      const t = (a.textContent || '').trim();
-      if (t) parts.push(t);
+      const text = (a.textContent || '').trim();
+      if (text) parts.push(text);
     });
+    // Fallback if anchors not present yet
     if (!parts.length) {
       const raw = (dash.querySelector('#drawer-breadcrumb')?.textContent || '')
         .replace(/All Categories/i,'')
@@ -293,15 +316,43 @@
     return p.toString();
   }
 
+  function extractKeywords(payload){
+    if (!payload) return [];
+    // arrays directly
+    if (Array.isArray(payload)) return payload;
+    // common wrappers
+    if (Array.isArray(payload.keywords)) return payload.keywords;
+    if (Array.isArray(payload.kws)) return payload.kws;
+    if (Array.isArray(payload.items)) return payload.items;
+    if (payload.data) return extractKeywords(payload.data);
+    if (payload.result) return extractKeywords(payload.result);
+    // sometimes object with keyed keywords -> take values if strings
+    const vals = Object.values(payload).filter(v => typeof v === 'string');
+    return vals.length ? vals : [];
+  }
+
   async function tryGetKeywords(ctx){
     const qs = buildQuery(ctx);
+
+    // Try GETs first
     for (const ep of GET_ENDPOINTS){
       try{
-        const r = await fetch(ep + (ep.includes('?') ? '&' : '?') + qs, { headers: { 'Accept':'application/json' }, credentials:'same-origin' });
+        const url = ep + (ep.includes('?') ? '&' : '?') + qs;
+        const r = await fetch(url, { headers: { 'Accept':'application/json' }, credentials:'same-origin' });
         if (!r.ok) continue;
         const j = await r.json();
-        const arr = j?.keywords || j?.kws || j?.items || [];
-        if (Array.isArray(arr) && arr.length) return arr;
+        const arr = extractKeywords(j);
+        if (arr.length) return arr;
+      }catch{}
+    }
+    // Some backends use POST for lookups
+    for (const ep of GET_ENDPOINTS){
+      try{
+        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(ctx) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        const arr = extractKeywords(j);
+        if (arr.length) return arr;
       }catch{}
     }
     return [];
@@ -378,12 +429,26 @@
     addInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') commit(); });
   }
 
-  // When the offcanvas shows: if Keywords tab is active, refresh immediately.
+  // When the offcanvas shows: refresh if Keywords tab is active.
   document.addEventListener('show.bs.offcanvas', function(ev){
     if (ev.target && ev.target.id === 'dashCategoryManager') {
       const activeTab = dash.querySelector('.drawer-tab.active')?.getAttribute('data-tab') || 'overview';
-      if (activeTab === 'keywords') refreshKeywordsLocal();
+      // double-tap to handle delayed breadcrumb population
+      if (activeTab === 'keywords') {
+        refreshKeywordsLocal();
+        setTimeout(refreshKeywordsLocal, 150);
+      }
     }
   });
+
+  // Watch breadcrumb changes (context switches) and refresh keywords if that pane is open
+  const bc = dash.querySelector('#drawer-breadcrumb');
+  if (bc && 'MutationObserver' in window){
+    const mo = new MutationObserver(() => {
+      const active = dash.querySelector('.drawer-tab.active')?.dataset.tab;
+      if (active === 'keywords') refreshKeywordsLocal();
+    });
+    mo.observe(bc, { subtree:true, childList:true, characterData:true });
+  }
 })();
 </script>
