@@ -1112,5 +1112,11 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/movers_weekly.js') }}" defer></script>
+    <script>
+      window.CL_URLS = Object.assign({
+        KW_GET_URL: '/admin/categories/keywords'
+      }, window.CL_URLS || {});
+    </script>
+
   </body>
 </html>

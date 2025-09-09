@@ -1000,6 +1000,51 @@ def _get_json_or_form(key: str) -> str:
         val = (request.form.get(key) or "").strip()
     return val
 
+# ---- READ KEYWORDS for the drawer (GET/POST; admin-scoped aliases) ----
+def _keywords_read_handler():
+    cfg = load_cfg()
+
+    # accept both GET (args) and POST (json/form)
+    g = request.args
+    j = request.get_json(silent=True) or {}
+    f = request.form or {}
+
+    def pick(k, default=""):
+        v = (g.get(k) or j.get(k) or f.get(k) or default)
+        return v.strip() if isinstance(v, str) else v
+
+    level = pick("level", "category")
+    cat   = pick("cat")
+    sub   = pick("sub")
+    ssub  = pick("ssub")
+    sss   = pick("sss")
+
+    if level not in {"category","subcategory","subsubcategory","subsubsubcategory"} or not cat:
+        return jsonify({"ok": False, "error": "Invalid request"}), 400
+
+    kws, _children = _keywords_and_children(cfg, level, cat, sub or None, ssub or None, sss or None)
+    return jsonify({"ok": True, "keywords": kws})
+
+# canonical (admin) path
+@admin_categories_bp.route("/categories/keywords", methods=["GET","POST"])
+def get_keywords_for_path():
+    return _keywords_read_handler()
+
+# admin-scoped aliases your JS may probe
+@admin_categories_bp.route("/api/keywords", methods=["GET","POST"])
+def get_keywords_alias_api():
+    return _keywords_read_handler()
+
+@admin_categories_bp.route("/categories/keywords_for_name", methods=["GET","POST"])
+def get_keywords_for_name_compat():
+    return _keywords_read_handler()
+
+@admin_categories_bp.route("/api/keywords_for_name", methods=["GET","POST"])
+def get_keywords_for_name_api_compat():
+    return _keywords_read_handler()
+
+
+
 @admin_categories_bp.route("/categories/keyword/add", methods=["POST"])
 def keyword_add_api():
     cfg = load_cfg()
@@ -1050,6 +1095,28 @@ def keyword_remove_api():
         return jsonify({"ok": True, "removed": removed})
     flash(("Removed keyword." if removed else "Keyword not found."), "success")
     return redirect(url_for("admin_categories.categories_page"))
+
+@admin_categories_bp.route("/categories/keywords", methods=["GET"])
+def get_keywords_for_path():
+    """
+    Read-only keywords for a path.
+    Query: level, cat, sub, ssub, sss
+    Example: /admin/categories/keywords?level=subcategory&cat=Groceries&sub=Home
+    """
+    cfg = load_cfg()
+    level = (request.args.get("level") or "category").strip()
+    cat   = (request.args.get("cat")   or "").strip()
+    sub   = (request.args.get("sub")   or "").strip()
+    ssub  = (request.args.get("ssub")  or "").strip()
+    sss   = (request.args.get("sss")   or "").strip()
+
+    if level not in {"category","subcategory","subsubcategory","subsubsubcategory"}:
+        return jsonify({"ok": False, "error": "Invalid level"}), 400
+    if not cat:
+        return jsonify({"ok": False, "error": "Category is required"}), 400
+
+    keywords, _children = _keywords_and_children(cfg, level, cat, sub or None, ssub or None, sss or None)
+    return jsonify({"ok": True, "keywords": keywords})
 
 # ================================
 # Misc / Uncategorized transactions
