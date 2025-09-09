@@ -184,11 +184,6 @@ def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
 
     return norm
 
-# simple in-memory cache for monthly summaries
-_MONTHLY_CACHE = {"monthly": None, "ts": 0}
-
-
-
 def build_category_tree(cfg_in=None):
     cfg_local = cfg_in or load_cfg()
     cats = set()
@@ -228,17 +223,6 @@ def _statements_dir() -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-def _manual_file() -> Path:
-    return _statements_dir() / "manual_transactions.json"
-
-
-# Log chosen statements directory after helpers are defined
-app.logger.info("[Statements] Using dir: %s", str(get_statements_base_dir()))
-
-def save_manual_transaction(tx: dict):
-    with open(_manual_file(), "a", encoding="utf-8") as f:
-        f.write(json.dumps(tx) + "\\n")
-
 def _normalize_form_date(raw: str) -> str:
     try:
         return datetime.strptime(raw, "%Y-%m-%d").strftime("%m/%d/%Y")
@@ -248,15 +232,15 @@ def _normalize_form_date(raw: str) -> str:
 def save_manual_form_transaction(form, tx_type: str):
     raw_amount = abs(float(form["amount"]))
     amount = raw_amount if tx_type == "income" else -raw_amount
-    tx = {
+    append_manual_tx({
         "date": _normalize_form_date(form["date"]),
-        "description": form["description"].upper(),
+        "description": form["description"],
         "amount": amount,
         "category": form.get("category", ""),
         "subcategory": form.get("subcategory", ""),
         "sub_subcategory": form.get("sub_subcategory", "")
-    }
-    save_manual_transaction(tx)
+    })
+
 
 # ------------------ SUMMARY PRUNING / REBUILD ------------------
 def _apply_hide_rules_to_summary(summary_data):
@@ -594,11 +578,7 @@ def category_builder():
 
 @app.route("/")
 def index():
-    cfg_live = load_cfg()
-    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
-
-    # apply any hide rules you have
-    _apply_hide_rules_to_summary(summary_data)
+    summary_data, _ = build_monthly()
 
     # pull totals + transactions from the latest month the parser built
     if summary_data:
@@ -654,12 +634,14 @@ def add_expense():
 @app.route("/submit-income", methods=["POST"])
 def submit_income():
     raw_amount = abs(float(request.form["amount"]))
-    tx = {
-        "date": request.form["date"],
-        "description": request.form["description"].upper(),
-        "amount": raw_amount
-    }
-    save_manual_transaction(tx)
+    append_manual_tx({
+        "date": _normalize_form_date(request.form["date"]),
+        "description": request.form["description"],
+        "amount": raw_amount,
+        "category": request.form.get("category",""),
+        "subcategory": request.form.get("subcategory",""),
+        "sub_subcategory": request.form.get("sub_subcategory",""),
+    })
     return redirect(url_for("index"))
 
 @app.route("/submit-expense", methods=["POST"])
@@ -698,7 +680,7 @@ def api_recent_activity():
         },
     }
     if not months_sorted:
-        return jsonify({**payload, "ok": True, "data": payload})
+        return jsonify({"ok": True, "data": payload})
 
     latest_key = months_sorted[-1]
     prev_key = months_sorted[-2] if len(months_sorted) > 1 else None
@@ -828,7 +810,49 @@ def api_recent_activity():
         "last_30_expense": round(last30_exp, 2),
         "last_30_income": round(last30_inc, 2),
     }
-    return jsonify({**payload, "ok": True, "data": payload})
+
+    return jsonify({"ok": True, "data": payload})
+    
+
+
+# --- DEBUG: inspect category keyword sources ---
+@app.get("/__debug/keywords")
+def debug_keywords():
+    import truist.filter_config as fc
+    from pathlib import Path
+    import json
+
+    # Load categories.json (project root)
+    project_root = Path(__file__).resolve().parents[1]
+    json_path = project_root / "categories.json"
+    if json_path.exists():
+        with open(json_path, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+    else:
+        json_data = {}
+
+    # Grab path from query param
+    path = request.args.get("path", "")
+
+    # Get from filter_config.py
+    py_keywords = fc.CATEGORY_KEYWORDS.get(path, {})
+
+    # Get from categories.json
+    json_keywords = json_data.get("CATEGORY_KEYWORDS", {}).get(path, {})
+
+    return jsonify({
+        "path": path,
+        "filter_config.py": {
+            "file": str(fc.__file__),
+            "keywords": py_keywords
+        },
+        "categories.json": {
+            "file": str(json_path),
+            "exists": json_path.exists(),
+            "keywords": json_keywords
+        }
+    })
+
 
 # ------------------ CATEGORY MOVERS (wrapper to recent-activity) ------------------
 @app.route("/api/category_movers", methods=["GET"])
