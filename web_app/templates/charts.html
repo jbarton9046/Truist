@@ -210,6 +210,8 @@
 (function(){
   'use strict';
 
+  const DEBUG = /[?&]debug=1\b/.test(location.search);
+
   /* ================= Theme helpers ================= */
   const cssVar = (name, fallback) => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -263,8 +265,7 @@
   const setText = (el, txt) => { if (el) try { el.textContent = txt; } catch(_){} };
   const setHTML = (el, html) => { if (el) try { el.innerHTML = html; } catch(_){} };
 
-  /* Segment a category name/path into levels.
-     Split on ">", ":" and hyphen ONLY when surrounded by spaces (avoids "W-2"). */
+  /* Segment a category name/path into levels. */
   const segsOf = (item) => {
     if (item && Array.isArray(item.path) && item.path.length) return item.path.map(String);
     const name = String(item?.name || '').trim();
@@ -272,7 +273,7 @@
     const raw = name
       .replace(/\s*>\s*/g,' / ')
       .replace(/\s*:\s*/g,' / ')
-      .replace(/\s+-\s+/g,' / ');   // split " - " only
+      .replace(/\s+-\s+/g,' / ');
     if (raw.includes(' / ')) return raw.split(' / ').map(s=>s.trim()).filter(Boolean);
     return [name];
   };
@@ -349,7 +350,7 @@
     const map=new Map(); if(!sub) return {};
     const visit=n=>{
       if(!n.children.length){
-        const p = n.path.slice(1); // drop "Income"
+        const p = n.path.slice(1);
         const label = (p.length ? p.slice(-tailDepth).join(' / ') : n.name) || 'Income';
         const arr = (n.monthly||[]).map(toNum);
         if(!map.has(label)) map.set(label,new Array(arr.length).fill(0));
@@ -376,7 +377,7 @@
       if (idx >= 0 && idx < segs.length-1) after = segs.slice(idx+1);
       if (!after.length) after = [segs[segs.length-1]];
 
-      const label = after.slice(-tailDepth).join(' / ').trim(); // deepest tail
+      const label = after.slice(-tailDepth).join(' / ').trim();
       if (!label || /^income$/i.test(label)) continue;
 
       const arr = (c.monthly||[]).map(toNum);
@@ -443,10 +444,10 @@
     }
     return out;
   }
-  function showNoData(ids){
+  function showNoData(ids, extra=''){
     (ids||[]).forEach(id=>{
       const el = document.getElementById(id);
-      if (el) el.innerHTML = '<div class="stat-card"><div class="muted">No category data available.</div></div>';
+      if (el) el.innerHTML = `<div class="stat-card"><div class="muted">No category data available.</div>${extra}</div>`;
     });
   }
 
@@ -696,7 +697,7 @@
     let nodes=[];
     try{
       if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);   // expenses only
+        nodes = buildTreemapNodes(treeDeep,true);
       }else{
         nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
       }
@@ -730,15 +731,7 @@
 
     incomeSubSeries = pick.data;
 
-    console.info('BT income probe → picked:', pick.label, {
-      subtree_children: (incomeTop && (incomeTop.children||[]).length)||0,
-      s2: nonZeroCount(s2), sLeaf: nonZeroCount(sLeaf), sChild: nonZeroCount(sChild),
-      rawDeep: nonZeroCount(rawDeep), rawHeur: nonZeroCount(rawHeur),
-      sample: (categoriesRaw||[])
-        .filter(c => (c.path||[]).some(p=>/income/i.test(p)) || /income/i.test(String(c.name||'')))
-        .slice(0,8)
-        .map(c=>({name:c.name, path:(c.path||[]).join(' / '), total:sum(c.monthly||[]) }))
-    });
+    if (DEBUG) console.info('catMonthly topSeries sample', {months, incomeByMonth, expenseByMonth, pick});
 
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
@@ -758,9 +751,10 @@
   }
 
   /* ================= UI ================= */
-  tabs.addEventListener('click',e=>{
+  const tabsEl = document.getElementById('viewTabs');
+  tabsEl.addEventListener('click',e=>{
     const t=e.target.closest('.tab'); if(!t) return;
-    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+    tabsEl.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
     const view=t.getAttribute('data-view');
     paneOverview.style.display=(view==='overview')?'':'none';
     paneExpenses.style.display=(view==='expenses')?'':'none';
@@ -778,29 +772,35 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
-  /* ================= Bootstrap (Hardened) ================= */
+  /* ================= Bootstrap (Hardened + debug) ================= */
   (async function main(){
-    // 1) Try server-injected JSON first
     let payload = readInjected('catMonthlyData');
+    if (DEBUG) console.info('injected catMonthlyData:', payload);
 
-    // 2) Fallback to API if missing/malformed
     const isBad = (p) => !p || !Array.isArray(p.months) || !Array.isArray(p.categories);
+    let apiErr = null;
+
     if (isBad(payload)) {
       try {
-        const r = await fetch('/api/cat_monthly');
+        if (DEBUG) console.info('Fetching /api/cat_monthly…');
+        const r = await fetch('/api/cat_monthly', { credentials:'same-origin' });
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
         payload = await r.json();
+        if (DEBUG) console.info('api payload:', payload);
       } catch (e) {
-        console.warn('Fallback /api/cat_monthly failed:', e);
+        apiErr = e;
+        console.error('Fetch /api/cat_monthly failed:', e);
       }
     }
 
-    // 3) If still bad or empty months, show message and bail
     if (isBad(payload) || !(payload.months||[]).length) {
-      showNoData(['pane-overview','pane-expenses','pane-income']);
+      const hint = apiErr
+        ? `<div class="muted small mt-1">API error: ${String(apiErr.message||apiErr)}</div>`
+        : `<div class="muted small mt-1">Tip: open <code>/api/cat_monthly</code> in a new tab. Expected shape: { months: [...], categories: [...] }.</div>`;
+      showNoData(['pane-overview','pane-expenses','pane-income'], hint);
       return;
     }
 
-    // Normalize inputs
     months        = (payload.months || []).filter(Boolean);
     categoriesRaw = Array.isArray(payload.categories) ? payload.categories : [];
     topSeries     = aggregateTopLevel(categoriesRaw);
@@ -818,7 +818,6 @@
     }, new Array(M).fill(0));
     netByMonth = incomeByMonth.map((v,i)=> (v||0) - (expenseByMonth[i]||0));
 
-    // If everything is effectively zero, show friendly message (instead of throwing)
     const allZero = (arr)=> (arr||[]).every(x=>!x || Math.abs(x) < 1e-9);
     if (allZero(incomeByMonth) && allZero(expenseByMonth) && allZero(netByMonth)) {
       showNoData(['pane-overview','pane-expenses','pane-income']);
