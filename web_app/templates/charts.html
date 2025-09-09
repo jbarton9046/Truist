@@ -412,6 +412,38 @@
   const monthNamesShort=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const seasonality=(monthKeys,series)=>{const sums=Array(12).fill(0),cnt=Array(12).fill(0);series.forEach((v,i)=>{const mk=String(monthKeys[i]||'');if(mk.length>=7){const m=Number(mk.slice(5,7))-1;sums[m]+=toNum(v);cnt[m]+=1;}});return sums.map((s,i)=>cnt[i]?s/cnt[i]:0)};
 
+  /* ================= Robust JSON + array guards (added) ================= */
+  function readInjected(id){
+    try{
+      const el = document.getElementById(id);
+      if(!el) return null;
+      const txt = (el.textContent || '').trim();
+      if(!txt) return null;
+      const obj = JSON.parse(txt);
+      return (obj && typeof obj === 'object') ? obj : null;
+    }catch(e){
+      console.warn('Bad JSON in <script id="'+id+'">:', e);
+      return null;
+    }
+  }
+  function toLen(arr, n){
+    const out = new Array(n).fill(0);
+    if (Array.isArray(arr)) {
+      for (let i=0; i<Math.min(arr.length, n); i++){
+        const v = arr[i];
+        const num = (typeof v === 'number' && isFinite(v)) ? v : (Number(String(v||'').replace(/[$,]/g,''))||0);
+        out[i] = num;
+      }
+    }
+    return out;
+  }
+  function showNoData(ids){
+    (ids||[]).forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div class="stat-card"><div class="muted">No category data available.</div></div>';
+    });
+  }
+
   /* ================= DOM refs ================= */
   const monthsWindowEl=document.getElementById('monthsWindow');
   const normalizeEl=document.getElementById('normalize');
@@ -738,27 +770,52 @@
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
-  /* ================= Bootstrap ================= */
+  /* ================= Bootstrap (Hardened) ================= */
   (async function main(){
-    let payload=null;
-    try { payload = JSON.parse(document.getElementById('catMonthlyData')?.textContent || 'null'); } catch {}
-    if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
-      try{ const r=await fetch('/api/cat_monthly'); payload=await r.json(); }catch(_){}
+    // 1) Try server-injected JSON first
+    let payload = readInjected('catMonthlyData');
+
+    // 2) Fallback to API if missing/malformed
+    const isBad = (p) => !p || !Array.isArray(p.months) || !Array.isArray(p.categories);
+    if (isBad(payload)) {
+      try {
+        const r = await fetch('/api/cat_monthly');
+        payload = await r.json();
+      } catch (e) {
+        console.warn('Fallback /api/cat_monthly failed:', e);
+      }
     }
-    if (!payload || !Array.isArray(payload.months) || !Array.isArray(payload.categories)) {
-      document.getElementById('pane-overview').innerHTML='<div class="stat-card"><div class="muted">No category data available.</div></div>';
+
+    // 3) If still bad or empty months, show message and bail
+    if (isBad(payload) || !(payload.months||[]).length) {
+      showNoData(['pane-overview','pane-expenses','pane-income']);
       return;
     }
 
-    months        = payload.months || [];
-    categoriesRaw = payload.categories || [];
+    // Normalize inputs
+    months        = (payload.months || []).filter(Boolean);
+    categoriesRaw = Array.isArray(payload.categories) ? payload.categories : [];
     topSeries     = aggregateTopLevel(categoriesRaw);
     treeDeep      = buildTree(categoriesRaw);
 
-    incomeByMonth = (topSeries['Income']||[]).map(toNum);
-    expenseByMonth = Object.entries(topSeries).filter(([k])=>k!=='Income')
-      .reduce((arr,[,vals])=>{ vals.forEach((v,i)=> arr[i]=(arr[i]||0)+toNum(v)); return arr; }, new Array(months.length).fill(0));
-    netByMonth = incomeByMonth.map((v,i)=>v-(expenseByMonth[i]||0));
+    const M = months.length;
+    const incomeByMonth_raw  = (topSeries['Income'] || []);
+    const expenseArrays_raw  = Object.entries(topSeries).filter(([k])=>k!=='Income').map(([,vals])=>vals);
+
+    incomeByMonth  = toLen(incomeByMonth_raw, M);
+    expenseByMonth = expenseArrays_raw.reduce((acc, vals) => {
+      const v = toLen(vals, M);
+      for (let i=0;i<M;i++) acc[i] = (acc[i]||0) + v[i];
+      return acc;
+    }, new Array(M).fill(0));
+    netByMonth = incomeByMonth.map((v,i)=> (v||0) - (expenseByMonth[i]||0));
+
+    // If everything is effectively zero, don’t try to render complex charts
+    const allZero = (arr)=> (arr||[]).every(x=>!x || Math.abs(x) < 1e-9);
+    if (allZero(incomeByMonth) && allZero(expenseByMonth) && allZero(netByMonth)) {
+      showNoData(['pane-overview','pane-expenses','pane-income']);
+      return;
+    }
 
     populateFocusMonth();
     refreshAll();

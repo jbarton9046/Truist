@@ -990,8 +990,17 @@ def generate_summary(category_keywords, subcategory_maps):
 
         monthly_summaries[month_key] = month_summary
 
-    return monthly_summaries
+    # ---- Micro-guard: ensure top-level Income total is non-negative in each month
+    msum = monthly_summaries or {}
+    for ym, bucket in msum.items():
+        cats = bucket.get("categories") or {}
+        inc = cats.get("Income")
+        if isinstance(inc, dict):
+            t = inc.get("total")
+            if isinstance(t, (int, float)) and t < 0:
+                inc["total"] = abs(t)
 
+    return monthly_summaries
 
 def recent_activity_summary(
     days=30,

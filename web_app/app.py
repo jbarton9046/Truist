@@ -999,6 +999,20 @@ def charts_page():
     cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12)
     return render_template("charts.html", cat_monthly=cat_monthly)
 
+@app.get("/api/cat_monthly")
+def api_cat_monthly():
+    try:
+        cfg_live = load_cfg()
+        summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+        _apply_hide_rules_to_summary(summary)
+        months_back = int(request.args.get("months_back") or 12)
+    except Exception as e:
+        return jsonify({"error": str(e), "months": [], "categories": []}), 200  # fail gracefully
+
+    payload = build_top_level_monthly_from_summary(summary, months_back=months_back)
+    return jsonify(payload)
+
+
 
 # -------- Goals --------
 @app.route("/goals")
@@ -1222,72 +1236,125 @@ def build_cat_monthly_from_summary(
     return {"months": months, "categories": categories}
 
 # -------- NEW: Top-level monthly builder (Explorer & Goals) --------
-def build_top_level_monthly_from_summary(
-    summary: Dict[str, Any],
-    months_back: int = 12,
-    since: Optional[str] = None,
-    since_date: Optional[str] = None,
-) -> Dict[str, Any]:
+def build_top_level_monthly_from_summary(summary, months_back=12, since_date=None):
+    """
+    Return a stable, chart-ready payload:
+      { "months": ["YYYY-MM", ...],
+        "categories": [
+          {"name": "Income", "path": ["Income"], "monthly": [..M..]},
+          {"name": "Groceries", "path": ["Groceries"], "monthly": [..M..]},
+          ...
+        ]
+      }
 
-    def parse_any_date(s: str) -> Optional[date]:
-        if not s:
-            return None
-        for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
-            try:
-                return datetime.strptime(s[:10], fmt).date()
-            except Exception:
-                pass
-        return None
+    Normalizes:
+    - months sorted ascending (clamped by months_back and since_date)
+    - each category's monthly length == len(months)
+    - numeric coercion, no NaNs
+    - 'Income' positivity; expense categories as-is (sign is preserved)
+    """
+    import math
+    from datetime import datetime
+    to_num = lambda v: float(str(v).replace("$", "").replace(",", "")) if str(v).strip() else 0.0
 
-    def tx_sum_on_or_after(node: Dict[str, Any], cutoff: date) -> float:
-        children = node.get("children") or []
-        if children:
-            return sum(tx_sum_on_or_after(ch, cutoff) for ch in children)
-        total = 0.0
-        for tx in (node.get("transactions") or []):
-            d = parse_any_date(tx.get("date"))
-            if d and d >= cutoff:
+    # ---- Pull raw monthly summaries safely
+    msum = (summary or {}).get("monthly_summaries") or {}
+    if not isinstance(msum, dict):
+        msum = {}
+
+    # ---- Derive and filter the month keys
+    def ym_ok(ym):
+        try:
+            datetime.strptime(ym, "%Y-%m")
+            return True
+        except Exception:
+            return False
+
+    months_all = sorted([k for k in msum.keys() if ym_ok(k)])
+    if since_date:
+        try:
+            cutoff = datetime.fromisoformat(str(since_date)[:10]).strftime("%Y-%m")
+            months_all = [m for m in months_all if m >= cutoff]
+        except Exception:
+            pass
+
+    if months_back and months_back > 0:
+        months = months_all[-months_back:]
+    else:
+        months = months_all[:]
+
+    # If we still have nothing, return an empty-safe payload
+    if not months:
+        return {"months": [], "categories": []}
+
+    M = len(months)
+
+    # ---- Build a flat category table: { name -> monthly[M] }
+    # We support both summary["categories"] and nested trees inside monthly_summaries.
+    # Prefer top-level categories if present; otherwise aggregate from month buckets.
+    flat = {}
+
+    # Prefer "categories" if summary provides it in a consistent structure.
+    cats_top = (summary or {}).get("categories")
+    if isinstance(cats_top, dict):
+        for name, info in cats_top.items():
+            series = [0.0] * M
+            monthly_map = (info or {}).get("by_month") or {}
+            if isinstance(monthly_map, dict):
+                for i, ym in enumerate(months):
+                    series[i] = to_num(monthly_map.get(ym, 0.0))
+            flat[name] = series
+
+    # If flat still empty, derive from monthly_summaries buckets
+    if not flat:
+        for i, ym in enumerate(months):
+            bucket = (msum.get(ym) or {})
+            cat_map = (bucket.get("categories") or {}) if isinstance(bucket.get("categories"), dict) else {}
+            for name, val in cat_map.items():
+                series = flat.setdefault(name, [0.0] * M)
+                series[i] = series[i] + to_num(val)
+
+    # If *still* nothing, return safe empty
+    if not flat:
+        return {"months": months, "categories": []}
+
+    def is_income_name(name: str) -> bool:
+        n = (name or "").strip().lower()
+        return n == "income" or n.startswith("income ")
+
+    # ---- Normalize each series: numeric, length M, no NaNs
+    norm_flat = {}
+    for name, arr in flat.items():
+        fixed = [0.0] * M
+        if isinstance(arr, (list, tuple)):
+            for i in range(min(M, len(arr))):
                 try:
-                    a = float(tx.get("amount", tx.get("amt", 0.0)))
+                    v = to_num(arr[i])
                 except Exception:
-                    a = 0.0
-                total += abs(a)
-        return total
+                    v = 0.0
+                if not math.isfinite(v):
+                    v = 0.0
+                fixed[i] = v
+        # For "Income", ensure positivity (some sources might already be positive; that's fine)
+        if is_income_name(name):
+            fixed = [abs(v) for v in fixed]
+        norm_flat[name] = fixed
 
-    months_all_sorted = sorted(summary.keys(), key=_norm_month)
-    since_day = parse_any_date(since_date) if since_date else None
-    since_month_from_day = f"{since_day.year:04d}-{since_day.month:02d}" if since_day else None
-    clip_key = (since or since_month_from_day)
-    if clip_key:
-        s = clip_key.strip()[:7]
-        months_all_sorted = [k for k in months_all_sorted if _norm_month(k) >= s]
+    # ---- Build categories array (top-level only; keep names as-is)
+    categories = []
+    for name, series in norm_flat.items():
+        categories.append({
+            "name": name,
+            "path": [name],   # top-level for charts; deeper splits happen on the client
+            "monthly": series
+        })
 
-    months_sel = months_all_sorted[-max(1, months_back):]
-    months = [_norm_month(k) for k in months_sel]
-    bucket = defaultdict(lambda: [0.0] * len(months))
+    # Guarantee "Income" row exists (even if zero), because client expects it
+    if not any(is_income_name(c["name"]) for c in categories):
+        categories.insert(0, {"name": "Income", "path": ["Income"], "monthly": [0.0] * M})
 
-    for i, raw_mkey in enumerate(months_sel):
-        m_key_norm = _norm_month(raw_mkey)
-        month_blob = summary.get(raw_mkey) or {}
-        for top in (month_blob.get("tree") or []):
-            top_name = (top.get("name") or "Uncategorized").strip() or "Uncategorized"
-            if since_day and since_month_from_day == m_key_norm:
-                val = tx_sum_on_or_after(top, since_day)
-                if val == 0.0:
-                    try:
-                        val = abs(float(top.get("total") or 0.0))
-                    except Exception:
-                        val = 0.0
-            else:
-                try:
-                    val = abs(float(top.get("total") or 0.0))
-                except Exception:
-                    val = 0.0
-            bucket[top_name][i] += val
-
-    categories = [{"name": k, "path": [k], "monthly": v} for k, v in bucket.items()]
-    categories.sort(key=lambda c: sum(c["monthly"]), reverse=True)
     return {"months": months, "categories": categories}
+
 
 # ------------------ Explorer ------------------
 @app.route("/explorer")
