@@ -991,34 +991,43 @@ def api_categories_monthly():
     return jsonify({"months": months, "categories": categories})
 
 # -------- Charts --------
+# -------- Charts --------
 @app.route("/charts")
 def charts_page():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
-    _apply_hide_rules_to_summary(summary)  # <- same hide/omit logic as cards
+    _apply_hide_rules_to_summary(summary)
 
-    # Optional: allow since_date via query (?since_date=YYYY-MM-DD) to match cards window
-    since_date = request.args.get("since_date")
-    cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12, since_date=since_date)
+    # If you have a canonical since_date in config, use it so charts == cards
+    since_date = cfg_live.get("SUMMARY_SINCE_DATE")  # or whatever your cards use
+    cat_monthly = build_top_level_monthly_from_summary(
+        summary,
+        months_back=12,
+        since_date=since_date,
+    )
     return render_template("charts.html", cat_monthly=cat_monthly)
+
 
 @app.get("/api/cat_monthly")
 def api_cat_monthly():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
-    _apply_hide_rules_to_summary(summary)  # keep rules consistent
+    _apply_hide_rules_to_summary(summary)
 
     try:
         months_back = int(request.args.get("months_back") or 12)
     except Exception:
         months_back = 12
 
-    since_date = request.args.get("since_date") or None
-    payload = build_top_level_monthly_from_summary(summary, months_back=months_back, since_date=since_date)
+    # Allow ?since_date=YYYY-MM (or YYYY-MM-DD). If not given, fall back to config.
+    since_date = request.args.get("since_date") or cfg_live.get("SUMMARY_SINCE_DATE")
+
+    payload = build_top_level_monthly_from_summary(
+        summary,
+        months_back=months_back,
+        since_date=since_date,
+    )
     return jsonify(payload)
-
-
-
 
 # -------- Goals --------
 @app.route("/goals")
@@ -1241,146 +1250,62 @@ def build_cat_monthly_from_summary(
     categories.sort(key=lambda c: sum(c["monthly"]), reverse=True)
     return {"months": months, "categories": categories}
 
+# --- Use the *same* numbers the summary cards use ----------------------------
 def build_top_level_monthly_from_summary(summary, months_back=12, since_date=None):
     """
-    Convert the dict returned by generate_summary(...) into a charts payload:
-    {
-      "months": ["YYYY-MM", ...],
-      "categories": [
-        {"name": "Income", "monthly": [...]},
-        {"path": ["Food", "Groceries"], "monthly": [...]},
-        ...
-      ]
-    }
-
-    - Aligns all series to the same month list.
-    - Uses category 'total' for top level.
-    - Rolls subcategory/sub-sub/sub-sub-sub totals into separate series with 'path'.
-    - Keeps expenses non-negative (returns reduce spend).
-    - Normalizes sign for Income in case anything slipped negative.
+    Convert the monthly_summaries produced by generate_summary() into the
+    {months: [...], categories: [{name, path, monthly: [...]}]} payload the
+    charts expect — using the identical totals used by the summary cards.
     """
-    from datetime import datetime
+    # `summary` might be the whole summary blob or just summary["monthly_summaries"]
+    msum = summary.get("monthly_summaries") if isinstance(summary, dict) else None
+    if not isinstance(msum, dict):
+        msum = summary or {}
 
-    def _parse_month_key(ym):
-        # ym is "YYYY-MM"
-        try:
-            return datetime.strptime(str(ym)[:7], "%Y-%m")
-        except Exception:
-            return None
+    # Collect month keys in ascending order
+    month_keys = sorted(msum.keys())
 
-    # summary is expected to be: { "YYYY-MM": { "categories": {...}, ... }, ... }
-    if not isinstance(summary, dict) or not summary:
-        return {"months": [], "categories": []}
-
-    # Filter months (since_date optional)
-    all_months = sorted(
-        [k for k in summary.keys() if _parse_month_key(k)],
-        key=lambda k: _parse_month_key(k)
-    )
-
+    # Optional filter by since_date (YYYY-MM or YYYY-MM-DD)
     if since_date:
+        ym_cut = str(since_date)[:7]
+        month_keys = [m for m in month_keys if m >= ym_cut]
+
+    # Optional trim to trailing N months
+    if months_back:
         try:
-            since_dt = _parse_month_key(str(since_date)[:7])
-            if since_dt:
-                all_months = [m for m in all_months if _parse_month_key(m) >= since_dt]
+            n = int(months_back)
+            if n > 0:
+                month_keys = month_keys[-n:]
         except Exception:
             pass
 
-    if months_back and months_back > 0:
-        all_months = all_months[-int(months_back):]
+    # Which top-level categories exist in the selected months?
+    cats = set()
+    for ym in month_keys:
+        cats.update((msum.get(ym) or {}).get("categories", {}).keys())
 
-    if not all_months:
-        return {"months": [], "categories": []}
+    # Keep Income first if present, rest alphabetical
+    ordered = (["Income"] if "Income" in cats else []) + sorted([c for c in cats if c != "Income"])
 
-    # Build series map: key is a tuple path, e.g. ("Income",) or ("Food","Groceries")
-    series = {}
-
-    def _ensure(path):
-        if path not in series:
-            series[path] = [0.0 for _ in range(len(all_months))]
-        return series[path]
-
-    # Walk months and accumulate
-    for mi, ym in enumerate(all_months):
-        month_bucket = summary.get(ym) or {}
-        cats = (month_bucket.get("categories") or {}) if isinstance(month_bucket, dict) else {}
-
-        for cat_name, cdata in cats.items():
-            # Top level
-            total = float((cdata.get("total") or 0.0))
-            if str(cat_name).lower() == "income":
-                # income must be non-negative
+    def total_for(ym, cat):
+        bucket = (msum.get(ym) or {}).get("categories", {}).get(cat) or {}
+        total = float(bucket.get("total", 0.0))
+        # Match the cards: Income always positive; expenses are non-negative net of returns
+        if cat == "Income":
+            if total < 0:
                 total = abs(total)
-            else:
-                # expenses are tracked as positive spend; returns already reduce the total
-                total = max(0.0, total)
-
-            _ensure((cat_name,))[mi] += total
-
-            # Subcategories
-            subcats = cdata.get("subcategories") or {}
-            if isinstance(subcats, dict):
-                for sub_name, sub_total in subcats.items():
-                    st = float(sub_total or 0.0)
-                    if str(cat_name).lower() == "income":
-                        st = abs(st)
-                    else:
-                        st = max(0.0, st)
-                    _ensure((cat_name, sub_name))[mi] += st
-
-            # Sub-subcategories
-            subsubs = cdata.get("subsubcategories") or {}
-            if isinstance(subsubs, dict):
-                for sub_name, sub_map in subsubs.items():
-                    for subsub_name, amount in (sub_map or {}).items():
-                        at = float(amount or 0.0)
-                        if str(cat_name).lower() == "income":
-                            at = abs(at)
-                        else:
-                            at = max(0.0, at)
-                        _ensure((cat_name, sub_name, subsub_name))[mi] += at
-
-            # Sub-sub-subcategories
-            subsubsubs = cdata.get("subsubsubcategories") or {}
-            if isinstance(subsubsubs, dict):
-                for sub_name, sub_map in subsubsubs.items():
-                    for subsub_name, subsub_map in (sub_map or {}).items():
-                        for subsubsub_name, amount in (subsub_map or {}).items():
-                            at = float(amount or 0.0)
-                            if str(cat_name).lower() == "income":
-                                at = abs(at)
-                            else:
-                                at = max(0.0, at)
-                            _ensure((cat_name, sub_name, subsub_name, subsubsub_name))[mi] += at
-
-    # Post-fix: if any Income month slipped negative, flip to abs just in case
-    if ("Income",) in series:
-        series[("Income",)] = [abs(x) for x in series[("Income",)]]
-
-    # Build categories array
-    categories = []
-    for path, arr in series.items():
-        # Trim very small floats
-        arr = [round(x, 2) for x in arr]
-        if len(path) == 1:
-            categories.append({"name": path[0], "monthly": arr})
         else:
-            categories.append({"path": list(path), "monthly": arr})
+            total = max(0.0, total)
+        return round(total, 2)
 
-    # Sort by total descending (keep Income first if present)
-    def _total(x):
-        return sum(x.get("monthly") or [])
-    categories.sort(key=_total, reverse=True)
+    categories = []
+    for cat in ordered:
+        series = [total_for(ym, cat) for ym in month_keys]
+        # charts.js understands top-level via "path": [cat]
+        categories.append({"name": cat, "path": [cat], "monthly": series})
 
-    # Move Income to the very top if it exists
-    for i, it in enumerate(categories):
-        nm = it.get("name") or (it.get("path") or [None])[0]
-        if str(nm).lower() == "income":
-            if i != 0:
-                categories.insert(0, categories.pop(i))
-            break
+    return {"months": month_keys, "categories": categories}
 
-    return {"months": all_months, "categories": categories}
 
 # ------------------ Explorer ------------------
 @app.route("/explorer")
