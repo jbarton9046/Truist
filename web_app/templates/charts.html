@@ -678,24 +678,40 @@
     const exEntries=pickTopN(exObj,N);
     stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
 
-    const focusIdx=Math.max(0,Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length-1)));
-    ex_tm_month.textContent = months.length ? prettyMonth(months[focusIdx]) : '—';
+    // --- Expenses Treemap ---
+    ex_tm_month.textContent = months.length
+      ? prettyMonth(months[Math.max(0, focusMonthEl.selectedIndex)])
+      : '—';
 
-    // Build deep treemap nodes, but fallback to top-N if deep month is zero
-    let nodes=[];
-    try{
-      if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);   // expenses only (Income excluded)
+    const focusIdx = Math.max(
+      0,
+      Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length - 1))
+    );
+
+    let nodes = [];
+    try {
+      if (treeDeep && (treeDeep.children || []).length) {
+        nodes = buildTreemapNodes(treeDeep, true); // expenses only
+      } else {
+        nodes = exEntries.map(([name, arr]) => ({
+          label: name, parent: '', value: arr, id: name
+        }));
       }
-    }catch(_){ /* noop */ }
-
-    // If no deep nodes or total for focus month is zero while expenses exist, fall back to top-N categories.
-    const deepValues = nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0));
-    const deepTotal = deepValues.reduce((a,b)=>a+Math.max(0,b),0);
-    if(!nodes.length || (deepTotal<=0 && (expenseByMonth[focusIdx]||0)>0)){
-      nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
+    } catch (_) {
+      nodes = exEntries.map(([name, arr]) => ({
+        label: name, parent: '', value: arr, id: name
+      }));
     }
-    treemap(ex_treemap,nodes,focusIdx);
+
+    // Fallback if selected month has no value in the deep tree
+    const checkVals = (nodes || []).map(n => toNum((n.value || [])[focusIdx] || 0));
+    const checkTotal = checkVals.reduce((a, b) => a + Math.max(0, b), 0);
+    if (!checkTotal) {
+      nodes = exEntries.map(([name, arr]) => ({
+        label: name, parent: '', value: arr, id: name
+      }));
+    }
+    treemap(ex_treemap, nodes, focusIdx);
 
     heatmap(ex_heatmap,months,exEntries);
     pareto(ex_pareto,exEntries);

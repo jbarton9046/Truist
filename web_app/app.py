@@ -1250,61 +1250,116 @@ def build_cat_monthly_from_summary(
     categories.sort(key=lambda c: sum(c["monthly"]), reverse=True)
     return {"months": months, "categories": categories}
 
-# --- Use the *same* numbers the summary cards use ----------------------------
-def build_top_level_monthly_from_summary(summary, months_back=12, since_date=None):
+def build_top_level_monthly_from_summary(summary: dict, months_back: int = 12, since_date: str | None = None):
     """
-    Convert the monthly_summaries produced by generate_summary() into the
-    {months: [...], categories: [{name, path, monthly: [...]}]} payload the
-    charts expect — using the identical totals used by the summary cards.
-    """
-    # `summary` might be the whole summary blob or just summary["monthly_summaries"]
-    msum = summary.get("monthly_summaries") if isinstance(summary, dict) else None
-    if not isinstance(msum, dict):
-        msum = summary or {}
+    Build a payload strictly from the same post-hide, post-filter monthly summaries
+    the rest of the app uses. That means:
+      - Read ONLY from summary["monthly_summaries"][YYYY-MM]["categories"][CAT]["total"]
+      - Clamp Income to positive; Expenses to >= 0 (returns reduce)
+      - Include ALL top-level rows for charts
+      - Include deep leaf rows (cat/sub/subsub/subsubsub) for treemap & income drill
+    This guarantees charts == cards.
 
-    # Collect month keys in ascending order
+    Returned shape:
+      { "months": [YYYY-MM,...],
+        "categories": [
+          {"name": "Income", "path": ["Income"], "monthly": [...]},          # top level
+          {"name": "Groceries", "path": ["Groceries"], "monthly": [...]},    # top level
+          {"name": "Pay", "path": ["Income","Pay"], "monthly": [...]},       # deep leaf
+          ...
+        ]
+      }
+    """
+    from datetime import datetime
+    msum = (summary or {}).get("monthly_summaries") or {}
+
+    # Sort keys and apply optional window
     month_keys = sorted(msum.keys())
-
-    # Optional filter by since_date (YYYY-MM or YYYY-MM-DD)
     if since_date:
-        ym_cut = str(since_date)[:7]
-        month_keys = [m for m in month_keys if m >= ym_cut]
-
-    # Optional trim to trailing N months
-    if months_back:
         try:
-            n = int(months_back)
-            if n > 0:
-                month_keys = month_keys[-n:]
+            sd = datetime.strptime(since_date, "%Y-%m-%d").date()
+            month_keys = [m for m in month_keys if datetime.strptime(m + "-01", "%Y-%m-%d").date() >= sd]
         except Exception:
             pass
+    if months_back and months_back > 0:
+        month_keys = month_keys[-months_back:]
 
-    # Which top-level categories exist in the selected months?
-    cats = set()
-    for ym in month_keys:
-        cats.update((msum.get(ym) or {}).get("categories", {}).keys())
+    L = len(month_keys)
 
-    # Keep Income first if present, rest alphabetical
-    ordered = (["Income"] if "Income" in cats else []) + sorted([c for c in cats if c != "Income"])
+    def clamp_total(cat: str, val: float) -> float:
+        # Income always >= 0; expenses kept >= 0 (returns reduce)
+        if str(cat).lower() == "income":
+            return abs(float(val or 0.0))
+        return max(0.0, float(val or 0.0))
 
-    def total_for(ym, cat):
-        bucket = (msum.get(ym) or {}).get("categories", {}).get(cat) or {}
-        total = float(bucket.get("total", 0.0))
-        # Match the cards: Income always positive; expenses are non-negative net of returns
-        if cat == "Income":
-            if total < 0:
-                total = abs(total)
-        else:
-            total = max(0.0, total)
-        return round(total, 2)
+    # helpers
+    from collections import defaultdict
 
+    def put(dct, key_tuple, j, v):
+        if key_tuple not in dct:
+            dct[key_tuple] = [0.0] * L
+        dct[key_tuple][j] = float(v or 0.0)
+
+    top_series = defaultdict(list)   # (cat,) -> [..]
+    leaves     = defaultdict(list)   # (cat,sub,..) -> [..]
+
+    # prime arrays
+    def ensure_len(arr, n):
+        return arr if (arr and len(arr) == n) else [0.0] * n
+
+    # Build series from the *same* buckets the cards use
+    cats_seen = set()
+    for j, ym in enumerate(month_keys):
+        bucket = msum.get(ym) or {}
+        cats   = (bucket.get("categories") or {})
+
+        # First pass: top-level
+        for cat, data in cats.items():
+            cats_seen.add(cat)
+            total = clamp_total(cat, (data or {}).get("total", 0.0))
+            put(top_series, (cat,), j, total)
+
+        # Deep leaves (present only if summary stored them)
+        for cat, data in cats.items():
+            sub = (data or {}).get("subcategories") or {}
+            for subcat, sub_total in sub.items():
+                put(leaves, (cat, subcat), j, clamp_total(cat, sub_total))
+
+            subsubs = (data or {}).get("subsubcategories") or {}
+            for subcat, d2 in subsubs.items():
+                for subsub, subsub_total in (d2 or {}).items():
+                    put(leaves, (cat, subcat, subsub), j, clamp_total(cat, subsub_total))
+
+            s3 = (data or {}).get("subsubsubcategories") or {}
+            for subcat, d2 in s3.items():
+                for subsub, d3 in (d2 or {}).items():
+                    for s3name, s3total in (d3 or {}).items():
+                        put(leaves, (cat, subcat, subsub, s3name), j, clamp_total(cat, s3total))
+
+    # Normalize all series lengths
+    for k in list(top_series.keys()):
+        top_series[k] = ensure_len(top_series[k], L)
+    for k in list(leaves.keys()):
+        leaves[k] = ensure_len(leaves[k], L)
+
+    # Compose categories list (top-level first, Income first; then deep leaves)
     categories = []
+
+    top_names = [k[0] for k in top_series.keys()]
+    top_names = sorted(set(top_names))
+    if "Income" in top_names:
+        ordered = ["Income"] + [c for c in top_names if c != "Income"]
+    else:
+        ordered = top_names
+
     for cat in ordered:
-        series = [total_for(ym, cat) for ym in month_keys]
-        # charts.js understands top-level via "path": [cat]
-        categories.append({"name": cat, "path": [cat], "monthly": series})
+        categories.append({"name": cat, "path": [cat], "monthly": top_series[(cat,)]})
+
+    for path in sorted(leaves.keys()):
+        categories.append({"name": path[-1], "path": list(path), "monthly": leaves[path]})
 
     return {"months": month_keys, "categories": categories}
+
 def build_top_level_monthly_from_summary(summary, months_back=12, since_date=None):
     """
     Build a charts payload that:
