@@ -193,7 +193,7 @@
             <tr>
               <th class="w-25">Date</th>
               <th>Description</th>
-              <th class="text-end w-25">Amount</th>
+              <th class="w-25">Amount</th> <!-- removed text-end to align with left-align JS/CSS -->
               <th class="w-25">Cat</th>
             </tr>
           </thead>
@@ -237,218 +237,43 @@
   </div>
 </div>
 
-<!-- Local, non-conflicting helpers -->
+<!-- Minimal, non-conflicting helpers: tab switch + delegate to global refreshKeywords -->
 <script>
 (function(){
   'use strict';
-
   const dash = document.getElementById('dashCategoryManager');
   if (!dash) return;
 
-  /* ---------- Tab switching ---------- */
+  // Tab switching (the universal controller also binds; this keeps behavior
+  // if that script is ever absent, and otherwise does not conflict)
   const tabs  = dash.querySelectorAll('.drawer-tab');
   const panes = dash.querySelectorAll('.drawer-pane');
+
   function showPane(name){
     tabs.forEach(t => t.classList.toggle('active', (t.dataset.tab === name)));
     panes.forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none');
-    if (name === 'keywords') refreshKeywordsLocal();
+    if (name === 'keywords' && typeof window.refreshKeywords === 'function') {
+      // use the universal controller's fetcher to avoid duplicate logic
+      window.refreshKeywords();
+      // slight delay for breadcrumb changes rendered just before tab switch
+      setTimeout(window.refreshKeywords, 120);
+    }
   }
+
   tabs.forEach(t => t.addEventListener('click', function(e){
     e.preventDefault();
     showPane(this.getAttribute('data-tab') || 'overview');
   }));
 
-  /* ---------- Keywords: robust endpoints & context ---------- */
-  const urls = window.CL_URLS || {};
-  const GET_ENDPOINTS = [urls.KW_GET_URL, '/admin/api/keywords_for_name', '/api/keywords_for_name', '/api/keywords'].filter(Boolean);
-  const ADD_ENDPOINTS = [urls.KW_ADD_URL, '/admin/api/keyword_add', '/api/keyword_add'].filter(Boolean);
-  const DEL_ENDPOINTS = [urls.KW_REMOVE_URL, '/admin/api/keyword_remove', '/api/keyword_remove'].filter(Boolean);
-
-  const esc = (s)=> String(s ?? '').replace(/[&<>"']/g, c => (
-    c==='&' ? '&amp;' : c==='<' ? '&lt;' : c==='>' ? '&gt;' : c==='"' ? '&quot;' : '&#39;'
-  ));
-
-  function ctxFromBreadcrumb(){
-    // Collect visible breadcrumb text in order
-    const anchors = dash.querySelectorAll('#drawer-breadcrumb a');
-    const parts = [];
-    anchors.forEach(a=>{
-      const text = (a.textContent || '').trim();
-      if (text) parts.push(text);
-    });
-    // Fallback if anchors not present yet
-    if (!parts.length) {
-      const raw = (dash.querySelector('#drawer-breadcrumb')?.textContent || '')
-        .replace(/All Categories/i,'')
-        .split('›').map(s=>s.trim()).filter(Boolean);
-      raw.forEach(s=>parts.push(s));
-    }
-    const ctx = { level:'category', cat:'', sub:'', ssub:'', sss:'' };
-    if (parts[0]) ctx.cat  = parts[0];
-    if (parts[1]) { ctx.sub  = parts[1]; ctx.level = 'subcategory'; }
-    if (parts[2]) { ctx.ssub = parts[2]; ctx.level = 'subsubcategory'; }
-    if (parts[3]) { ctx.sss  = parts[3]; ctx.level = 'subsubsubcategory'; }
-    const last = parts[parts.length - 1] || ctx.cat || '';
-    ctx.name = last;
-    ctx.last = last;
-
-    // month (if present)
-    const monthSel = document.getElementById('drawer-months');
-    const monthVal = monthSel?.value || '';
-    if (monthVal && monthVal !== 'all') ctx.month = monthVal;
-
-    ctx.allow_hidden = '1';
-    return ctx;
-  }
-
-  function buildQuery(ctx){
-    const p = new URLSearchParams();
-    // both naming styles to be safe:
-    p.set('cat', ctx.cat || '');           p.set('category', ctx.cat || '');
-    p.set('sub', ctx.sub || '');           p.set('subcategory', ctx.sub || '');
-    p.set('ssub', ctx.ssub || '');         p.set('subsubcategory', ctx.ssub || '');
-    p.set('sss', ctx.sss || '');           p.set('subsubsubcategory', ctx.sss || '');
-    p.set('name', ctx.name || '');
-    p.set('last', ctx.last || ctx.name || '');
-    if (ctx.month) p.set('month', ctx.month);
-    p.set('allow_hidden','1');
-    p.set('_', Date.now());
-    return p.toString();
-  }
-
-  function extractKeywords(payload){
-    if (!payload) return [];
-    // arrays directly
-    if (Array.isArray(payload)) return payload;
-    // common wrappers
-    if (Array.isArray(payload.keywords)) return payload.keywords;
-    if (Array.isArray(payload.kws)) return payload.kws;
-    if (Array.isArray(payload.items)) return payload.items;
-    if (payload.data) return extractKeywords(payload.data);
-    if (payload.result) return extractKeywords(payload.result);
-    // sometimes object with keyed keywords -> take values if strings
-    const vals = Object.values(payload).filter(v => typeof v === 'string');
-    return vals.length ? vals : [];
-  }
-
-  async function tryGetKeywords(ctx){
-    const qs = buildQuery(ctx);
-
-    // Try GETs first
-    for (const ep of GET_ENDPOINTS){
-      try{
-        const url = ep + (ep.includes('?') ? '&' : '?') + qs;
-        const r = await fetch(url, { headers: { 'Accept':'application/json' }, credentials:'same-origin' });
-        if (!r.ok) continue;
-        const j = await r.json();
-        const arr = extractKeywords(j);
-        if (arr.length) return arr;
-      }catch{}
-    }
-    // Some backends use POST for lookups
-    for (const ep of GET_ENDPOINTS){
-      try{
-        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(ctx) });
-        if (!r.ok) continue;
-        const j = await r.json();
-        const arr = extractKeywords(j);
-        if (arr.length) return arr;
-      }catch{}
-    }
-    return [];
-  }
-
-  async function tryAddKeyword(ctx, kw){
-    const body = Object.assign({}, ctx, { keyword: kw });
-    for (const ep of ADD_ENDPOINTS){
-      try{
-        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body) });
-        if (r.ok) return true;
-      }catch{}
-    }
-    return false;
-  }
-
-  async function tryRemoveKeyword(ctx, kw){
-    const body = Object.assign({}, ctx, { keyword: kw, remove: true });
-    for (const ep of DEL_ENDPOINTS){
-      try{
-        const r = await fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', body: JSON.stringify(body) });
-        if (r.ok) return true;
-      }catch{}
-    }
-    return false;
-  }
-
-  async function refreshKeywordsLocal(){
-    const host = dash.querySelector('#kw-list');
-    if (!host) return;
-    host.innerHTML = '<span class="text-muted">Loading…</span>';
-    try{
-      const ctx = ctxFromBreadcrumb();
-      const kws = await tryGetKeywords(ctx);
-      host.innerHTML = kws.length
-        ? kws.map(k => `
-            <span class="pill pill-sm" data-kw-label="${esc(k)}" title="${esc(k)}">
-              <span class="label">${esc(k)}</span>
-              <button type="button"
-                      class="pill-close"
-                      data-kw="${encodeURIComponent(k)}"
-                      aria-label="Remove ${esc(k)}">×</button>
-            </span>
-          `).join(' ')
-        : '<span class="text-muted">No keywords yet.</span>';
-
-      host.querySelectorAll('.pill-close').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const kw = decodeURIComponent(btn.dataset.kw || '');
-          const ok = await tryRemoveKeyword(ctx, kw);
-          if (ok) refreshKeywordsLocal();
-        });
-      });
-    }catch{
-      host.innerHTML = '<span class="text-danger">Failed to load keywords.</span>';
-    }
-  }
-
-  const addBtn   = dash.querySelector('#kw-add-btn');
-  const addInput = dash.querySelector('#kw-add-input');
-  if (addBtn && addInput){
-    const commit = async () => {
-      const kw = (addInput.value || '').trim();
-      if (!kw) return;
-      const ctx = ctxFromBreadcrumb();
-      const ok = await tryAddKeyword(ctx, kw);
-      if (ok) {
-        addInput.value = '';
-        refreshKeywordsLocal();
-      }
-    };
-    addBtn.addEventListener('click', (e)=>{ e.preventDefault(); commit(); });
-    addInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') commit(); });
-  }
-
-  // When the offcanvas shows: refresh if Keywords tab is active.
+  // If the offcanvas shows with Keywords active, refresh via global fetcher
   document.addEventListener('show.bs.offcanvas', function(ev){
     if (ev.target && ev.target.id === 'dashCategoryManager') {
-      const activeTab = dash.querySelector('.drawer-tab.active')?.getAttribute('data-tab') || 'overview';
-      // double-tap to handle delayed breadcrumb population
-      if (activeTab === 'keywords') {
-        refreshKeywordsLocal();
-        setTimeout(refreshKeywordsLocal, 150);
+      const active = dash.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
+      if (active === 'keywords' && typeof window.refreshKeywords === 'function') {
+        window.refreshKeywords();
+        setTimeout(window.refreshKeywords, 120);
       }
     }
   });
-
-  // Watch breadcrumb changes (context switches) and refresh keywords if that pane is open
-  const bc = dash.querySelector('#drawer-breadcrumb');
-  if (bc && 'MutationObserver' in window){
-    const mo = new MutationObserver(() => {
-      const active = dash.querySelector('.drawer-tab.active')?.dataset.tab;
-      if (active === 'keywords') refreshKeywordsLocal();
-    });
-    mo.observe(bc, { subtree:true, childList:true, characterData:true });
-  }
 })();
 </script>
