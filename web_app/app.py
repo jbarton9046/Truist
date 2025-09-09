@@ -1307,19 +1307,18 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
     return {"months": month_keys, "categories": categories}
 def build_top_level_monthly_from_summary(summary, months_back=12, since_date=None):
     """
-    Build the charts payload directly from the SAME numbers the summary cards use,
-    emitting LEAF rows only (e.g., ["Income","Employer","Bonus"]) so the frontend
-    can safely aggregate to top-level without double counting.
-
-    Also injects a synthetic '🟡 Other/Uncategorized' leaf when sub-buckets don't
-    sum to the category total, so top-level totals exactly match the cards.
+    Build a charts payload that:
+      • Uses the SAME totals as the summary cards
+      • Emits true top-level rows (['Income'], ['Groceries'], …) for overview
+      • Also emits deeper LEAVES (['Income','Employer'], ['Groceries','Trader Joe’s'], …)
+        without double-counting (parents are only added when a branch has no children)
     """
-    # Accept either the whole summary blob or just the monthly_summaries mapping
+    # Accept either the whole blob or just the monthly map
     msum = summary.get("monthly_summaries") if isinstance(summary, dict) else None
     if not isinstance(msum, dict):
         msum = summary or {}
 
-    # 1) Month selection (ascending)
+    # Months (ascending)
     month_keys = sorted(msum.keys())
     if since_date:
         ym_cut = str(since_date)[:7]
@@ -1332,106 +1331,94 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
         except Exception:
             pass
 
-    # Nothing to do?
     if not month_keys:
         return {"months": [], "categories": []}
 
-    # 2) Which categories exist & which have children anywhere in the window?
-    cats = set()
-    has_children = {}
-    for ym in month_keys:
-        cats_in_m = ((msum.get(ym) or {}).get("categories") or {}).keys()
-        for c in cats_in_m:
-            cats.add(c)
-            data = (msum[ym]["categories"][c] or {})
-            child_present = bool(
-                (data.get("subsubsubcategories") or {})
-                or (data.get("subsubcategories") or {})
-                or (data.get("subcategories") or {})
-            )
-            if child_present:
-                has_children[c] = True
-            elif c not in has_children:
-                # set default only if not already True from another month
-                has_children[c] = False
-
-    # 3) Prepare a leaf path -> series map
     L = len(month_keys)
-    leaf_series = {}  # {("Income","Employer","Bonus"): [..L..], ...}
 
-    def put(path_tuple, idx, val):
-        # Normalize signs: Income >= 0; expenses non-negative (net of returns)
-        head = path_tuple[0] if path_tuple else ""
-        v = float(val or 0.0)
-        if head == "Income":
-            if v < 0:
-                v = abs(v)
-        else:
-            v = max(0.0, v)
+    # Helper: card-consistent totals
+    def clamp_total(cat, v):
+        v = float(v or 0.0)
+        if cat == "Income":
+            return abs(v)
+        return max(0.0, v)
+
+    # Build top-level series (exactly what cards show)
+    top_series = {}  # { 'Income': [..L..], 'Groceries': [..L..], ... }
+    # And deep leaf series (paths length >= 2)
+    leaves = {}      # { ('Income','Employer'): [..L..], ('Groceries','TJ'): [..L..], ... }
+
+    def put(series_map, path_tuple, idx, val):
         key = tuple(path_tuple)
-        if key not in leaf_series:
-            leaf_series[key] = [0.0] * L
-        leaf_series[key][idx] = round(v, 2)
+        if key not in series_map:
+            series_map[key] = [0.0]*L
+        series_map[key][idx] = round(float(val or 0.0), 2)
 
-    # 4) Walk each month and push deepest available leaves
+    # Walk months
     for j, ym in enumerate(month_keys):
-        cats_map = ((msum.get(ym) or {}).get("categories") or {})
+        cats_map = (msum.get(ym) or {}).get("categories") or {}
 
-        for cat in cats:
-            data = (cats_map.get(cat) or {})
-            total_cat = float(data.get("total", 0.0))
-            # Cards logic: Income positive, expenses non-negative
-            if cat == "Income":
-                if total_cat < 0:
-                    total_cat = abs(total_cat)
-            else:
-                total_cat = max(0.0, total_cat)
+        # 1) Top-level totals
+        for cat, data in cats_map.items():
+            put(top_series, (cat,), j, clamp_total(cat, data.get("total", 0.0)))
 
-            deep_added = 0.0
-
-            # Prefer the deepest structure that exists for this month
-            subsubsub = data.get("subsubsubcategories") or {}
-            subsub = data.get("subsubcategories") or {}
-            sub = data.get("subcategories") or {}
-
-            if subsubsub:
-                # {subcat: {subsub: {subsubsub: amount}}}
-                for subcat, subsubs in subsubsub.items():
-                    for ssub, sss in (subsubs or {}).items():
-                        for ssss_label, amt in (sss or {}).items():
-                            put((cat, subcat, ssub, ssss_label), j, amt)
-                            deep_added += float(amt or 0.0)
-
-            elif subsub:
-                # {subcat: {subsub: amount}}
-                for subcat, subsubs in subsub.items():
-                    for ssub, amt in (subsubs or {}).items():
-                        put((cat, subcat, ssub), j, amt)
-                        deep_added += float(amt or 0.0)
-
-            elif sub:
-                # {subcat: amount}
-                for subcat, amt in sub.items():
-                    put((cat, subcat), j, amt)
-                    deep_added += float(amt or 0.0)
-
-            # If this category never has children anywhere, emit a simple leaf
-            if not has_children.get(cat, False):
-                put((cat,), j, total_cat)
+        # 2) Deep breakdown — add the deepest available per branch without double counting
+        for cat, data in cats_map.items():
+            total_cat = clamp_total(cat, data.get("total", 0.0))
+            if total_cat <= 0:
                 continue
 
-            # Otherwise, add "Other/Uncategorized" remainder so leaves sum to total
-            remainder = round(total_cat - deep_added, 2)
-            if remainder > 0.005:
-                put((cat, "🟡 Other/Uncategorized"), j, remainder)
+            sub_map     = data.get("subcategories") or {}               # { sub: amt }
+            subsub_map  = data.get("subsubcategories") or {}            # { sub: { ssub: amt } }
+            sub3_map    = data.get("subsubsubcategories") or {}         # { sub: { ssub: { s3: amt } } }
 
-    # 5) Convert to the payload the frontend expects
-    categories = [
-        {"name": path[-1], "path": list(path), "monthly": series}
-        for path, series in leaf_series.items()
-    ]
+            # 2a) Add level-3 leaves if present
+            if sub3_map:
+                for sub, ssubs in (sub3_map or {}).items():
+                    for ssub, s3s in (ssubs or {}).items():
+                        for s3, amt in (s3s or {}).items():
+                            put(leaves, (cat, sub, ssub, s3), j, clamp_total(cat, amt))
+
+            # 2b) Add level-2 leaves that do NOT have level-3 children
+            if subsub_map:
+                for sub, ssubs in (subsub_map or {}).items():
+                    # if this (sub, ssub) exists at level-3, skip here (children already added)
+                    sub3_for_sub = (sub3_map or {}).get(sub) or {}
+                    for ssub, amt in (ssubs or {}).items():
+                        if ssub in sub3_for_sub:
+                            continue
+                        put(leaves, (cat, sub, ssub), j, clamp_total(cat, amt))
+
+            # 2c) Add level-1 leaves that do NOT have deeper children
+            if sub_map:
+                for sub, amt in (sub_map or {}).items():
+                    if sub in (subsub_map or {}):
+                        continue  # this sub has level-2 children
+                    if sub in (sub3_map or {}):
+                        continue  # this sub has level-3 children
+                    put(leaves, (cat, sub), j, clamp_total(cat, amt))
+
+    # Compose payload:
+    #  - include ALL top-level rows (['Income'], ['Groceries'], …)
+    #  - include ALL deep leaves (paths length >= 2)
+    categories = []
+
+    # top-level first (stable order: Income first then alpha)
+    top_order = list(top_series.keys())
+    if "Income" in top_order:
+        top_order = ["Income"] + sorted([c for c in top_order if c != "Income"])
+    else:
+        top_order = sorted(top_order)
+
+    for cat in top_order:
+        categories.append({"name": cat, "path": [cat], "monthly": top_series[cat]})
+
+    # then deep leaves (sorted for stability)
+    for path in sorted(leaves.keys()):
+        categories.append({"name": path[-1], "path": list(path), "monthly": leaves[path]})
 
     return {"months": month_keys, "categories": categories}
+
 
 
 # ------------------ Explorer ------------------

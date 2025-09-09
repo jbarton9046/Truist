@@ -272,6 +272,7 @@
     const map = new Map();
     for (const c of (categories||[])){
       const segs = segsOf(c);
+      if (segs.length !== 1) continue; // <-- only real top-level rows
       const top = segs[0] || '(Uncategorized)';
       const arr = (c.monthly||[]).map(toNum);
       if (!map.has(top)) map.set(top, new Array(arr.length).fill(0));
@@ -280,6 +281,7 @@
     }
     return Object.fromEntries(map.entries());
   };
+
 
   function buildTree(categories){
     const root={name:'All',path:[],monthly:[],children:[]}; const map=new Map(); map.set('',root);
