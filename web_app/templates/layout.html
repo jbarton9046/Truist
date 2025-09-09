@@ -377,28 +377,26 @@
     <!-- Drawer config: set API endpoints BEFORE the controller runs -->
     <script>
       (function(){
-        // Resolve endpoints via Flask; fall back to hard-coded paths if route missing.
-        const PATH_TX_Flask   = "{{ safe_url('api_path_transactions') }}";
-        // admin_categories blueprint endpoints may vary; keep existing defaults as fallbacks
-        const ACTION_Flask    = "{{ safe_url('admin_categories.category_action') }}";
-        const KW_GET_Flask    = "{{ safe_url('admin_categories.keywords_for_name') }}";
-        const KW_ADD_Flask    = "{{ safe_url('admin_categories.keyword_add') }}";
-        const KW_REM_Flask    = "{{ safe_url('admin_categories.keyword_remove') }}";
-        const INSPECT_Flask   = "{{ safe_url('admin_categories.inspect_path') }}";  // used by movers_weekly.js
+        const PATH_TX_Flask = "{{ safe_url('api_path_transactions') }}";
+
+        /* ✅ use the real endpoint names from admin_categories.py */
+        const ACTION_Flask  = "{{ safe_url('admin_categories.category_action') }}";
+        const KW_GET_Flask  = "{{ safe_url('admin_categories.get_keywords_for_path') }}";
+        const KW_ADD_Flask  = "{{ safe_url('admin_categories.keyword_add_api') }}";
+        const KW_REM_Flask  = "{{ safe_url('admin_categories.keyword_remove_api') }}";
+        const INSPECT_Flask = "{{ safe_url('admin_categories.inspect_path') }}";
 
         function pick(v, fallback){ return (v && v !== '#') ? v : fallback; }
 
-        // Use your working admin/api defaults; pages can still override via window.CL_URLS.
         window.CL_URLS = Object.assign({
           PATH_TXN_URL : pick(PATH_TX_Flask, '/api/path/transactions'),
           ACTION_URL   : pick(ACTION_Flask,   '/admin/api/category_action'),
 
-          // IMPORTANT: these default to admin/api to match Category Builder behavior.
-          KW_GET_URL   : pick(KW_GET_Flask,   '/admin/api/keywords_for_name'),
-          KW_ADD_URL   : pick(KW_ADD_Flask,   '/admin/api/keyword_add'),
-          KW_REMOVE_URL: pick(KW_REM_Flask,   '/admin/api/keyword_remove'),
+          /* ✅ fallbacks only; primary is the Flask-resolved URL above */
+          KW_GET_URL   : pick(KW_GET_Flask,   '/admin/categories/keywords'),
+          KW_ADD_URL   : pick(KW_ADD_Flask,   '/admin/categories/keyword/add'),
+          KW_REMOVE_URL: pick(KW_REM_Flask,   '/admin/categories/keyword/remove'),
 
-          // Needed by static/js/movers_weekly.js
           INSPECT_URL  : pick(INSPECT_Flask,  '/admin/categories/inspect')
         }, window.CL_URLS || {});
       })();
@@ -859,7 +857,7 @@
           return;
         }
 
-        state.months = Array.isArray(j.months)?j.months:(Array.isArray(j.month_list)?j.month_list:[]); 
+        state.months = Array.isArray(j.months)?j.months:(Array.isArray(j.month_list)?j.month_list:[]);
         state.tx = Array.isArray(j.tx)?j.tx:(Array.isArray(j.transactions)?j.transactions:[]);
         state.children = Array.isArray(j.children)?j.children:(Array.isArray(j.kids)?j.kids:(Array.isArray(j.child)?j.child:[]));
         state.total = Number(j.total ?? j.net_total ?? j.sum ?? 0);
@@ -1112,11 +1110,6 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/movers_weekly.js') }}" defer></script>
-    <script>
-      window.CL_URLS = Object.assign({
-        KW_GET_URL: '/admin/categories/keywords'
-      }, window.CL_URLS || {});
-    </script>
-
+    <!-- Pin keyword API endpoints for drawer -->
   </body>
 </html>

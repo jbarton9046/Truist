@@ -1096,27 +1096,48 @@ def keyword_remove_api():
     flash(("Removed keyword." if removed else "Keyword not found."), "success")
     return redirect(url_for("admin_categories.categories_page"))
 
-@admin_categories_bp.route("/categories/keywords", methods=["GET"])
-def get_keywords_for_path():
-    """
-    Read-only keywords for a path.
-    Query: level, cat, sub, ssub, sss
-    Example: /admin/categories/keywords?level=subcategory&cat=Groceries&sub=Home
-    """
+# ---------- Drawer-friendly keyword endpoints (aliases + unified) ----------
+# NOTE: unique endpoint=... names avoid Flask collisions
+
+@admin_categories_bp.get("/categories/keywords_for_name", endpoint="keywords_for_name")
+@admin_categories_bp.get("/api/keywords", endpoint="keywords_read_api")
+def keywords_read():
     cfg = load_cfg()
-    level = (request.args.get("level") or "category").strip()
+
+    # accept either explicit level or infer from provided parts
+    level = (request.args.get("level") or "").strip()
     cat   = (request.args.get("cat")   or "").strip()
     sub   = (request.args.get("sub")   or "").strip()
     ssub  = (request.args.get("ssub")  or "").strip()
     sss   = (request.args.get("sss")   or "").strip()
 
-    if level not in {"category","subcategory","subsubcategory","subsubsubcategory"}:
-        return jsonify({"ok": False, "error": "Invalid level"}), 400
-    if not cat:
-        return jsonify({"ok": False, "error": "Category is required"}), 400
+    if not level:
+        level = "category"
+        if sss:      level = "subsubsubcategory"
+        elif ssub:   level = "subsubcategory"
+        elif sub:    level = "subcategory"
 
-    keywords, _children = _keywords_and_children(cfg, level, cat, sub or None, ssub or None, sss or None)
-    return jsonify({"ok": True, "keywords": keywords})
+    if not cat:
+        return jsonify({"ok": False, "error": "Category (cat) is required"}), 400
+
+    # ✅ get keywords using your existing helper
+    keywords, _children = _keywords_and_children(
+        cfg,
+        level,
+        cat,
+        sub or None,
+        ssub or None,
+        sss or None
+    )
+
+    return jsonify({
+        "ok": True,
+        "keywords": keywords,
+        "data": keywords,
+        "items": keywords
+    })
+
+
 
 # ================================
 # Misc / Uncategorized transactions
