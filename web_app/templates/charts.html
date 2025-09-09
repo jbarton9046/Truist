@@ -802,15 +802,26 @@
     treeDeep      = buildTree(categoriesRaw);
 
     const M = months.length;
-    const incomeByMonth_raw  = (topSeries['Income'] || []);
-    const expenseArrays_raw  = Object.entries(topSeries).filter(([k])=>k!=='Income').map(([,vals])=>vals);
+    const incomeByMonth_raw =
+      Array.isArray(payload.income_by_month) ? payload.income_by_month
+                                             : (topSeries['Income'] || []);
+
+    const expenseByMonth_raw =
+      Array.isArray(payload.expense_by_month) ? payload.expense_by_month
+                                              : null;
+
+    const expenseArrays_raw  = expenseByMonth_raw
+      ? null
+      : Object.entries(topSeries).filter(([k])=>k!=='Income').map(([,vals])=>vals);
 
     incomeByMonth  = toLen(incomeByMonth_raw, M);
-    expenseByMonth = expenseArrays_raw.reduce((acc, vals) => {
-      const v = toLen(vals, M);
-      for (let i=0;i<M;i++) acc[i] = (acc[i]||0) + v[i];
-      return acc;
-    }, new Array(M).fill(0));
+    expenseByMonth = expenseByMonth_raw
+      ? toLen(expenseByMonth_raw, M)
+      : expenseArrays_raw.reduce((acc, vals) => {
+          const v = toLen(vals, M);
+          for (let i=0;i<M;i++) acc[i] = (acc[i]||0) + v[i];
+          return acc;
+        }, new Array(M).fill(0));
     netByMonth = incomeByMonth.map((v,i)=> (v||0) - (expenseByMonth[i]||0));
 
     const allZero = (arr)=> (arr||[]).every(x=>!x || Math.abs(x) < 1e-9);

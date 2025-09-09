@@ -1029,6 +1029,40 @@ def api_cat_monthly():
     )
     return jsonify(payload)
 
+@app.get("/api/cat_monthly_debug")
+def api_cat_monthly_debug():
+    ym = (request.args.get("ym") or "").strip()
+    if not ym:
+        return jsonify({"error": "pass ?ym=YYYY-MM"}), 400
+
+    cfg_live = load_cfg()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    _apply_hide_rules_to_summary(summary)
+
+    bucket = (summary.get("monthly_summaries") or {}).get(ym) or {}
+    cats = (bucket.get("categories") or {})
+    income_total = (cats.get("Income") or {}).get("total", 0.0)
+
+    # Return Income details + a few largest Income transactions for that month
+    txs = [t for t in (bucket.get("all_transactions") or []) if (t.get("category") == "Income")]
+    txs_sorted = sorted(txs, key=lambda t: abs(float(t.get("amount", 0.0))), reverse=True)[:40]
+
+    return jsonify({
+        "ym": ym,
+        "income_total": income_total,
+        "income_tx_sample": [
+            {
+                "date": t.get("date"),
+                "amount": t.get("amount"),
+                "expense_amount": t.get("expense_amount"),
+                "desc": t.get("description"),
+                "subcategory": t.get("subcategory"),
+                "sub_subcategory": t.get("sub_subcategory"),
+            } for t in txs_sorted
+        ]
+    })
+
+
 # -------- Goals --------
 @app.route("/goals")
 def goals_page():
