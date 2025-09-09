@@ -210,8 +210,6 @@
 (function(){
   'use strict';
 
-  const DEBUG = /[?&]debug=1\b/.test(location.search);
-
   /* ================= Theme helpers ================= */
   const cssVar = (name, fallback) => {
     const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -242,9 +240,7 @@
     return Object.assign(layout, rest);
   };
 
-  /* Null-safe Plotly react */
   const safeReact = (target, traces, layout, config) => {
-    if (!target) return;
     try{
       Plotly.react(target, traces, layout, Object.assign({responsive:true,displayModeBar:false}, config||{}));
     }catch(err){
@@ -261,19 +257,12 @@
   const prettyMonth = ym => { if(!ym||ym.length<7)return ym||'—';const [y,m]=ym.split('-').map(Number);return new Date(y,(m||1)-1,1).toLocaleString(undefined,{month:'long',year:'numeric'})};
   const parseISO = s => { const [y,m,d]=String(s||'').slice(0,10).split('-').map(Number); return (y&&m&&d)?new Date(y,m-1,d):null; };
 
-  /* Null-safe DOM writes */
-  const setText = (el, txt) => { if (el) try { el.textContent = txt; } catch(_){} };
-  const setHTML = (el, html) => { if (el) try { el.innerHTML = html; } catch(_){} };
-
-  /* Segment a category name/path into levels. */
+  /* Segment a category name/path into levels. Split on ">", ":" and spaced hyphen only. */
   const segsOf = (item) => {
     if (item && Array.isArray(item.path) && item.path.length) return item.path.map(String);
     const name = String(item?.name || '').trim();
     if (!name) return [];
-    const raw = name
-      .replace(/\s*>\s*/g,' / ')
-      .replace(/\s*:\s*/g,' / ')
-      .replace(/\s+-\s+/g,' / ');
+    const raw = name.replace(/\s*>\s*/g,' / ').replace(/\s*:\s*/g,' / ').replace(/\s+-\s+/g,' / ');
     if (raw.includes(' / ')) return raw.split(' / ').map(s=>s.trim()).filter(Boolean);
     return [name];
   };
@@ -350,7 +339,7 @@
     const map=new Map(); if(!sub) return {};
     const visit=n=>{
       if(!n.children.length){
-        const p = n.path.slice(1);
+        const p = n.path.slice(1); // drop "Income"
         const label = (p.length ? p.slice(-tailDepth).join(' / ') : n.name) || 'Income';
         const arr = (n.monthly||[]).map(toNum);
         if(!map.has(label)) map.set(label,new Array(arr.length).fill(0));
@@ -367,16 +356,13 @@
     for (const c of (categories||[])){
       const segs = segsOf(c);
       if (!segs.length) continue;
-
       const idx = segs.findIndex(s => String(s).toLowerCase() === 'income');
       const nameLower = String(c.name||'').toLowerCase();
-
       if (idx === -1 && !/^income\b/.test(nameLower)) continue;
 
       let after = [];
       if (idx >= 0 && idx < segs.length-1) after = segs.slice(idx+1);
       if (!after.length) after = [segs[segs.length-1]];
-
       const label = after.slice(-tailDepth).join(' / ').trim();
       if (!label || /^income$/i.test(label)) continue;
 
@@ -387,7 +373,6 @@
     }
     return Object.fromEntries(map.entries());
   }
-
   function seriesIncomeHeuristicFromRaw(categories){
     const map=new Map();
     const incLike = /(pay|paycheck|salary|deposit|reimb|refund|bonus|stipend|w-?2|1099)/i;
@@ -444,10 +429,10 @@
     }
     return out;
   }
-  function showNoData(ids, extra=''){
+  function showNoData(ids){
     (ids||[]).forEach(id=>{
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<div class="stat-card"><div class="muted">No category data available.</div>${extra}</div>`;
+      if (el) el.innerHTML = '<div class="stat-card"><div class="muted">No category data available.</div></div>';
     });
   }
 
@@ -541,11 +526,10 @@
   }
 
   function treemap(targetEl, nodes, focusIdx){
-    if (!targetEl) return;
     const values = nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0));
     const total = values.reduce((a,b)=>a+Math.max(0,b),0);
     if(!nodes.length || total<=0){
-      setHTML(targetEl, '<div class="muted small ms-2 me-2">No expense detail for this month.</div>');
+      targetEl.innerHTML = '<div class="muted small ms-2 me-2">No expense detail for this month.</div>';
       return;
     }
     safeReact(targetEl,[{
@@ -648,29 +632,29 @@
       const incomeStreams=streams.filter(s=>incomeMerchants.has(s.merchant));
       const amounts=incomeStreams.map(s=>toNum(s.amount)).filter(v=>v>0).sort((a,b)=>a-b);
       const med=amounts.length?(amounts.length%2?amounts[(amounts.length-1)/2]:(amounts[amounts.length/2-1]+amounts[amounts.length/2])/2):0;
-      setText(document.getElementById('inc_kpi_medpay'), med?money(med):'—');
+      document.getElementById('inc_kpi_medpay').textContent=med?money(med):'—';
 
       const today=new Date(); today.setHours(0,0,0,0);
       const plus30=new Date(today.getFullYear(),today.getMonth(),today.getDate()+30);
       const upcomingAll=(data.upcoming||[]).map(u=>({...u,dt:parseISO(u.date)})).filter(u=>u.dt);
       const upcomingIncome=upcomingAll.filter(u=>incomeMerchants.has(u.merchant)).sort((a,b)=>a.dt-b.dt);
       const next30Income=upcomingIncome.filter(u=>u.dt<=plus30).reduce((t,u)=>t+toNum(u.amount),0);
-      setText(document.getElementById('inc_kpi_next30'), upcomingIncome.length?money(next30Income):'—');
+      document.getElementById('inc_kpi_next30').textContent=upcomingIncome.length?money(next30Income):'—';
 
       safeReact(in_timeline,[{type:'scatter',mode:'markers',opacity:OP_MARK,x:upcomingIncome.map(u=>u.date),y:upcomingIncome.map(u=>toNum(u.amount)),text:upcomingIncome.map(u=>`${u.merchant}<br>${money2(u.amount)}`),hovertemplate:'%{x}<br>%{text}<extra></extra>'}],
         baseLayout({xaxis:{title:'Upcoming dates'},yaxis:{title:'Amount'}}));
 
       const host=document.getElementById('in_upcoming');
       const rows=upcomingIncome.slice(0,10).map(u=>`<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
-      setHTML(host, `<div class="table-responsive" style="max-height:200px;overflow:auto;">
+      host.innerHTML=`<div class="table-responsive" style="max-height:200px;overflow:auto;">
         <table class="table table-sm table-floating mb-0">
           <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th></tr></thead>
           <tbody>${rows || `<tr><td colspan="3" class="muted">No upcoming income in horizon.</td></tr>`}</tbody>
         </table>
-      </div>`);
+      </div>`;
     }catch{
       safeReact(in_timeline,[],baseLayout({}));
-      setHTML(document.getElementById('in_upcoming'), '<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>');
+      document.getElementById('in_upcoming').innerHTML='<div class="muted small">Couldn’t load upcoming from /api/recurrents.</div>';
     }
   }
 
@@ -682,8 +666,8 @@
   }
 
   function refreshAll(){
-    const N=Number(topNEl.value)||10; setText(topNLabel, String(N));
-    setText(monthsWindowEl, months.length?(months[0]+' … '+months[months.length-1]):'—');
+    const N=Number(topNEl.value)||10; topNLabel.textContent=N;
+    if (monthsWindowEl) monthsWindowEl.textContent=months.length?(months[0]+' … '+months[months.length-1]):'—';
 
     renderOverview();
 
@@ -692,31 +676,35 @@
     const exEntries=pickTopN(exObj,N);
     stackedArea(ex_area,months,exEntries,!!normalizeEl.checked);
 
-    const idx = Math.max(0, Math.min((focusMonthEl?.selectedIndex ?? 0), Math.max(0, months.length-1)));
-    setText(ex_tm_month, months.length?prettyMonth(months[idx]):'—');
+    const focusIdx=Math.max(0,Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length-1)));
+    ex_tm_month.textContent = months.length ? prettyMonth(months[focusIdx]) : '—';
+
+    // Build deep treemap nodes, but fallback to top-N if deep month is zero
     let nodes=[];
     try{
       if(treeDeep && (treeDeep.children||[]).length){
-        nodes = buildTreemapNodes(treeDeep,true);
-      }else{
-        nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
+        nodes = buildTreemapNodes(treeDeep,true);   // expenses only (Income excluded)
       }
-    }catch(_){
+    }catch(_){ /* noop */ }
+
+    // If no deep nodes or total for focus month is zero while expenses exist, fall back to top-N categories.
+    const deepValues = nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0));
+    const deepTotal = deepValues.reduce((a,b)=>a+Math.max(0,b),0);
+    if(!nodes.length || (deepTotal<=0 && (expenseByMonth[focusIdx]||0)>0)){
       nodes = exEntries.map(([name,arr])=>({label:name,parent:'',value:arr,id:name}));
     }
-    treemap(ex_treemap,nodes,idx);
+    treemap(ex_treemap,nodes,focusIdx);
 
     heatmap(ex_heatmap,months,exEntries);
     pareto(ex_pareto,exEntries);
     scatterVolAvg(ex_scatter,exEntries);
-    donut(ex_donut,exEntries,idx);
+    donut(ex_donut,exEntries,focusIdx);
 
     /* Income (deeper auto grouping) */
     const incomeTop = subtreeByTop(treeDeep,'Income');
     const s2     = seriesBySecondLevel(incomeTop);
     const sLeaf  = seriesByLeaves(incomeTop, 2);
     const sChild = seriesByChildren(incomeTop);
-
     const rawDeep = seriesIncomeFromRaw(categoriesRaw, 2);
     const rawHeur = seriesIncomeHeuristicFromRaw(categoriesRaw);
 
@@ -731,8 +719,6 @@
 
     incomeSubSeries = pick.data;
 
-    if (DEBUG) console.info('catMonthly topSeries sample', {months, incomeByMonth, expenseByMonth, pick});
-
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
     incomeTable(in_table,months,inEntries);
@@ -742,19 +728,18 @@
     attachDrillHandlers(months);
 
     const lastMonthIncome = incomeByMonth[incomeByMonth.length-1] || 0;
-    setText(kpi30d, incomeByMonth.length ? money(lastMonthIncome) : '—');
+    kpi30d.textContent = incomeByMonth.length ? money(lastMonthIncome) : '—';
     const last3 = incomeByMonth.slice(-3);
     const avg3  = last3.length ? last3.reduce((a,v)=>a+toNum(v),0)/last3.length : 0;
-    setText(kpiAvg3, last3.length ? money(avg3) : '—');
+    kpiAvg3.textContent = last3.length ? money(avg3) : '—';
 
     resizeAllPlots();
   }
 
   /* ================= UI ================= */
-  const tabsEl = document.getElementById('viewTabs');
-  tabsEl.addEventListener('click',e=>{
+  tabs.addEventListener('click',e=>{
     const t=e.target.closest('.tab'); if(!t) return;
-    tabsEl.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+    tabs.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
     const view=t.getAttribute('data-view');
     paneOverview.style.display=(view==='overview')?'':'none';
     paneExpenses.style.display=(view==='expenses')?'':'none';
@@ -766,38 +751,30 @@
   focusMonthEl.addEventListener('change',refreshAll);
 
   function populateFocusMonth(){
-    if (!focusMonthEl) return;
     focusMonthEl.innerHTML='';
     months.forEach((m,i)=>{ const opt=document.createElement('option'); opt.value=String(i); opt.textContent=prettyMonth(m); focusMonthEl.appendChild(opt); });
     focusMonthEl.selectedIndex=Math.max(0,months.length-1);
   }
 
-  /* ================= Bootstrap (Hardened + debug) ================= */
+  /* ================= Bootstrap (Hardened) ================= */
   (async function main(){
+    // 1) Try server-injected JSON first
     let payload = readInjected('catMonthlyData');
-    if (DEBUG) console.info('injected catMonthlyData:', payload);
 
+    // 2) Fallback to API if missing/malformed
     const isBad = (p) => !p || !Array.isArray(p.months) || !Array.isArray(p.categories);
-    let apiErr = null;
-
     if (isBad(payload)) {
       try {
-        if (DEBUG) console.info('Fetching /api/cat_monthly…');
-        const r = await fetch('/api/cat_monthly', { credentials:'same-origin' });
-        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+        const r = await fetch('/api/cat_monthly');
         payload = await r.json();
-        if (DEBUG) console.info('api payload:', payload);
       } catch (e) {
-        apiErr = e;
-        console.error('Fetch /api/cat_monthly failed:', e);
+        console.warn('Fallback /api/cat_monthly failed:', e);
       }
     }
 
+    // 3) If still bad or empty months, show message and bail
     if (isBad(payload) || !(payload.months||[]).length) {
-      const hint = apiErr
-        ? `<div class="muted small mt-1">API error: ${String(apiErr.message||apiErr)}</div>`
-        : `<div class="muted small mt-1">Tip: open <code>/api/cat_monthly</code> in a new tab. Expected shape: { months: [...], categories: [...] }.</div>`;
-      showNoData(['pane-overview','pane-expenses','pane-income'], hint);
+      showNoData(['pane-overview','pane-expenses','pane-income']);
       return;
     }
 
