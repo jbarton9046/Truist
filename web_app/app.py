@@ -20,12 +20,51 @@ from truist.parser_web import (
     generate_summary,
 )
 
-from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response
+# load_cfg to render category/subcategory maps on /cash
+from truist.admin_categories import load_cfg
 
+from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response, flash
 
 # ---- Flask app ----
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")  # enables flash()
+
+# ==============================================================================
+# === CLARITYLEDGER :: APP ANCHOR ==============================================
+# === ID: APP-ANCHOR-7C1F3D2 ===================================================
+# === Purpose: Stable insertion point for future patches / merges. =============
+# === Search tokens: CLARITYLEDGER-APP-ANCHOR, APP-ANCHOR-7C1F3D2 =============
+# ==============================================================================
+CLARITYLEDGER_APP_ANCHOR_INFO = {
+    "id": "APP-ANCHOR-7C1F3D2",
+    "name": "CLARITYLEDGER-APP-ANCHOR",
+    "version": "1.0",
+    "placed_at": "app.py",
+    "notes": (
+        "This block is a persistent marker used to locate safe insertion points "
+        "for automated edits and future code drops. Do not remove or rename. "
+        "OK to move within file if necessary."
+    ),
+}
+
+def _clarityledger_app_anchor_probe() -> bool:
+    """
+    No-op probe tied to APP-ANCHOR-7C1F3D2. Returns True so tests/tools can
+    confirm the anchor is present without touching runtime behavior.
+    """
+    return True
+# === END CLARITYLEDGER :: APP ANCHOR (APP-ANCHOR-7C1F3D2) =====================
+# ==============================================================================
+
+# --- Auth exemptions (must be defined before password_gate) ---
+EXEMPT_PATHS = {
+    "/login",
+    "/logout",
+    "/healthz",
+    "/static/manifest.webmanifest",
+    "/service-worker.js",
+}
+EXEMPT_PREFIXES = ("/static/",)
 
 # ---- Safe URL helper to avoid BuildError in templates ----
 def safe_url(endpoint: str, **values) -> str:
@@ -36,75 +75,6 @@ def safe_url(endpoint: str, **values) -> str:
 
 # expose to Jinja
 app.jinja_env.globals["safe_url"] = safe_url
-
-# --- Password gate (HTTP Basic Auth) ---
-# Set APP_PASSWORD in your environment. Optionally set APP_USER to pin a username.
-@app.get("/healthz")
-def healthz():
-    return "ok", 200
-
-EXEMPT_PATHS = {
-    "/login",
-    "/logout",
-    "/healthz",
-    "/static/manifest.webmanifest",
-    "/service-worker.js",
-}
-EXEMPT_PREFIXES = ("/static/",)
-
-
-@app.post("/admin/rebuild_master")
-def admin_rebuild_master():
-    want = os.environ.get("APP_PASSWORD")
-    if want:
-        auth = request.headers.get("Authorization", "")
-        if not (auth and auth.startswith("Basic ")):
-            abort(401)
-        import base64
-        try:
-            supplied = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8","ignore").split(":",1)[1]
-        except Exception:
-            abort(401)
-        if supplied != want:
-            abort(401)
-
-    from pathlib import Path
-    DATA = Path(os.environ.get("DATA_DIR", "/var/data"))
-    PLAID = DATA / "plaid"
-    STMTS = DATA / "statements"
-    MASTER = PLAID / "all_transactions.json"
-
-    def load(fp):
-        try:
-            data = json.load(fp.open("r", encoding="utf-8"))
-        except Exception:
-            return []
-        return (data.get("transactions", []) if isinstance(data, dict)
-                else (data if isinstance(data, list) else []))
-
-    seen, out = set(), []
-    for root in (PLAID, STMTS):
-        if not root.exists():
-            continue
-        for fp in sorted(root.glob("*.json")):
-            if fp == MASTER:
-                continue
-            for t in load(fp):
-                if t.get("pending") is True:
-                    continue  # cleared only
-                key = t.get("transaction_id") or (t.get("account_id"), t.get("date"), t.get("name"), t.get("amount"))
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append(t)
-
-    out.sort(key=lambda x: (x.get("date") or "", str(x.get("transaction_id") or "")), reverse=True)
-    MASTER.parent.mkdir(parents=True, exist_ok=True)
-    json.dump({"transactions": out}, MASTER.open("w", encoding="utf-8"), indent=2)
-    return jsonify(ok=True, count=len(out), master=str(MASTER))
-
-
-
 
 @app.before_request
 def password_gate():
@@ -240,7 +210,6 @@ def save_manual_form_transaction(form, tx_type: str):
         "subcategory": form.get("subcategory", ""),
         "sub_subcategory": form.get("sub_subcategory", "")
     })
-
 
 # ------------------ SUMMARY PRUNING / REBUILD ------------------
 def _apply_hide_rules_to_summary(summary_data):
@@ -610,6 +579,7 @@ def categories():
         CFG=cfg_live
     )
 
+# --- REPLACE your existing /cash route with this (adds date_today) ---
 @app.route("/cash", methods=["GET"])
 def cash_page():
     cfg_live = load_cfg()
@@ -620,8 +590,10 @@ def cash_page():
         summary_data=summary_data,
         category_keywords=cfg_live["CATEGORY_KEYWORDS"],
         subcategory_maps=cfg_live["SUBCATEGORY_MAPS"],
-        subsubcategory_maps=cfg_live.get("SUBSUBCATEGORY_MAPS", {})
+        subsubcategory_maps=cfg_live.get("SUBSUBCATEGORY_MAPS", {}),
+        date_today=date.today().isoformat(),  # ⬅ added
     )
+
 
 @app.route("/add-income", methods=["GET"])
 def add_income():
@@ -633,21 +605,50 @@ def add_expense():
 
 @app.route("/submit-income", methods=["POST"])
 def submit_income():
-    raw_amount = abs(float(request.form["amount"]))
+    try:
+        raw_amount = abs(float(request.form["amount"]))
+    except Exception:
+        flash("Amount must be a valid number.", "warning")
+        return redirect(url_for("cash_page"))
+
     append_manual_tx({
-        "date": _normalize_form_date(request.form["date"]),
-        "description": request.form["description"],
+        "date": _normalize_form_date(request.form.get("date", "")),
+        "description": request.form.get("description", ""),
         "amount": raw_amount,
-        "category": request.form.get("category",""),
-        "subcategory": request.form.get("subcategory",""),
-        "sub_subcategory": request.form.get("sub_subcategory",""),
+        "category": request.form.get("category", ""),
+        "subcategory": request.form.get("subcategory", ""),
+        "sub_subcategory": request.form.get("sub_subcategory", ""),
     })
-    return redirect(url_for("index"))
+
+    # bust cached monthly summary so cash page reflects the new entry
+    try:
+        _MONTHLY_CACHE["monthly"] = None
+        _MONTHLY_CACHE["ts"] = time()
+    except Exception:
+        pass
+
+    flash("Income recorded.", "success")
+    return redirect(url_for("cash_page"))
 
 @app.route("/submit-expense", methods=["POST"])
 def submit_expense():
-    save_manual_form_transaction(request.form, "expense")
-    return redirect(url_for("index", r=int(time())))
+    try:
+        # uses your helper to coerce sign and append
+        save_manual_form_transaction(request.form, "expense")
+    except Exception:
+        flash("Please check the form values.", "warning")
+        return redirect(url_for("cash_page"))
+
+    # bust cache
+    try:
+        _MONTHLY_CACHE["monthly"] = None
+        _MONTHLY_CACHE["ts"] = time()
+    except Exception:
+        pass
+
+    flash("Expense recorded.", "success")
+    return redirect(url_for("cash_page"))
+
 
 # ------------------ RECENT ACTIVITY API ------------------
 @app.route("/api/recent-activity", methods=["GET"], endpoint="api_recent_activity")
@@ -812,8 +813,6 @@ def api_recent_activity():
     }
 
     return jsonify({"ok": True, "data": payload})
-    
-
 
 # --- DEBUG: inspect category keyword sources ---
 @app.get("/__debug/keywords")

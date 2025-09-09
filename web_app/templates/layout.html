@@ -368,6 +368,42 @@
     {% include "navbar.html" %}
 
     <main class="container-fluid">
+
+      {# ==== Scoped Flash Messages (cash vs builder vs generic) ==== #}
+      {% set ep = request.endpoint or "" %}
+      {% set in_builder = ep.startswith("admin_categories.") or ep in ["category_builder", "admin_categories.categories_page"] %}
+      {% set in_cash = ep == "cash_page" %}
+      {% set flashed = get_flashed_messages(with_categories=True) %}
+      {% if flashed %}
+        <div class="row">
+          <div class="col-12 col-lg-10 col-xl-8 mx-auto mt-3">
+            {% for cat, msg in flashed %}
+              {# Categories can be namespaced like "builder:success" or "cash:warning" #}
+              {% set ns = (cat.split(":", 1)[0] if (":" in cat) else "") %}
+              {% set base = (cat.split(":", 1)[1] if (":" in cat) else cat) %}
+
+              {# Show rules:
+                 - On builder pages: show "builder:*" and generic (no namespace)
+                 - On cash page:     show "cash:*" and generic (no namespace)
+                 - Elsewhere:        show only generic (no namespace)
+              #}
+              {% set show =
+                   (in_builder and (ns == "builder" or ns == "")) or
+                   (in_cash and (ns == "cash" or ns == "")) or
+                   (not in_builder and not in_cash and ns == "") %}
+
+              {% if show %}
+                <div class="alert alert-{{ base|default('info') }} alert-dismissible fade show" role="alert">
+                  {{ msg }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+      {# ==== End Scoped Flash Messages ==== #}
+
       {% block content %}{% endblock %}
     </main>
 
