@@ -6,7 +6,7 @@
     <h2 class="m-0 text-secondary fw-semibold">Cash</h2>
   </div>
 
-  {# ---- Flash messages (supports namespacing like "cash:success" and generic) ---- #}
+  {# ---- Flash messages ---- #}
   {% set flashes = get_flashed_messages(with_categories=true) %}
   {% if flashes %}
     <div class="mb-3">
@@ -36,7 +36,7 @@
           <form method="POST" action="{{ url_for('submit_income') }}" autocomplete="off" novalidate>
             <div class="mb-3">
               <label for="inc_date" class="form-label">Date</label>
-              <input type="date" class="form-control" id="inc_date" name="date" required>
+              <input type="date" class="form-control" id="inc_date" name="date" value="{{ date_today }}" required>
             </div>
             <div class="mb-3">
               <label for="inc_amount" class="form-label">Amount</label>
@@ -48,15 +48,7 @@
             <div class="mb-3">
               <label for="inc_description" class="form-label">Description</label>
               <input type="text" class="form-control" id="inc_description" name="description" placeholder="e.g. MOBILE DEPOSIT • ACME" required>
-              <div class="form-text">Use good keywords here — they'll drive categorization.</div>
-            </div>
-            <div class="mb-3">
-              <label for="inc_person" class="form-label">Cash From</label>
-              <select class="form-select" id="inc_person" name="person" required>
-                <option value="">— Select —</option>
-                <option value="JL">JL</option>
-                <option value="Rachel">Rachel</option>
-              </select>
+              <div class="form-text">Keywords in the description will drive categorization.</div>
             </div>
             <button type="submit" class="btn btn-success w-100">Submit Income</button>
           </form>
@@ -74,7 +66,7 @@
           <form method="POST" action="{{ url_for('submit_expense') }}" autocomplete="off" novalidate>
             <div class="mb-3">
               <label for="exp_date" class="form-label">Date</label>
-              <input type="date" class="form-control" id="exp_date" name="date" required>
+              <input type="date" class="form-control" id="exp_date" name="date" value="{{ date_today }}" required>
             </div>
             <div class="mb-3">
               <label for="exp_amount" class="form-label">Amount</label>
@@ -88,8 +80,6 @@
               <input type="text" class="form-control" id="exp_description" name="description" placeholder="e.g. PUBLIX #123 ORLANDO FL" required>
               <div class="form-text">Keywords in the description will auto-categorize this.</div>
             </div>
-
-            {# No category/subcategory fields — categorization is keyword-driven #}
             <button type="submit" class="btn btn-danger w-100">Save Expense</button>
           </form>
         </div>
