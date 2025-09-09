@@ -1,165 +1,100 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container mt-4">
-  <h2 class="mb-3">Cash Manager</h2>
+<div class="container my-4" style="max-width: 900px;">
 
-  <!-- Flash messages -->
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mb-3">
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="m-0 text-secondary fw-semibold">Cash</h2>
+  </div>
 
-  <div class="row">
-    <!-- Income form -->
-    <div class="col-md-6">
-      <div class="card p-3 mb-3">
-        <h5>Add Income</h5>
-        <form method="POST" action="{{ url_for('submit_income') }}">
-          <div class="mb-3">
-            <label class="form-label">Date</label>
-            <input type="date" class="form-control" name="date"
-                   value="{{ date_today }}">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Amount</label>
-            <input type="number" step="0.01" class="form-control" name="amount" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Person</label>
-            <select class="form-select" name="person">
-              <option value="JL">JL</option>
-              <option value="Rachel">Rachel</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Description</label>
-            <input type="text" class="form-control" name="description">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Category</label>
-            <select id="income-category" class="form-select" name="category" required>
-              <option value="">-- Select Category --</option>
-              {% for cat in category_keywords.keys() %}
-                <option value="{{ cat }}">{{ cat }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Subcategory</label>
-            <select id="income-subcategory" class="form-select" name="subcategory">
-              <option value="">-- Select Subcategory --</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Sub-Subcategory</label>
-            <select id="income-subsubcategory" class="form-select" name="subsubcategory">
-              <option value="">-- Select Sub-Subcategory --</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-success">Add Income</button>
-        </form>
+  {# ---- Flash messages (supports namespacing like "cash:success" and generic) ---- #}
+  {% set flashes = get_flashed_messages(with_categories=true) %}
+  {% if flashes %}
+    <div class="mb-3">
+      {% for raw_cat, message in flashes %}
+        {% set parts = raw_cat.split(':', 1) if raw_cat else [] %}
+        {% set base  = parts[1] if parts|length == 2 else (raw_cat or 'info') %}
+        {% set bs = 'success' if base=='success'
+                   else 'warning' if base=='warning'
+                   else 'danger'  if base in ['danger','error']
+                   else 'info' %}
+        <div class="alert alert-{{ bs }} mb-2 alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="row g-3">
+    <!-- Add Income -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header border-0">
+          <h5 class="m-0">➕ Add Income</h5>
+        </div>
+        <div class="card-body pt-3">
+          <form method="POST" action="{{ url_for('submit_income') }}" autocomplete="off" novalidate>
+            <div class="mb-3">
+              <label for="inc_date" class="form-label">Date</label>
+              <input type="date" class="form-control" id="inc_date" name="date" required>
+            </div>
+            <div class="mb-3">
+              <label for="inc_amount" class="form-label">Amount</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" inputmode="decimal" class="form-control" id="inc_amount" name="amount" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="inc_description" class="form-label">Description</label>
+              <input type="text" class="form-control" id="inc_description" name="description" placeholder="e.g. MOBILE DEPOSIT • ACME" required>
+              <div class="form-text">Use good keywords here — they'll drive categorization.</div>
+            </div>
+            <div class="mb-3">
+              <label for="inc_person" class="form-label">Cash From</label>
+              <select class="form-select" id="inc_person" name="person" required>
+                <option value="">— Select —</option>
+                <option value="JL">JL</option>
+                <option value="Rachel">Rachel</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Submit Income</button>
+          </form>
+        </div>
       </div>
     </div>
 
-    <!-- Expense form -->
-    <div class="col-md-6">
-      <div class="card p-3 mb-3">
-        <h5>Add Expense</h5>
-        <form method="POST" action="{{ url_for('submit_expense') }}">
-          <div class="mb-3">
-            <label class="form-label">Date</label>
-            <input type="date" class="form-control" name="date"
-                   value="{{ date_today }}">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Amount</label>
-            <input type="number" step="0.01" class="form-control" name="amount" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Person</label>
-            <select class="form-select" name="person">
-              <option value="JL">JL</option>
-              <option value="Rachel">Rachel</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Description</label>
-            <input type="text" class="form-control" name="description">
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Category</label>
-            <select id="expense-category" class="form-select" name="category" required>
-              <option value="">-- Select Category --</option>
-              {% for cat in category_keywords.keys() %}
-                <option value="{{ cat }}">{{ cat }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Subcategory</label>
-            <select id="expense-subcategory" class="form-select" name="subcategory">
-              <option value="">-- Select Subcategory --</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Sub-Subcategory</label>
-            <select id="expense-subsubcategory" class="form-select" name="subsubcategory">
-              <option value="">-- Select Sub-Subcategory --</option>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-danger">Add Expense</button>
-        </form>
+    <!-- Add Expense -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header border-0">
+          <h5 class="m-0">➖ Add Expense</h5>
+        </div>
+        <div class="card-body pt-3">
+          <form method="POST" action="{{ url_for('submit_expense') }}" autocomplete="off" novalidate>
+            <div class="mb-3">
+              <label for="exp_date" class="form-label">Date</label>
+              <input type="date" class="form-control" id="exp_date" name="date" required>
+            </div>
+            <div class="mb-3">
+              <label for="exp_amount" class="form-label">Amount</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" inputmode="decimal" class="form-control" id="exp_amount" name="amount" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="exp_description" class="form-label">Description</label>
+              <input type="text" class="form-control" id="exp_description" name="description" placeholder="e.g. PUBLIX #123 ORLANDO FL" required>
+              <div class="form-text">Keywords in the description will auto-categorize this.</div>
+            </div>
+
+            {# No category/subcategory fields — categorization is keyword-driven #}
+            <button type="submit" class="btn btn-danger w-100">Save Expense</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 </div>
-
-<!-- Embed category maps safely -->
-<script id="subMap-data" type="application/json">
-  {{ subcategory_maps | default({}) | tojson }}
-</script>
-<script id="subSubMap-data" type="application/json">
-  {{ subsubcategory_maps | default({}) | tojson }}
-</script>
-
-<script>
-  const subMap    = JSON.parse(document.getElementById("subMap-data").textContent);
-  const subSubMap = JSON.parse(document.getElementById("subSubMap-data").textContent);
-
-  function setupCascade(catId, subId, ssubId) {
-    const catSelect = document.getElementById(catId);
-    const subSelect = document.getElementById(subId);
-    const ssubSelect = document.getElementById(ssubId);
-
-    catSelect.addEventListener("change", () => {
-      const cat = catSelect.value;
-      subSelect.innerHTML = '<option value="">-- Select Subcategory --</option>';
-      ssubSelect.innerHTML = '<option value="">-- Select Sub-Subcategory --</option>';
-      if (cat && subMap[cat]) {
-        Object.keys(subMap[cat]).forEach(sub => {
-          subSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
-        });
-      }
-    });
-
-    subSelect.addEventListener("change", () => {
-      const cat = catSelect.value;
-      const sub = subSelect.value;
-      ssubSelect.innerHTML = '<option value="">-- Select Sub-Subcategory --</option>';
-      if (cat && sub && subSubMap[cat] && subSubMap[cat][sub]) {
-        Object.keys(subSubMap[cat][sub]).forEach(ssub => {
-          ssubSelect.innerHTML += `<option value="${ssub}">${ssub}</option>`;
-        });
-      }
-    });
-  }
-
-  setupCascade("income-category", "income-subcategory", "income-subsubcategory");
-  setupCascade("expense-category", "expense-subcategory", "expense-subsubcategory");
-</script>
 {% endblock %}
