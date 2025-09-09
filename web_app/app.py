@@ -995,22 +995,28 @@ def api_categories_monthly():
 def charts_page():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
-    _apply_hide_rules_to_summary(summary)
-    cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12)
+    _apply_hide_rules_to_summary(summary)  # <- same hide/omit logic as cards
+
+    # Optional: allow since_date via query (?since_date=YYYY-MM-DD) to match cards window
+    since_date = request.args.get("since_date")
+    cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12, since_date=since_date)
     return render_template("charts.html", cat_monthly=cat_monthly)
 
 @app.get("/api/cat_monthly")
 def api_cat_monthly():
-    try:
-        cfg_live = load_cfg()
-        summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
-        _apply_hide_rules_to_summary(summary)
-        months_back = int(request.args.get("months_back") or 12)
-    except Exception as e:
-        return jsonify({"error": str(e), "months": [], "categories": []}), 200  # fail gracefully
+    cfg_live = load_cfg()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    _apply_hide_rules_to_summary(summary)  # keep rules consistent
 
-    payload = build_top_level_monthly_from_summary(summary, months_back=months_back)
+    try:
+        months_back = int(request.args.get("months_back") or 12)
+    except Exception:
+        months_back = 12
+
+    since_date = request.args.get("since_date") or None
+    payload = build_top_level_monthly_from_summary(summary, months_back=months_back, since_date=since_date)
     return jsonify(payload)
+
 
 
 
