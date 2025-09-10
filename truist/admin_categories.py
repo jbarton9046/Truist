@@ -647,10 +647,10 @@ def save_json():
         overrides_path.write_text(json.dumps(overrides_payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
         flash("Configuration saved.", "success")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
     except Exception as e:
         flash(f"Save failed: {e}", "danger")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
 # =========================================================
 # Single endpoint to upsert path AND optionally keyword
@@ -701,7 +701,7 @@ def upsert_path_and_keyword():
     if not cat:
         msg = "Category is required (pick existing or enter a new one)."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "warning"); return redirect(url_for("category_builder"))
 
     cfg["CATEGORY_KEYWORDS"].setdefault(cat, [])
     cfg["SUBCATEGORY_MAPS"].setdefault(cat, {})
@@ -730,7 +730,7 @@ def upsert_path_and_keyword():
                 if not sub:
                     msg = "Subcategory is required when targeting a sub-subcategory."
                     if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-                    flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+                    flash(msg, "warning"); return redirect(url_for("category_builder"))
                 if not ssub:
                     ssub = target_label
             elif target_level == "subsubsubcategory":
@@ -740,7 +740,7 @@ def upsert_path_and_keyword():
                 if missing:
                     msg = f"{', '.join(missing)} required when targeting a sub-sub-subcategory."
                     if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-                    flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+                    flash(msg, "warning"); return redirect(url_for("category_builder"))
                 if not sss:
                     sss = target_label
 
@@ -753,7 +753,7 @@ def upsert_path_and_keyword():
         except KeyError:
             msg = "Invalid target path for keyword; please ensure parents exist."
             if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-            flash(msg, "danger"); return redirect(url_for("admin_categories.categories_page"))
+            flash(msg, "danger"); return redirect(url_for("category_builder"))
 
     save_cfg(cfg)
 
@@ -764,7 +764,7 @@ def upsert_path_and_keyword():
         flash(f'Saved path and added keyword "{keyword}" to {target_level} "{target_label}" (and parents).', "success")
     else:
         flash("Saved/updated path.", "success")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 # ----------------------------
 # (Legacy) Separate add routes
@@ -777,7 +777,7 @@ def add_label():
 
     if not level or not label:
         flash("Level and label are required.", "warning")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
     if level == "category":
         cfg["CATEGORY_KEYWORDS"].setdefault(label, [])
@@ -789,7 +789,7 @@ def add_label():
         cat = request.form.get("parent_category", "").strip()
         if not cat:
             flash("Parent category is required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBCATEGORY_MAPS"][cat].setdefault(label, [])
         cfg["SUBSUBCATEGORY_MAPS"].setdefault(cat, {})
@@ -802,7 +802,7 @@ def add_label():
         sub = request.form.get("parent_subcategory", "").strip()
         if not cat or not sub:
             flash("Parent category and subcategory are required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBSUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBSUBCATEGORY_MAPS"][cat].setdefault(sub, {})
         cfg["SUBSUBCATEGORY_MAPS"][cat][sub].setdefault(label, [])
@@ -816,7 +816,7 @@ def add_label():
         ssub = request.form.get("parent_subsubcategory", "").strip()
         if not cat or not sub or not ssub:
             flash("Parent category, subcategory, and sub-subcategory are required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBSUBSUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBSUBSUBCATEGORY_MAPS"][cat].setdefault(sub, {})
         cfg["SUBSUBSUBCATEGORY_MAPS"][cat][sub].setdefault(ssub, {})
@@ -824,11 +824,11 @@ def add_label():
 
     else:
         flash("Invalid level.", "danger")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
     save_cfg(cfg)
     flash(f"Added {level}: {label}", "success")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 @admin_categories_bp.route("/categories/add_keyword", methods=["POST"])
 def add_keyword():
@@ -838,13 +838,13 @@ def add_keyword():
 
     if not scope or not keyword:
         flash("Scope and keyword are required.", "warning")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
     if scope == "category":
         cat = request.form.get("category", "").strip()
         if not cat:
             flash("Category is required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["CATEGORY_KEYWORDS"].setdefault(cat, [])
         if keyword not in cfg["CATEGORY_KEYWORDS"][cat]:
             cfg["CATEGORY_KEYWORDS"][cat].append(keyword)
@@ -854,7 +854,7 @@ def add_keyword():
         sub = request.form.get("target_label", "").strip()
         if not cat or not sub:
             flash("Category and Subcategory are required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBCATEGORY_MAPS"][cat].setdefault(sub, [])
         if keyword not in cfg["SUBCATEGORY_MAPS"][cat][sub]:
@@ -866,7 +866,7 @@ def add_keyword():
         ssub = request.form.get("target_label", "").strip()
         if not cat or not sub or not ssub:
             flash("Category, Subcategory, and Sub-subcategory are required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBSUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBSUBCATEGORY_MAPS"][cat].setdefault(sub, {})
         cfg["SUBSUBCATEGORY_MAPS"][cat][sub].setdefault(ssub, [])
@@ -880,7 +880,7 @@ def add_keyword():
         sss = request.form.get("target_label", "").strip()
         if not cat or not sub or not ssub or not sss:
             flash("Category, Subcategory, Sub-subcategory, and Sub-sub-subcategory are required.", "warning")
-            return redirect(url_for("admin_categories.categories_page"))
+            return redirect(url_for("category_builder"))
         cfg["SUBSUBSUBCATEGORY_MAPS"].setdefault(cat, {})
         cfg["SUBSUBSUBCATEGORY_MAPS"][cat].setdefault(sub, {})
         cfg["SUBSUBSUBCATEGORY_MAPS"][cat][sub].setdefault(ssub, {})
@@ -890,11 +890,11 @@ def add_keyword():
 
     else:
         flash("Invalid scope.", "danger")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
     save_cfg(cfg)
     flash(f"Added keyword: {keyword}", "success")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 # ==========================================
 # Rename + Delete
@@ -912,7 +912,7 @@ def rename_path():
     if not lvl or not new_label:
         msg = "Level and new name are required."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "warning"); return redirect(url_for("category_builder"))
 
     try:
         rename_path_in_cfg(cfg, lvl, cat, sub or None, ssub or None, sss or None, new_label=new_label)
@@ -922,7 +922,7 @@ def rename_path():
     except Exception as e:
         if _wants_json(): return jsonify({"ok": False, "error": str(e)}), 400
         flash(f"Rename failed: {e}", "danger")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 @admin_categories_bp.route("/categories/delete", methods=["POST"])
 def delete_path():
@@ -937,7 +937,7 @@ def delete_path():
     if not level:
         msg = "Level is required."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "warning"); return redirect(url_for("category_builder"))
 
     if cascade:
         try:
@@ -948,17 +948,17 @@ def delete_path():
         except Exception as e:
             if _wants_json(): return jsonify({"ok": False, "error": str(e)}), 400
             flash(f"Cascade delete failed: {e}", "danger")
-        return redirect(url_for("admin_categories.categories_page"))
+        return redirect(url_for("category_builder"))
 
     if has_children(cfg, level, cat, sub or None, ssub or None, sss or None):
         msg = "Cannot delete: this item has children. Enable 'cascade' to remove descendants."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "warning"); return redirect(url_for("category_builder"))
 
     if has_keywords_at(cfg, level, cat, sub or None, ssub or None, sss or None):
         msg = "Cannot delete: this item has keywords attached. Enable 'cascade' to remove them."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "warning"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "warning"); return redirect(url_for("category_builder"))
 
     try:
         delete_path_in_cfg(cfg, level, cat, sub or None, ssub or None, sss or None)
@@ -969,7 +969,7 @@ def delete_path():
         if _wants_json(): return jsonify({"ok": False, "error": str(e)}), 400
         flash(f"Delete failed: {e}", "danger")
 
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 # =========================================================
 # Keyword add/remove (REST for the drawer)
@@ -1058,7 +1058,7 @@ def keyword_add_api():
     if level not in {"category", "subcategory", "subsubcategory", "subsubsubcategory"} or not cat or not kw:
         msg = "Invalid request: level, cat, and keyword are required."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "danger"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "danger"); return redirect(url_for("category_builder"))
 
     cfg["CATEGORY_KEYWORDS"].setdefault(cat, [])
     cfg["SUBCATEGORY_MAPS"].setdefault(cat, {})
@@ -1071,7 +1071,7 @@ def keyword_add_api():
     if _wants_json():
         return jsonify({"ok": True, "added": added})
     flash(("Added keyword." if added else "Keyword already present."), "success")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 @admin_categories_bp.route("/categories/keyword/remove", methods=["POST"])
 def keyword_remove_api():
@@ -1086,7 +1086,7 @@ def keyword_remove_api():
     if level not in {"category", "subcategory", "subsubcategory", "subsubsubcategory"} or not cat or not kw:
         msg = "Invalid request: level, cat, and keyword are required."
         if _wants_json(): return jsonify({"ok": False, "error": msg}), 400
-        flash(msg, "danger"); return redirect(url_for("admin_categories.categories_page"))
+        flash(msg, "danger"); return redirect(url_for("category_builder"))
 
     removed = _remove_keyword_in_cfg(cfg, level, cat, sub or None, ssub or None, sss or None, kw)
     save_cfg(cfg)
@@ -1094,7 +1094,7 @@ def keyword_remove_api():
     if _wants_json():
         return jsonify({"ok": True, "removed": removed})
     flash(("Removed keyword." if removed else "Keyword not found."), "success")
-    return redirect(url_for("admin_categories.categories_page"))
+    return redirect(url_for("category_builder"))
 
 # ---------- Drawer-friendly keyword endpoints (aliases + unified) ----------
 # NOTE: unique endpoint=... names avoid Flask collisions
