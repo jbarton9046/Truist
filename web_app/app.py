@@ -991,21 +991,16 @@ def api_categories_monthly():
     return jsonify({"months": months, "categories": categories})
 
 # -------- Charts --------
-# -------- Charts --------
 @app.route("/charts")
 def charts_page():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
     _apply_hide_rules_to_summary(summary)
-
-    # If you have a canonical since_date in config, use it so charts == cards
-    since_date = cfg_live.get("SUMMARY_SINCE_DATE")  # or whatever your cards use
-    cat_monthly = build_top_level_monthly_from_summary(
-        summary,
-        months_back=12,
-        since_date=since_date,
-    )
+    _rebuild_categories_from_tree(summary)  # <-- add this
+    since_date = cfg_live.get("SUMMARY_SINCE_DATE")
+    cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12, since_date=since_date)
     return render_template("charts.html", cat_monthly=cat_monthly)
+
 
 
 @app.get("/api/cat_monthly")
@@ -1013,36 +1008,13 @@ def api_cat_monthly():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
     _apply_hide_rules_to_summary(summary)
+    _rebuild_categories_from_tree(summary)  # <-- add this
 
     months_back = int(request.args.get("months_back") or 12)
     since_date = request.args.get("since_date") or cfg_live.get("SUMMARY_SINCE_DATE")
-
     payload = build_top_level_monthly_from_summary(summary, months_back=months_back, since_date=since_date)
-
-    # 👇 add this block
-    msum = (summary or {}).get("monthly_summaries") or {}
-    month_keys = payload.get("months") or sorted(msum.keys())
-
-    def _inc(ym):
-        cats = (msum.get(ym, {}) or {}).get("categories", {}) or {}
-        return float((cats.get("Income") or {}).get("total", 0.0) or 0.0)
-
-    def _exp(ym):
-        cats = (msum.get(ym, {}) or {}).get("categories", {}) or {}
-        s = 0.0
-        for k, v in cats.items():
-            if k == "Income": 
-                continue
-            t = float((v or {}).get("total", 0.0) or 0.0)
-            if t < 0:
-                s += -t
-        return s
-
-    payload["income_by_month"]  = [max(0.0, _inc(m)) for m in month_keys]
-    payload["expense_by_month"] = [_exp(m) for m in month_keys]
-    # 👆 end add
-
     return jsonify(payload)
+
 
 
 
