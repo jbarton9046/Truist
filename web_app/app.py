@@ -1423,12 +1423,13 @@ def all_items_explorer():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
     _apply_hide_rules_to_summary(summary)
-    cat_monthly = build_top_level_monthly_from_summary(
+    cat_monthly = build_cat_monthly_from_summary(
         summary,
         months_back=int(request.args.get("months", "12") or 12),
         since=request.args.get("since"),
         since_date=request.args.get("since_date"),
     )
+
     return render_template("all_items_explorer.html", cat_monthly=cat_monthly)
 
 # ------------------ ALL CATEGORIES (deep tree) ------------------
