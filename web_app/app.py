@@ -1130,6 +1130,7 @@ def build_cat_monthly_somehow():
     return {"months": months, "categories": categories}
 
 
+
 # ------------------ Deep monthly builder (for All Categories) ------------------
 def build_cat_monthly_from_summary(
     summary: Dict[str, Any],
@@ -1401,6 +1402,233 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
+# ================== TRANSACTIONS PAGE + DESCRIPTION EDIT API ==================
+# Serves the transactions table and lets you persist description edits without
+# touching the raw bank exports. Overrides live in a JSON file under statements/.
+
+_DESC_OVERRIDES_FILE = _statements_dir() / "desc_overrides.json"
+
+def _load_desc_overrides() -> dict:
+    try:
+        with open(_DESC_OVERRIDES_FILE, "r", encoding="utf-8") as f:
+            dat = json.load(f)
+            # shape: {"by_txid": {id: new_desc}, "by_fingerprint": {fp: new_desc}}
+            if isinstance(dat, dict):
+                dat.setdefault("by_txid", {})
+                dat.setdefault("by_fingerprint", {})
+                return dat
+    except FileNotFoundError:
+        pass
+    return {"by_txid": {}, "by_fingerprint": {}}
+
+def _save_desc_overrides(d: dict) -> None:
+    _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_DESC_OVERRIDES_FILE, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2)
+
+def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
+    """
+    A stable fingerprint for a transaction when no transaction_id exists.
+    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
+    Works well for most bank exports.
+    """
+    try:
+        # normalize date to YYYY-MM-DD if possible
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
+    except Exception:
+        ds = date_s or ""
+    try:
+        amt = float(amount or 0.0)
+    except Exception:
+        try:
+            amt = float(str(amount).replace(",", ""))
+        except Exception:
+            amt = 0.0
+    return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
+
+def _apply_desc_override_to_tx(t: dict, ov: dict) -> dict:
+    """
+    Return a shallow-copied tx with description overridden if a match exists.
+    Priority: transaction_id -> fingerprint(date, amount, original desc)
+    """
+    if not isinstance(t, dict):
+        return t
+    out = dict(t)
+    by_id = ov.get("by_txid", {})
+    by_fp = ov.get("by_fingerprint", {})
+
+    txid = (t.get("transaction_id") or t.get("id") or "").strip()
+    if txid and txid in by_id:
+        out["description"] = by_id[txid]
+        out["name"] = by_id[txid]
+        return out
+
+    fp = _fingerprint_tx(t.get("date", ""), t.get("amount", 0.0), t.get("description") or t.get("name") or "")
+    if fp in by_fp:
+        out["description"] = by_fp[fp]
+        out["name"] = by_fp[fp]
+    return out
+
+def _flatten_all_transactions(monthly: dict) -> list[dict]:
+    """
+    Flatten the rebuilt monthly summary into one list of tx dicts
+    (with top-level category/subcategory included when available).
+    """
+    months_sorted = sorted(monthly.keys(), key=_norm_month)
+    rows: list[dict] = []
+    for mk in months_sorted:
+        cats = (monthly.get(mk, {}) or {}).get("categories", {}) or {}
+        for cname, cdata in cats.items():
+            for t in (cdata.get("transactions") or []):
+                row = {
+                    "date": t.get("date", ""),
+                    "description": t.get("description") or t.get("desc") or "",
+                    "amount": float(t.get("amount", t.get("amt", 0.0)) or 0.0),
+                    "category": t.get("category", "") or cname or "",
+                    "subcategory": t.get("subcategory", "") or "",
+                }
+                # Keep the raw id if present so edits can target exact tx
+                if "transaction_id" in t and t["transaction_id"]:
+                    row["transaction_id"] = t["transaction_id"]
+                rows.append(row)
+    # newest first by date, then by abs(amount)
+    def _date_key(s):
+        dt = _parse_any_date(s or "")
+        return (dt or datetime.fromtimestamp(0)).timestamp()
+    rows.sort(key=lambda r: (_date_key(r["date"]), abs(r["amount"])), reverse=True)
+    return rows
+
+@app.get("/transactions")
+def transactions_page():
+    # Renders your transactions.html (the one you pasted earlier)
+    return render_template("transactions.html")
+
+@app.get("/api/tx/all")
+def api_tx_all():
+    """
+    Data source for the Transactions table. Supports:
+      q: space-separated AND over description/category/subcategory (case-insensitive)
+      type: all | income | expense
+      date_from, date_to: YYYY-MM-DD
+      months: N | all    (filters server-side by last N months if provided)
+      limit: cap rows (default 4000)
+    """
+    # Build unified monthly (pruned + categories rebuilt), then flatten.
+    monthly, _ = build_monthly()
+    rows = _flatten_all_transactions(monthly)
+
+    # Apply description overrides
+    ov = _load_desc_overrides()
+    rows = [_apply_desc_override_to_tx(r, ov) for r in rows]
+
+    # Filters
+    q = (request.args.get("q") or "").strip().lower()
+    q_terms = [t for t in q.split() if t]
+    tx_type = (request.args.get("type") or "all").lower().strip()
+    df = (request.args.get("date_from") or "").strip()
+    dt = (request.args.get("date_to") or "").strip()
+    months_param = (request.args.get("months") or "").strip()
+    try:
+        limit = int(request.args.get("limit") or 4000)
+    except Exception:
+        limit = 4000
+
+    # Months shortcut filter (server-side) — applies on transaction date
+    if months_param and months_param.lower() != "all":
+        try:
+            n = int(months_param)
+            end = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+            start = (end - relativedelta(months=n)).replace(day=1)
+            def _in_last_n_months(r):
+                d = _parse_any_date(r.get("date"))
+                return (d is not None) and (d >= start)
+            rows = list(filter(_in_last_n_months, rows))
+        except Exception:
+            pass
+
+    # Date range filter
+    def _in_range(r):
+        d = _parse_any_date(r.get("date"))
+        if not d:
+            return False
+        if df:
+            try:
+                dfrom = datetime.strptime(df, "%Y-%m-%d")
+                if d < dfrom:
+                    return False
+            except Exception:
+                pass
+        if dt:
+            try:
+                dto = datetime.strptime(dt, "%Y-%m-%d")
+                if d > dto:
+                    return False
+            except Exception:
+                pass
+        return True
+    if df or dt:
+        rows = list(filter(_in_range, rows))
+
+    # Type filter
+    if tx_type in ("income", "expense"):
+        if tx_type == "income":
+            rows = [r for r in rows if r.get("amount", 0.0) > 0]
+        else:
+            rows = [r for r in rows if r.get("amount", 0.0) < 0]
+
+    # q filter (all terms must match somewhere)
+    if q_terms:
+        def _match(r):
+            hay = " ".join([
+                str(r.get("description", "")),
+                str(r.get("category", "")),
+                str(r.get("subcategory", "")),
+            ]).lower()
+            return all(t in hay for t in q_terms)
+        rows = list(filter(_match, rows))
+
+    # Cap and return
+    rows = rows[: max(1, limit)]
+    return jsonify({"transactions": rows})
+
+@app.post("/api/tx/edit_description")
+def api_tx_edit_description():
+    """
+    Persist a description change.
+    Body JSON:
+      {
+        "transaction_id": "...",           # optional but preferred
+        "date": "YYYY-MM-DD",              # required if no transaction_id
+        "amount": -42.13,                  # required if no transaction_id
+        "original_description": "WALMART", # required if no transaction_id
+        "new_description": "Birthday gift for Sam"
+      }
+    If transaction_id is not provided, the (date, amount, original_description)
+    fingerprint is used. Edits apply on /api/tx/all immediately and survive restarts.
+    """
+    data = request.get_json(silent=True) or {}
+    new_desc = (data.get("new_description") or "").strip()
+    if not new_desc:
+        return jsonify(ok=False, error="new_description is required"), 400
+
+    txid = (data.get("transaction_id") or "").strip()
+    ov = _load_desc_overrides()
+
+    if txid:
+        ov["by_txid"][txid] = new_desc
+    else:
+        date_s = (data.get("date") or "").strip()
+        amt = data.get("amount")
+        orig = (data.get("original_description") or "").strip()
+        if not (date_s and (amt is not None) and orig):
+            return jsonify(ok=False, error="When transaction_id is absent, provide date, amount, original_description"), 400
+        fp = _fingerprint_tx(date_s, amt, orig)
+        ov["by_fingerprint"][fp] = new_desc
+
+    _save_desc_overrides(ov)
+    return jsonify(ok=True, saved=new_desc)
+# ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
 
 
 # ------------------ Explorer ------------------
