@@ -315,23 +315,40 @@
     roll(root); return root;
   }
 
-  function buildTreemapNodes(root, expensesOnly=true){
-    const out=[];
-    function visit(node, parentId){
-      const id = (node.path||[]).join(' / ');
-      const isTop = node.path && node.path.length===1;
-      const isIncomeTop = isTop && String(node.name||'').toLowerCase()==='income';
-      if (node.path && node.path.length && (!expensesOnly || !isIncomeTop)) {
-        out.push({ id, label: node.name || '—', parent: parentId || '', value: (node.monthly||[]).map(toNum) });
+  function buildTreemapNodes(root, expensesOnly = true) {
+    const out = [];
+
+    function visit(node, parentId) {
+      const path = node.path || [];
+      const isTopIncome = (path.length === 1) && String(node.name || '').toLowerCase() === 'income';
+
+      // For expense treemap, drop the whole Income branch (prevents orphaned children)
+      if (expensesOnly && isTopIncome) return;
+
+      const id = path.join(' / ');
+      if (path.length) {
+        out.push({
+          id,
+          label: node.name || '—',
+          parent: parentId || '',
+          value: (node.monthly || []).map(toNum),
+        });
       }
-      (node.children||[]).forEach(ch => {
-        if (expensesOnly && String(ch.name||'').toLowerCase()==='income') return;
+      for (const ch of (node.children || [])) {
         visit(ch, id);
-      });
+      }
     }
-    (root.children||[]).forEach(ch => visit(ch, ''));
+
+    for (const ch of (root.children || [])) visit(ch, '');
+
+    // Safety: if any parent isn’t present, re-root it (prevents blank chart)
+    const ids = new Set(out.map(n => n.id));
+    out.forEach(n => { if (n.parent && !ids.has(n.parent)) n.parent = ''; });
+
     return out;
   }
+
+
 
   const subtreeByTop=(root,name)=> (root.children||[]).find(c=>(String(c.name||'')===String(name)))||null;
 
