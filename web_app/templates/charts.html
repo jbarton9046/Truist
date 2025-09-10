@@ -188,13 +188,17 @@
         </div>
       </div>
 
+      <!-- REPLACEMENT: Income Hierarchy (Sunburst) -->
       <div class="col-xl-5">
         <div class="stat-card">
-          <div class="mb-2 fw-semibold">Paycheck timeline (next 60–90d)</div>
-          <div id="in_timeline" class="chart"></div>
-          <div id="in_upcoming" class="mt-2"></div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Income Hierarchy — <span id="in_sb_month" class="mono">—</span></div>
+            <div class="muted small">Click to drill within chart</div>
+          </div>
+          <div id="in_hierarchy" class="chart"></div>
         </div>
       </div>
+      <!-- END REPLACEMENT -->
     </div>
   </div>
 </div>
@@ -395,7 +399,6 @@
     const map=new Map();
     for (const c of (categories||[])){
       const segs = segsOf(c);
-      if (!segs.length) continue;
       const idx = segs.findIndex(s => String(s).toLowerCase() === 'income');
       const nameLower = String(c.name||'').toLowerCase();
       if (idx === -1 && !/^income\b/.test(nameLower)) continue;
@@ -505,7 +508,10 @@
   const in_table=document.getElementById('in_table');
   const in_stack=document.getElementById('in_stack');
   const in_heatmap=document.getElementById('in_heatmap');
-  const in_timeline=document.getElementById('in_timeline');
+
+  /* NEW: income hierarchy elements */
+  const in_hierarchy=document.getElementById('in_hierarchy');
+  const in_sb_month=document.getElementById('in_sb_month');
 
   const kpi30d=document.getElementById('inc_kpi_30d');
   const kpiAvg3=document.getElementById('inc_kpi_avg3');
@@ -576,7 +582,6 @@
   }
 
   function treemap(targetEl, nodes, focusIdx) {
-    // Build quick maps
     const byId = new Map(nodes.map(n => [n.id, n]));
     const children = new Map();
     nodes.forEach(n => {
@@ -585,7 +590,6 @@
       children.get(p).push(n);
     });
 
-    // Sum-of-children recursion so parents always have valid totals for this month
     const memo = new Map();
     function valAt(id) {
       if (memo.has(id)) return memo.get(id);
@@ -600,14 +604,12 @@
         memo.set(id, Math.max(0, own));
         return memo.get(id);
       }
-      // parent = max(own, sum(children)) to satisfy branchvalues:'total'
       const sumKids = kids.reduce((t, k) => t + valAt(k.id), 0);
       const v = Math.max(own, sumKids, 0);
       memo.set(id, v);
       return v;
     }
 
-    // Compute values per node for the selected month
     const values = nodes.map(n => valAt(n.id));
     const total = values.reduce((a, b) => a + (b > 0 ? b : 0), 0);
 
@@ -616,7 +618,6 @@
       return;
     }
 
-    // Plot
     safeReact(targetEl, [{
       type: 'treemap',
       labels: nodes.map(n => n.label),
@@ -704,180 +705,47 @@
       </div>`;
   }
 
-  function resizeAllPlots(){
-    const els=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_timeline];
-    requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
-  }
+  /* NEW: Income hierarchy sunburst (deepest categories) */
+  function incomeSunburst(targetEl, incomeRoot, focusIdx){
+    if(!incomeRoot){ targetEl.innerHTML = '<div class="muted small ms-2 me-2">No income categories found.</div>'; return; }
 
-  /* paycheck timeline (recurrents + recent income txns) */
-  async function loadRecurrentsIncome(){
-    const host = document.getElementById('in_upcoming');
+    const labels=[], parents=[], ids=[], values=[];
+    const idOf = (pathArr)=> (pathArr||[]).join(' / ');
 
-    const today = new Date(); today.setHours(0,0,0,0);
-    const minus90 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 90);
-    const plus90  = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 90);
-    const plus30  = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 30);
-    const fmt = (d) => d.toISOString().slice(0,10);
+    function pushNode(node){
+      const path=node.path||[];
+      const id=idOf(path) || 'Income';
+      const parent= path.length>1 ? idOf(path.slice(0,-1)) : '';
+      const v = Math.max(0,toNum((node.monthly||[])[focusIdx]||0));
 
-    let upcomingIncome = [];
-    let medianPaycheck = 0;
-    let next30Income   = 0;
+      labels.push(node.name||'—');
+      parents.push(parent);
+      ids.push(id);
+      values.push(v);
 
-    // ---------- 1) Scheduled/recurrents (future-looking) ----------
-    try {
-      const r = await fetch('/api/recurrents?horizon=90');
-      const data = await r.json();
-
-      const streams = (data.streams||[]);
-      const incomeMerchants = new Set(
-        streams
-          .filter(s => (s.categories||[]).some(c => String(c).toLowerCase() === 'income'))
-          .map(s => s.merchant)
-      );
-
-      const incomeStreams = streams.filter(s => incomeMerchants.has(s.merchant));
-      const amounts = incomeStreams.map(s => toNum(s.amount)).filter(v => v > 0).sort((a,b)=>a-b);
-      if (amounts.length) {
-        medianPaycheck = (amounts.length % 2)
-          ? amounts[(amounts.length - 1) / 2]
-          : (amounts[amounts.length/2 - 1] + amounts[amounts.length/2]) / 2;
-      }
-      document.getElementById('inc_kpi_medpay').textContent = medianPaycheck ? money(medianPaycheck) : '—';
-
-      const upcomingAll = (data.upcoming||[])
-        .map(u => ({...u, dt: parseISO(u.date)}))
-        .filter(u => u.dt && u.dt >= today && u.dt <= plus90);
-
-      upcomingIncome = upcomingAll
-        .filter(u => incomeMerchants.has(u.merchant))
-        .sort((a,b) => a.dt - b.dt);
-
-      next30Income = upcomingIncome
-        .filter(u => u.dt <= plus30)
-        .reduce((t,u) => t + toNum(u.amount), 0);
-
-      document.getElementById('inc_kpi_next30').textContent =
-        upcomingIncome.length ? money(next30Income) : '—';
-    } catch {
-      // keep defaults; we’ll still show recent income if available
+      (node.children||[]).forEach(pushNode);
     }
 
-    // ---------- 2) Recent income transactions (last 90d, irregular) ----------
-    // We try a few likely endpoints/keys and fall back gracefully.
-    const endpoints = [
-      `/api/transactions?since=${fmt(minus90)}&categories=Income`,
-      `/api/transactions?since=${fmt(minus90)}&category=Income`,
-      `/api/tx?since=${fmt(minus90)}&categories=Income`,
-      `/api/tx?since=${fmt(minus90)}&category=Income`
-    ];
+    pushNode(incomeRoot);
 
-    const looksLikeIncome = (t) => {
-      const cats = []
-        .concat(t.categories || [])
-        .concat(t.category || [])
-        .concat(t.category_path || [])
-        .map(String);
-
-      const catHit = cats.some(c => /income/i.test(c));
-      const name = String(t.merchant || t.name || t.description || '').toLowerCase();
-
-      // heuristics to catch tips / mobile deposit / P2P etc.
-      const nameHit = /(deposit|mobile\s*deposit|tip|tips|cash\s?app|venmo|paypal|stripe|square|zelle|payroll|salary|w-?2|1099|reimb|refund|bonus)/i.test(name);
-
-      return catHit || nameHit;
-    };
-
-    const getDate = (t) =>
-      t.date || t.posted_at || t.transaction_date || t.created_at || t.booked_at;
-
-    let recentIncome = [];
-    for (const url of endpoints) {
-      try {
-        const r = await fetch(url);
-        const j = await r.json();
-        const arr = (j && (j.transactions || j.items || j.data || Array.isArray(j) && j)) ?
-          (j.transactions || j.items || j.data || j) : [];
-
-        if (Array.isArray(arr) && arr.length) {
-          recentIncome = arr
-            .map(t => ({
-              date: getDate(t),
-              amount: toNum(t.amount ?? t.credit ?? t.value),
-              merchant: String(t.merchant || t.name || t.description || 'Income'),
-            }))
-            .filter(t => t.date && !isNaN(Date.parse(t.date)))
-            // Positive amounts as inflows; if system uses negative for credits, flip.
-            .map(t => (t.amount < 0 ? {...t, amount: Math.abs(t.amount)} : t))
-            .filter(t => t.amount > 0 && looksLikeIncome(t))
-            .map(t => ({...t, dt: parseISO(t.date)}))
-            .filter(t => t.dt && t.dt >= minus90 && t.dt <= today)
-            .sort((a,b) => a.dt - b.dt);
-          if (recentIncome.length) break;
-        }
-      } catch {
-        // try next endpoint
-      }
-    }
-
-    // ---------- 3) Plot combined timeline ----------
-    const traceRecent = {
-      type:'scatter', mode:'markers',
-      name:'Recent income (last 90d)',
-      x: recentIncome.map(u => fmt(u.dt)),
-      y: recentIncome.map(u => toNum(u.amount)),
-      text: recentIncome.map(u => `${u.merchant}<br>${money2(u.amount)}`),
-      hovertemplate:'%{x}<br>%{text}<extra></extra>',
-      marker:{symbol:'circle-open', size:9, opacity:OP_MARK}
-    };
-
-    const traceUpcoming = {
-      type:'scatter', mode:'markers',
-      name:'Upcoming (recurrents)',
-      x: upcomingIncome.map(u => u.date),
-      y: upcomingIncome.map(u => toNum(u.amount)),
-      text: upcomingIncome.map(u => `${u.merchant}<br>${money2(u.amount)}`),
-      hovertemplate:'%{x}<br>%{text}<extra></extra>',
-      marker:{size:9, opacity:OP_MARK}
-    };
-
-    const traces = [];
-    if (recentIncome.length) traces.push(traceRecent);
-    if (upcomingIncome.length) traces.push(traceUpcoming);
-
-    if (!traces.length) {
-      safeReact(in_timeline, [], baseLayout({xaxis:{type:'date', title:'Date'}, yaxis:{title:'Amount'}}));
-      host.innerHTML = '<div class="muted small">No income found in the last 90 days and no upcoming recurrents.</div>';
+    const total = values.reduce((a,b)=>a+b,0);
+    if (total <= 0){
+      targetEl.innerHTML = '<div class="muted small ms-2 me-2">No income recorded for this month.</div>';
       return;
     }
 
-    safeReact(
-      in_timeline,
-      traces,
-      baseLayout({ xaxis:{ type:'date', title:'Date' }, yaxis:{ title:'Amount' } })
-    );
+    safeReact(targetEl, [{
+      type:'sunburst',
+      labels, parents, ids, values,
+      branchvalues:'total',
+      maxdepth: 5,
+      hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>',
+    }], baseLayout({margin:{l:10,r:10,t:10,b:10}}));
+  }
 
-    // ---------- 4) Tables: keep upcoming, add recent ----------
-    const rowsUpcoming = upcomingIncome.slice(0,10)
-      .map(u => `<tr><td>${u.date}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
-
-    const rowsRecent = recentIncome.slice(-10).reverse()
-      .map(u => `<tr><td>${fmt(u.dt)}</td><td>${u.merchant}</td><td class="mono">${money2(u.amount)}</td></tr>`).join('');
-
-    host.innerHTML = `
-      <div class="table-responsive" style="max-height:200px;overflow:auto;">
-        <table class="table table-sm table-floating mb-0">
-          <thead><tr><th colspan="3">Upcoming scheduled income (next 90d)</th></tr></thead>
-          <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th></tr></thead>
-          <tbody>${rowsUpcoming || `<tr><td colspan="3" class="muted">None</td></tr>`}</tbody>
-        </table>
-      </div>
-      <div class="table-responsive mt-2" style="max-height:200px;overflow:auto;">
-        <table class="table table-sm table-floating mb-0">
-          <thead><tr><th colspan="3">Recent income (last 90d)</th></tr></thead>
-          <thead><tr><th>Date</th><th>Source</th><th>Amount</th></tr></thead>
-          <tbody>${rowsRecent || `<tr><td colspan="3" class="muted">No recent income found.</td></tr>`}</tbody>
-        </table>
-      </div>`;
+  function resizeAllPlots(){
+    const els=[ov_line,ov_net,ov_srate,ov_cum,ov_roll,ov_season,ex_area,ex_treemap,ex_heatmap,ex_pareto,ex_scatter,ex_donut,in_waterfall,in_stack,in_heatmap,in_hierarchy];
+    requestAnimationFrame(()=>{ els.forEach(el=>{try{Plotly.Plots.resize(el)}catch(_){}}); });
   }
 
   function attachDrillHandlers(months){
@@ -903,33 +771,23 @@
       ? prettyMonth(months[Math.max(0, focusMonthEl.selectedIndex)])
       : '—';
 
-    const focusIdx = Math.max(
-      0,
-      Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length - 1))
-    );
+    const focusIdx = Math.max(0, Math.min(focusMonthEl.selectedIndex, Math.max(0, months.length - 1)));
 
     let nodes = [];
     try {
       if (treeDeep && (treeDeep.children || []).length) {
         nodes = buildTreemapNodes(treeDeep, true); // expenses only
       } else {
-        nodes = exEntries.map(([name, arr]) => ({
-          label: name, parent: '', value: arr, id: name
-        }));
+        nodes = exEntries.map(([name, arr]) => ({ label: name, parent: '', value: arr, id: name }));
       }
     } catch (_) {
-      nodes = exEntries.map(([name, arr]) => ({
-        label: name, parent: '', value: arr, id: name
-      }));
+      nodes = exEntries.map(([name, arr]) => ({ label: name, parent: '', value: arr, id: name }));
     }
 
-    // Fallback if selected month has no value in the deep tree
     const checkVals = (nodes || []).map(n => toNum((n.value || [])[focusIdx] || 0));
     const checkTotal = checkVals.reduce((a, b) => a + Math.max(0, b), 0);
     if (!checkTotal) {
-      nodes = exEntries.map(([name, arr]) => ({
-        label: name, parent: '', value: arr, id: name
-      }));
+      nodes = exEntries.map(([name, arr]) => ({ label: name, parent: '', value: arr, id: name }));
     }
     treemap(ex_treemap, nodes, focusIdx);
 
@@ -962,6 +820,10 @@
     incomeTable(in_table,months,inEntries);
     stackedBars(in_stack,months,inEntries,!!normalizeEl.checked);
     heatmap(in_heatmap,months,inEntries);
+
+    /* NEW: Income hierarchy refresh */
+    if (in_sb_month) in_sb_month.textContent = months.length ? prettyMonth(months[focusIdx]) : '—';
+    incomeSunburst(in_hierarchy, incomeTop, focusIdx);
 
     attachDrillHandlers(months);
 
@@ -1052,7 +914,6 @@
 
     populateFocusMonth();
     refreshAll();
-    loadRecurrentsIncome();
     window.addEventListener('resize', resizeAllPlots);
   })();
 })();
