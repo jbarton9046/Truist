@@ -318,20 +318,23 @@
   function buildTreemapNodes(root, expensesOnly = true) {
     const out = [];
 
+    // Depth-first walk. We prune the ENTIRE "Income" branch for the expense treemap
     function visit(node, parentId) {
       const path = node.path || [];
-      const isTopIncome = (path.length === 1) && String(node.name || '').toLowerCase() === 'income';
+      const name = String(node.name || '');
+      const isTop = path.length === 1;
+      const isIncomeTop = isTop && name.toLowerCase() === 'income';
 
-      // For expense treemap, drop the whole Income branch (prevents orphaned children)
-      if (expensesOnly && isTopIncome) return;
+      // For expenses treemap: drop the whole Income branch (no children, no orphans)
+      if (expensesOnly && isIncomeTop) return;
 
       const id = path.join(' / ');
       if (path.length) {
         out.push({
           id,
-          label: node.name || '—',
+          label: name || '—',
           parent: parentId || '',
-          value: (node.monthly || []).map(toNum),
+          value: (node.monthly || []).map(v => (typeof v === 'number' && isFinite(v)) ? v : (Number(v) || 0)),
         });
       }
       for (const ch of (node.children || [])) {
@@ -339,14 +342,19 @@
       }
     }
 
-    for (const ch of (root.children || [])) visit(ch, '');
+    // Walk each top-level category (skip Income at the entry point as well)
+    for (const ch of (root.children || [])) {
+      if (expensesOnly && String(ch.name || '').toLowerCase() === 'income') continue;
+      visit(ch, '');
+    }
 
-    // Safety: if any parent isn’t present, re-root it (prevents blank chart)
+    // Final safety: if any node references a parent that wasn’t emitted, re-root it
     const ids = new Set(out.map(n => n.id));
     out.forEach(n => { if (n.parent && !ids.has(n.parent)) n.parent = ''; });
 
     return out;
   }
+
 
 
 
@@ -563,24 +571,60 @@
     safeReact(targetEl,traces,baseLayout({barmode:'stack',barnorm:normalize?'percent':undefined,yaxis:{title:normalize?'% of total':'Amount'}}));
   }
 
-  function treemap(targetEl, nodes, focusIdx){
-    const values = nodes.map(n=>toNum((n.value&&n.value[focusIdx])||0));
-    const total = values.reduce((a,b)=>a+Math.max(0,b),0);
-    if(!nodes.length || total<=0){
+  function treemap(targetEl, nodes, focusIdx) {
+    // Build quick maps
+    const byId = new Map(nodes.map(n => [n.id, n]));
+    const children = new Map();
+    nodes.forEach(n => {
+      const p = n.parent || '';
+      if (!children.has(p)) children.set(p, []);
+      children.get(p).push(n);
+    });
+
+    // Sum-of-children recursion so parents always have valid totals for this month
+    const memo = new Map();
+    function valAt(id) {
+      if (memo.has(id)) return memo.get(id);
+      const node = byId.get(id);
+      if (!node) {
+        memo.set(id, 0);
+        return 0;
+      }
+      const own = Number((node.value || [])[focusIdx] || 0) || 0;
+      const kids = children.get(id) || [];
+      if (!kids.length) {
+        memo.set(id, Math.max(0, own));
+        return memo.get(id);
+      }
+      // parent = max(own, sum(children)) to satisfy branchvalues:'total'
+      const sumKids = kids.reduce((t, k) => t + valAt(k.id), 0);
+      const v = Math.max(own, sumKids, 0);
+      memo.set(id, v);
+      return v;
+    }
+
+    // Compute values per node for the selected month
+    const values = nodes.map(n => valAt(n.id));
+    const total = values.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+
+    if (!nodes.length || total <= 0) {
       targetEl.innerHTML = '<div class="muted small ms-2 me-2">No expense detail for this month.</div>';
       return;
     }
-    safeReact(targetEl,[{
-      type:'treemap',
-      labels:nodes.map(n=>n.label),
-      parents:nodes.map(n=>n.parent),
-      values:values,
-      ids:nodes.map(n=>n.id),
-      branchvalues:'total',
-      pathbar:{visible:true},
-      hovertemplate:'%{label}<br>%{value:,.0f}<extra></extra>'
-    }], baseLayout({margin:{l:10,r:10,t:0,b:0}}));
+
+    // Plot
+    safeReact(targetEl, [{
+      type: 'treemap',
+      labels: nodes.map(n => n.label),
+      parents: nodes.map(n => n.parent),
+      ids: nodes.map(n => n.id),
+      values,
+      branchvalues: 'total',
+      pathbar: { visible: true },
+      hovertemplate: '%{label}<br>%{value:,.0f}<extra></extra>',
+    }], baseLayout({ margin: { l: 10, r: 10, t: 0, b: 0 } }));
   }
+
 
   function heatmap(targetEl, months, entries){
     const z=entries.map(([,arr])=>arr), y=entries.map(([name])=>name);
