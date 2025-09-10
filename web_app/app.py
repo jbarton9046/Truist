@@ -1014,20 +1014,36 @@ def api_cat_monthly():
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
     _apply_hide_rules_to_summary(summary)
 
-    try:
-        months_back = int(request.args.get("months_back") or 12)
-    except Exception:
-        months_back = 12
-
-    # Allow ?since_date=YYYY-MM (or YYYY-MM-DD). If not given, fall back to config.
+    months_back = int(request.args.get("months_back") or 12)
     since_date = request.args.get("since_date") or cfg_live.get("SUMMARY_SINCE_DATE")
 
-    payload = build_top_level_monthly_from_summary(
-        summary,
-        months_back=months_back,
-        since_date=since_date,
-    )
+    payload = build_top_level_monthly_from_summary(summary, months_back=months_back, since_date=since_date)
+
+    # 👇 add this block
+    msum = (summary or {}).get("monthly_summaries") or {}
+    month_keys = payload.get("months") or sorted(msum.keys())
+
+    def _inc(ym):
+        cats = (msum.get(ym, {}) or {}).get("categories", {}) or {}
+        return float((cats.get("Income") or {}).get("total", 0.0) or 0.0)
+
+    def _exp(ym):
+        cats = (msum.get(ym, {}) or {}).get("categories", {}) or {}
+        s = 0.0
+        for k, v in cats.items():
+            if k == "Income": 
+                continue
+            t = float((v or {}).get("total", 0.0) or 0.0)
+            if t < 0:
+                s += -t
+        return s
+
+    payload["income_by_month"]  = [max(0.0, _inc(m)) for m in month_keys]
+    payload["expense_by_month"] = [_exp(m) for m in month_keys]
+    # 👆 end add
+
     return jsonify(payload)
+
 
 @app.get("/api/cat_monthly_debug")
 def api_cat_monthly_debug():

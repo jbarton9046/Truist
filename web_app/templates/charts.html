@@ -754,7 +754,7 @@
     else if (nonZeroCount(rawDeep)>= 2) pick = {label:'raw deep', data:rawDeep};
     else if (nonZeroCount(rawHeur)>= 2) pick = {label:'raw heuristic', data:rawHeur};
 
-    incomeSubSeries = pick.data;
+    incomeSubSeries = lockSeriesToTotals(pick.data, incomeByMonth);
 
     const inEntries = pickTopN(incomeSubSeries, Math.max(5, Math.min(15, N)));
     incomeWaterfall(in_waterfall,months,incomeByMonth);
