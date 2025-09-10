@@ -760,10 +760,6 @@ def upsert_path_and_keyword():
     if _wants_json():
         return jsonify({"ok": True, "added_keyword": added_keyword})
 
-    if added_keyword:
-        flash(f'Saved path and added keyword "{keyword}" to {target_level} "{target_label}" (and parents).', "success")
-    else:
-        flash("Saved/updated path.", "success")
     return redirect(url_for("category_builder"))
 
 # ----------------------------
@@ -827,7 +823,6 @@ def add_label():
         return redirect(url_for("category_builder"))
 
     save_cfg(cfg)
-    flash(f"Added {level}: {label}", "success")
     return redirect(url_for("category_builder"))
 
 @admin_categories_bp.route("/categories/add_keyword", methods=["POST"])
@@ -893,7 +888,6 @@ def add_keyword():
         return redirect(url_for("category_builder"))
 
     save_cfg(cfg)
-    flash(f"Added keyword: {keyword}", "success")
     return redirect(url_for("category_builder"))
 
 # ==========================================
