@@ -354,6 +354,52 @@
       body[data-route="/goals"] .table .input-group .form-control{ text-align:left !important; }
     </style>
 
+    <!-- === Universal Dropdown Enhancer (CSS) === -->
+    <style id="bt-selectify-skin">
+      /* Upgrade container */
+      .bt-skin { position: relative; display: inline-block; width: 100%; }
+      .bt-skin .bt-btn{
+        width:100%;text-align:left;background:rgba(255,255,255,.04);
+        border:1px solid rgba(255,255,255,.12);color:var(--text,#e7eef7);
+        padding:.65rem .8rem;border-radius:14px;display:flex;align-items:center;justify-content:space-between;
+        box-shadow:0 8px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.04);
+        backdrop-filter:saturate(120%) blur(3px);
+      }
+      .bt-skin .bt-btn:focus-visible{outline:2px solid var(--accent-ink,#69a7ff);outline-offset:2px}
+      .bt-skin .bt-chev{opacity:.8}
+
+      .bt-skin .bt-overlay{
+        position:fixed;inset:0;display:none;background:rgba(7,12,20,.45);backdrop-filter:blur(3px);z-index:1040;
+      }
+      .bt-skin.is-open .bt-overlay{display:block}
+
+      .bt-skin .bt-menu{
+        position:absolute;inset:auto 0 auto 0;margin-top:.4rem;display:none;z-index:1050;
+        background:rgba(15,22,35,.85);border:1px solid rgba(255,255,255,.12);border-radius:16px;
+        box-shadow:0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+        backdrop-filter:blur(8px) saturate(120%);max-height:360px;overflow:hidden
+      }
+      .bt-skin.is-open .bt-menu{display:block}
+
+      .bt-skin .bt-head{padding:.5rem .6rem .4rem;border-bottom:1px solid rgba(255,255,255,.08)}
+      .bt-skin .bt-search{
+        width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+        color:inherit;padding:.5rem .6rem;border-radius:10px
+      }
+
+      .bt-skin .bt-create{display:none;gap:.5rem;align-items:center;padding:.6rem .8rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)}
+      .bt-skin[data-allow-create="1"] .bt-create{display:flex}
+      .bt-skin .bt-create:hover{background:rgba(255,255,255,.05)}
+
+      .bt-skin .bt-list{max-height:280px;overflow:auto;padding:.25rem}
+      .bt-skin .bt-item{padding:.5rem .6rem;border-radius:10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .bt-skin .bt-item:hover{background:rgba(255,255,255,.06)}
+      .bt-skin .bt-item.is-selected{background:rgba(105,167,255,.18);border:1px solid rgba(105,167,255,.35)}
+
+      /* Hide native select but keep for form post & a11y */
+      select.bt-selectify{appearance:none;background:transparent}
+    </style>
+
     <script> document.documentElement.classList.add('theme-dark'); </script>
     <script>
       (function(){
@@ -1148,5 +1194,156 @@
 
     <script src="{{ url_for('static', filename='js/movers_weekly.js') }}" defer></script>
     <!-- Pin keyword API endpoints for drawer -->
+
+    <!-- === Universal Dropdown Enhancer (JS) === -->
+    <script>
+      (function(){
+        const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+        const $  = (s,r=document)=>r.querySelector(s);
+
+        function closeAll(except){
+          $$('.bt-skin.is-open').forEach(el=>{ if(el!==except) el.classList.remove('is-open'); });
+        }
+
+        function build(select){
+          if (!select || select.dataset.btInited === '1') return;
+          select.dataset.btInited = '1';
+
+          // Wrapper
+          const wrap = document.createElement('div');
+          wrap.className = 'bt-skin';
+          if (select.dataset.allowCreate === '1') wrap.setAttribute('data-allow-create','1');
+
+          // Button
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'bt-btn';
+          const label = document.createElement('span');
+          label.className = 'bt-label';
+          label.textContent = select.options[select.selectedIndex]?.text || select.getAttribute('placeholder') || 'Select…';
+          const chev = document.createElement('span');
+          chev.className = 'bt-chev'; chev.textContent = '▾';
+          btn.appendChild(label); btn.appendChild(chev);
+
+          // Overlay + Menu
+          const overlay = document.createElement('div'); overlay.className = 'bt-overlay';
+          const menu = document.createElement('div'); menu.className = 'bt-menu';
+          const head = document.createElement('div'); head.className = 'bt-head';
+          const search = document.createElement('input'); search.type='text'; search.className='bt-search'; search.placeholder='Search…';
+          head.appendChild(search);
+          const create = document.createElement('div'); create.className = 'bt-create';
+          create.innerHTML = '<span>＋</span><span>Create new…</span>';
+          const list = document.createElement('div'); list.className = 'bt-list';
+
+          // Build items from native options
+          function renderItems(){
+            // Clear current items
+            list.innerHTML = '';
+
+            Array.from(select.options).forEach(opt=>{
+              const div = document.createElement('div');
+              div.className = 'bt-item' + (opt.selected ? ' is-selected' : '');
+              div.dataset.value = opt.value;
+              div.textContent = opt.text;
+              // Filter on current search
+              const q = (search.value||'').toLowerCase();
+              if (q && !opt.text.toLowerCase().includes(q)) div.style.display = 'none';
+
+              div.addEventListener('click', ()=>{
+                // Update selection
+                Array.from(list.children).forEach(i=>i.classList.remove('is-selected'));
+                div.classList.add('is-selected');
+                // Set native select & label
+                select.value = opt.value;
+                label.textContent = opt.text;
+                // Fire change
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+                // Close
+                wrap.classList.remove('is-open');
+              });
+
+              list.appendChild(div);
+            });
+
+            // Create new (only if allowed)
+            if (select.dataset.allowCreate === '1') {
+              const v = (search.value||'').trim();
+              const cre = document.createElement('div');
+              cre.className = 'bt-create';
+              cre.innerHTML = `<span>＋</span><span>Create "${v || 'new…'}"</span>`;
+              cre.style.fontStyle = 'italic';
+              cre.addEventListener('click', ()=>{
+                const val = (search.value||'').trim();
+                if (!val) return;
+                // If already exists, select it
+                const existingIdx = Array.from(select.options).findIndex(o=>o.text.toLowerCase() === val.toLowerCase());
+                if (existingIdx !== -1) {
+                  select.selectedIndex = existingIdx;
+                  label.textContent = select.options[existingIdx].text;
+                  select.dispatchEvent(new Event('change', {bubbles:true}));
+                  wrap.classList.remove('is-open');
+                  return;
+                }
+                // Add to native select
+                const opt = new Option(val, val, true, true);
+                select.add(opt, 0);
+                // Refresh items and close
+                renderItems();
+                label.textContent = val;
+                select.dispatchEvent(new Event('change', {bubbles:true}));
+                wrap.classList.remove('is-open');
+              });
+              list.appendChild(cre);
+            }
+          }
+
+          // Assemble
+          menu.appendChild(head);
+          menu.appendChild(list);
+          // Insert in DOM
+          select.parentNode.insertBefore(wrap, select);
+          wrap.appendChild(select);
+          wrap.appendChild(btn);
+          wrap.appendChild(overlay);
+          wrap.appendChild(menu);
+
+          // Hide native select (keep for form submit & a11y)
+          select.style.position='absolute';
+          select.style.opacity='0';
+          select.style.pointerEvents='none';
+          select.style.width='1px';
+          select.style.height='1px';
+
+          // Events
+          btn.addEventListener('click', ()=>{
+            if (wrap.classList.contains('is-open')) { wrap.classList.remove('is-open'); return; }
+            closeAll(wrap);
+            wrap.classList.add('is-open');
+            // Build/refresh list on open (keeps in sync if options changed)
+            renderItems();
+            // Focus search
+            setTimeout(()=>search.focus(), 0);
+          });
+          overlay.addEventListener('click', ()=>wrap.classList.remove('is-open'));
+          document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') wrap.classList.remove('is-open'); });
+
+          search.addEventListener('input', ()=>{
+            // Just re-render to apply filter and "Create new" label
+            renderItems();
+          });
+        }
+
+        // Init on DOM ready
+        document.addEventListener('DOMContentLoaded', ()=>{
+          $$('.bt-selectify').forEach(build);
+        });
+
+        // In case pages AJAX-insert selects later, expose a hook
+        window.btSelectifyUpgrade = function(root){
+          ($$('.bt-selectify', root || document)).forEach(build);
+        };
+      })();
+    </script>
+
   </body>
 </html>
