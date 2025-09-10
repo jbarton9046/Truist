@@ -337,59 +337,77 @@ def _apply_hide_rules_to_summary(summary_data):
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
     if not summary_data:
         return
+
+    EPS = 0.005
+    def _amt(x):
+        try: return float(x)
+        except Exception: return 0.0
+
     def _is_hidden_amount(a: float) -> bool:
-        HIDE_AMOUNTS = [10002.02, -10002.02]
-        EPS = 0.005
-        try: v = float(a)
-        except Exception: return False
-        return any(abs(v - h) < EPS for h in HIDE_AMOUNTS)
+        return abs(a - 10002.02) < EPS or abs(a + 10002.02) < EPS
 
     for _, month in summary_data.items():
         tree = month.get("tree") or []
         cats: dict[str, dict] = {}
 
-        def add_leaf_tx(top: str, sub: str, tx: dict):
-            desc = tx.get("description") or tx.get("desc") or ""
-            try:
-                amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-            except Exception:
-                amt = 0.0
+        def add_row(top: str, sub: str, ssub: str, s3: str, tx: dict):
+            amt = _amt(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
             if _is_hidden_amount(amt):
                 return
-            row = {
+            desc = tx.get("description") or tx.get("desc") or ""
+
+            if top not in cats:
+                cats[top] = {
+                    "transactions": [],
+                    "total": 0.0,
+                    "subcategories": {},
+                    "subsubcategories": {},
+                    "subsubsubcategories": {},
+                }
+
+            # flat transaction list at top level
+            cats[top]["transactions"].append({
                 "date": tx.get("date", ""),
                 "description": desc,
                 "amount": amt,
                 "category": top,
-                "subcategory": sub,
-            }
-            if top not in cats:
-                cats[top] = {"transactions": [], "total": 0.0, "subs": {}}
-            cats[top]["transactions"].append(row)
+                "subcategory": sub or "",
+            })
             cats[top]["total"] += amt
+
+            # level 1
             if sub:
-                subs = cats[top]["subs"]
-                if sub not in subs:
-                    subs[sub] = {"transactions": [], "total": 0.0}
-                subs[sub]["transactions"].append(row)
-                subs[sub]["total"] += amt
+                cats[top]["subcategories"][sub] = cats[top]["subcategories"].get(sub, 0.0) + amt
+                # level 2
+                if ssub:
+                    lvl2 = cats[top]["subsubcategories"].setdefault(sub, {})
+                    lvl2[ssub] = lvl2.get(ssub, 0.0) + amt
+                    # level 3
+                    if s3:
+                        lvl3_sub = cats[top]["subsubsubcategories"].setdefault(sub, {})
+                        lvl3_ssub = lvl3_sub.setdefault(ssub, {})
+                        lvl3_ssub[s3] = lvl3_ssub.get(s3, 0.0) + amt
 
         def walk(node: dict, parts: list[str]):
             name = (node.get("name") or "").strip()
-            kids = node.get("children") or []
             here = parts + ([name] if name else [])
-            if kids:
-                for ch in kids:
+            children = node.get("children") or []
+            if children:
+                for ch in children:
                     walk(ch, here)
             else:
-                top = here[0] if here else ""
+                top = here[0] if here else "Uncategorized"
                 sub = here[1] if len(here) > 1 else ""
+                ssub = here[2] if len(here) > 2 else ""
+                s3 = here[3] if len(here) > 3 else ""
                 for tx in (node.get("transactions") or []):
-                    add_leaf_tx(top, sub, tx)
+                    add_row(top, sub, ssub, s3, tx)
 
         for top_node in tree:
             walk(top_node, [])
+
         month["categories"] = cats
+
 
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
 _CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
@@ -1027,13 +1045,14 @@ def api_cat_monthly_debug():
     cfg_live = load_cfg()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
     _apply_hide_rules_to_summary(summary)
+    _rebuild_categories_from_tree(summary)  # <-- add this
 
-    bucket = (summary.get("monthly_summaries") or {}).get(ym) or {}
+    bucket = summary.get(ym) or {}
     cats = (bucket.get("categories") or {})
-    income_total = (cats.get("Income") or {}).get("total", 0.0)
+    income_total = abs(float((cats.get("Income") or {}).get("total", 0.0)))
 
-    # Return Income details + a few largest Income transactions for that month
-    txs = [t for t in (bucket.get("all_transactions") or []) if (t.get("category") == "Income")]
+    # Pull Income transactions from the rebuilt categories map (most accurate).
+    txs = ((cats.get("Income") or {}).get("transactions") or [])
     txs_sorted = sorted(txs, key=lambda t: abs(float(t.get("amount", 0.0))), reverse=True)[:40]
 
     return jsonify({
@@ -1043,14 +1062,12 @@ def api_cat_monthly_debug():
             {
                 "date": t.get("date"),
                 "amount": t.get("amount"),
-                "expense_amount": t.get("expense_amount"),
                 "desc": t.get("description"),
                 "subcategory": t.get("subcategory"),
                 "sub_subcategory": t.get("sub_subcategory"),
             } for t in txs_sorted
         ]
     })
-
 
 # -------- Goals --------
 @app.route("/goals")
@@ -1306,11 +1323,8 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     # Helper: card-consistent totals
     def clamp_total(cat, v):
-        v = float(v or 0.0)
-        if cat == "Income":
-            return abs(v)
-        return max(0.0, v)
-
+        return abs(float(v or 0.0))
+    
     # Build top-level series (exactly what cards show)
     top_series = {}  # { 'Income': [..L..], 'Groceries': [..L..], ... }
     # And deep leaf series (paths length >= 2)
