@@ -267,6 +267,25 @@
     return [name];
   };
 
+
+  // put this near your utils:
+  function lockSeriesToTotals(seriesObj, totals){
+    const keys = Object.keys(seriesObj||{});
+    const L = (totals||[]).length;
+    for (let i = 0; i < L; i++){
+      const total = Number(totals[i]||0);
+      const s = keys.reduce((t,k)=> t + Number((seriesObj[k]||[])[i]||0), 0);
+      if (total <= 0){
+        keys.forEach(k => { if (seriesObj[k]) seriesObj[k][i] = 0; });
+      } else if (s > total && s > 0){
+        const f = total / s;
+        keys.forEach(k => { if (seriesObj[k]) seriesObj[k][i] = Number(seriesObj[k][i]||0) * f; });
+      }
+    }
+    return seriesObj;
+  }
+
+
   /* ================= Aggregations / tree ================= */
   const aggregateTopLevel = (categories) => {
     const map = new Map();
