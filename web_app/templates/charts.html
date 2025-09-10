@@ -529,11 +529,23 @@
     safeReact(ov_line, [
       {type:'scatter',mode:'lines+markers',opacity:OP_LINE,name:'Income',x:months,y:incomeByMonth,hovertemplate:'%{x}<br>Income: %{y:,.0f}<extra></extra>'},
       {type:'scatter',mode:'lines+markers',opacity:OP_LINE,name:'Expenses',x:months,y:expenseByMonth,hovertemplate:'%{x}<br>Expenses: %{y:,.0f}<extra></extra>'}
-    ], baseLayout({}));
+    ], baseLayout({
+      yaxis: { tickformat: ',~s' },   // 1k, 2k, 3k…
+      uirevision: 'overview'          // keep this formatting after tab flips
+    }));
+
 
     const colors = netByMonth.map(v=>v>=0?'#22c55e':'#ef4444');
-    safeReact(ov_net, [{type:'bar',opacity:OP_BAR,x:months,y:netByMonth,marker:{color:colors},hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'}],
-      baseLayout({yaxis:{title:'Income − Expenses'},yZero:true}));
+    safeReact(ov_net, [{
+      type:'bar',opacity:OP_BAR,x:months,y:netByMonth,
+      marker:{color:colors},
+      hovertemplate:'%{x}<br>Net: %{y:,.0f}<extra></extra>'
+    }], baseLayout({
+      yaxis: { title:'Income − Expenses', tickformat: ',~s' },
+      yZero: true,
+      uirevision: 'overview'
+    }));
+
 
     const sRate = incomeByMonth.map((inc,i)=> toNum(inc)?(toNum(netByMonth[i])/Math.max(1,toNum(inc)))*100:0).map(v=>Math.max(-200,Math.min(200,v)));
     safeReact(ov_srate,[{type:'scatter',mode:'lines+markers',opacity:OP_LINE,x:months,y:sRate,hovertemplate:'%{x}<br>Savings rate: %{y:.1f}%<extra></extra>'}],
