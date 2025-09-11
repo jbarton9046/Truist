@@ -1035,7 +1035,6 @@ def api_cat_monthly():
 
 
 
-
 @app.get("/api/cat_monthly_debug")
 def api_cat_monthly_debug():
     ym = (request.args.get("ym") or "").strip()
@@ -1592,6 +1591,7 @@ def api_tx_all():
     rows = rows[: max(1, limit)]
     return jsonify({"transactions": rows})
 
+
 @app.post("/api/tx/edit_description")
 def api_tx_edit_description():
     """
@@ -1627,6 +1627,14 @@ def api_tx_edit_description():
         ov["by_fingerprint"][fp] = new_desc
 
     _save_desc_overrides(ov)
+
+    # Bust cache so server-rendered pages reflect changes promptly
+    try:
+        _MONTHLY_CACHE["monthly"] = None
+        _MONTHLY_CACHE["ts"] = time()
+    except Exception:
+        pass
+
     return jsonify(ok=True, saved=new_desc)
 # ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
 
@@ -1645,6 +1653,7 @@ def all_items_explorer():
     )
 
     return render_template("all_items_explorer.html", cat_monthly=cat_monthly)
+
 
 # ------------------ ALL CATEGORIES (deep tree) ------------------
 @app.route("/all-categories", endpoint="all_categories_page")

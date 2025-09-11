@@ -1,5 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
+
 <style>
   /* Page shell */
   .tx-wrap { max-width: 1200px; margin: 1rem auto; }
@@ -19,19 +20,35 @@
     --thead-h: 44px;
   }
 
-  /* Unified table look (dark “goals” theme) */
-  .table-modern { width:100%; border-collapse:separate; border-spacing:0; background:transparent; color:var(--text); }
+  /* Unified table look (dark "goals" theme) */
+  .table-modern {
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    background:transparent;
+    color:var(--text);
+  }
   .table-modern thead th{
-    position: sticky; top: 0; z-index: 5;
+    position: sticky;
+    top: 0;
+    z-index: 5;
     background: var(--thead-bg) !important;
     color: var(--table-head-fg,var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    font-weight:700; letter-spacing:.2px;
+    font-weight:700;
+    letter-spacing:.2px;
     backdrop-filter: saturate(120%) blur(6px);
   }
-  .table-modern tbody td{ border-top:1px solid var(--hair); vertical-align:middle; }
-  .table-modern tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
-  .table-modern tbody tr:hover{ background:rgba(255,255,255,.05); }
+  .table-modern tbody td{
+    border-top:1px solid var(--hair);
+    vertical-align:middle;
+  }
+  .table-modern tbody tr:nth-child(odd){
+    background:rgba(255,255,255,.015);
+  }
+  .table-modern tbody tr:hover{
+    background:rgba(255,255,255,.05);
+  }
 
   /* Amount coloring (keep your red/green) */
   .amt-neg{ color:#dc2626; font-weight:600; }
@@ -41,17 +58,19 @@
   /* Sticky month separator row: sits just under the header, floats + blurs */
   #tbl tbody tr.month-row{
     position: sticky;
-    top: var(--thead-h);               /* lives directly under the header */
-    z-index: 3;                        /* under the header (z=5) but above rows */
+    top: var(--thead-h); /* lives directly under the header */
+    z-index: 3; /* under the header (z=5) but above rows */
   }
   #tbl tbody tr.month-row td{
     background: var(--thead-bg) !important;
     color: var(--text) !important;
     border-top: 1px solid var(--hair) !important;
     border-bottom: 1px solid var(--hair) !important;
-    font-weight: 700; letter-spacing:.2px;
+    font-weight: 700;
+    letter-spacing:.2px;
     backdrop-filter: saturate(120%) blur(6px);
   }
+
   /* When the controller marks a month as the active stuck one, pop it up */
   #tbl tbody tr.month-row.is-stuck { z-index: 6; }
   #tbl tbody tr.month-row.is-stuck td{
@@ -75,6 +94,7 @@
       <label class="form-label small mb-1">Search</label>
       <input id="q" class="form-control form-control-sm" placeholder="desc/category terms (space = AND)">
     </div>
+
     <div>
       <label class="form-label small mb-1">Type</label>
       <select id="type" class="form-select form-select-sm bt-selectify">
@@ -83,14 +103,17 @@
         <option value="expense">Expenses only</option>
       </select>
     </div>
+
     <div>
       <label class="form-label small mb-1">From</label>
       <input id="date_from" type="date" class="form-control form-control-sm">
     </div>
+
     <div>
       <label class="form-label small mb-1">To</label>
       <input id="date_to" type="date" class="form-control form-control-sm">
     </div>
+
     <div>
       <label class="form-label small mb-1">Months</label>
       <select id="months" class="form-select form-select-sm bt-selectify">
@@ -99,6 +122,7 @@
         <option value="all">All</option>
       </select>
     </div>
+
     <div>
       <label class="form-label small mb-1">&nbsp;</label>
       <button id="run" class="btn btn-sm btn-primary w-100">Search</button>
@@ -144,14 +168,22 @@
   function toNumber(x){
     if (typeof x === 'number') return x;
     if (x == null) return 0;
-    let s = String(x).trim(); let negParens=false;
-    if (/^\(.*\)$/.test(s)){ negParens=true; s=s.slice(1,-1); }
-    const n = parseFloat(s.replace(/[^0-9.-]/g,'')); if (!Number.isFinite(n)) return 0;
+    let s = String(x).trim();
+    let negParens=false;
+    if (/^\(.*\)$/.test(s)){
+      negParens=true;
+      s=s.slice(1,-1);
+    }
+    const n = parseFloat(s.replace(/[^0-9.-]/g,''));
+    if (!Number.isFinite(n)) return 0;
     return negParens ? -n : n;
   }
+
   const escHtml = (s)=> String(s||'').replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const escAttr = (s)=> String(s||'').replace(/["&<>]/g, c=> ({'"':'&quot;','&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  const txIdOf = (t)=> String(t.id ?? t.tx_id ?? t._id ?? t.uid ?? '');
+
+  /* include transaction_id in id detection */
+  const txIdOf = (t)=> String(t.transaction_id ?? t.id ?? t.tx_id ?? t._id ?? t.uid ?? '');
 
   const scroller = $('txScroller');
   const tbl = $('tbl');
@@ -189,6 +221,7 @@
     const df = $('date_from').value;
     const dt = $('date_to').value;
     const months = $('months').value;
+
     if (q) params.set('q', q);
     if (type && type !== 'all') params.set('type', type);
     if (df) params.set('date_from', df);
@@ -198,8 +231,8 @@
 
     const r = await fetch('/api/tx/all?' + params.toString(), {headers:{'Accept':'application/json'}});
     const j = await r.json();
-
     const rows = (j && j.transactions) || [];
+
     $('meta').textContent = `${rows.length} transactions`;
     $('rowsBadge').textContent = `Rows: ${rows.length}`;
 
@@ -212,6 +245,7 @@
       g.items.push(t);
       g.net += toNumber(t.amount);
     }
+
     const keys = Array.from(groups.keys()).sort().reverse();
 
     const out = [];
@@ -222,6 +256,7 @@
       out.push(
         `<tr class="month-row"><td colspan="4">${g.label} — <span class="${netCls}">Net: ${fmtUSD(net)}</span></td></tr>`
       );
+
       for (const t of g.items){
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
@@ -229,21 +264,28 @@
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
-        const sig  = `${t.date||''}|${t.amount||''}|${rawDesc}`; // fallback signature if id missing
+        const sig = `${t.date||''}|${t.amount||''}|${rawDesc}`; // fallback signature if id missing
+
+        /* add data-date and data-amount so the editor can build the fallback payload */
         out.push(`
           <tr>
             <td class="text-nowrap">${fmtDate(t.date)}</td>
-            <td class="tx-desc" data-tx-id="${escAttr(txid)}" data-sig="${escAttr(sig)}" data-desc="${escAttr(rawDesc)}">${safeDesc}</td>
+            <td class="tx-desc"
+                data-tx-id="${escAttr(txid)}"
+                data-sig="${escAttr(sig)}"
+                data-desc="${escAttr(rawDesc)}"
+                data-date="${escAttr(t.date || '')}"
+                data-amount="${escAttr(t.amount || '')}">${safeDesc}</td>
             <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
             <td>${escHtml(cat)}</td>
           </tr>
         `);
       }
     }
-    tbody.innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
 
+    tbody.innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
     measureHead();
-    updateStickyMonth();               // set the first active month
+    updateStickyMonth(); // set the first active month
   }
 
   $('run').addEventListener('click', load);
@@ -254,20 +296,25 @@
   $('date_to').addEventListener('change', load);
 
   // -------- Inline edit: double-click description to edit & save ----------
-  const UPDATE_API = "/api/tx/update_description";  // backend should accept {tx_id, description} or {sig, description}
+  const UPDATE_API = "/api/tx/edit_description"; // expects {transaction_id,new_description} OR {date,amount,original_description,new_description}
 
   function beginEdit(td){
     if (!td || td.classList.contains('editing')) return;
+
     const txId = td.getAttribute('data-tx-id') || '';
-    const sig  = td.getAttribute('data-sig') || '';
+    const sig = td.getAttribute('data-sig') || '';
     const original = td.getAttribute('data-desc') || td.textContent || '';
+    const dateStr = td.getAttribute('data-date') || '';
+    const amtStr = td.getAttribute('data-amount') || '';
 
     td.classList.add('editing');
     td.dataset.editing = '1';
+
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control form-control-sm';
     input.value = original;
+
     const oldHTML = td.innerHTML;
     td.innerHTML = '';
     td.style.padding = '2px';
@@ -284,7 +331,6 @@
       const val = (newText ?? original);
       td.setAttribute('data-desc', val);
       td.innerHTML = escHtml(val);
-
       if (saved){
         const ok = document.createElement('span');
         ok.textContent = ' ✓';
@@ -292,7 +338,9 @@
         ok.style.fontWeight = '700';
         ok.style.marginLeft = '4px';
         td.appendChild(ok);
-        setTimeout(()=>{ try{ ok.remove(); }catch(_){ } }, 900);
+        setTimeout(()=>{
+          try{ ok.remove(); }catch(_){ }
+        }, 900);
       }
     }
 
@@ -311,13 +359,18 @@
 
     async function commit(){
       const value = (input.value || '').trim();
-      if (value === original.trim()){ cleanup(original, false); return; }
-
+      if (value === original.trim()){
+        cleanup(original, false);
+        return;
+      }
       const spinner = showSpinner();
       input.disabled = true;
-
       try{
-        const body = txId ? { tx_id: txId, description: value } : { sig: sig, description: value };
+        /* Build payload matching /api/tx/edit_description */
+        const body = txId
+          ? { transaction_id: txId, new_description: value }
+          : { date: dateStr, amount: Number(amtStr), original_description: original, new_description: value };
+
         const resp = await fetch(UPDATE_API, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -345,10 +398,15 @@
     }
 
     input.addEventListener('keydown', (e)=>{
-      if (e.key === 'Enter'){ e.preventDefault(); commit(); }
-      else if (e.key === 'Escape'){ e.preventDefault(); cancel(); }
+      if (e.key === 'Enter'){
+        e.preventDefault(); commit();
+      } else if (e.key === 'Escape'){
+        e.preventDefault(); cancel();
+      }
     });
-    input.addEventListener('blur', ()=>{ if (!canceled) commit(); });
+    input.addEventListener('blur', ()=>{
+      if (!canceled) commit();
+    });
   }
 
   // delegate on the scroller/table
@@ -364,4 +422,5 @@
   });
 })();
 </script>
+
 {% endblock %}
