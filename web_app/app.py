@@ -1333,7 +1333,11 @@ def _apply_desc_override_to_tx(t: dict, ov: dict) -> dict:
         out["name"] = by_id[txid]
         return out
 
-    fp = _fingerprint_tx(t.get("date", ""), t.get("amount", 0.0), t.get("description") or t.get("name") or "")
+    orig = (t.get("original_description") or
+            t.get("description_raw") or
+            t.get("name") or
+            t.get("description") or "")
+    fp = _fingerprint_tx(t.get("date", ""), t.get("amount", 0.0), orig)
     if fp in by_fp:
         out["description"] = by_fp[fp]
         out["name"] = by_fp[fp]

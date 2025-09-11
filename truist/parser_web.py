@@ -780,12 +780,17 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
 
     # ---- Apply description overrides BEFORE categorization -------------------
     if desc_overrides:
-        def _fp(date_s, amount, original_desc):
+        def _fp_str(date_s, amount, original_desc):
+            # Match the API saver (string key): "YYYY-MM-DD|amount.xx|ORIGINAL_DESC"
+            ds = (str(date_s) or "")[:10]
             try:
-                cents = int(round(float(amount or 0.0) * 100))
+                amt = float(amount or 0.0)
             except Exception:
-                cents = 0
-            return (str(date_s)[:10], cents, (original_desc or "").strip().upper()[:160])
+                try:
+                    amt = float(str(amount).replace(",", ""))
+                except Exception:
+                    amt = 0.0
+            return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
 
         for tx in all_tx:
             # 1) Prefer txid mapping
@@ -795,12 +800,12 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 tx["_desc_overridden"] = True
                 continue
 
-            # 2) Fallback: (date, amount, ORIGINAL bank description) fingerprint
+            # 2) Fallback: (date, amount, ORIGINAL bank description) string fingerprint
             raw_orig = (tx.get("original_description") or
                         tx.get("description_raw") or
                         tx.get("description") or "").strip()
-            fp = _fp(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
-            newd = desc_overrides.get("by_fingerprint", {}).get(fp)
+            key = _fp_str(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
+            newd = desc_overrides.get("by_fingerprint", {}).get(key)
             if newd:
                 tx["description"] = newd
                 tx["_desc_overridden"] = True
@@ -815,7 +820,20 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
 
         # 1.5) If description was overridden, allow category to update from new text
         if tx.get("_desc_overridden"):
-            new_cat = categorize_transaction(tx.get("description", ""), float(tx.get("amount", 0.0)), category_keywords)
+            desc_current = tx.get("description", "")
+            new_cat = categorize_transaction(desc_current, float(tx.get("amount", 0.0)), category_keywords)
+
+            # If categorizer didn't land somewhere meaningful, try subcategory keywords across all cats
+            if not new_cat or new_cat == "Miscellaneous":
+                descU = (desc_current or "").upper()
+                for cat_name, sub_map in (subcategory_maps or {}).items():
+                    for _label, keywords in (sub_map or {}).items():
+                        if any(_kw_hits(descU, k) for k in (keywords or [])):
+                            new_cat = cat_name
+                            break
+                    if new_cat and new_cat != "Miscellaneous":
+                        break
+
             if new_cat and new_cat != tx.get("category"):
                 tx["category"] = new_cat
                 # clear machine-derived subcats so keyword mapping can repopulate below
@@ -960,6 +978,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                                 if cat == "Income":
                                     cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
                                 else:
+                                    cd["subcategories"][subcat_label] += exp_amt
                                     cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
                                 break
 
@@ -1063,9 +1082,6 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 inc["total"] = abs(t)
 
     return monthly_summaries
-
-
-
 
 def recent_activity_summary(
     days=30,
