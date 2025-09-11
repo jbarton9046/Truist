@@ -2736,154 +2736,88 @@ def api_forecast():
 @app.get("/api/tx/all")
 def api_tx_all():
     """
-    Flat list of non-hidden transactions across months, with simple search & filters.
+    Flat list of transactions across months, with search & filters.
     Query:
-      q=... (optional; space-separated terms matched in desc/category/subcategory)
+      q=... (space-separated terms in desc/category/subcategory)
       type=all|income|expense
       date_from=YYYY-MM-DD
       date_to=YYYY-MM-DD
       months=all|12|24 (default 24)
-      limit=int (default 2000)
+      limit=int (default 4000)
     """
-    q_raw = (request.args.get("q") or "").strip()
-    type_raw = (request.args.get("type") or "all").strip().lower()
-    date_from = request.args.get("date_from") or ""
-    date_to = request.args.get("date_to") or ""
+    monthly, _ = build_monthly()
+    rows = _flatten_all_transactions(monthly)
+
+    # Apply description overrides
+    ov = _load_desc_overrides()
+    rows = [_apply_desc_override_to_tx(r, ov) for r in rows]
+
+    # Filters
+    q = (request.args.get("q") or "").strip().lower()
+    q_terms = [t for t in q.split() if t]
+    tx_type = (request.args.get("type") or "all").lower().strip()
+    df = request.args.get("date_from") or ""
+    dt = request.args.get("date_to") or ""
     months_param = (request.args.get("months") or "24").strip().lower()
     try:
-        limit = int(request.args.get("limit") or 2000)
+        limit = int(request.args.get("limit") or 4000)
     except Exception:
-        limit = 2000
+        limit = 4000
 
-    # window
-    months_back = 10**9 if months_param == "all" else 24
-    try:
-        if months_param.isdigit():
-            months_back = int(months_param)
-    except Exception:
-        pass
-
-    monthly, cfg_live = build_monthly()
-    months_sorted = sorted(monthly.keys(), key=_norm_month)
-    if not months_sorted:
-        return jsonify({"ok": True, "transactions": [], "count": 0})
-    months_sel = months_sorted[-max(1, months_back):]
-
-    # compile filters
-    q_terms = [t for t in q_raw.split() if t]
-    df = _parse_any_date(date_from) if date_from else None
-    dt = _parse_any_date(date_to) if date_to else None
-
-    HIDE_AMOUNTS = [10002.02, -10002.02]
-    EPS = 0.005
-    def _hidden(a: float) -> bool:
-        try: aa = float(a)
-        except Exception: return False
-        return any(abs(aa - h) < EPS for h in HIDE_AMOUNTS)
-
-    def _within_dates(dstr: str) -> bool:
-        if not (df or dt):
-            return True
-        d = _parse_any_date(dstr) if dstr else None
-        if not d:
-            return False
-        if df and d < df:
-            return False
-        if dt and d > dt:
-            return False
-        return True
-
-    # de-dupe signature
-    def _sig(t, cat_hint=""):
-        desc = (t.get("description") or t.get("desc", "") or "").strip().upper()[:160]
+    # Months filter
+    if months_param != "all":
         try:
-            cents = int(round(float(t.get("amount", t.get("amt", 0.0)) or 0.0) * 100))
+            n = int(months_param)
+            end = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+            start = (end - relativedelta(months=n)).replace(day=1)
+            def _in_last_n_months(r):
+                d = _parse_any_date(r.get("date"))
+                return (d is not None) and (d >= start)
+            rows = list(filter(_in_last_n_months, rows))
         except Exception:
-            cents = 0
-        return (str(t.get("date", ""))[:10], cents, desc)
+            pass
 
-    flat = []
-    seen = set()
+    # Date range filter
+    def _in_range(r):
+        d = _parse_any_date(r.get("date"))
+        if not d: return False
+        if df:
+            try:
+                if d < datetime.strptime(df, "%Y-%m-%d"):
+                    return False
+            except Exception:
+                pass
+        if dt:
+            try:
+                if d > datetime.strptime(dt, "%Y-%m-%d"):
+                    return False
+            except Exception:
+                pass
+        return True
+    if df or dt:
+        rows = list(filter(_in_range, rows))
 
-    # 1) category buckets (if present)
-    for mk in months_sel:
-        blob = monthly.get(mk, {}) or {}
-        cats = (blob.get("categories") or {})
-        for cname, cdata in cats.items():
-            for t in (cdata.get("transactions") or []):
-                try: amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
-                except Exception: amt = 0.0
-                if _hidden(amt): continue
-                if not _within_dates(t.get("date", "")): continue
-                if type_raw == "income" and amt <= 0: continue
-                if type_raw == "expense" and amt >= 0: continue
-                hay = " ".join([
-                    (t.get("description") or t.get("desc", "") or ""),
-                    cname or "",
-                    (t.get("subcategory") or "")
-                ]).upper()
-                if q_terms and not all(term.upper() in hay for term in q_terms):
-                    continue
-                sig = _sig(t, cname)
-                if sig in seen: continue
-                seen.add(sig)
-                mkey = _month_key(t.get("date", "")) or _norm_month(mk)
-                flat.append({
-                    "date": t.get("date", ""),
-                    "month": mkey,
-                    "description": (t.get("description") or t.get("desc", "") or ""),
-                    "amount": amt,
-                    "category": t.get("category", "") or cname or "",
-                    "subcategory": (t.get("subcategory") or ""),
-                })
+    # Type filter
+    if tx_type == "income":
+        rows = [r for r in rows if r.get("amount", 0.0) > 0]
+    elif tx_type == "expense":
+        rows = [r for r in rows if r.get("amount", 0.0) < 0]
 
-        # 2) tree fallback (catches txs that only exist on the tree)
-        tree = (blob.get("tree") or [])
-        def walk(n, top_name=""):
-            name = (n.get("name") or "").strip()
-            top = top_name or name
-            children = n.get("children") or []
-            for t in (n.get("transactions") or []):
-                try: amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
-                except Exception: amt = 0.0
-                if _hidden(amt): continue
-                if not _within_dates(t.get("date", "")): continue
-                if type_raw == "income" and amt <= 0: continue
-                if type_raw == "expense" and amt >= 0: continue
-                hay = " ".join([
-                    (t.get("description") or t.get("desc", "") or ""),
-                    top or "",
-                    (t.get("subcategory") or "")
-                ]).upper()
-                if q_terms and not all(term.upper() in hay for term in q_terms):
-                    continue
-                sig = _sig(t, top)
-                if sig in seen: continue
-                seen.add(sig)
-                mkey = _month_key(t.get("date", "")) or _norm_month(mk)
-                flat.append({
-                    "date": t.get("date", ""),
-                    "month": mkey,
-                    "description": (t.get("description") or t.get("desc", "") or ""),
-                    "amount": amt,
-                    "category": t.get("category", "") or top,
-                    "subcategory": (t.get("subcategory") or ""),
-                })
-            for c in children:
-                walk(c, top)
-        for top in tree:
-            walk(top, (top.get("name") or "").strip())
+    # q filter
+    if q_terms:
+        def _match(r):
+            hay = " ".join([
+                str(r.get("description", "")),
+                str(r.get("category", "")),
+                str(r.get("subcategory", "")),
+            ]).lower()
+            return all(t in hay for t in q_terms)
+        rows = list(filter(_match, rows))
 
-    # sort newest first (date desc, then abs amount)
-    def _key_tx(t):
-        d = _parse_any_date(t.get("date", "")) or datetime(1970, 1, 1)
-        return (d, abs(float(t.get("amount", 0.0))))
-    flat.sort(key=_key_tx, reverse=True)
+    # Cap
+    rows = rows[: max(1, limit)]
+    return jsonify({"ok": True, "transactions": rows, "count": len(rows)})
 
-    if limit and len(flat) > limit:
-        flat = flat[:limit]
-
-    return jsonify({"ok": True, "transactions": flat, "count": len(flat)})
 
 # Back-compat stub (kept for safety) – older templates may use these names
 @app.get("/transactions")
