@@ -522,7 +522,7 @@
     </details>
   {% endmacro %}
 
-  {% for month_key, summary in summary_data.items()|sort(reverse=True) %}
+  {% for month_key, summary in summary_data.items()|sort(reverse=true) %}
     {% set norm = month_key|replace('_','-') %}
     {% set parts = norm.split('-') %}
     {% set formatted_month_key = parts[1] ~ '-' ~ parts[0][-2:] %}
