@@ -129,15 +129,12 @@ cfg = {
 
 # --- Month helpers ----------------------------------------------------------
 
+# --- helper: load description overrides (txid + fingerprint) ---
 def _load_desc_overrides():
-    """
-    Loads desc_overrides.json from the same base that parser_web uses.
-    Avoids relying on a STATEMENTS_DIR constant.
-    """
     try:
         base = get_statements_base_dir()
     except Exception:
-        base = Path(".data/statements")  # safe fallback without STATEMENTS_DIR
+        base = Path(".data/statements")
     p = base / "desc_overrides.json"
     try:
         if p.exists():
@@ -1400,8 +1397,38 @@ def _flatten_all_transactions(monthly: dict) -> list[dict]:
 
 @app.get("/transactions")
 def transactions_page():
-    # Renders your transactions.html (the one you pasted earlier)
-    return render_template("transactions.html")
+    """
+    Render transactions.html with data that already has:
+      - desc_overrides applied
+      - categories re-evaluated from the overridden description
+    """
+    try:
+        ck, sm, *_ = _load_category_config()
+        ov = _load_desc_overrides()
+        monthly = generate_summary(ck, sm, desc_overrides=ov)
+    except Exception as e:
+        try:
+            app.logger.exception("generate_summary() failed on /transactions: %s", e)
+        except Exception:
+            pass
+        monthly = {}
+
+    # Flatten all months (already overridden + recategorized)
+    all_tx = []
+    for m in monthly.values():
+        all_tx.extend(m.get("all_transactions", []) or [])
+
+    def _dt(tx):
+        return _parse_any_date(tx.get("date") or "") or datetime.min
+
+    transactions = sorted(all_tx, key=_dt, reverse=True)
+
+    return render_template(
+        "transactions.html",
+        transactions=transactions,
+        summary_data=monthly,
+    )
+
 
 
 @app.post("/api/tx/edit_description")
@@ -2664,7 +2691,7 @@ def api_forecast():
         "runway_days": runway_days
     })
 
-# ------------------ ALL TRANSACTIONS: flat list & search ------------------
+## ------------------ ALL TRANSACTIONS: flat list & search ------------------
 @app.get("/api/tx/all")
 def api_tx_all():
     """
@@ -2677,13 +2704,22 @@ def api_tx_all():
       months=all|12|24 (default 24)
       limit=int (default 4000)
     """
-    # Build unified monthly, then flatten to rows
-    monthly, _ = build_monthly()
-    rows = _flatten_all_transactions(monthly)
+    # Build monthly using the SAME pipeline as pages: overrides applied, then categorized
+    try:
+        ck, sm, *_ = _load_category_config()
+        ov = _load_desc_overrides()
+        monthly = generate_summary(ck, sm, desc_overrides=ov)
+    except Exception as e:
+        try:
+            app.logger.exception("generate_summary() failed on /api/tx/all: %s", e)
+        except Exception:
+            pass
+        monthly = {}
 
-    # Apply description overrides (defensive; build_monthly already applied pre-categorization)
-    ov = _load_desc_overrides()
-    rows = [_apply_desc_override_to_tx(r, ov) for r in rows]
+    # Flatten across months
+    rows = []
+    for m in monthly.values():
+        rows.extend(m.get("all_transactions", []) or [])
 
     # Ensure client gets immutable original + a txid
     def _txid(r):
@@ -2691,10 +2727,14 @@ def api_tx_all():
                 or r.get("_id") or r.get("uid") or "")
 
     for r in rows:
-        r["original_description"] = r.get("original_description") or r.get("description_raw") or r.get("description") or ""
+        r["original_description"] = (
+            r.get("original_description") or
+            r.get("description_raw") or
+            r.get("description") or ""
+        )
         r["transaction_id"] = _txid(r)
 
-    # Filters
+    # ---------- Filters (same semantics you had) ----------
     q = (request.args.get("q") or "").strip().lower()
     q_terms = [t for t in q.split() if t]
     tx_type = (request.args.get("type") or "all").lower().strip()
@@ -2726,12 +2766,14 @@ def api_tx_all():
             return False
         if df:
             try:
-                if d < datetime.strptime(df, "%Y-%m-%d"): return False
+                if d < datetime.strptime(df, "%Y-%m-%d"):
+                    return False
             except Exception:
                 pass
         if dt:
             try:
-                if d > datetime.strptime(dt, "%Y-%m-%d"): return False
+                if d > datetime.strptime(dt, "%Y-%m-%d"):
+                    return False
             except Exception:
                 pass
         return True
@@ -2740,9 +2782,9 @@ def api_tx_all():
 
     # Type filter
     if tx_type == "income":
-        rows = [r for r in rows if r.get("amount", 0.0) > 0]
+        rows = [r for r in rows if r.get("category") == "Income"]
     elif tx_type == "expense":
-        rows = [r for r in rows if r.get("amount", 0.0) < 0]
+        rows = [r for r in rows if r.get("category") != "Income"]
 
     # q filter (AND across terms)
     if q_terms:
@@ -2754,6 +2796,11 @@ def api_tx_all():
             ]).lower()
             return all(t in hay for t in q_terms)
         rows = list(filter(_match, rows))
+
+    # Newest first and limit
+    def _dt(tx):
+        return _parse_any_date(tx.get("date") or "") or datetime.min
+    rows.sort(key=_dt, reverse=True)
 
     rows = rows[: max(1, limit)]
     return jsonify({"transactions": rows})
