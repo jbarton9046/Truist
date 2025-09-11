@@ -127,7 +127,15 @@ cfg = {
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
 
-# --- Month helpers ----------------------------------------------------------
+def _flatten_display_transactions(monthly: dict) -> list:
+    """Only rows that passed omit rules and are not Transfers/hidden cats."""
+    rows = []
+    for m in monthly.values():
+        cats = m.get("categories", {}) or {}
+        for _, data in cats.items():
+            rows.extend(data.get("transactions", []) or [])
+    return rows
+
 
 # --- helper: load description overrides (txid + fingerprint) ---
 def _load_desc_overrides():
@@ -629,9 +637,7 @@ def index():
         expense_total = float(latest.get("expense_total", 0.0))
 
         # Build Most Recent transactions ACROSS all months from the re-categorized txns
-        all_tx = []
-        for m in summary_data.values():
-            all_tx.extend(m.get("all_transactions", []) or [])
+        all_tx = _flatten_display_transactions(summary_data)
 
         def _dt(t):
             return _parse_any_date(t.get("date") or "") or datetime.min
@@ -1401,6 +1407,7 @@ def transactions_page():
     Render transactions.html with data that already has:
       - desc_overrides applied
       - categories re-evaluated from the overridden description
+      - Transfers/omitted items removed (uses categorized buckets)
     """
     try:
         ck, sm, *_ = _load_category_config()
@@ -1413,21 +1420,19 @@ def transactions_page():
             pass
         monthly = {}
 
-    # Flatten all months (already overridden + recategorized)
-    all_tx = []
-    for m in monthly.values():
-        all_tx.extend(m.get("all_transactions", []) or [])
+    rows = _flatten_display_transactions(monthly)
 
     def _dt(tx):
         return _parse_any_date(tx.get("date") or "") or datetime.min
 
-    transactions = sorted(all_tx, key=_dt, reverse=True)
+    transactions = sorted(rows, key=_dt, reverse=True)
 
     return render_template(
         "transactions.html",
-        transactions=transactions,
+        transactions=transactions,   # now filtered + re-categorized
         summary_data=monthly,
     )
+
 
 
 
@@ -2691,7 +2696,7 @@ def api_forecast():
         "runway_days": runway_days
     })
 
-## ------------------ ALL TRANSACTIONS: flat list & search ------------------
+# ------------------ ALL TRANSACTIONS: flat list & search ------------------
 @app.get("/api/tx/all")
 def api_tx_all():
     """
@@ -2704,7 +2709,7 @@ def api_tx_all():
       months=all|12|24 (default 24)
       limit=int (default 4000)
     """
-    # Build monthly using the SAME pipeline as pages: overrides applied, then categorized
+    # Build monthly via same pipeline (overrides applied, then categorized)
     try:
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
@@ -2716,10 +2721,8 @@ def api_tx_all():
             pass
         monthly = {}
 
-    # Flatten across months
-    rows = []
-    for m in monthly.values():
-        rows.extend(m.get("all_transactions", []) or [])
+    # Use curated rows (already excludes Transfers/hidden/omitted)
+    rows = _flatten_display_transactions(monthly)
 
     # Ensure client gets immutable original + a txid
     def _txid(r):
@@ -2746,7 +2749,7 @@ def api_tx_all():
     except Exception:
         limit = 4000
 
-    # Months shortcut filter (applies on transaction date)
+    # Months filter (by transaction date)
     if months_param and months_param != "all":
         try:
             n = int(months_param)
@@ -2780,7 +2783,7 @@ def api_tx_all():
     if df or dt:
         rows = list(filter(_in_range, rows))
 
-    # Type filter
+    # Type filter (by category)
     if tx_type == "income":
         rows = [r for r in rows if r.get("category") == "Income"]
     elif tx_type == "expense":
@@ -2804,6 +2807,7 @@ def api_tx_all():
 
     rows = rows[: max(1, limit)]
     return jsonify({"transactions": rows})
+
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":
