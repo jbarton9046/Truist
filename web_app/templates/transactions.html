@@ -21,63 +21,37 @@
   }
 
   /* Unified table look (dark "goals" theme) */
-  .table-modern {
-    width:100%;
-    border-collapse:separate;
-    border-spacing:0;
-    background:transparent;
-    color:var(--text);
-  }
+  .table-modern { width:100%; border-collapse:separate; border-spacing:0; background:transparent; color:var(--text); }
   .table-modern thead th{
-    position: sticky;
-    top: 0;
-    z-index: 5;
+    position: sticky; top: 0; z-index: 5;
     background: var(--thead-bg) !important;
     color: var(--table-head-fg,var(--text)) !important;
     border-bottom:1px solid var(--hair) !important;
-    font-weight:700;
-    letter-spacing:.2px;
+    font-weight:700; letter-spacing:.2px;
     backdrop-filter: saturate(120%) blur(6px);
   }
-  .table-modern tbody td{
-    border-top:1px solid var(--hair);
-    vertical-align:middle;
-  }
-  .table-modern tbody tr:nth-child(odd){
-    background:rgba(255,255,255,.015);
-  }
-  .table-modern tbody tr:hover{
-    background:rgba(255,255,255,.05);
-  }
+  .table-modern tbody td{ border-top:1px solid var(--hair); vertical-align:middle; }
+  .table-modern tbody tr:nth-child(odd){ background:rgba(255,255,255,.015); }
+  .table-modern tbody tr:hover{ background:rgba(255,255,255,.05); }
 
-  /* Amount coloring (keep your red/green) */
+  /* Amount coloring */
   .amt-neg{ color:#dc2626; font-weight:600; }
   .amt-pos{ color:#16a34a; font-weight:600; }
   .col-amount { padding-right: 1.25rem !important; }
 
-  /* Sticky month separator row: sits just under the header, floats + blurs */
-  #tbl tbody tr.month-row{
-    position: sticky;
-    top: var(--thead-h); /* lives directly under the header */
-    z-index: 3; /* under the header (z=5) but above rows */
-  }
+  /* Sticky month row */
+  #tbl tbody tr.month-row{ position: sticky; top: var(--thead-h); z-index: 3; }
   #tbl tbody tr.month-row td{
-    background: var(--thead-bg) !important;
-    color: var(--text) !important;
-    border-top: 1px solid var(--hair) !important;
-    border-bottom: 1px solid var(--hair) !important;
-    font-weight: 700;
-    letter-spacing:.2px;
-    backdrop-filter: saturate(120%) blur(6px);
+    background: var(--thead-bg) !important; color: var(--text) !important;
+    border-top: 1px solid var(--hair) !important; border-bottom: 1px solid var(--hair) !important;
+    font-weight: 700; letter-spacing:.2px; backdrop-filter: saturate(120%) blur(6px);
   }
-
-  /* When the controller marks a month as the active stuck one, pop it up */
   #tbl tbody tr.month-row.is-stuck { z-index: 6; }
   #tbl tbody tr.month-row.is-stuck td{
     box-shadow: 0 2px 0 rgba(255,255,255,.04), 0 10px 24px rgba(0,0,0,.28);
   }
 
-  /* Inline edit input keep things compact */
+  /* Inline edit */
   td.tx-desc { cursor: text; }
   td.tx-desc.editing { background: rgba(255,255,255,.06); }
   td.tx-desc .spinner-border{ pointer-events:none; }
@@ -170,10 +144,7 @@
     if (x == null) return 0;
     let s = String(x).trim();
     let negParens=false;
-    if (/^\(.*\)$/.test(s)){
-      negParens=true;
-      s=s.slice(1,-1);
-    }
+    if (/^\(.*\)$/.test(s)){ negParens=true; s=s.slice(1,-1); }
     const n = parseFloat(s.replace(/[^0-9.-]/g,''));
     if (!Number.isFinite(n)) return 0;
     return negParens ? -n : n;
@@ -182,28 +153,23 @@
   const escHtml = (s)=> String(s||'').replace(/[&<>]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const escAttr = (s)=> String(s||'').replace(/["&<>]/g, c=> ({'"':'&quot;','&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-  /* include transaction_id in id detection */
   const txIdOf = (t)=> String(t.transaction_id ?? t.id ?? t.tx_id ?? t._id ?? t.uid ?? '');
 
   const scroller = $('txScroller');
   const tbl = $('tbl');
   const tbody = $('tbody');
 
-  /* Measure header height and pass to CSS so the month-row knows where to stick */
   function measureHead(){
     const th = (tbl.tHead && tbl.tHead.getBoundingClientRect().height) || 44;
     scroller.style.setProperty('--thead-h', Math.round(th) + 'px');
   }
   new ResizeObserver(measureHead).observe(tbl.tHead || tbl);
 
-  /* Controller: ensure only one month row gets elevated “stuck” styling */
   function updateStickyMonth(){
     const rows = Array.from(tbody.querySelectorAll('tr.month-row'));
     if (!rows.length) return;
     const top = scroller.scrollTop;
     const theadH = parseFloat(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
-
-    // pick the last month row whose top is above the sticky line
     let active = -1;
     for (let i=0;i<rows.length;i++){
       const r = rows[i];
@@ -236,7 +202,6 @@
     $('meta').textContent = `${rows.length} transactions`;
     $('rowsBadge').textContent = `Rows: ${rows.length}`;
 
-    // group by month and compute monthly net
     const groups = new Map();
     for (const t of rows){
       const k = t.month || monthKey(t.date);
@@ -261,12 +226,12 @@
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
         const rawDesc = String(t.description || '');
+        const origDesc = String(t.original_description || t.description || '');
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
-        const sig = `${t.date||''}|${t.amount||''}|${rawDesc}`; // fallback signature if id missing
+        const sig = `${t.date||''}|${t.amount||''}|${origDesc}`; // fingerprint uses ORIGINAL bank text
 
-        /* add data-date and data-amount so the editor can build the fallback payload */
         out.push(`
           <tr>
             <td class="text-nowrap">${fmtDate(t.date)}</td>
@@ -274,7 +239,7 @@
                 data-tx-id="${escAttr(txid)}"
                 data-sig="${escAttr(sig)}"
                 data-desc="${escAttr(rawDesc)}"
-                data-orig-desc="${escAttr(t.original_description || rawDesc)}"
+                data-orig-desc="${escAttr(origDesc)}"
                 data-date="${escAttr(t.date || '')}"
                 data-amount="${escAttr(t.amount || '')}">${safeDesc}</td>
             <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
@@ -286,7 +251,7 @@
 
     tbody.innerHTML = out.join('') || `<tr><td colspan="4" class="muted">No transactions.</td></tr>`;
     measureHead();
-    updateStickyMonth(); // set the first active month
+    updateStickyMonth();
   }
 
   $('run').addEventListener('click', load);
@@ -296,14 +261,13 @@
   $('date_from').addEventListener('change', load);
   $('date_to').addEventListener('change', load);
 
-  // -------- Inline edit: double-click description to edit & save ----------
-  const UPDATE_API = "/api/tx/edit_description"; // expects {transaction_id,new_description} OR {date,amount,original_description,new_description}
+  // -------- Inline edit ----------
+  const UPDATE_API = "/api/tx/edit_description";
 
   function beginEdit(td){
     if (!td || td.classList.contains('editing')) return;
 
     const txId = td.getAttribute('data-tx-id') || '';
-    const sig = td.getAttribute('data-sig') || '';
     const original = td.getAttribute('data-desc') || td.textContent || '';
     const dateStr = td.getAttribute('data-date') || '';
     const amtStr = td.getAttribute('data-amount') || '';
@@ -316,7 +280,6 @@
     input.className = 'form-control form-control-sm';
     input.value = original;
 
-    const oldHTML = td.innerHTML;
     td.innerHTML = '';
     td.style.padding = '2px';
     td.appendChild(input);
@@ -330,7 +293,7 @@
       td.dataset.editing = '0';
       td.style.padding = '';
       const val = (newText ?? original);
-      td.setAttribute('data-desc', val);
+      td.setAttribute('data-desc', val); // keep original bank desc separate (data-orig-desc)
       td.innerHTML = escHtml(val);
       if (saved){
         const ok = document.createElement('span');
@@ -339,9 +302,7 @@
         ok.style.fontWeight = '700';
         ok.style.marginLeft = '4px';
         td.appendChild(ok);
-        setTimeout(()=>{
-          try{ ok.remove(); }catch(_){ }
-        }, 900);
+        setTimeout(()=>{ try{ ok.remove(); }catch(_){ } }, 900);
       }
     }
 
@@ -367,11 +328,15 @@
       const spinner = showSpinner();
       input.disabled = true;
       try{
-        /* Build payload matching /api/tx/edit_description */
-        const originalForFp = td.getAttribute('data-orig-desc') || original;
         const body = txId
           ? { transaction_id: txId, new_description: value }
-          : { date: dateStr, amount: Number(amtStr), original_description: originalForFp, new_description: value };
+          : {
+              date: dateStr,
+              amount: Number(amtStr),
+              // IMPORTANT: always fingerprint with immutable original bank text
+              original_description: td.getAttribute('data-orig-desc') || original,
+              new_description: value
+            };
 
         const resp = await fetch(UPDATE_API, {
           method: 'POST',
@@ -385,7 +350,6 @@
         cleanup(value, true);
       }catch(err){
         console.error('Save failed:', err);
-        // revert text but leave a title hint
         cleanup(original, false);
         td.title = 'Save failed: ' + (err && err.message || 'unknown');
       }finally{
@@ -394,34 +358,14 @@
       }
     }
 
-    function cancel(){
-      canceled = true;
-      cleanup(original, false);
-    }
-
-    input.addEventListener('keydown', (e)=>{
-      if (e.key === 'Enter'){
-        e.preventDefault(); commit();
-      } else if (e.key === 'Escape'){
-        e.preventDefault(); cancel();
-      }
-    });
-    input.addEventListener('blur', ()=>{
-      if (!canceled) commit();
-    });
+    function cancel(){ canceled = true; cleanup(original, false); }
+    input.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); commit(); } else if (e.key === 'Escape'){ e.preventDefault(); cancel(); } });
+    input.addEventListener('blur', ()=>{ if (!canceled) commit(); });
   }
 
-  // delegate on the scroller/table
-  scroller.addEventListener('dblclick', (e)=>{
-    const td = e.target.closest('td.tx-desc');
-    if (!td) return;
-    beginEdit(td);
-  });
+  scroller.addEventListener('dblclick', (e)=>{ const td = e.target.closest('td.tx-desc'); if (!td) return; beginEdit(td); });
 
-  // initial load
-  load().catch(err=>{
-    tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`;
-  });
+  load().catch(err=>{ tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`; });
 })();
 </script>
 

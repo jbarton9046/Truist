@@ -18,6 +18,7 @@ from truist.parser_web import (
     get_statements_base_dir,
     get_transactions_for_path,
     generate_summary,
+    recent_activity_summary,
 )
 
 # load_cfg to render category/subcategory maps on /cash
@@ -471,18 +472,18 @@ def build_monthly(force: bool = False):
     # Load description overrides up-front so they apply BEFORE categorization.
     ov = _load_desc_overrides()
 
-    # NOTE: generate_summary in parser now accepts desc_overrides
     monthly = generate_summary(
         cfg_live["CATEGORY_KEYWORDS"],
         cfg_live["SUBCATEGORY_MAPS"],
         desc_overrides=ov
     ) or {}
 
-    _apply_hide_rules_to_summary(monthly)      # prunes/hides + computes income/expense/net
-    _rebuild_categories_from_tree(monthly)     # rebuild categories from the pruned tree
+    _apply_hide_rules_to_summary(monthly)
+    _rebuild_categories_from_tree(monthly)
 
     c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
+
 
 # --- Goals storage ---
 def _goals_file() -> Path:
@@ -1508,6 +1509,11 @@ def _flatten_all_transactions(monthly: dict) -> list[dict]:
                     "amount": float(t.get("amount", t.get("amt", 0.0)) or 0.0),
                     "category": t.get("category", "") or cname or "",
                     "subcategory": t.get("subcategory", "") or "",
+                    # NEW: carry immutable original bank description so the editor
+                    # can reliably fingerprint on subsequent edits.
+                    "original_description": t.get("original_description")
+                        or t.get("description_raw")
+                        or (t.get("description") or t.get("desc") or ""),
                 }
                 # Keep the raw id if present so edits can target exact tx
                 if "transaction_id" in t and t["transaction_id"]:
@@ -1548,22 +1554,19 @@ def api_tx_edit_description():
     ov = _load_desc_overrides()
 
     if txid:
-        # Stable: always overwrite by transaction_id when available
         ov["by_txid"][txid] = new_desc
     else:
-        # Always fingerprint against the *raw/original* description
         date_s = (data.get("date") or "").strip()
         amt = data.get("amount")
         orig = (data.get("original_description") or "").strip()
         if not (date_s and (amt is not None) and orig):
             return jsonify(ok=False, error="When transaction_id is absent, provide date, amount, original_description"), 400
-
         fp = _fingerprint_tx(date_s, amt, orig)
         ov["by_fingerprint"][fp] = new_desc
 
     _save_desc_overrides(ov)
 
-    # Invalidate monthly cache so dashboard/recent reflect edits
+    # Bust monthly cache so dashboard/recent reflect edits immediately
     try:
         _MONTHLY_CACHE["monthly"] = None
         _MONTHLY_CACHE["ts"] = time()
@@ -1571,6 +1574,7 @@ def api_tx_edit_description():
         pass
 
     return jsonify(ok=True, saved=new_desc)
+
 
 
 # ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
@@ -1927,7 +1931,38 @@ def api_path_transactions():
     })
 
 
-
+@app.get("/api/recent-activity")
+def api_recent_activity():
+    """
+    Dashboard snapshot used by index.html.
+    Rebuilds with the latest description overrides so edits show up immediately.
+    """
+    try:
+        # recent_activity_summary builds using generate_summary(..., desc_overrides=...)
+        data = recent_activity_summary()
+    except Exception as e:
+        # stay resilient if anything spikes
+        data = {
+            "as_of": None,
+            "latest_month": None,
+            "prev_month": None,
+            "latest_totals": {
+                "income": 0.0, "expense": 0.0, "net": 0.0,
+                "prev_income": 0.0, "prev_expense": 0.0, "prev_net": 0.0,
+                "delta_income": 0.0, "delta_expense": 0.0, "delta_net": 0.0,
+                "pct_income": None, "pct_expense": None, "pct_net": None,
+            },
+            "movers_abs": [],
+            "top_ups": [],
+            "top_downs": [],
+            "recent_txs": [],
+            "recent_windows": {
+                "last_7_expense": 0.0, "last_7_income": 0.0,
+                "last_30_expense": 0.0, "last_30_income": 0.0,
+            },
+            "error": str(e),
+        }
+    return jsonify({"data": data})
 
 # ------------------ SUBSCRIPTIONS API ------------------
 @app.get("/api/subscriptions")
@@ -2778,6 +2813,15 @@ def api_tx_all():
     ov = _load_desc_overrides()
     rows = [_apply_desc_override_to_tx(r, ov) for r in rows]
 
+    # Ensure client gets immutable original + a txid
+    def _txid(r):
+        return (r.get("transaction_id") or r.get("id") or r.get("tx_id")
+                or r.get("_id") or r.get("uid") or "")
+
+    for r in rows:
+        r["original_description"] = r.get("original_description") or r.get("description_raw") or r.get("description") or ""
+        r["transaction_id"] = _txid(r)
+
     # Filters
     q = (request.args.get("q") or "").strip().lower()
     q_terms = [t for t in q.split() if t]
@@ -2841,6 +2885,7 @@ def api_tx_all():
 
     rows = rows[: max(1, limit)]
     return jsonify({"transactions": rows})
+
 
 
 # Back-compat stub (kept for safety) – older templates may use these names

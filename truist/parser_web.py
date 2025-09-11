@@ -14,12 +14,29 @@ JSON_PATH = None  # set by _load_category_config()
 MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
 
 
+
 def _debug(msg: str):
     if os.environ.get("CL_DEBUG"):
         try:
             print(f"[ClarityLedger] {msg}")
         except Exception:
             pass
+
+# --- Local desc override loader (no app.py dependency) ----------------------
+import os, json
+from pathlib import Path
+
+def _load_desc_overrides_local():
+    path = Path(os.environ.get("DESC_OVERRIDES_FILE", "/var/data/desc_overrides.json"))
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        data = {}
+    data.setdefault("by_txid", {})
+    data.setdefault("by_fingerprint", {})
+    return data
+# ---------------------------------------------------------------------------
+
 
 # === Load category config (JSON + overrides from CONFIG_DIR) ===
 def _load_category_config():
@@ -750,12 +767,18 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     for raw in _iter_all_raw_transactions():
         tx = _tx_from_raw(raw, category_keywords, custom_tx_keywords_live)
         if tx:
+            # ensure immutable original_description exists on every tx
+            tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
             all_tx.append(tx)
 
     # Load manual entries (already normalized above)
     all_tx.extend(load_manual_transactions(manual_file))
 
-    # --- Apply description overrides BEFORE categorization (minimal + safe) ---
+    # Make sure manual entries also carry original_description
+    for tx in all_tx:
+        tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
+
+    # ---- Apply description overrides BEFORE categorization -------------------
     if desc_overrides:
         def _fp(date_s, amount, original_desc):
             try:
@@ -764,13 +787,13 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 cents = 0
             return (str(date_s)[:10], cents, (original_desc or "").strip().upper()[:160])
 
-        def _apply_desc_override_inline(tx):
+        for tx in all_tx:
             # 1) Prefer txid mapping
             txid = str(tx.get("transaction_id") or tx.get("id") or tx.get("tx_id") or "").strip()
             if txid and txid in desc_overrides.get("by_txid", {}):
                 tx["description"] = desc_overrides["by_txid"][txid]
                 tx["_desc_overridden"] = True
-                return tx
+                continue
 
             # 2) Fallback: (date, amount, ORIGINAL bank description) fingerprint
             raw_orig = (tx.get("original_description") or
@@ -781,10 +804,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
             if newd:
                 tx["description"] = newd
                 tx["_desc_overridden"] = True
-            return tx
-
-        all_tx = [_apply_desc_override_inline(tx) for tx in all_tx]
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
 
     # --- Legacy cleanup + categorize missing manual entries ---
     for tx in all_tx:
@@ -794,7 +814,6 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
             tx.pop("sub_subcategory", None)
 
         # 1.5) If description was overridden, allow category to update from new text
-        # (keeps manual user-set subcategory if present; only re-evals category)
         if tx.get("_desc_overridden"):
             new_cat = categorize_transaction(tx.get("description", ""), float(tx.get("amount", 0.0)), category_keywords)
             if new_cat and new_cat != tx.get("category"):
@@ -1046,6 +1065,8 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     return monthly_summaries
 
 
+
+
 def recent_activity_summary(
     days=30,
     large_threshold=500,   # kept for compatibility
@@ -1066,10 +1087,10 @@ def recent_activity_summary(
 
     hidden_cats = _hidden_categories()  # <-- NEW
 
-    try:
-        monthly = generate_summary(ck, sm)
-    except Exception:
-        monthly = {}
+    ov = _load_desc_overrides_local()
+    monthly = generate_summary(ck, sm, desc_overrides=ov)
+
+
 
     out = {
         "as_of": datetime.now().strftime("%Y-%m-%d"),
