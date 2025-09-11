@@ -588,9 +588,15 @@ def category_builder():
 
 @app.route("/")
 def index():
-    summary_data, _ = build_monthly()
+    try:
+        summary_data, _ = build_monthly()
+    except Exception as e:
+        try:
+            app.logger.exception("build_monthly() failed on /: %s", e)
+        except Exception:
+            pass
+        summary_data = {}
 
-    # pull totals + transactions from the latest month the parser built
     if summary_data:
         latest_key = sorted(summary_data.keys())[-1]
         latest = summary_data.get(latest_key, {}) or {}
@@ -786,6 +792,10 @@ def debug_hidden_categories():
     from truist.parser_web import _hidden_categories
     lst = sorted([str(x) for x in _hidden_categories()])
     return jsonify({"hidden": lst})
+
+@app.get("/healthz")
+def healthz():
+    return jsonify(ok=True), 200
 
 @app.route("/api/categories/monthly")
 def api_categories_monthly():
@@ -1260,22 +1270,24 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
     return {"months": month_keys, "categories": categories}
 
 # ================== TRANSACTIONS PAGE + DESCRIPTION EDIT API ==================
-# Serves the transactions table and lets you persist description edits without
-# touching the raw bank exports. Overrides live in a JSON file under statements/.
-
 _DESC_OVERRIDES_FILE = _statements_dir() / "desc_overrides.json"
 
 def _load_desc_overrides() -> dict:
     try:
         with open(_DESC_OVERRIDES_FILE, "r", encoding="utf-8") as f:
             dat = json.load(f)
-            # shape: {"by_txid": {id: new_desc}, "by_fingerprint": {fp: new_desc}}
             if isinstance(dat, dict):
                 dat.setdefault("by_txid", {})
                 dat.setdefault("by_fingerprint", {})
                 return dat
     except FileNotFoundError:
         pass
+    except Exception as e:
+        # Avoid crashing the whole app if JSON is malformed
+        try:
+            app.logger.exception("desc_overrides.json is invalid; ignoring. %s", e)
+        except Exception:
+            pass
     return {"by_txid": {}, "by_fingerprint": {}}
 
 def _save_desc_overrides(d: dict) -> None:
