@@ -124,6 +124,30 @@ cfg = {
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
 
+# --- Month helpers ----------------------------------------------------------
+
+def _norm_month(val) -> str:
+    """
+    Normalize a month key or date string into 'YYYY-MM'.
+    Accepts 'YYYY-MM', 'YYYY-MM-DD', 'MM/DD/YYYY', or anything parseable
+    by _parse_any_date. Returns '0000-00' if unparseable.
+    """
+    if not val:
+        return "0000-00"
+    s = str(val).strip()
+
+    # Already looks like YYYY-MM
+    if len(s) >= 7 and s[4] == "-":
+        return s[:7]
+
+    d = _parse_any_date(s)
+    if d:
+        return f"{d.year:04d}-{d.month:02d}"
+
+    return "0000-00"
+# ---------------------------------------------------------------------------
+
+
 def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
     # validate + normalize
     if "amount" not in tx:
@@ -431,6 +455,10 @@ def _cache_fingerprint() -> tuple:
     return (manual_m, ov_m, json_m)
 
 def build_monthly(force: bool = False):
+    """
+    Returns (monthly, cfg_live). Cached for a short TTL and invalidated
+    automatically if manual transactions or config files change.
+    """
     fp = _cache_fingerprint()
     now = time()
     c = _MONTHLY_CACHE
@@ -440,33 +468,21 @@ def build_monthly(force: bool = False):
 
     cfg_live = load_cfg()
 
-    # NEW: load description overrides up-front
+    # Load description overrides up-front so they apply BEFORE categorization.
     ov = _load_desc_overrides()
 
-    # NEW: pass desc_overrides into generate_summary so it applies BEFORE categorization
+    # NOTE: generate_summary in parser now accepts desc_overrides
     monthly = generate_summary(
         cfg_live["CATEGORY_KEYWORDS"],
         cfg_live["SUBCATEGORY_MAPS"],
         desc_overrides=ov
     ) or {}
 
-    _apply_hide_rules_to_summary(monthly)
-    _rebuild_categories_from_tree(monthly)
+    _apply_hide_rules_to_summary(monthly)      # prunes/hides + computes income/expense/net
+    _rebuild_categories_from_tree(monthly)     # rebuild categories from the pruned tree
 
     c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
-
-def _norm_month(k):
-    """Accepts keys like '2025-08' or ('2025','08') and returns 'YYYY-MM'."""
-    if not k:
-        return ""
-    if isinstance(k, (tuple, list)) and len(k) >= 2:
-        try:
-            return f"{int(k[0]):04d}-{int(k[1]):02d}"
-        except Exception:
-            pass
-    s = str(k)
-    return s[:7] if len(s) >= 7 else s
 
 # --- Goals storage ---
 def _goals_file() -> Path:
@@ -1519,7 +1535,7 @@ def api_tx_edit_description():
         "transaction_id": "...",           # optional but preferred
         "date": "YYYY-MM-DD",              # required if no transaction_id
         "amount": -42.13,                  # required if no transaction_id
-        "original_description": "WALMART", # required if no transaction_id
+        "original_description": "WALMART", # required if no transaction_id (raw bank text)
         "new_description": "Birthday gift for Sam"
       }
     """
@@ -1532,7 +1548,7 @@ def api_tx_edit_description():
     ov = _load_desc_overrides()
 
     if txid:
-        # Stable: always overwrite by transaction_id
+        # Stable: always overwrite by transaction_id when available
         ov["by_txid"][txid] = new_desc
     else:
         # Always fingerprint against the *raw/original* description
@@ -1547,7 +1563,7 @@ def api_tx_edit_description():
 
     _save_desc_overrides(ov)
 
-    # Bust cache so dashboard + pages reload fresh data
+    # Invalidate monthly cache so dashboard/recent reflect edits
     try:
         _MONTHLY_CACHE["monthly"] = None
         _MONTHLY_CACHE["ts"] = time()
@@ -1555,6 +1571,7 @@ def api_tx_edit_description():
         pass
 
     return jsonify(ok=True, saved=new_desc)
+
 
 # ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
 
@@ -2753,10 +2770,11 @@ def api_tx_all():
       months=all|12|24 (default 24)
       limit=int (default 4000)
     """
+    # Build unified monthly, then flatten to rows
     monthly, _ = build_monthly()
     rows = _flatten_all_transactions(monthly)
 
-    # Apply description overrides
+    # Apply description overrides (defensive; build_monthly already applied pre-categorization)
     ov = _load_desc_overrides()
     rows = [_apply_desc_override_to_tx(r, ov) for r in rows]
 
@@ -2764,16 +2782,16 @@ def api_tx_all():
     q = (request.args.get("q") or "").strip().lower()
     q_terms = [t for t in q.split() if t]
     tx_type = (request.args.get("type") or "all").lower().strip()
-    df = request.args.get("date_from") or ""
-    dt = request.args.get("date_to") or ""
+    df = (request.args.get("date_from") or "").strip()
+    dt = (request.args.get("date_to") or "").strip()
     months_param = (request.args.get("months") or "24").strip().lower()
     try:
         limit = int(request.args.get("limit") or 4000)
     except Exception:
         limit = 4000
 
-    # Months filter
-    if months_param != "all":
+    # Months shortcut filter (applies on transaction date)
+    if months_param and months_param != "all":
         try:
             n = int(months_param)
             end = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -2788,17 +2806,16 @@ def api_tx_all():
     # Date range filter
     def _in_range(r):
         d = _parse_any_date(r.get("date"))
-        if not d: return False
+        if not d:
+            return False
         if df:
             try:
-                if d < datetime.strptime(df, "%Y-%m-%d"):
-                    return False
+                if d < datetime.strptime(df, "%Y-%m-%d"): return False
             except Exception:
                 pass
         if dt:
             try:
-                if d > datetime.strptime(dt, "%Y-%m-%d"):
-                    return False
+                if d > datetime.strptime(dt, "%Y-%m-%d"): return False
             except Exception:
                 pass
         return True
@@ -2811,7 +2828,7 @@ def api_tx_all():
     elif tx_type == "expense":
         rows = [r for r in rows if r.get("amount", 0.0) < 0]
 
-    # q filter
+    # q filter (AND across terms)
     if q_terms:
         def _match(r):
             hay = " ".join([
@@ -2822,9 +2839,8 @@ def api_tx_all():
             return all(t in hay for t in q_terms)
         rows = list(filter(_match, rows))
 
-    # Cap
     rows = rows[: max(1, limit)]
-    return jsonify({"ok": True, "transactions": rows, "count": len(rows)})
+    return jsonify({"transactions": rows})
 
 
 # Back-compat stub (kept for safety) – older templates may use these names

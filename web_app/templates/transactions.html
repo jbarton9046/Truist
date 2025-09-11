@@ -274,6 +274,7 @@
                 data-tx-id="${escAttr(txid)}"
                 data-sig="${escAttr(sig)}"
                 data-desc="${escAttr(rawDesc)}"
+                data-orig-desc="${escAttr(t.original_description || rawDesc)}"
                 data-date="${escAttr(t.date || '')}"
                 data-amount="${escAttr(t.amount || '')}">${safeDesc}</td>
             <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
@@ -367,9 +368,10 @@
       input.disabled = true;
       try{
         /* Build payload matching /api/tx/edit_description */
+        const originalForFp = td.getAttribute('data-orig-desc') || original;
         const body = txId
           ? { transaction_id: txId, new_description: value }
-          : { date: dateStr, amount: Number(amtStr), original_description: original, new_description: value };
+          : { date: dateStr, amount: Number(amtStr), original_description: originalForFp, new_description: value };
 
         const resp = await fetch(UPDATE_API, {
           method: 'POST',
