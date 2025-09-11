@@ -18,6 +18,7 @@ from truist.parser_web import (
     get_statements_base_dir,
     get_transactions_for_path,
     generate_summary,
+    _load_category_config,   # <-- ADD THIS
     recent_activity_summary,
 )
 
@@ -29,6 +30,7 @@ from flask import Flask, render_template, abort, request, redirect, url_for, jso
 # ---- Flask app ----
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")  # enables flash()
+
 
 # ==============================================================================
 # === CLARITYLEDGER :: APP ANCHOR ==============================================
@@ -126,6 +128,28 @@ cfg = {
 }
 
 # --- Month helpers ----------------------------------------------------------
+
+def _load_desc_overrides():
+    """
+    Loads desc_overrides.json from the same base that parser_web uses.
+    Avoids relying on a STATEMENTS_DIR constant.
+    """
+    try:
+        base = get_statements_base_dir()
+    except Exception:
+        base = Path(".data/statements")  # safe fallback without STATEMENTS_DIR
+    p = base / "desc_overrides.json"
+    try:
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                data = json.load(f) or {}
+                return {
+                    "by_txid": data.get("by_txid", {}) or {},
+                    "by_fingerprint": data.get("by_fingerprint", {}) or {},
+                }
+    except Exception:
+        pass
+    return {"by_txid": {}, "by_fingerprint": {}}
 
 def _norm_month(val) -> str:
     """
@@ -589,20 +613,33 @@ def category_builder():
 @app.route("/")
 def index():
     try:
-        summary_data, _ = build_monthly()
+        # Load live config and overrides, then build monthly via the SAME pipeline
+        ck, sm, *_ = _load_category_config()
+        ov = _load_desc_overrides()
+        summary_data = generate_summary(ck, sm, desc_overrides=ov)
     except Exception as e:
         try:
-            app.logger.exception("build_monthly() failed on /: %s", e)
+            app.logger.exception("generate_summary() failed on /: %s", e)
         except Exception:
             pass
         summary_data = {}
 
     if summary_data:
+        # Keep your existing “latest month” totals
         latest_key = sorted(summary_data.keys())[-1]
         latest = summary_data.get(latest_key, {}) or {}
-        transactions = latest.get("all_transactions", []) or []
         income_total = float(latest.get("income_total", 0.0))
         expense_total = float(latest.get("expense_total", 0.0))
+
+        # Build Most Recent transactions ACROSS all months from the re-categorized txns
+        all_tx = []
+        for m in summary_data.values():
+            all_tx.extend(m.get("all_transactions", []) or [])
+
+        def _dt(t):
+            return _parse_any_date(t.get("date") or "") or datetime.min
+
+        transactions = sorted(all_tx, key=_dt, reverse=True)[:15]  # adjust count if you like
     else:
         transactions = []
         income_total = 0.0
@@ -611,7 +648,7 @@ def index():
     return render_template(
         "index.html",
         summary_data=summary_data,
-        transactions=transactions,
+        transactions=transactions,  # “Most Recent” now reflects overrides + recategorization
         income=income_total,
         expense=expense_total,
     )
@@ -1272,23 +1309,7 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 # ================== TRANSACTIONS PAGE + DESCRIPTION EDIT API ==================
 _DESC_OVERRIDES_FILE = _statements_dir() / "desc_overrides.json"
 
-def _load_desc_overrides() -> dict:
-    try:
-        with open(_DESC_OVERRIDES_FILE, "r", encoding="utf-8") as f:
-            dat = json.load(f)
-            if isinstance(dat, dict):
-                dat.setdefault("by_txid", {})
-                dat.setdefault("by_fingerprint", {})
-                return dat
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        # Avoid crashing the whole app if JSON is malformed
-        try:
-            app.logger.exception("desc_overrides.json is invalid; ignoring. %s", e)
-        except Exception:
-            pass
-    return {"by_txid": {}, "by_fingerprint": {}}
+
 
 def _save_desc_overrides(d: dict) -> None:
     _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
