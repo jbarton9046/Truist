@@ -20,6 +20,7 @@ from truist.parser_web import (
     generate_summary,
     _load_category_config,   # <-- ADD THIS
     recent_activity_summary,
+    categorize_transaction,
 )
 
 # load_cfg to render category/subcategory maps on /cash
@@ -127,12 +128,10 @@ cfg = {
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
 
-def _flatten_display_transactions(monthly: dict) -> list:
-    """Only rows that passed omit rules and are not Transfers/hidden cats."""
+def _flatten_display_transactions(monthly):
     rows = []
     for m in monthly.values():
-        cats = m.get("categories", {}) or {}
-        for _, data in cats.items():
+        for _, data in (m.get("categories") or {}).items():
             rows.extend(data.get("transactions", []) or [])
     return rows
 
@@ -1437,47 +1436,95 @@ def transactions_page():
 
 
 @app.post("/api/tx/edit_description")
-def api_tx_edit_description():
+def edit_description():
     """
-    Persist a description change.
-    Body JSON:
+    Body (JSON):
       {
-        "transaction_id": "...",           # optional but preferred
-        "date": "YYYY-MM-DD",              # required if no transaction_id
-        "amount": -42.13,                  # required if no transaction_id
-        "original_description": "WALMART", # required if no transaction_id (raw bank text)
-        "new_description": "Birthday gift for Sam"
+        "transaction_id": "optional",
+        "date": "YYYY-MM-DD",
+        "amount": -34.56,                 # bank-signed amount is fine
+        "original_description": "STRAIGHT TALK *... (bank text)",
+        "new_description": "WALMART"
       }
+    Returns:
+      { ok: true, new_description: "...", new_category: "..." }
     """
-    data = request.get_json(silent=True) or {}
-    new_desc = (data.get("new_description") or "").strip()
-    if not new_desc:
-        return jsonify(ok=False, error="new_description is required"), 400
-
-    txid = (data.get("transaction_id") or "").strip()
-    ov = _load_desc_overrides()
-
-    if txid:
-        ov["by_txid"][txid] = new_desc
-    else:
-        date_s = (data.get("date") or "").strip()
-        amt = data.get("amount")
-        orig = (data.get("original_description") or "").strip()
-        if not (date_s and (amt is not None) and orig):
-            return jsonify(ok=False, error="When transaction_id is absent, provide date, amount, original_description"), 400
-        fp = _fingerprint_tx(date_s, amt, orig)
-        ov["by_fingerprint"][fp] = new_desc
-
-    _save_desc_overrides(ov)
-
-    # Bust monthly cache so dashboard/recent reflect edits immediately
     try:
-        _MONTHLY_CACHE["monthly"] = None
-        _MONTHLY_CACHE["ts"] = time()
-    except Exception:
-        pass
+        payload = request.get_json(force=True) or {}
+        txid = (payload.get("transaction_id") or "").strip()
+        date_s = (payload.get("date") or "")[:10]
+        amt = float(payload.get("amount") or 0.0)
+        orig = (payload.get("original_description") or "").strip()
+        newd = (payload.get("new_description") or "").strip()
+        if not (date_s and newd):
+            return jsonify({"ok": False, "error": "date and new_description required"}), 400
 
-    return jsonify(ok=True, saved=new_desc)
+        # --- load existing overrides from the SAME place generate_summary() reads ---
+        try:
+            base = get_statements_base_dir()
+        except Exception:
+            base = Path(".data/statements")
+        p = base / "desc_overrides.json"
+        if p.exists():
+            with open(p, "r", encoding="utf-8") as f:
+                ov = json.load(f) or {}
+        else:
+            ov = {}
+        by_id = ov.get("by_txid", {}) or {}
+        by_fp = ov.get("by_fingerprint", {}) or {}
+
+        # --- helper: string fingerprint (match generate_summary) ---
+        def _fp_str(ds, amount, original_desc):
+            try:
+                famt = float(amount or 0.0)
+            except Exception:
+                try:
+                    famt = float(str(amount).replace(",", ""))
+                except Exception:
+                    famt = 0.0
+            return f"{(ds or '')[:10]}|{famt:.2f}|{(original_desc or '').strip().upper()}"
+
+        # --- write override by txid (best) ---
+        if txid:
+            by_id[txid] = newd
+
+        # --- and by fingerprint (robust): save both +amount and -amount keys ---
+        if date_s and orig:
+            k1 = _fp_str(date_s, amt, orig)
+            k2 = _fp_str(date_s, -amt, orig)
+            by_fp[k1] = newd
+            by_fp[k2] = newd
+
+        ov["by_txid"] = by_id
+        ov["by_fingerprint"] = by_fp
+
+        # persist
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(ov, f, indent=2, ensure_ascii=False)
+
+        # --- bust caches (safe even if they don't exist) ---
+        mc = globals().get("_MONTHLY_CACHE")
+        if isinstance(mc, dict):
+            mc["monthly"] = None
+            mc["ts"] = 0
+
+        rc = globals().get("_RECENT_CACHE")
+        if isinstance(rc, dict):
+            rc["data"] = None
+            rc["ts"] = 0
+
+        # --- compute the new category from the edited description (immediate feedback) ---
+        ck, sm, *_ = _load_category_config()
+        new_cat = categorize_transaction(newd, abs(amt), ck) or ""
+
+        return jsonify({"ok": True, "new_description": newd, "new_category": new_cat})
+    except Exception as e:
+        try:
+            app.logger.exception("edit_description failed: %s", e)
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": "internal error"}), 500
 
 
 

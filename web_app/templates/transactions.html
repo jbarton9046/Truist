@@ -243,7 +243,7 @@
                 data-date="${escAttr(t.date || '')}"
                 data-amount="${escAttr(t.amount || '')}">${safeDesc}</td>
             <td class="text-end col-amount"><span class="${cls}">${fmtUSD(amt)}</span></td>
-            <td>${escHtml(cat)}</td>
+            <td class="tx-cat">${escHtml(cat)}</td>
           </tr>
         `);
       }
@@ -293,7 +293,7 @@
       td.dataset.editing = '0';
       td.style.padding = '';
       const val = (newText ?? original);
-      td.setAttribute('data-desc', val); // keep original bank desc separate (data-orig-desc)
+      td.setAttribute('data-desc', val); // keep immutable original bank text in data-orig-desc
       td.innerHTML = escHtml(val);
       if (saved){
         const ok = document.createElement('span');
@@ -333,27 +333,41 @@
           : {
               date: dateStr,
               amount: Number(amtStr),
-              // IMPORTANT: always fingerprint with immutable original bank text
+              // IMPORTANT: fingerprint must use immutable bank text
               original_description: td.getAttribute('data-orig-desc') || original,
               new_description: value
             };
 
-        const resp = await fetch(UPDATE_API, {
+        const res = await fetch(UPDATE_API, {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(body)
-        });
-        const j = await resp.json().catch(()=>({}));
-        if (!resp.ok || !j || j.ok !== true){
-          throw new Error((j && j.error) || ('HTTP ' + resp.status));
+        }).then(r => r.json());
+
+        if (!res || res.ok !== true){
+          throw new Error((res && res.error) || 'Save failed');
         }
+
+        // Update description immediately
         cleanup(value, true);
+
+        // Update Category cell immediately if server returns new_category
+        const row = td.closest('tr');
+        const catCell = row && row.querySelector('td.tx-cat');
+        if (catCell && res.new_category){
+          catCell.textContent = res.new_category;
+        }
+
+        // Optional: to refresh subcategory or any computed tags, uncomment:
+        // setTimeout(load, 150);
+
       }catch(err){
         console.error('Save failed:', err);
         cleanup(original, false);
         td.title = 'Save failed: ' + (err && err.message || 'unknown');
       }finally{
-        try{ spinner.remove(); }catch(_){}
+        const sp = td.querySelector('.spinner-border');
+        if (sp) try{ sp.remove(); }catch(_){}
         td.classList.remove('position-relative');
       }
     }
