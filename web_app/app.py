@@ -436,7 +436,7 @@ def build_monthly(force: bool = False):
     automatically if manual transactions or config files change.
     """
     fp = _cache_fingerprint()
-    now = time()  # you already import: from time import time
+    now = time()
     c = _MONTHLY_CACHE
 
     if (not force) and c["monthly"] is not None and c["key"] == fp and (now - c["built_at"] < _CACHE_TTL_SEC):
@@ -447,8 +447,17 @@ def build_monthly(force: bool = False):
     _apply_hide_rules_to_summary(monthly)      # prunes/hides + computes income/expense/net
     _rebuild_categories_from_tree(monthly)     # rebuild categories from the pruned tree
 
+    # 🔑 NEW: Apply description overrides globally so dashboard & recent-activity respect edits
+    ov = _load_desc_overrides()
+    for mk in monthly.values():
+        cats = (mk.get("categories") or {}) or {}
+        for cname, cdata in cats.items():
+            txs = cdata.get("transactions") or []
+            cdata["transactions"] = [_apply_desc_override_to_tx(t, ov) for t in txs]
+
     c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
+
 
 def _norm_month(k):
     """Accepts keys like '2025-08' or ('2025','08') and returns 'YYYY-MM'."""
@@ -1516,8 +1525,6 @@ def api_tx_edit_description():
         "original_description": "WALMART", # required if no transaction_id
         "new_description": "Birthday gift for Sam"
       }
-    If transaction_id is not provided, the (date, amount, original_description)
-    fingerprint is used. Edits apply on /api/tx/all immediately and survive restarts.
     """
     data = request.get_json(silent=True) or {}
     new_desc = (data.get("new_description") or "").strip()
@@ -1528,19 +1535,22 @@ def api_tx_edit_description():
     ov = _load_desc_overrides()
 
     if txid:
+        # Stable: always overwrite by transaction_id
         ov["by_txid"][txid] = new_desc
     else:
+        # Always fingerprint against the *raw/original* description
         date_s = (data.get("date") or "").strip()
         amt = data.get("amount")
         orig = (data.get("original_description") or "").strip()
         if not (date_s and (amt is not None) and orig):
             return jsonify(ok=False, error="When transaction_id is absent, provide date, amount, original_description"), 400
+
         fp = _fingerprint_tx(date_s, amt, orig)
         ov["by_fingerprint"][fp] = new_desc
 
     _save_desc_overrides(ov)
 
-    # Bust cache so server-rendered pages reflect changes promptly
+    # Bust cache so dashboard + pages reload fresh data
     try:
         _MONTHLY_CACHE["monthly"] = None
         _MONTHLY_CACHE["ts"] = time()
@@ -1548,6 +1558,7 @@ def api_tx_edit_description():
         pass
 
     return jsonify(ok=True, saved=new_desc)
+
 # ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
 
 
