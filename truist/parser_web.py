@@ -721,7 +721,7 @@ def list_hidden_categories():
     return sorted(_hidden_categories())
 
 
-def generate_summary(category_keywords, subcategory_maps):
+def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     """
     Build monthly summaries using the *latest* config every call (so renames & deeper maps stay in sync).
     Returns offset spending within the same category via tx['expense_amount'].
@@ -755,12 +755,55 @@ def generate_summary(category_keywords, subcategory_maps):
     # Load manual entries (already normalized above)
     all_tx.extend(load_manual_transactions(manual_file))
 
+    # --- Apply description overrides BEFORE categorization (minimal + safe) ---
+    if desc_overrides:
+        def _fp(date_s, amount, original_desc):
+            try:
+                cents = int(round(float(amount or 0.0) * 100))
+            except Exception:
+                cents = 0
+            return (str(date_s)[:10], cents, (original_desc or "").strip().upper()[:160])
+
+        def _apply_desc_override_inline(tx):
+            # 1) Prefer txid mapping
+            txid = str(tx.get("transaction_id") or tx.get("id") or tx.get("tx_id") or "").strip()
+            if txid and txid in desc_overrides.get("by_txid", {}):
+                tx["description"] = desc_overrides["by_txid"][txid]
+                tx["_desc_overridden"] = True
+                return tx
+
+            # 2) Fallback: (date, amount, ORIGINAL bank description) fingerprint
+            raw_orig = (tx.get("original_description") or
+                        tx.get("description_raw") or
+                        tx.get("description") or "").strip()
+            fp = _fp(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
+            newd = desc_overrides.get("by_fingerprint", {}).get(fp)
+            if newd:
+                tx["description"] = newd
+                tx["_desc_overridden"] = True
+            return tx
+
+        all_tx = [_apply_desc_override_inline(tx) for tx in all_tx]
+    # --------------------------------------------------------------------------
+
     # --- Legacy cleanup + categorize missing manual entries ---
     for tx in all_tx:
         # 1) Nuke old hardcoded Paychecks so config can take over
         if tx.get("category") == "Income" and tx.get("subcategory") == "Paychecks":
             tx.pop("subcategory", None)
             tx.pop("sub_subcategory", None)
+
+        # 1.5) If description was overridden, allow category to update from new text
+        # (keeps manual user-set subcategory if present; only re-evals category)
+        if tx.get("_desc_overridden"):
+            new_cat = categorize_transaction(tx.get("description", ""), float(tx.get("amount", 0.0)), category_keywords)
+            if new_cat and new_cat != tx.get("category"):
+                tx["category"] = new_cat
+                # clear machine-derived subcats so keyword mapping can repopulate below
+                tx.pop("subcategory", None)
+                tx.pop("sub_subcategory", None)
+                tx.pop("subsubcategory", None)
+                tx.pop("subsubsubcategory", None)
 
         # 2) Categorize any transaction missing a category (manual entries after we stopped hardcoding)
         if not tx.get("category"):
@@ -1001,6 +1044,7 @@ def generate_summary(category_keywords, subcategory_maps):
                 inc["total"] = abs(t)
 
     return monthly_summaries
+
 
 def recent_activity_summary(
     days=30,

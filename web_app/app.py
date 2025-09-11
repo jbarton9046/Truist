@@ -431,10 +431,6 @@ def _cache_fingerprint() -> tuple:
     return (manual_m, ov_m, json_m)
 
 def build_monthly(force: bool = False):
-    """
-    Returns (monthly, cfg_live). Cached for a short TTL and invalidated
-    automatically if manual transactions or config files change.
-    """
     fp = _cache_fingerprint()
     now = time()
     c = _MONTHLY_CACHE
@@ -443,21 +439,22 @@ def build_monthly(force: bool = False):
         return c["monthly"], c["cfg"]
 
     cfg_live = load_cfg()
-    monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
-    _apply_hide_rules_to_summary(monthly)      # prunes/hides + computes income/expense/net
-    _rebuild_categories_from_tree(monthly)     # rebuild categories from the pruned tree
 
-    # 🔑 NEW: Apply description overrides globally so dashboard & recent-activity respect edits
+    # NEW: load description overrides up-front
     ov = _load_desc_overrides()
-    for mk in monthly.values():
-        cats = (mk.get("categories") or {}) or {}
-        for cname, cdata in cats.items():
-            txs = cdata.get("transactions") or []
-            cdata["transactions"] = [_apply_desc_override_to_tx(t, ov) for t in txs]
+
+    # NEW: pass desc_overrides into generate_summary so it applies BEFORE categorization
+    monthly = generate_summary(
+        cfg_live["CATEGORY_KEYWORDS"],
+        cfg_live["SUBCATEGORY_MAPS"],
+        desc_overrides=ov
+    ) or {}
+
+    _apply_hide_rules_to_summary(monthly)
+    _rebuild_categories_from_tree(monthly)
 
     c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
-
 
 def _norm_month(k):
     """Accepts keys like '2025-08' or ('2025','08') and returns 'YYYY-MM'."""
