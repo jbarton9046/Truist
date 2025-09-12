@@ -780,9 +780,11 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
 
     # ---- Apply description overrides BEFORE categorization -------------------
     if desc_overrides:
+        # inside generate_summary(...) in parser_web.py
         def _fp_str(date_s, amount, original_desc):
-            # Match the API saver (string key): "YYYY-MM-DD|amount.xx|ORIGINAL_DESC"
-            ds = (str(date_s) or "")[:10]
+            # Normalize to match app.py _fingerprint_tx
+            d = _parse_any_date(date_s)
+            ds = d.strftime("%Y-%m-%d") if d else (str(date_s) or "")[:10]
             try:
                 amt = float(amount or 0.0)
             except Exception:
@@ -791,6 +793,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 except Exception:
                     amt = 0.0
             return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
+
 
         for tx in all_tx:
             # 1) Prefer txid mapping
