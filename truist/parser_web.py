@@ -782,7 +782,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     if desc_overrides:
         # inside generate_summary(...) in parser_web.py
         def _fp_str(date_s, amount, original_desc):
-            # Normalize to match app.py _fingerprint_tx
+            # Normalize date to match app.py/_fingerprint_tx: YYYY-MM-DD
             d = _parse_any_date(date_s)
             ds = d.strftime("%Y-%m-%d") if d else (str(date_s) or "")[:10]
             try:
@@ -793,6 +793,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 except Exception:
                     amt = 0.0
             return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
+
 
 
         for tx in all_tx:
