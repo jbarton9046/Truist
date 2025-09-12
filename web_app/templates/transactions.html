@@ -328,15 +328,14 @@
       const spinner = showSpinner();
       input.disabled = true;
       try{
-        const body = txId
-          ? { transaction_id: txId, new_description: value }
-          : {
-              date: dateStr,
-              amount: Number(amtStr),
-              // IMPORTANT: fingerprint must use immutable bank text
-              original_description: td.getAttribute('data-orig-desc') || original,
-              new_description: value
-            };
+        const body = {
+          transaction_id: txId || undefined,          // include if present
+          date: dateStr,                               // YYYY-MM-DD preferred (first 10 chars ok)
+          amount: Number(amtStr),                      // signed
+          original_description: td.getAttribute('data-orig-desc') || original, // immutable bank text
+          new_description: value
+        };
+
 
         const res = await fetch(UPDATE_API, {
           method: 'POST',

@@ -1494,8 +1494,8 @@ def edit_description():
         orig = (payload.get("original_description") or "").strip()
         newd = (payload.get("new_description") or "").strip()
 
-        if not (date_s and newd):
-            return jsonify({"ok": False, "error": "date and new_description required"}), 400
+        if not newd:
+            return jsonify({"ok": False, "error": "new_description required"}), 400
 
         # --- Load & update overrides using shared helpers ---
         ov = _load_desc_overrides()
