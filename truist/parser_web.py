@@ -5,14 +5,19 @@ import csv
 from pathlib import Path
 from datetime import datetime, timedelta, date
 from collections import defaultdict
-import truist.filter_config as fc
+
+# SAFE import for filter_config
+try:
+    from truist import filter_config as fc  # preferred
+except Exception:
+    class _FC: pass
+    fc = _FC()
 
 # Expose the effective JSON path for visibility/imports elsewhere (e.g., app/admin UI)
 JSON_PATH = None  # set by _load_category_config()
 
 # Manual transactions file location (used by app.py)
 MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
-
 
 
 def _debug(msg: str):
@@ -27,7 +32,8 @@ import os, json
 from pathlib import Path
 
 def _load_desc_overrides_local():
-    path = Path(os.environ.get("DESC_OVERRIDES_FILE", "/var/data/desc_overrides.json"))
+    # ensure this matches where app.py writes by default
+    path = Path(os.environ.get("DESC_OVERRIDES_FILE", "/var/data/statements/desc_overrides.json"))
     try:
         data = json.loads(path.read_text())
     except Exception:
@@ -141,10 +147,11 @@ def _load_category_config():
     CONFIG_SOURCE,
 ) = _load_category_config()
 
-# Helpful trace in your Flask console
-print(f"[ClarityLedger] Category config source: {CONFIG_SOURCE}")
-if JSON_PATH:
-    print(f"[ClarityLedger] JSON_PATH = {JSON_PATH}")
+# Helpful trace in your Flask console (only when CL_DEBUG=1)
+if os.environ.get("CL_DEBUG"):
+    print(f"[ClarityLedger] Category config source: {CONFIG_SOURCE}")
+    if JSON_PATH:
+        print(f"[ClarityLedger] JSON_PATH = {JSON_PATH}")
 
 
 # === Date helpers ===
@@ -769,6 +776,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
         if tx:
             # ensure immutable original_description exists on every tx
             tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
+            tx.setdefault("immutable_orig", tx.get("original_description"))
             all_tx.append(tx)
 
     # Load manual entries (already normalized above)
@@ -777,6 +785,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     # Make sure manual entries also carry original_description
     for tx in all_tx:
         tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
+        tx.setdefault("immutable_orig", tx.get("original_description"))
 
     # ---- Apply description overrides BEFORE categorization -------------------
     if desc_overrides:
@@ -794,12 +803,10 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                     amt = 0.0
             return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
 
-
-
         for tx in all_tx:
             # 1) Prefer txid mapping
             txid = str(tx.get("transaction_id") or tx.get("id") or tx.get("tx_id") or "").strip()
-            if txid and txid in desc_overrides.get("by_txid", {}):
+            if txid and txid in (desc_overrides.get("by_txid", {}) or {}):
                 tx["description"] = desc_overrides["by_txid"][txid]
                 tx["_desc_overridden"] = True
                 continue
@@ -809,7 +816,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                         tx.get("description_raw") or
                         tx.get("description") or "").strip()
             key = _fp_str(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
-            newd = desc_overrides.get("by_fingerprint", {}).get(key)
+            newd = (desc_overrides.get("by_fingerprint", {}) or {}).get(key)
             if newd:
                 tx["description"] = newd
                 tx["_desc_overridden"] = True
@@ -1109,7 +1116,6 @@ def recent_activity_summary(
 
     ov = _load_desc_overrides_local()
     monthly = generate_summary(ck, sm, desc_overrides=ov)
-
 
 
     out = {
@@ -1441,7 +1447,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
         }
         for t in out
     ]
-
 
 
 if __name__ == "__main__":
