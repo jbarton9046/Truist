@@ -23,10 +23,18 @@ from truist.parser_web import (
     categorize_transaction,
 )
 
-# load_cfg to render category/subcategory maps on /cash
-from truist.admin_categories import load_cfg
-
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response, flash
+
+# ---- ONE canonical overrides file path (read + write use the same file) ----
+try:
+    _DESC_OVERRIDES_FILE = get_statements_base_dir() / "desc_overrides.json"
+except Exception:
+    _DESC_OVERRIDES_FILE = Path(".data/statements") / "desc_overrides.json"
+
+def _save_desc_overrides(d: dict) -> None:
+    _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_DESC_OVERRIDES_FILE, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=2, ensure_ascii=False)
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -172,10 +180,12 @@ cfg = {
 
 
 def _build_monthly_live() -> dict:
-    """Single source of truth: summary with desc overrides applied, recategorized."""
     ck, sm, *_ = _load_category_config()
     ov = _load_desc_overrides()
-    return generate_summary(ck, sm, desc_overrides=ov)
+    monthly = generate_summary(ck, sm, desc_overrides=ov)
+    _apply_hide_rules_to_summary(monthly)
+    _rebuild_categories_from_tree(monthly)
+    return monthly
 
 def _flatten_display_transactions(monthly: dict) -> list:
     """Only rows that passed omit rules and are not Transfers/hidden cats."""
@@ -190,21 +200,16 @@ def _flatten_display_transactions(monthly: dict) -> list:
 # --- helper: load description overrides (txid + fingerprint) ---
 def _load_desc_overrides():
     try:
-        base = get_statements_base_dir()
+        with open(_DESC_OVERRIDES_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f) or {}
+    except FileNotFoundError:
+        data = {}
     except Exception:
-        base = Path(".data/statements")
-    p = base / "desc_overrides.json"
-    try:
-        if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f) or {}
-                return {
-                    "by_txid": data.get("by_txid", {}) or {},
-                    "by_fingerprint": data.get("by_fingerprint", {}) or {},
-                }
-    except Exception:
-        pass
-    return {"by_txid": {}, "by_fingerprint": {}}
+        data = {}
+    return {
+        "by_txid": data.get("by_txid", {}) or {},
+        "by_fingerprint": data.get("by_fingerprint", {}) or {},
+    }
 
 def _norm_month(val) -> str:
     """
@@ -516,8 +521,10 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
 _CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
 
+_MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
+_CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
+
 def _cache_fingerprint() -> tuple:
-    """A tuple that changes when manual tx or config files change."""
     try:
         manual_m = MANUAL_FILE.stat().st_mtime if MANUAL_FILE.exists() else 0
     except Exception:
@@ -532,7 +539,14 @@ def _cache_fingerprint() -> tuple:
         json_m = JSON_PATH.stat().st_mtime if JSON_PATH else 0
     except Exception:
         json_m = 0
-    return (manual_m, ov_m, json_m)
+    # watch the canonical overrides file too
+    try:
+        ov2_m = _DESC_OVERRIDES_FILE.stat().st_mtime if _DESC_OVERRIDES_FILE.exists() else 0
+    except Exception:
+        ov2_m = 0
+
+    return (manual_m, ov_m, ov2_m, json_m)
+
 
 def build_monthly(force: bool = False):
     """
@@ -672,6 +686,8 @@ def index():
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         summary_data = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_hide_rules_to_summary(summary_data)
+        _rebuild_categories_from_tree(summary_data)
     except Exception as e:
         try:
             app.logger.exception("generate_summary() failed on /: %s", e)
@@ -720,8 +736,10 @@ def categories():
 @app.route("/cash", methods=["GET"])
 def cash_page():
     cfg_live = load_cfg()
-    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_hide_rules_to_summary(summary_data)
+
     return render_template(
         "cash.html",
         summary_data=summary_data,
@@ -759,8 +777,9 @@ def submit_income():
 
     # bust cached monthly summary so cash page reflects the new entry
     try:
-        _MONTHLY_CACHE["monthly"] = None
-        _MONTHLY_CACHE["ts"] = time()
+        _MONTHLY_CACHE["monthly"]  = None
+        _MONTHLY_CACHE["key"]      = None
+        _MONTHLY_CACHE["built_at"] = 0.0
     except Exception:
         pass
 
@@ -778,8 +797,9 @@ def submit_expense():
 
     # bust cache
     try:
-        _MONTHLY_CACHE["monthly"] = None
-        _MONTHLY_CACHE["ts"] = time()
+        _MONTHLY_CACHE["monthly"]  = None
+        _MONTHLY_CACHE["key"]      = None
+        _MONTHLY_CACHE["built_at"] = 0.0
     except Exception:
         pass
 
@@ -895,7 +915,9 @@ def api_categories_monthly():
     """
     deep = str(request.args.get("deep", "0")).lower() in ("1", "true", "yes")
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
 
     # If we have raw txs (first-run / cache-miss path), fall back to a simple top-only rollup.
     txs = _extract_transactions(summary)
@@ -970,7 +992,9 @@ def api_categories_monthly():
 @app.route("/charts")
 def charts_page():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
     since_date = cfg_live.get("SUMMARY_SINCE_DATE")
@@ -982,7 +1006,9 @@ def charts_page():
 @app.get("/api/cat_monthly")
 def api_cat_monthly():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
 
@@ -997,10 +1023,11 @@ def api_cat_monthly():
 def api_cat_monthly_debug():
     ym = (request.args.get("ym") or "").strip()
     if not ym:
-        return jsonify({"error": "pass ?ym=YYYY-MM"}), 400
-
+        return jsonify({"error": "pass ?ym=YYYY-MM"}), 400    
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
 
@@ -1030,8 +1057,10 @@ def api_cat_monthly_debug():
 @app.route("/goals")
 def goals_page():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_hide_rules_to_summary(summary)
+    _rebuild_categories_from_tree(summary)
     cat_monthly = build_top_level_monthly_from_summary(
         summary, months_back=12, since_date="2025-04-21"
     )
@@ -1050,7 +1079,9 @@ def api_goals_set():
 
 def build_cat_monthly_somehow():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
 
     def norm_month(k: str) -> str:
@@ -1359,17 +1390,6 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
-# ================== TRANSACTIONS PAGE + DESCRIPTION EDIT API ==================
-try:
-    _DESC_OVERRIDES_FILE = get_statements_base_dir() / "desc_overrides.json"
-except Exception:
-    _DESC_OVERRIDES_FILE = Path(".data/statements") / "desc_overrides.json"
-
-def _save_desc_overrides(d: dict) -> None:
-    _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(_DESC_OVERRIDES_FILE, "w", encoding="utf-8") as f:
-        json.dump(d, f, indent=2)
-
 def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
     """
     A stable fingerprint for a transaction when no transaction_id exists.
@@ -1391,67 +1411,6 @@ def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
             amt = 0.0
     return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
 
-def _apply_desc_override_to_tx(t: dict, ov: dict) -> dict:
-    """
-    Return a shallow-copied tx with description overridden if a match exists.
-    Priority: transaction_id -> fingerprint(date, amount, original desc)
-    """
-    if not isinstance(t, dict):
-        return t
-    out = dict(t)
-    by_id = ov.get("by_txid", {})
-    by_fp = ov.get("by_fingerprint", {})
-
-    txid = (t.get("transaction_id") or t.get("id") or "").strip()
-    if txid and txid in by_id:
-        out["description"] = by_id[txid]
-        out["name"] = by_id[txid]
-        return out
-
-    orig = (t.get("original_description") or
-            t.get("description_raw") or
-            t.get("name") or
-            t.get("description") or "")
-    fp = _fingerprint_tx(t.get("date", ""), t.get("amount", 0.0), orig)
-    if fp in by_fp:
-        out["description"] = by_fp[fp]
-        out["name"] = by_fp[fp]
-    return out
-
-def _flatten_all_transactions(monthly: dict) -> list[dict]:
-    """
-    Flatten the rebuilt monthly summary into one list of tx dicts
-    (with top-level category/subcategory included when available).
-    """
-    months_sorted = sorted(monthly.keys(), key=_norm_month)
-    rows: list[dict] = []
-    for mk in months_sorted:
-        cats = (monthly.get(mk, {}) or {}).get("categories", {}) or {}
-        for cname, cdata in cats.items():
-            for t in (cdata.get("transactions") or []):
-                row = {
-                    "date": t.get("date", ""),
-                    "description": t.get("description") or t.get("desc") or "",
-                    "amount": float(t.get("amount", t.get("amt", 0.0)) or 0.0),
-                    "category": t.get("category", "") or cname or "",
-                    "subcategory": t.get("subcategory", "") or "",
-                    # NEW: carry immutable original bank description so the editor
-                    # can reliably fingerprint on subsequent edits.
-                    "original_description": t.get("original_description")
-                        or t.get("description_raw")
-                        or (t.get("description") or t.get("desc") or ""),
-                }
-                # Keep the raw id if present so edits can target exact tx
-                if "transaction_id" in t and t["transaction_id"]:
-                    row["transaction_id"] = t["transaction_id"]
-                rows.append(row)
-    # newest first by date, then by abs(amount)
-    def _date_key(s):
-        dt = _parse_any_date(s or "")
-        return (dt or datetime.fromtimestamp(0)).timestamp()
-    rows.sort(key=lambda r: (_date_key(r["date"]), abs(r["amount"])), reverse=True)
-    return rows
-
 @app.get("/transactions")
 def transactions_page():
     """
@@ -1464,6 +1423,11 @@ def transactions_page():
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         monthly = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_hide_rules_to_summary(monthly)
+        _rebuild_categories_from_tree(monthly)
+
+        rows = _flatten_display_transactions(monthly)
+
     except Exception as e:
         try:
             app.logger.exception("generate_summary() failed on /transactions: %s", e)
@@ -1540,12 +1504,9 @@ def edit_description():
         # --- Bust caches (safe if absent) ---
         mc = globals().get("_MONTHLY_CACHE")
         if isinstance(mc, dict):
-            mc["monthly"] = None
-            mc["ts"] = 0
-        rc = globals().get("_RECENT_CACHE")
-        if isinstance(rc, dict):
-            rc["data"] = None
-            rc["ts"] = 0
+            mc["monthly"]  = None
+            mc["key"]      = None
+            mc["built_at"] = 0.0
 
         # --- Compute new category from edited description for immediate UI feedback ---
         ck, sm, *_ = _load_category_config()
@@ -1569,7 +1530,9 @@ def edit_description():
 @app.route("/explorer")
 def all_items_explorer():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
     cat_monthly = build_cat_monthly_from_summary(
         summary,
@@ -1585,7 +1548,9 @@ def all_items_explorer():
 @app.route("/all-categories", endpoint="all_categories_page")
 def all_categories_page():
     cfg_live = load_cfg()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"])
+    ov = _load_desc_overrides()
+    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+
     _apply_hide_rules_to_summary(summary)
     cat_monthly = build_cat_monthly_from_summary(
         summary,
@@ -1656,7 +1621,9 @@ def api_txns_for_path():
 
     # Fresh config + month list for selector
     cfg_live = load_cfg()
-    monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"]) or {}
+    ov = _load_desc_overrides()
+    monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov) or {}
+
     months_sorted = sorted(monthly.keys())
     if len(months_sorted) > want_months:
         months_sorted = months_sorted[-want_months:]
@@ -2719,8 +2686,9 @@ def api_manual_add():
 
         # 🔧 bust cached monthly summary so drawer/overview pick up the new entry
         try:
-            _MONTHLY_CACHE["monthly"] = None
-            _MONTHLY_CACHE["ts"] = time()
+            _MONTHLY_CACHE["monthly"]  = None
+            _MONTHLY_CACHE["key"]      = None
+            _MONTHLY_CACHE["built_at"] = 0.0
         except Exception:
             pass
 
@@ -2797,11 +2765,17 @@ def api_tx_all():
       months=all|12|24 (default 24)
       limit=int (default 4000)
     """
+    
     # Build monthly via same pipeline (overrides applied, then categorized)
     try:
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         monthly = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_hide_rules_to_summary(monthly)
+        _rebuild_categories_from_tree(monthly)
+
+        rows = _flatten_display_transactions(monthly)
+
     except Exception as e:
         try:
             app.logger.exception("generate_summary() failed on /api/tx/all: %s", e)
