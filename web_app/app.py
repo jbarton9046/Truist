@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 import json
 import sqlite3  # reserved for future use
 import subprocess, sys, os
-
+from truist import filter_config as fc
 from truist.parser_web import (
     MANUAL_FILE,
     load_manual_transactions,
@@ -160,15 +160,6 @@ app.logger.info("[Config] Using CONFIG_DIR=%s", os.environ.get("CONFIG_DIR"))
 from truist.admin_categories import admin_categories_bp, load_cfg
 app.register_blueprint(admin_categories_bp)
 
-# ---- Live parser/config imports ----
-from truist.parser_web import (
-    generate_summary,
-    category_keywords,
-    subcategory_maps,
-    _parse_any_date,
-)
-from truist import filter_config as fc
-
 # ------------------ CATEGORY TREE + CFG ------------------
 cfg = {
     "CATEGORY_KEYWORDS": getattr(fc, "CATEGORY_KEYWORDS", {}),
@@ -178,12 +169,22 @@ cfg = {
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
 
-def _flatten_display_transactions(monthly):
+
+
+def _build_monthly_live() -> dict:
+    """Single source of truth: summary with desc overrides applied, recategorized."""
+    ck, sm, *_ = _load_category_config()
+    ov = _load_desc_overrides()
+    return generate_summary(ck, sm, desc_overrides=ov)
+
+def _flatten_display_transactions(monthly: dict) -> list:
+    """Only rows that passed omit rules and are not Transfers/hidden cats."""
     rows = []
     for m in monthly.values():
         for _, data in (m.get("categories") or {}).items():
             rows.extend(data.get("transactions", []) or [])
     return rows
+
 
 
 # --- helper: load description overrides (txid + fingerprint) ---
@@ -824,13 +825,10 @@ def debug_keywords():
     })
 
 
-# --- API: Category Movers (REPLACE your existing wrapper) ---
 @app.route("/api/category_movers", methods=["GET"])
 def api_category_movers():
     try:
-        ck, sm, *_ = _load_category_config()
-        ov = _load_desc_overrides()
-        monthly = generate_summary(ck, sm, desc_overrides=ov)
+        monthly = _build_monthly_live()          # <- optional helper
         mov = _compute_category_movers(monthly)
         return jsonify(
             ok=True,
@@ -839,11 +837,10 @@ def api_category_movers():
             rows=mov["rows"],
         )
     except Exception as e:
-        try:
-            app.logger.exception("category_movers failed: %s", e)
-        except Exception:
-            pass
+        try: app.logger.exception("category_movers failed: %s", e)
+        except Exception: pass
         return jsonify(ok=True, latest_month=None, prev_month=None, rows=[])
+
 
 
 # ---------- helpers for API ----------
@@ -1363,9 +1360,10 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
     return {"months": month_keys, "categories": categories}
 
 # ================== TRANSACTIONS PAGE + DESCRIPTION EDIT API ==================
-_DESC_OVERRIDES_FILE = _statements_dir() / "desc_overrides.json"
-
-
+try:
+    _DESC_OVERRIDES_FILE = get_statements_base_dir() / "desc_overrides.json"
+except Exception:
+    _DESC_OVERRIDES_FILE = Path(".data/statements") / "desc_overrides.json"
 
 def _save_desc_overrides(d: dict) -> None:
     _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1505,70 +1503,51 @@ def edit_description():
     """
     try:
         payload = request.get_json(force=True) or {}
-        txid = (payload.get("transaction_id") or "").strip()
+        txid  = (payload.get("transaction_id") or "").strip()
         date_s = (payload.get("date") or "")[:10]
-        amt = float(payload.get("amount") or 0.0)
+        try:
+            amt = float(payload.get("amount") or 0.0)
+        except Exception:
+            amt = 0.0
         orig = (payload.get("original_description") or "").strip()
         newd = (payload.get("new_description") or "").strip()
+
         if not (date_s and newd):
             return jsonify({"ok": False, "error": "date and new_description required"}), 400
 
-        # --- load existing overrides from the SAME place generate_summary() reads ---
-        try:
-            base = get_statements_base_dir()
-        except Exception:
-            base = Path(".data/statements")
-        p = base / "desc_overrides.json"
-        if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
-                ov = json.load(f) or {}
-        else:
-            ov = {}
+        # --- Load & update overrides using shared helpers ---
+        ov = _load_desc_overrides()
         by_id = ov.get("by_txid", {}) or {}
         by_fp = ov.get("by_fingerprint", {}) or {}
 
-        # --- helper: string fingerprint (match generate_summary) ---
-        def _fp_str(ds, amount, original_desc):
-            try:
-                famt = float(amount or 0.0)
-            except Exception:
-                try:
-                    famt = float(str(amount).replace(",", ""))
-                except Exception:
-                    famt = 0.0
-            return f"{(ds or '')[:10]}|{famt:.2f}|{(original_desc or '').strip().upper()}"
-
-        # --- write override by txid (best) ---
+        # Prefer txid mapping when available
         if txid:
             by_id[txid] = newd
 
-        # --- and by fingerprint (robust): save both +amount and -amount keys ---
+        # Also store robust fingerprint (both signs to be safe)
         if date_s and orig:
-            k1 = _fp_str(date_s, amt, orig)
-            k2 = _fp_str(date_s, -amt, orig)
+            k1 = _fingerprint_tx(date_s, amt, orig)
+            k2 = _fingerprint_tx(date_s, -amt, orig)
             by_fp[k1] = newd
             by_fp[k2] = newd
 
         ov["by_txid"] = by_id
         ov["by_fingerprint"] = by_fp
 
-        # persist
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(ov, f, indent=2, ensure_ascii=False)
+        # Persist via helper (writes to get_statements_base_dir()/desc_overrides.json)
+        _save_desc_overrides(ov)
 
-        # --- bust caches (safe even if they don't exist) ---
+        # --- Bust caches (safe if absent) ---
         mc = globals().get("_MONTHLY_CACHE")
         if isinstance(mc, dict):
             mc["monthly"] = None
             mc["ts"] = 0
-
         rc = globals().get("_RECENT_CACHE")
         if isinstance(rc, dict):
             rc["data"] = None
             rc["ts"] = 0
 
-        # --- compute the new category from the edited description (immediate feedback) ---
+        # --- Compute new category from edited description for immediate UI feedback ---
         ck, sm, *_ = _load_category_config()
         new_cat = categorize_transaction(newd, abs(amt), ck) or ""
 
@@ -1579,6 +1558,7 @@ def edit_description():
         except Exception:
             pass
         return jsonify({"ok": False, "error": "internal error"}), 500
+
 
 
 
@@ -1936,17 +1916,18 @@ def api_path_transactions():
     })
 
 
+# Serve BOTH spellings so old/new JS keep working
 @app.get("/api/recent-activity")
+@app.get("/api/recent_activity")
 def api_recent_activity():
     """
     Dashboard snapshot used by index.html.
     Rebuilds with the latest description overrides so edits show up immediately.
     """
     try:
-        # recent_activity_summary builds using generate_summary(..., desc_overrides=...)
+        # recent_activity_summary already uses generate_summary(..., desc_overrides=ov)
         data = recent_activity_summary()
     except Exception as e:
-        # stay resilient if anything spikes
         data = {
             "as_of": None,
             "latest_month": None,
@@ -1968,6 +1949,7 @@ def api_recent_activity():
             "error": str(e),
         }
     return jsonify({"data": data})
+
 
 # ------------------ SUBSCRIPTIONS API ------------------
 @app.get("/api/subscriptions")
@@ -2713,6 +2695,11 @@ def api_recurrents():
         "projected_month": projected_month,
         "changes": {"month": None, "new": [], "stopped": [], "price_changes": []},
     })
+
+@app.get("/api/summary")
+def api_summary():
+    monthly = _build_monthly_live()
+    return jsonify(ok=True, summary=monthly)
 
 @app.post("/api/manual")
 def api_manual_add():
