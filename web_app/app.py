@@ -70,6 +70,56 @@ EXEMPT_PATHS = {
 }
 EXEMPT_PREFIXES = ("/static/",)
 
+# --- helper: compute movers from summary (PLACE ABOVE ROUTES) ---
+def _compute_category_movers(monthly: dict) -> dict:
+    """Return {rows:[{category,prev,latest,delta,pct}], prev_month, latest_month} for the 2 most recent months."""
+    if not monthly:
+        return {"rows": [], "prev_month": None, "latest_month": None}
+
+    keys = sorted(monthly.keys())
+    if len(keys) == 1:
+        latest_key = keys[-1]
+        latest_cats = (monthly.get(latest_key, {}) or {}).get("categories", {}) or {}
+        rows = []
+        for name, data in latest_cats.items():
+            latest = float((data or {}).get("total", 0.0) or 0.0)
+            if abs(latest) < 1e-9:
+                continue
+            rows.append({
+                "category": name,
+                "prev": 0.0,
+                "latest": round(latest, 2),
+                "delta": round(latest, 2),
+                "pct": None,
+            })
+        rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
+        return {"rows": rows, "prev_month": None, "latest_month": latest_key}
+
+    prev_key, latest_key = keys[-2], keys[-1]
+    prev_cats = (monthly.get(prev_key, {}) or {}).get("categories", {}) or {}
+    latest_cats = (monthly.get(latest_key, {}) or {}).get("categories", {}) or {}
+
+    names = set(prev_cats.keys()) | set(latest_cats.keys())
+    rows = []
+    for name in names:
+        prev = float((prev_cats.get(name, {}) or {}).get("total", 0.0) or 0.0)
+        latest = float((latest_cats.get(name, {}) or {}).get("total", 0.0) or 0.0)
+        if abs(prev) < 1e-9 and abs(latest) < 1e-9:
+            continue
+        delta = round(latest - prev, 2)
+        pct = None if abs(prev) < 1e-9 else round((delta / prev) * 100.0, 2)
+        rows.append({
+            "category": name,
+            "prev": round(prev, 2),
+            "latest": round(latest, 2),
+            "delta": delta,
+            "pct": pct,
+        })
+
+    rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
+    return {"rows": rows, "prev_month": prev_key, "latest_month": latest_key}
+
+
 # ---- Safe URL helper to avoid BuildError in templates ----
 def safe_url(endpoint: str, **values) -> str:
     try:
@@ -774,23 +824,27 @@ def debug_keywords():
     })
 
 
-# ------------------ CATEGORY MOVERS (wrapper to recent-activity) ------------------
+# --- API: Category Movers (REPLACE your existing wrapper) ---
 @app.route("/api/category_movers", methods=["GET"])
 def api_category_movers():
-    """Thin wrapper so the dashboard card can call /api/category_movers."""
-    ra_resp = api_recent_activity()  # reuse the existing function (returns a Flask Response)
     try:
-        data = ra_resp.get_json() or {}
-    except Exception:
+        ck, sm, *_ = _load_category_config()
+        ov = _load_desc_overrides()
+        monthly = generate_summary(ck, sm, desc_overrides=ov)
+        mov = _compute_category_movers(monthly)
+        return jsonify(
+            ok=True,
+            latest_month=mov["latest_month"],
+            prev_month=mov["prev_month"],
+            rows=mov["rows"],
+        )
+    except Exception as e:
+        try:
+            app.logger.exception("category_movers failed: %s", e)
+        except Exception:
+            pass
         return jsonify(ok=True, latest_month=None, prev_month=None, rows=[])
-    payload = data.get("data") or data
-    rows = payload.get("movers_abs") or []
-    return jsonify(
-        ok=True,
-        latest_month=payload.get("latest_month"),
-        prev_month=payload.get("prev_month"),
-        rows=rows
-    )
+
 
 # ---------- helpers for API ----------
 def _extract_transactions(summary):
