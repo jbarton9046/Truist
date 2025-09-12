@@ -14,7 +14,6 @@ JSON_PATH = None  # set by _load_category_config()
 MANUAL_FILE = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements" / "manual_transactions.json"
 
 
-
 def _debug(msg: str):
     if os.environ.get("CL_DEBUG"):
         try:
@@ -22,12 +21,16 @@ def _debug(msg: str):
         except Exception:
             pass
 
-# --- Local desc override loader (no app.py dependency) ----------------------
-import os, json
-from pathlib import Path
 
+# --- Local desc override loader (no app.py dependency) ----------------------
 def _load_desc_overrides_local():
-    path = Path(os.environ.get("DESC_OVERRIDES_FILE", "/var/data/desc_overrides.json"))
+    """
+    Read the same file app.py writes:
+      /var/data/statements/desc_overrides.json
+    (overridable via DESC_OVERRIDES_FILE or DATA_DIR)
+    """
+    base = Path(os.environ.get("DATA_DIR", "/var/data")) / "statements"
+    path = Path(os.environ.get("DESC_OVERRIDES_FILE", str(base / "desc_overrides.json")))
     try:
         data = json.loads(path.read_text())
     except Exception:
@@ -513,8 +516,6 @@ def load_manual_transactions(file_path: Path):
     return transactions
 
 
-
-
 def categorize_transaction(desc, amount, category_keywords):
     amt_rounded = round(amount, 2)
     desc = (desc or "").upper()
@@ -621,15 +622,19 @@ def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
     if raw_amt is None:
         raw_amt = 0.0
 
-    # Description
-    desc = clean_description(
-        raw.get("description")
+    # Pull the true bank/original string once (before any overrides)
+    orig_raw = (
+        raw.get("original_description")
+        or raw.get("description")
         or raw.get("name", "")
         or raw.get("merchant_name", "")
         or raw.get("desc", "")
-        or raw.get("original_description", "")
         or ""
     )
+    orig_clean = clean_description(orig_raw)
+
+    # Description used for display/categorization (cleaned)
+    desc = orig_clean
 
     # Custom exact-key override
     custom_key = f"{desc} - ${round(raw_amt, 2)}"
@@ -656,7 +661,10 @@ def _tx_from_raw(raw, category_keywords, custom_tx_keywords_live):
         "category": category,
         "description": desc,
         "is_return": is_return,
-        "expense_amount": expense_amount  # category math
+        "expense_amount": expense_amount,  # category math
+        # Preserve immutable bank/original for fingerprints + UI data attributes
+        "original_description": orig_clean,
+        "immutable_orig":        orig_clean,
     }
     if subcategory:
         tx["subcategory"] = subcategory
@@ -767,20 +775,22 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     for raw in _iter_all_raw_transactions():
         tx = _tx_from_raw(raw, category_keywords, custom_tx_keywords_live)
         if tx:
-            # ensure immutable original_description exists on every tx
+            # ensure original_description exists on every tx (kept)
             tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
+            # ensure immutable_orig never drifts
+            tx.setdefault("immutable_orig", tx.get("original_description") or tx.get("description_raw") or tx.get("description") or "")
             all_tx.append(tx)
 
     # Load manual entries (already normalized above)
     all_tx.extend(load_manual_transactions(manual_file))
 
-    # Make sure manual entries also carry original_description
+    # Make sure manual entries also carry original_description AND immutable_orig
     for tx in all_tx:
         tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
+        tx.setdefault("immutable_orig",        tx.get("original_description") or tx.get("description_raw") or tx.get("description") or "")
 
     # ---- Apply description overrides BEFORE categorization -------------------
     if desc_overrides:
-        # inside generate_summary(...) in parser_web.py
         def _fp_str(date_s, amount, original_desc):
             # Normalize date to match app.py/_fingerprint_tx: YYYY-MM-DD
             d = _parse_any_date(date_s)
@@ -794,22 +804,26 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                     amt = 0.0
             return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
 
-
+        by_id = desc_overrides.get("by_txid", {}) or {}
+        by_fp = desc_overrides.get("by_fingerprint", {}) or {}
 
         for tx in all_tx:
             # 1) Prefer txid mapping
             txid = str(tx.get("transaction_id") or tx.get("id") or tx.get("tx_id") or "").strip()
-            if txid and txid in desc_overrides.get("by_txid", {}):
-                tx["description"] = desc_overrides["by_txid"][txid]
+            if txid and txid in by_id:
+                tx["description"] = by_id[txid]
                 tx["_desc_overridden"] = True
                 continue
 
             # 2) Fallback: (date, amount, ORIGINAL bank description) string fingerprint
-            raw_orig = (tx.get("original_description") or
-                        tx.get("description_raw") or
-                        tx.get("description") or "").strip()
+            raw_orig = (
+                tx.get("immutable_orig") or
+                tx.get("original_description") or
+                tx.get("description_raw") or
+                tx.get("description") or ""
+            ).strip()
             key = _fp_str(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
-            newd = desc_overrides.get("by_fingerprint", {}).get(key)
+            newd = by_fp.get(key)
             if newd:
                 tx["description"] = newd
                 tx["_desc_overridden"] = True
@@ -862,12 +876,12 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
         # Income => +; Expense purchase => -; Expense return => +
         cat = tx.get("category", "")
         if cat == "Income":
-            tx["amount"] = abs(float(tx.get("amount", 0.0)))
+            tx["amount"] = abs(float(tx["amount"]))
         else:
             if tx.get("is_return"):
-                tx["amount"] = abs(float(tx.get("amount", 0.0)))
+                tx["amount"] = abs(float(tx["amount"]))
             else:
-                tx["amount"] = -abs(float(tx.get("amount", 0.0)))
+                tx["amount"] = -abs(float(tx["amount"]))
 
     # Deduplicate (keeps one per (date, signed_amount, category))
     all_tx = deduplicate(all_tx)
@@ -955,6 +969,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                     if cat == "Income":
                         cd["subsubcategories"][forced_subcat][forced_subsub] += abs(amt_signed)
                     else:
+                        cd["subcategories"][forced_subcat] += exp_amt
                         cd["subsubcategories"][forced_subcat][forced_subsub] += exp_amt
                     tx["subsubcategory"] = forced_subsub
 
@@ -1067,7 +1082,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                         }
                         for subsub, subsubsubs in subsubs.items()
                     }
-                    for subcat, subsubs in data["subsubsubcategories"].items()
+                    for subcat, subsubs in data["subsubcategories"].items()
                 }
 
         # Build tree for recursive UI (supports 4 levels)
@@ -1086,6 +1101,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 inc["total"] = abs(t)
 
     return monthly_summaries
+
 
 def recent_activity_summary(
     days=30,
@@ -1109,8 +1125,6 @@ def recent_activity_summary(
 
     ov = _load_desc_overrides_local()
     monthly = generate_summary(ck, sm, desc_overrides=ov)
-
-
 
     out = {
         "as_of": datetime.now().strftime("%Y-%m-%d"),
@@ -1441,7 +1455,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
         }
         for t in out
     ]
-
 
 
 if __name__ == "__main__":
