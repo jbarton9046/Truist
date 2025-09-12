@@ -40,6 +40,18 @@ def _save_desc_overrides(d: dict) -> None:
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")  # enables flash()
 
+@app.get("/__debug/fp")
+def _debug_fp():
+    date_s = (request.args.get("date") or "")[:10]
+    try:
+        amt = float(request.args.get("amt") or request.args.get("amount") or 0.0)
+    except Exception:
+        amt = 0.0
+    orig = (request.args.get("orig") or "").strip()
+    k1 = _fingerprint_tx(date_s, amt, orig)
+    k2 = _fingerprint_tx(date_s, -amt, orig)
+    by_fp = (_load_desc_overrides() or {}).get("by_fingerprint", {}) or {}
+    return jsonify({"key_pos": k1, "key_neg": k2, "present": (k1 in by_fp) or (k2 in by_fp)})
 
 @app.get("/__debug/desc_overrides")
 def debug_desc_overrides():
