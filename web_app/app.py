@@ -41,6 +41,23 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")  # enables flash()
 
 
+@app.get("/__debug/desc_overrides")
+def debug_desc_overrides():
+    try:
+        p = _DESC_OVERRIDES_FILE
+        exists = p.exists()
+        info = {
+            "path": str(p),
+            "exists": exists,
+            "size": (p.stat().st_size if exists else 0),
+            "mtime": (datetime.fromtimestamp(p.stat().st_mtime).isoformat() if exists else None),
+        }
+        data = _load_desc_overrides()
+        info["counts"] = {k: len(v or {}) for k, v in (data or {}).items()}
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # ==============================================================================
 # === CLARITYLEDGER :: APP ANCHOR ==============================================
 # === ID: APP-ANCHOR-7C1F3D2 ===================================================
@@ -539,13 +556,14 @@ def _cache_fingerprint() -> tuple:
         json_m = JSON_PATH.stat().st_mtime if JSON_PATH else 0
     except Exception:
         json_m = 0
-    # watch the canonical overrides file too
+    # NEW: also watch desc_overrides.json
     try:
         ov2_m = _DESC_OVERRIDES_FILE.stat().st_mtime if _DESC_OVERRIDES_FILE.exists() else 0
     except Exception:
         ov2_m = 0
 
     return (manual_m, ov_m, ov2_m, json_m)
+
 
 
 def build_monthly(force: bool = False):
