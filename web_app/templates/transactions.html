@@ -225,8 +225,8 @@
       for (const t of g.items){
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
-        const rawDesc  = String(t.description || '');
-        const origDesc = String(t.immutable_orig || t.original_description || t.description || ''); /* <-- immutable */
+        const rawDesc = String(t.description || '');
+        const origDesc = String(t.original_description || t.description || '');
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
@@ -293,7 +293,7 @@
       td.dataset.editing = '0';
       td.style.padding = '';
       const val = (newText ?? original);
-      td.setAttribute('data-desc', val); // keep immutable original bank text in data-orig-desc (unchanged)
+      td.setAttribute('data-desc', val); // keep immutable original bank text in data-orig-desc
       td.innerHTML = escHtml(val);
       if (saved){
         const ok = document.createElement('span');
@@ -330,11 +330,12 @@
       try{
         const body = {
           transaction_id: txId || undefined,          // include if present
-          date: dateStr,                               // server accepts MM/DD/YYYY or YYYY-MM-DD
+          date: dateStr,                               // YYYY-MM-DD preferred (first 10 chars ok)
           amount: Number(amtStr),                      // signed
           original_description: td.getAttribute('data-orig-desc') || original, // immutable bank text
           new_description: value
         };
+
 
         const res = await fetch(UPDATE_API, {
           method: 'POST',
@@ -356,7 +357,7 @@
           catCell.textContent = res.new_category;
         }
 
-        // Optional: refresh full table if you want subcats to update
+        // Optional: to refresh subcategory or any computed tags, uncomment:
         // setTimeout(load, 150);
 
       }catch(err){
