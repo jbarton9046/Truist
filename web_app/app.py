@@ -18,7 +18,7 @@ from truist.parser_web import (
     get_statements_base_dir,
     get_transactions_for_path,
     generate_summary,
-    _load_category_config,   # <-- ADD THIS
+    _load_category_config,
     recent_activity_summary,
     categorize_transaction,
 )
@@ -30,6 +30,8 @@ try:
     _DESC_OVERRIDES_FILE = get_statements_base_dir() / "desc_overrides.json"
 except Exception:
     _DESC_OVERRIDES_FILE = Path(".data/statements") / "desc_overrides.json"
+
+os.environ.setdefault("DESC_OVERRIDES_FILE", str(_DESC_OVERRIDES_FILE))
 
 def _save_desc_overrides(d: dict) -> None:
     _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1461,8 +1463,7 @@ def transactions_page():
     except Exception as e:
         try:
             app.logger.exception("generate_summary() failed on /transactions: %s", e)
-        except Exception:
-            pass
+        except Exception: pass
         monthly = {}
 
     rows = _flatten_display_transactions(monthly)
