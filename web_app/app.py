@@ -34,9 +34,12 @@ except Exception:
 os.environ.setdefault("DESC_OVERRIDES_FILE", str(_DESC_OVERRIDES_FILE))
 
 def _save_desc_overrides(d: dict) -> None:
-    _DESC_OVERRIDES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(_DESC_OVERRIDES_FILE, "w", encoding="utf-8") as f:
-        json.dump(d, f, indent=2, ensure_ascii=False)
+    p = _desc_overrides_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(p)
+
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -58,7 +61,7 @@ def _debug_fp():
 @app.get("/__debug/desc_overrides")
 def debug_desc_overrides():
     try:
-        p = _DESC_OVERRIDES_FILE
+        p = _desc_overrides_path()
         exists = p.exists()
         info = {
             "path": str(p),
@@ -108,6 +111,41 @@ EXEMPT_PATHS = {
     "/service-worker.js",
 }
 EXEMPT_PREFIXES = ("/static/",)
+
+from pathlib import Path
+import json, os, time
+from flask import jsonify, request
+
+def _desc_overrides_path():
+    p = os.environ.get("DESC_OVERRIDES_FILE")
+    if p:
+        return Path(p)
+    base = os.environ.get("STATEMENTS_DIR") or "/var/data/statements"
+    return Path(base) / "desc_overrides.json"
+
+def _fingerprint_for_save(date_str, amount, original_desc):
+    # must match parser_web._fp_str
+    try:
+        from truist import parser_web as pw
+        d = pw._parse_any_date(date_str)
+    except Exception:
+        from datetime import datetime
+        d = None
+        try:
+            d = datetime.fromisoformat(date_str)
+        except Exception:
+            pass
+    ds = d.strftime("%Y-%m-%d") if d else (str(date_str) or "")[:10]
+    try:
+        amt = float(amount or 0.0)
+    except Exception:
+        try:
+            amt = float(str(amount).replace(",", ""))
+        except Exception:
+            amt = 0.0
+    od = (original_desc or "").strip().upper()
+    return f"{ds}|{amt:.2f}|{od}"
+
 
 # --- helper: compute movers from summary (PLACE ABOVE ROUTES) ---
 def _compute_category_movers(monthly: dict) -> dict:
@@ -230,17 +268,16 @@ def _flatten_display_transactions(monthly: dict) -> list:
 
 # --- helper: load description overrides (txid + fingerprint) ---
 def _load_desc_overrides():
+    p = _desc_overrides_path()
     try:
-        with open(_DESC_OVERRIDES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-    except FileNotFoundError:
-        data = {}
+        data = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
     except Exception:
         data = {}
     return {
         "by_txid": data.get("by_txid", {}) or {},
         "by_fingerprint": data.get("by_fingerprint", {}) or {},
     }
+
 
 def _norm_month(val) -> str:
     """
@@ -548,9 +585,6 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
 
         month["categories"] = cats
 
-
-_MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
-_CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
 
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
 _CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
@@ -1639,76 +1673,12 @@ def _find_node_by_path(tree: List[Dict[str, Any]], path: List[str]) -> Optional[
 # from truist.admin_categories import load_cfg
 # from truist.parser_web import generate_summary, get_transactions_for_path, _parse_any_date
 
+# DEPRECATED: legacy alias — forwards to the override-aware handler
 @app.get("/api/txns_for_path")
-def api_txns_for_path():
-    q = request.args
-    level = (q.get("level") or "category").strip()
-    cat   = (q.get("cat")   or "").strip()
-    sub   = (q.get("sub")   or "").strip()
-    ssub  = (q.get("ssub")  or "").strip()
-    sss   = (q.get("sss")   or "").strip()
-    want_months = max(1, int(q.get("months") or 12))
-    req_month   = (q.get("month") or "").strip()   # "YYYY-MM" or ""
+def api_txns_for_path_compat():
+    app.logger.warning("DEPRECATED /api/txns_for_path called; using /api/path/transactions")
+    return api_path_transactions()
 
-    # Fresh config + month list for selector
-    cfg_live = load_cfg()
-    ov = _load_desc_overrides()
-    monthly = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov) or {}
-
-    months_sorted = sorted(monthly.keys())
-    if len(months_sorted) > want_months:
-        months_sorted = months_sorted[-want_months:]
-
-    cur_month = req_month if req_month in months_sorted else (months_sorted[-1] if months_sorted else "")
-
-    # Pull rows for the requested path (server-side filtered already)
-    rows = get_transactions_for_path(level, cat, sub, ssub, sss, limit=5000, allow_hidden=False)
-
-    def month_key(datestr: str) -> str:
-        dt = _parse_any_date(datestr or "")
-        return dt.strftime("%Y-%m") if dt else ""
-
-    # Filter to the selected month
-    if cur_month:
-        rows = [r for r in rows if month_key(r.get("date")) == cur_month]
-
-    # Normalize rows to what drawer.js expects
-    norm_rows = []
-    for r in rows:
-        norm_rows.append({
-            "date": r.get("date", ""),
-            "description": r.get("description") or r.get("desc", ""),
-            "amount": float(r.get("amount") or 0.0),
-            "category": r.get("category", ""),
-            "subcategory": r.get("subcategory", ""),
-        })
-
-    # Totals
-    total = round(sum(x["amount"] for x in norm_rows), 2)
-    magnitude_total = round(sum(abs(x["amount"]) for x in norm_rows), 2)
-
-    # Children (next-level names) from config maps
-    sm   = cfg_live["SUBCATEGORY_MAPS"]
-    ssm  = cfg_live.get("SUBSUBCATEGORY_MAPS", {})
-    sssm = cfg_live.get("SUBSUBSUBCATEGORY_MAPS", {})
-
-    children = []
-    if level == "category" and cat:
-        children = sorted((sm.get(cat) or {}).keys())
-    elif level == "subcategory" and cat and sub:
-        children = sorted(((ssm.get(cat) or {}).get(sub) or {}).keys())
-    elif level == "subsubcategory" and cat and sub and ssub:
-        children = sorted((((sssm.get(cat) or {}).get(sub) or {}).get(ssub) or {}).keys())
-
-    return jsonify({
-        "ok": True,
-        "month": cur_month,
-        "months": months_sorted,
-        "transactions": norm_rows,
-        "children": children,
-        "total": total,
-        "magnitude_total": magnitude_total
-    })
 
 @app.get("/api/path/transactions")
 def api_path_transactions():
@@ -2564,7 +2534,7 @@ def api_recurrents():
                 _gather_var(top, (top.get("name") or "").strip())
 
         try:
-            for tx in (load_manual_transactions() or []):
+            for tx in (load_manual_transactions(MANUAL_FILE) or []):
                 d = _d(tx.get("date",""))
                 try: amt = float(tx.get("amount", 0.0) or 0.0)
                 except Exception: amt = 0.0
