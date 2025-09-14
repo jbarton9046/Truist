@@ -32,15 +32,22 @@ import os, json
 from pathlib import Path
 
 def _load_desc_overrides_local():
-    # ensure this matches where app.py writes by default
-    path = Path(os.environ.get("DESC_OVERRIDES_FILE", "/var/data/statements/desc_overrides.json"))
+    # Use the same location app.py writes to
     try:
-        data = json.loads(path.read_text())
+        base = get_statements_base_dir()
+    except Exception:
+        base = Path("/var/data/statements")
+    # Allow an env override, else default to <statements>/desc_overrides.json
+    env_path = os.environ.get("DESC_OVERRIDES_FILE")
+    path = Path(env_path) if env_path else (base / "desc_overrides.json")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         data = {}
     data.setdefault("by_txid", {})
     data.setdefault("by_fingerprint", {})
     return data
+
 # ---------------------------------------------------------------------------
 
 

@@ -65,12 +65,12 @@
 
   <div class="toolbar">
     <div>
-      <label class="form-label small mb-1">Search</label>
+      <label class="form-label small mb-1" for="q">Search</label>
       <input id="q" class="form-control form-control-sm" placeholder="desc/category terms (space = AND)">
     </div>
 
     <div>
-      <label class="form-label small mb-1">Type</label>
+      <label class="form-label small mb-1" for="type">Type</label>
       <select id="type" class="form-select form-select-sm bt-selectify">
         <option value="all">All</option>
         <option value="income">Income only</option>
@@ -79,17 +79,17 @@
     </div>
 
     <div>
-      <label class="form-label small mb-1">From</label>
+      <label class="form-label small mb-1" for="date_from">From</label>
       <input id="date_from" type="date" class="form-control form-control-sm">
     </div>
 
     <div>
-      <label class="form-label small mb-1">To</label>
+      <label class="form-label small mb-1" for="date_to">To</label>
       <input id="date_to" type="date" class="form-control form-control-sm">
     </div>
 
     <div>
-      <label class="form-label small mb-1">Months</label>
+      <label class="form-label small mb-1" for="months">Months</label>
       <select id="months" class="form-select form-select-sm bt-selectify">
         <option value="12">Last 12</option>
         <option value="24" selected>Last 24</option>
@@ -226,7 +226,7 @@
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
         const rawDesc  = String(t.description || '');
-        const origDesc = String(t.immutable_orig || t.original_description || t.description || ''); /* <-- immutable */
+        const origDesc = String(t.immutable_orig || t.original_description || t.description || ''); /* immutable */
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
@@ -275,13 +275,30 @@
     td.classList.add('editing');
     td.dataset.editing = '1';
 
+    // Create input + accessibility bits
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control form-control-sm';
     input.value = original;
 
+    // unique id/name + hidden label for a11y
+    const eidSeed = txId || td.getAttribute('data-sig') || String(Date.now());
+    const eid = 'desc-edit-' + eidSeed.toString().replace(/[^\w]/g,'');
+    input.id = eid;
+    input.name = 'description';
+    input.setAttribute('aria-label', 'Edit description');
+
+    const label = document.createElement('label');
+    label.htmlFor = eid;
+    label.textContent = 'Description';
+    Object.assign(label.style, {
+      position:'absolute', width:'1px', height:'1px', margin:' -1px', padding:'0',
+      overflow:'hidden', clip:'rect(0 0 0 0)', whiteSpace:'nowrap', border:'0'
+    });
+
     td.innerHTML = '';
     td.style.padding = '2px';
+    td.appendChild(label);
     td.appendChild(input);
     input.focus();
     input.select();
