@@ -977,13 +977,14 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
             if not matched and sub_map:
                 for subcat_label, keywords in sub_map.items():
                     if any(_kw_hits(desc, k) for k in keywords):
+                        # First record the SUBCATEGORY total
                         if cat == "Income":
-                            cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
+                            cd["subcategories"][subcat_label] += abs(amt_signed)
                         else:
-                            cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
-                            
+                            cd["subcategories"][subcat_label] += exp_amt
                         tx["subcategory"] = subcat_label
                         matched = True
+
 
                         # Sub-subcategory match
                         subsub_map = subsubcategory_maps_live.get(cat, {}).get(subcat_label, {})
@@ -997,7 +998,6 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                                 if cat == "Income":
                                     cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
                                 else:
-                                    cd["subcategories"][subcat_label] += exp_amt
                                     cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
                                 break
 
