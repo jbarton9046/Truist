@@ -978,9 +978,10 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 for subcat_label, keywords in sub_map.items():
                     if any(_kw_hits(desc, k) for k in keywords):
                         if cat == "Income":
-                            cd["subcategories"][subcat_label] += abs(amt_signed)
+                            cd["subsubcategories"][subcat_label][subsub_label] += abs(amt_signed)
                         else:
-                            cd["subcategories"][subcat_label] += exp_amt
+                            cd["subsubcategories"][subcat_label][subsub_label] += exp_amt
+                            
                         tx["subcategory"] = subcat_label
                         matched = True
 
