@@ -1465,7 +1465,48 @@ def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
     try:
         # normalize date to YYYY-MM-DD if possible
         d = _parse_any_date(date_s)
-        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
+        ds = d.strftime("%Y-%m-
+def _find_bank_original_description(date_s, amount) -> str:
+    """Best-effort lookup of the immutable bank description for (date, amount).
+    We intentionally build a summary with NO description overrides, then scan
+    for a matching row by date and absolute amount. Returns UPPER text or ''.
+    """
+    try:
+        ck, sm, *_ = _load_category_config()
+        # No overrides: read the raw text
+        monthly = generate_summary(ck, sm, desc_overrides={})
+        # Flatten
+        candidates = []
+        dt_norm = None
+        try:
+            d = _parse_any_date(date_s)
+            dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
+        except Exception:
+            dt_norm = str(date_s)
+        try:
+            target_abs = abs(float(amount or 0.0))
+        except Exception:
+            try:
+                target_abs = abs(float(str(amount).replace(',', '')))
+            except Exception:
+                target_abs = None
+        for blob in (monthly or {}).values():
+            for t in (blob.get("all_transactions") or []):
+                if dt_norm and (t.get("date") or "") != dt_norm:
+                    continue
+                if target_abs is not None:
+                    try:
+                        if abs(float(t.get("amount") or 0.0)) - target_abs > 1e-6:
+                            continue
+                    except Exception:
+                        continue
+                # Found a candidate; prefer original_description/immutable_orig if present
+                bank = (t.get("original_description") or t.get("immutable_orig") or t.get("description") or "")
+                return (bank or "").strip().upper()
+    except Exception:
+        pass
+    return ""
+%d") if d else (date_s or "")
     except Exception:
         ds = date_s or ""
     try:
@@ -1517,81 +1558,93 @@ def transactions_page():
 
 
 @app.post("/api/tx/edit_description")
+
 def edit_description():
     """
     Body (JSON):
       {
         "transaction_id": "optional",
-        "date": "YYYY-MM-DD",
-        "amount": -34.56,                 # bank-signed amount is fine
-        "original_description": "STRAIGHT TALK *... (bank text)",
-        "new_description": "WALMART"
+        "date": "YYYY-MM-DD or MM/DD/YYYY",
+        "amount": -34.56,                 # bank-signed or UI-signed; we normalize
+        "original_description": "what the UI currently shows",
+        "new_description": "desired label"
       }
     Returns:
       { ok: true, new_description: "...", new_category: "..." }
     """
     try:
         payload = request.get_json(force=True) or {}
-        txid  = (payload.get("transaction_id") or "").strip()
+        txid  = (payload.get("transaction_id") or payload.get("id") or "").strip()
         date_s = (payload.get("date") or "")[:10]
-        try:
-            amt = float(payload.get("amount") or 0.0)
-        except Exception:
-            amt = 0.0
-        orig = (payload.get("original_description") or "").strip()
-        newd = (payload.get("new_description") or "").strip()
-
+        amount = payload.get("amount", 0.0)
+        orig_ui = (payload.get("original_description") or payload.get("description") or "").strip().upper()
+        newd = (payload.get("new_description") or "").strip().upper()
         if not newd:
             return jsonify({"ok": False, "error": "new_description required"}), 400
 
-        # --- Load & update overrides using shared helpers ---
         ov = _load_desc_overrides()
-        by_id = ov.get("by_txid", {}) or {}
-        by_fp = ov.get("by_fingerprint", {}) or {}
+        ov.setdefault("by_txid", {})
+        ov.setdefault("by_fingerprint", {})
+        by_id = ov["by_txid"]
+        by_fp = ov["by_fingerprint"]
 
-        # Prefer txid mapping when available
+        # Normalize fingerprint pieces
+        try:
+            d = _parse_any_date(date_s)
+            ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
+        except Exception:
+            ds = date_s or ""
+        try:
+            amt = float(amount or 0.0)
+        except Exception:
+            try:
+                amt = float(str(amount).replace(",", ""))
+            except Exception:
+                amt = 0.0
+        amt_pos = abs(amt)
+        amt_neg = -abs(amt)
+
+        # 0) If txid is present, set it unconditionally (txid always wins)
         if txid:
             by_id[txid] = newd
 
-        # Also store robust fingerprint (both signs to be safe)
-        if date_s and orig:
-            k1 = _fingerprint_tx(date_s, amt, orig)
-            k2 = _fingerprint_tx(date_s, -amt, orig)
-            by_fp[k1] = newd
-            by_fp[k2] = newd
+        # 1) Proactively clear ANY existing fingerprints for this (date, amount) pair
+        #    regardless of the 'orig' text. This makes re-edits idempotent.
+        prefixes = [f"{ds}|{amt_pos:.2f}|", f"{ds}|{amt_neg:.2f}|"]
+        removed = 0
+        for k in list(by_fp.keys()):
+            if any(k.startswith(p) for p in prefixes):
+                by_fp.pop(k, None)
+                removed += 1
 
-        ov["by_txid"] = by_id
-        ov["by_fingerprint"] = by_fp
+        # 2) Determine the immutable bank original for this row
+        bank_orig = _find_bank_original_description(ds, amt)
+        # Fallback to the UI-sent orig if lookup fails
+        if not bank_orig:
+            bank_orig = orig_ui
 
-        # Persist via helper (writes to get_statements_base_dir()/desc_overrides.json)
-        _save_desc_overrides(ov)
-
-        # --- Bust caches (safe if absent) ---
-        mc = globals().get("_MONTHLY_CACHE")
-        if isinstance(mc, dict):
-            mc["monthly"]  = None
-            mc["key"]      = None
-            mc["built_at"] = 0.0
-
-        # --- Compute new category from edited description for immediate UI feedback ---
-        ck, sm, *_ = _load_category_config()
-        new_cat = categorize_transaction(newd, abs(amt), ck) or ""
-
-        return jsonify({"ok": True, "new_description": newd, "new_category": new_cat})
-    except Exception as e:
-        try:
-            app.logger.exception("edit_description failed: %s", e)
-        except Exception:
+        # 3) If the user is reverting to the bank text, don't add a new override
+        if bank_orig and newd.strip().upper() == bank_orig.strip().upper():
+            # no new by_fp entries: we removed the old ones above
             pass
-        return jsonify({"ok": False, "error": "internal error"}), 500
+        else:
+            # write both +/- amount fingerprints using the bank original text
+            k_pos = f"{ds}|{amt_pos:.2f}|{bank_orig}"
+            k_neg = f"{ds}|{amt_neg:.2f}|{bank_orig}"
+            by_fp[k_pos] = newd
+            by_fp[k_neg] = newd
 
+        _save_desc_overrides(ov)
+        _bust_caches()
 
+        # compute a fresh category guess from the *new* description
+        new_category = categorize_transaction(newd, float(amt or 0.0), category_keywords)
 
+        return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
+    except Exception as e:
+        app.logger.exception("edit_description failed")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
-# ================= END: TRANSACTIONS PAGE + DESCRIPTION EDIT API ===============
-
-
-# ------------------ Explorer ------------------
 @app.route("/explorer")
 def all_items_explorer():
     cfg_live = load_cfg()
