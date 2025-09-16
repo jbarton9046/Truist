@@ -40,6 +40,13 @@ def _save_desc_overrides(d: dict) -> None:
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(p)
 
+def _bust_caches():
+    try:
+        _MONTHLY_CACHE["monthly"]  = None
+        _MONTHLY_CACHE["key"]      = None
+        _MONTHLY_CACHE["built_at"] = 0.0
+    except Exception:
+        pass
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -1456,16 +1463,6 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
-def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
-    """
-    A stable fingerprint for a transaction when no transaction_id exists.
-    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
-    Works well for most bank exports.
-    """
-    try:
-        # normalize date to YYYY-MM-DD if possible
-        d = _parse_any_date(date_s)
-        ds = d.strftime("%Y-%m-
 def _find_bank_original_description(date_s, amount) -> str:
     """Best-effort lookup of the immutable bank description for (date, amount).
     We intentionally build a summary with NO description overrides, then scan
@@ -1476,13 +1473,10 @@ def _find_bank_original_description(date_s, amount) -> str:
         # No overrides: read the raw text
         monthly = generate_summary(ck, sm, desc_overrides={})
         # Flatten
-        candidates = []
         dt_norm = None
-        try:
-            d = _parse_any_date(date_s)
-            dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
-        except Exception:
-            dt_norm = str(date_s)
+        d = _parse_any_date(date_s)
+        dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
+
         try:
             target_abs = abs(float(amount or 0.0))
         except Exception:
@@ -1490,6 +1484,7 @@ def _find_bank_original_description(date_s, amount) -> str:
                 target_abs = abs(float(str(amount).replace(',', '')))
             except Exception:
                 target_abs = None
+
         for blob in (monthly or {}).values():
             for t in (blob.get("all_transactions") or []):
                 if dt_norm and (t.get("date") or "") != dt_norm:
@@ -1501,12 +1496,25 @@ def _find_bank_original_description(date_s, amount) -> str:
                     except Exception:
                         continue
                 # Found a candidate; prefer original_description/immutable_orig if present
-                bank = (t.get("original_description") or t.get("immutable_orig") or t.get("description") or "")
+                bank = (t.get("original_description")
+                        or t.get("immutable_orig")
+                        or t.get("description")
+                        or "")
                 return (bank or "").strip().upper()
     except Exception:
         pass
     return ""
-%d") if d else (date_s or "")
+
+
+def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
+    """
+    A stable fingerprint for a transaction when no transaction_id exists.
+    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
+    Works well for most bank exports.
+    """
+    try:
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
     except Exception:
         ds = date_s or ""
     try:
@@ -1517,6 +1525,7 @@ def _find_bank_original_description(date_s, amount) -> str:
         except Exception:
             amt = 0.0
     return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
+
 
 @app.get("/transactions")
 def transactions_page():
@@ -1638,7 +1647,9 @@ def edit_description():
         _bust_caches()
 
         # compute a fresh category guess from the *new* description
-        new_category = categorize_transaction(newd, float(amt or 0.0), category_keywords)
+        cfg_live = load_cfg()
+        new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
+
 
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
     except Exception as e:
@@ -2947,8 +2958,11 @@ def income_probe():
             else:
                 for tx in (n.get("transactions") or []):
                     desc = (tx.get("description") or tx.get("desc") or "").upper()
-                    try: amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-                    except Exception: amt = 0.0
+                    try:
+                        amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
+                    except Exception:
+                        amt = 0.0
+
                     if needle in desc:
                         rows.append({"date": tx.get("date",""), "desc": tx.get("description",""), "amt": amt})
                         nonlocal count, sum_amt
