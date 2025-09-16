@@ -40,13 +40,6 @@ def _save_desc_overrides(d: dict) -> None:
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(p)
 
-def _bust_caches():
-    try:
-        _MONTHLY_CACHE["monthly"]  = None
-        _MONTHLY_CACHE["key"]      = None
-        _MONTHLY_CACHE["built_at"] = 0.0
-    except Exception:
-        pass
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -1463,6 +1456,28 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
+
+def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
+    """
+    A stable fingerprint for a transaction when no transaction_id exists.
+    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
+    Works well for most bank exports.
+    """
+    try:
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else str(date_s)
+    except Exception:
+        ds = str(date_s)
+    try:
+        amt = round(float(str(amount).replace(',', '')), 2)
+    except Exception:
+        try:
+            amt = round(float(amount), 2)
+        except Exception:
+            amt = 0.0
+    desc = (orig_desc or "").upper().strip()
+    return f"{ds}|{amt:.2f}|{desc}"
+
 def _find_bank_original_description(date_s, amount) -> str:
     """Best-effort lookup of the immutable bank description for (date, amount).
     We intentionally build a summary with NO description overrides, then scan
@@ -1473,10 +1488,13 @@ def _find_bank_original_description(date_s, amount) -> str:
         # No overrides: read the raw text
         monthly = generate_summary(ck, sm, desc_overrides={})
         # Flatten
+        candidates = []
         dt_norm = None
-        d = _parse_any_date(date_s)
-        dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
-
+        try:
+            d = _parse_any_date(date_s)
+            dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
+        except Exception:
+            dt_norm = str(date_s)
         try:
             target_abs = abs(float(amount or 0.0))
         except Exception:
@@ -1484,7 +1502,6 @@ def _find_bank_original_description(date_s, amount) -> str:
                 target_abs = abs(float(str(amount).replace(',', '')))
             except Exception:
                 target_abs = None
-
         for blob in (monthly or {}).values():
             for t in (blob.get("all_transactions") or []):
                 if dt_norm and (t.get("date") or "") != dt_norm:
@@ -1496,36 +1513,11 @@ def _find_bank_original_description(date_s, amount) -> str:
                     except Exception:
                         continue
                 # Found a candidate; prefer original_description/immutable_orig if present
-                bank = (t.get("original_description")
-                        or t.get("immutable_orig")
-                        or t.get("description")
-                        or "")
+                bank = (t.get("original_description") or t.get("immutable_orig") or t.get("description") or "")
                 return (bank or "").strip().upper()
     except Exception:
         pass
     return ""
-
-
-def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
-    """
-    A stable fingerprint for a transaction when no transaction_id exists.
-    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
-    Works well for most bank exports.
-    """
-    try:
-        d = _parse_any_date(date_s)
-        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
-    except Exception:
-        ds = date_s or ""
-    try:
-        amt = float(amount or 0.0)
-    except Exception:
-        try:
-            amt = float(str(amount).replace(",", ""))
-        except Exception:
-            amt = 0.0
-    return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
-
 
 @app.get("/transactions")
 def transactions_page():
@@ -1647,9 +1639,7 @@ def edit_description():
         _bust_caches()
 
         # compute a fresh category guess from the *new* description
-        cfg_live = load_cfg()
-        new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
-
+        new_category = categorize_transaction(newd, float(amt or 0.0), category_keywords)
 
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
     except Exception as e:
@@ -2116,6 +2106,13 @@ def api_recurrents():
 
     # Pull + normalize config
     RC_CATS = set(x.upper() for x in _as_list(getattr(RC, "RECURRING_CATEGORIES", [])))
+
+
+    # Default allow list for common recurring categories
+    DEFAULT_ALLOW_CATS = {
+        "SUBSCRIPTIONS","UTILITIES","RENT/UTILITIES","PHONE",
+        "INTERNET","INSURANCE","MORTGAGE"
+    }
     RC_MERCH_RAW = [x for x in _as_list(getattr(RC, "RECURRING_MERCHANTS", []))]
     RC_KEYS = [x.upper() for x in _as_list(getattr(RC, "RECURRING_KEYWORDS", []))]
     RC_DENY = [x.upper() for x in _as_list(getattr(RC, "DENY_MERCHANTS", []))]
@@ -2232,18 +2229,26 @@ def api_recurrents():
         desc_up = (raw_desc or "").upper()
         merch_cmp = _cmp(raw_desc)
         subcat_cmp = _cmp(subcat or "")
-
+    
+        # keep excluding card payments
         if is_credit_card_like(raw_desc, subcat, cat_top):
             return False
-
+    
         # HOT-FIX: Sarasota water via Paymentus
         if (("PAYMENTUS" in desc_up and "SARASOTA" in desc_up) or ("SARASOTA" in desc_up and "UTILIT" in desc_up)):
             return True
-
+    
+        # deny-lists (keep)
         if subcat_cmp and any(subcat_cmp == d for d in DENY_SUBCATS_CMP):
             return False
         if any(d in merch_cmp for d in DENY_CMP):
             return False
+    
+        # default allow for common recurring categories
+        if cat_up in DEFAULT_ALLOW_CATS:
+            return True
+    
+        # explicit allows (keep)
         if any(m in merch_cmp for m in ALLOW_CMP):
             return True
         if cat_up == "INCOME" and any(k in desc_up for k in RC_INCOME_KEYS):
@@ -2252,735 +2257,6 @@ def api_recurrents():
             return True
         if any(k in desc_up for k in RC_KEYS):
             return True
-        return False
-
-    def looks_like_income(rows_subset, merch_key):
-        key_cmp = _cmp(merch_key)
-        income_key_cmps = [_cmp(x) for x in RC_INCOME_KEYS]
-        if any(ik in key_cmp for ik in income_key_cmps):
-            return True
-        for r in rows_subset:
-            if (r.get("category","").strip().upper() == "INCOME"):
-                return True
-            desc_cmp = _cmp(r.get("description",""))
-            if any(ik in desc_cmp for ik in income_key_cmps):
-                return True
-        return False
-
-    # ---- Flatten eligible txs for recurring streams
-    flat: List[Dict[str, Any]] = []
-
-    def _gather(node, out_list, top_name):
-        ch = node.get("children") or []
-        if ch:
-            for c in ch:
-                _gather(c, out_list, top_name)
-        else:
-            for t in (node.get("transactions") or []):
-                try:
-                    amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
-                except Exception:
-                    amt = 0.0
-                if _hidden_amt(amt):
-                    continue
-                d = _d(t.get("date",""))
-                if cutoff and (not d or d < cutoff):
-                    continue
-                raw_desc = (t.get("description") or t.get("desc","") or "")
-                cat = (t.get("category","") or top_name or "").strip()
-                subcat = (t.get("subcategory","") or "").strip()
-                if allow_tx(cat, subcat, raw_desc, amt):
-                    merch_norm = norm_merchant(raw_desc)
-                    merch_key = canonical_vendor_key(raw_desc, merch_norm)
-                    out_list.append({
-                        "date": t.get("date",""),
-                        "description": raw_desc,
-                        "amount": amt,
-                        "category": cat,
-                        "subcategory": subcat,
-                        "merchant_norm": merch_norm,
-                        "merchant_key": merch_key,
-                        "cat_top": cat or top_name or "",
-                    })
-
-    for mk in months_sorted:
-        blob = monthly.get(mk, {}) or {}
-        for top in (blob.get("tree") or []):
-            _gather(top, flat, (top.get("name") or "").strip())
-
-    if not flat and not VINC_ENABLED:
-        return jsonify({
-            "ok": True, "window": "30", "horizon": horizon,
-            "streams": [], "upcoming": [], "by_week": [], "by_month": [], "transactions": [],
-            "floor": 0.0, "floor_by_category": [],
-            "income_expected": 0.0, "income_recurring": 0.0, "variable_income_monthly": 0.0,
-            "variable_income_weekly": 0.0, "variable_income_weeks_used": 0,
-            "leftover": 0.0, "this_week_due": 0.0, "top_fixed_bills": [], "top_fixed_merchants": [],
-            "by_week_net": [], "projected_month": {}, "changes": {"month": None, "new": [], "stopped": [], "price_changes": []},
-        })
-
-    # ---- Cluster + build streams
-    def median(nums):
-        nums = sorted(nums); n = len(nums)
-        if n == 0: return 0.0
-        mid = n // 2
-        return nums[mid] if (n % 2 == 1) else (nums[mid-1] + nums[mid]) / 2.0
-
-    def cadence_from_days(days: float):
-        if days <= 0: return ("unknown", None)
-        if 26 <= days <= 35: return ("monthly", ("months", 1))
-        if 11 <= days <= 17: return ("biweekly", ("days", 14))
-        if 50 <= days <= 75: return ("bi-monthly", ("months", 2))
-        if 80 <= days <= 105: return ("quarterly", ("months", 3))
-        if 350 <= days <= 390: return ("annual", ("years", 1))
-        return ("unknown", ("days", int(round(days))))
-
-    by_merch = _dd(list)
-    for t in flat:
-        by_merch[t["merchant_key"]].append(t)
-
-    def is_two_per_month(merchant_norm_or_key: str) -> bool:
-        m = (merchant_norm_or_key or "").upper()
-        return any(k in m for k in RC_TWO_PM)
-
-    def biweekly_cap_for(merchant_key: str, rows_subset) -> int:
-        cmpk = _cmp(merchant_key)
-        if cmpk in BI_CAP_CMP: return BI_CAP_CMP[cmpk]
-        if looks_like_income(rows_subset, merchant_key): return 3
-        return 2 if is_two_per_month(merchant_key) else 1
-
-    def label_for(merch, rep_amount: float, fallback_norms: list[str]) -> str:
-        key_up = (merch or "").upper()
-        labels = {}
-        for k, mapping in (RC_AMT_LABELS or {}).items():
-            if key_up.find((k or "").upper()) != -1:
-                labels.update(mapping or {})
-        cents = int(round(rep_amount * 100))
-        for amt, lbl in labels.items():
-            if int(round(float(amt) * 100)) == cents:
-                return lbl
-        if fallback_norms:
-            counts = _dd(int)
-            for nm in fallback_norms:
-                counts[nm] += 1
-            return max(counts.items(), key=lambda kv: kv[1])[0]
-        return merch or "(unknown)"
-
-    streams: List[Dict[str, Any]] = []
-    streams_tx: List[Dict[str, Any]] = []
-
-    def emit_stream(merch, rows_subset):
-        dates = [_d(r["date"]) for r in rows_subset if _d(r["date"])]
-        if not dates: return
-        dates.sort(reverse=True)
-
-        # cadence detection
-        if len(dates) >= 2:
-            intervals = [(dates[i] - dates[i+1]).days for i in range(len(dates)-1)]
-            med = median(intervals) if intervals else 0
-            freq, step = cadence_from_days(med)
-            if freq == "unknown":
-                freq, step = ("monthly", ("months", 1))
-        else:
-            if is_sams_vendor(merch):
-                freq, step = ("annual", ("years", 1))
-            else:
-                freq, step = ("monthly", ("months", 1))
-        if force_monthly_vendor(merch):
-            freq, step = ("monthly", ("months", 1))
-
-        if freq == "biweekly":
-            per_month = _dd(int)
-            for r in rows_subset:
-                d = _d(r["date"])
-                if not d: continue
-                key = f"{d.year:04d}-{d.month:02d}"
-                per_month[key] += 1
-            cap = biweekly_cap_for(merch, rows_subset)
-            if any(v >= cap + 2 for v in per_month.values()):
-                freq, step = ("monthly", ("months", 1))
-
-        amts = [abs(float(r.get("amount", 0.0) or 0.0)) for r in rows_subset]
-        rep_amount = round(median(amts) if amts else 0.0, 2)
-        total = round(sum(amts), 2)
-        cats = sorted({(r.get("category") or "").strip() for r in rows_subset if r.get("category")})[:4]
-        norms = [r["merchant_norm"] for r in rows_subset if r.get("merchant_norm")]
-        merchant_label = label_for(merch, rep_amount, norms)
-
-        first = min(d for d in dates if d)
-        last = max(d for d in dates if d)
-        next_due = None
-        if step and last:
-            kind, val = step
-            if kind == "days":
-                next_due = last + timedelta(days=int(val))
-            elif kind == "months":
-                next_due = last + relativedelta(months=+int(val))
-            elif kind == "years":
-                next_due = last + relativedelta(years=+int(val))
-
-        split = any(s in _cmp(merch) for s in SPLIT_CMP)
-        cents_bucket = int(round(rep_amount * 100)) if split else None
-        changes_key = f"{merch}|{cents_bucket}" if split else merch
-        income_flag = looks_like_income(rows_subset, merch)
-
-        for r in rows_subset:
-            r["_stream_key"] = changes_key
-
-        streams.append({
-            "merchant": merchant_label,
-            "amount": rep_amount,
-            "count": len(rows_subset),
-            "total": total,
-            "categories": cats,
-            "first": first.isoformat() if first else "",
-            "last": last.isoformat() if last else "",
-            "next": next_due.isoformat() if next_due else "",
-            "freq": freq,
-            "interval_days": (med if len(dates) >= 2 else None),
-            "descriptions": sorted({(r.get("description") or "")[:80] for r in rows_subset if r.get("description")})[:3],
-            "_key": changes_key,
-            "is_income": income_flag,
-        })
-        streams_tx.extend(rows_subset)
-
-    # Group & emit
-    for merch, rows in by_merch.items():
-        merch_cmp_key = _cmp(merch)
-        vendor_priority = any(m in merch_cmp_key for m in ALLOW_CMP)
-        split_by_amount = any(s in merch_cmp_key for s in SPLIT_CMP)
-
-        if vendor_priority and split_by_amount:
-            buckets = _dd(list)
-            for r in rows:
-                cents = int(round(abs(float(r.get("amount", 0.0))) * 100))
-                buckets[cents].append(r)
-            m_cmp = _cmp(merch)
-            for _, subset in buckets.items():
-                if len(subset) < min_occ and not looks_like_income(subset, merch):
-                    if not (is_sams_vendor(merch) or any(a in m_cmp for a in ALLOW_SINGLE_CMP)):
-                        continue
-                emit_stream(merch, subset)
-            continue
-
-        if vendor_priority:
-            m_cmp = _cmp(merch)
-            if len(rows) < min_occ and not looks_like_income(rows, merch):
-                if not (is_sams_vendor(merch) or any(a in m_cmp for a in ALLOW_SINGLE_CMP)):
-                    continue
-            emit_stream(merch, rows)
-            continue
-
-        def cluster_by_amount(rows_):
-            clusters: List[List[Dict[str, Any]]] = []
-            for r in rows_:
-                a = abs(float(r.get("amount", 0.0) or 0.0))
-                placed = False
-                for cl in clusters:
-                    m = median([abs(float(x.get("amount", 0.0) or 0.0)) for x in cl])
-                    tol = max(3.0, 0.05 * max(m, a, 1.0))  # $3 or 5%
-                    if abs(a - m) <= tol:
-                        cl.append(r)
-                        placed = True
-                        break
-                if not placed:
-                    clusters.append([r])
-            return clusters
-
-        for cl in cluster_by_amount(rows):
-            m_cmp = _cmp(merch)
-            if len(cl) < min_occ and not looks_like_income(cl, merch):
-                if not (is_sams_vendor(merch) or any(a in m_cmp for a in ALLOW_SINGLE_CMP)):
-                    continue
-            emit_stream(merch, cl)
-
-    streams.sort(key=lambda s: (s["total"], s["count"]), reverse=True)
-
-    # ---- Forecast upcoming
-    horizon_end = today + timedelta(days=horizon)
-    upcoming: List[Dict[str, Any]] = []
-
-    def add_occurrences(s):
-        if not s.get("next") or not s.get("freq") or s["freq"] == "unknown":
-            return
-        dt = _d(s["next"])
-        if not dt: return
-        mapping = {
-            "biweekly": ("days", 14),
-            "monthly": ("months", 1),
-            "bi-monthly": ("months", 2),
-            "quarterly": ("months", 3),
-            "semiannual": ("months", 6),
-            "annual": ("years", 1),
-        }
-        kind, step_val = mapping.get(s["freq"], ("months", 1))
-        cur = dt
-        while cur <= horizon_end:
-            if cur >= today:
-                upcoming.append({"date": cur.isoformat(), "merchant": s["merchant"], "amount": s["amount"]})
-            if kind == "days":
-                cur = cur + timedelta(days=step_val)
-            elif kind == "months":
-                cur = cur + relativedelta(months=+step_val)
-            elif kind == "years":
-                cur = cur + relativedelta(years=+step_val)
-
-    for s in streams:
-        add_occurrences(s)
-
-    by_week = _dd(float)
-    by_month = _dd(float)
-    for ev in upcoming:
-        d = datetime.strptime(ev["date"], "%Y-%m-%d").date()
-        monday = d - timedelta(days=d.weekday())
-        by_week[monday.isoformat()] += float(ev["amount"])
-        by_month[d.strftime("%Y-%m")] += float(ev["amount"])
-
-    by_week_list = [{"week": k, "total": round(v, 2)} for k, v in sorted(by_week.items())]
-    by_month_list = [{"month": k, "total": round(v, 2)} for k, v in sorted(by_month.items())]
-
-    # ---- Floor / income totals (monthly equivalents)
-    def is_income_stream(s): return bool(s.get("is_income"))
-    monthly_equiv_ratio = { "biweekly": 2.0, "monthly": 1.0, "bi-monthly": 1.0/2.0, "quarterly": 1.0/3.0, "semiannual": 1.0/6.0, "annual": 1.0/12.0 }
-
-    floor_total = 0.0
-    floor_by_cat_map = _dd(float)
-    income_recurring = 0.0
-    for s in streams:
-        ratio = monthly_equiv_ratio.get(s.get("freq"), 1.0)
-        monthly_equiv = float(s["amount"]) * ratio
-        if is_income_stream(s):
-            income_recurring += monthly_equiv
-        else:
-            floor_total += monthly_equiv
-            top_cat = (s.get("categories") or ["Other"])[0] or "Other"
-            floor_by_cat_map[top_cat] += monthly_equiv
-    floor_total = round(floor_total, 2)
-    income_recurring = round(income_recurring, 2)
-    floor_by_category = [ {"category": k, "total": round(v, 2)} for k, v in sorted(floor_by_cat_map.items(), key=lambda kv: kv[1], reverse=True) ]
-
-    # ======================== VARIABLE INCOME =========================
-    variable_weekly = 0.0
-    weeks_used = 0
-    if VINC_ENABLED:
-        win_cut = today - timedelta(days=VINC_WINDOW)
-        week_sums = _dd(float)
-
-        def consider_income(date_obj, amount, desc_up="", subcat_up="", is_manual=False):
-            if not date_obj or date_obj < win_cut: return
-            if amount <= 0: return
-            hit = any(m in desc_up for m in VINC_INC_MERCH) or \
-                  any(k in desc_up for k in VINC_INC_KEYS) or \
-                  (subcat_up in VINC_INC_SUB if subcat_up else False)
-            if not hit: return
-            if any(x in desc_up for x in VINC_EXC_MERCH): return
-            if any(k in desc_up for k in RC_INCOME_KEYS): return
-            monday = date_obj - timedelta(days=date_obj.weekday())
-            week_sums[monday] += float(amount)
-
-        def _gather_var(node, top_name):
-            ch = node.get("children") or []
-            if ch:
-                for c in ch:
-                    _gather_var(c, top_name)
-            else:
-                for t in (node.get("transactions") or []):
-                    d = _d(t.get("date",""))
-                    try: amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
-                    except Exception: amt = 0.0
-                    desc_up = (t.get("description") or t.get("desc","") or "").upper()
-                    sub_up = (t.get("subcategory","") or "").upper()
-                    consider_income(d, amt, desc_up, sub_up)
-
-        for mk in months_sorted:
-            blob = monthly.get(mk, {}) or {}
-            for top in (blob.get("tree") or []):
-                _gather_var(top, (top.get("name") or "").strip())
-
-        try:
-            for tx in (load_manual_transactions(MANUAL_FILE) or []):
-                d = _d(tx.get("date",""))
-                try: amt = float(tx.get("amount", 0.0) or 0.0)
-                except Exception: amt = 0.0
-                desc_up = (tx.get("description","") or "").upper()
-                sub_up = (tx.get("sub_subcategory","") or tx.get("subcategory","") or "").upper()
-                consider_income(d, amt, desc_up, sub_up, is_manual=True)
-        except Exception:
-            pass
-
-        weeks = sorted(week_sums.keys())
-        vals = [week_sums[w] for w in weeks]
-        weeks_used = len(vals)
-
-        def trimmed_mean(values, trim_pct):
-            if not values: return 0.0
-            v = sorted(values)
-            k = int(len(v) * max(0.0, min(0.45, float(trim_pct))))
-            v2 = v[k: len(v)-k] if len(v) - 2*k > 0 else v
-            return sum(v2) / len(v2) if v2 else 0.0
-
-        if weeks_used >= VINC_MIN_WEEKS:
-            variable_weekly = trimmed_mean(vals, VINC_TRIM_PCT)
-        elif weeks_used > 0:
-            variable_weekly = sum(vals) / weeks_used
-
-    variable_monthly = round(variable_weekly * 4.33, 2)
-    # ====================== END VARIABLE INCOME =======================
-
-    income_expected = round(income_recurring + variable_monthly, 2)
-    leftover = round(income_expected - floor_total, 2)
-
-    # ---- This week's due (streams only; variable income is not "due")
-    monday_this_week = today - timedelta(days=today.weekday())
-    sunday_this_week = monday_this_week + timedelta(days=6)
-    this_week_due = 0.0
-    for ev in upcoming:
-        d = _d(ev["date"])
-        if d and monday_this_week <= d <= sunday_this_week:
-            this_week_due += float(ev["amount"])
-    this_week_due = round(this_week_due, 2)
-
-    def monthly_equiv_for_stream(s):
-        ratio = {"biweekly": 2.0, "monthly": 1.0, "bi-monthly": 1.0/2.0, "quarterly": 1.0/3.0, "semiannual": 1.0/6.0, "annual": 1.0/12.0}.get(s.get("freq"), 1.0)
-        return round(float(s.get("amount", 0.0)) * ratio, 2)
-
-    top_fixed_bills = []
-    for s in streams:
-        if s.get("is_income"): continue
-        meq = monthly_equiv_for_stream(s)
-        top_fixed_bills.append({
-            "merchant": s.get("merchant", ""),
-            "monthly_equiv": meq,
-            "freq": s.get("freq", "monthly"),
-            "amount_basis": float(s.get("amount", 0.0)),
-            "next": s.get("next", ""),
-            "last": s.get("last", ""),
-            "count": int(s.get("count", 0)),
-            "categories": s.get("categories", []) or [],
-            "_key": s.get("_key", ""),
-        })
-    top_fixed_bills.sort(key=lambda r: (r["monthly_equiv"], r["count"]), reverse=True)
-    if top_n > 0:
-        top_fixed_bills = top_fixed_bills[:top_n]
-    top_fixed_merchants = list(top_fixed_bills)
-
-    weekly_income_expected = round((income_recurring / 4.33) + variable_weekly, 2)
-
-    weeks_in_horizon = []
-    cur = today
-    start_monday = cur - timedelta(days=cur.weekday())
-    end_date = today + timedelta(days=horizon)
-    cur_monday = start_monday
-    while cur_monday <= end_date:
-        weeks_in_horizon.append(cur_monday)
-        cur_monday = cur_monday + timedelta(days=7)
-
-    by_week_map = {w: 0.0 for w in weeks_in_horizon}
-    for ev in upcoming:
-        d = _d(ev["date"])
-        if not d: continue
-        if d < start_monday or d > end_date: continue
-        w = d - timedelta(days=d.weekday())
-        by_week_map[w] = by_week_map.get(w, 0.0) + float(ev["amount"])
-
-    by_week_net = []
-    for w in sorted(by_week_map.keys()):
-        out = round(by_week_map[w], 2)
-        net = round(weekly_income_expected - out, 2)
-        by_week_net.append({
-            "week": w.isoformat(),
-            "income_expected": weekly_income_expected,
-            "bills_due": out,
-            "net": net
-        })
-
-    projected_month = {
-        "income_recurring": income_recurring,
-        "variable_income_monthly": variable_monthly,
-        "income_expected": income_expected,
-        "fixed_floor": floor_total,
-        "leftover": leftover
-    }
-
-    win_echo = "all" if cutoff is None else str((today - cutoff).days)
-    return jsonify({
-        "ok": True,
-        "window": win_echo,
-        "horizon": horizon,
-        "streams": streams,
-        "upcoming": upcoming,
-        "by_week": by_week_list,
-        "by_month": by_month_list,
-        "transactions": streams_tx,  # each tx may include "_stream_key"
-        "floor": floor_total,
-        "floor_by_category": floor_by_category,
-        "income_expected": income_expected,
-        "income_recurring": income_recurring,
-        "variable_income_monthly": variable_monthly,
-        "variable_income_weekly": round(variable_weekly, 2),
-        "variable_income_weeks_used": weeks_used,
-        "leftover": leftover,
-        "this_week_due":  this_week_due,
-        "top_fixed_bills": top_fixed_bills,
-        "top_fixed_merchants": top_fixed_bills,
-        "by_week_net": by_week_net,
-        "projected_month": projected_month,
-        "changes": {"month": None, "new": [], "stopped": [], "price_changes": []},
-    })
-
-@app.get("/api/summary")
-def api_summary():
-    monthly = _build_monthly_live()
-    return jsonify(ok=True, summary=monthly)
-
-@app.post("/api/manual")
-def api_manual_add():
-    data = request.get_json(silent=True) or {}
-    kind = str(data.get("kind") or data.get("type") or "").lower()  # optional
-
-    try:
-        # optional: coerce sign if UI sends kind/type
-        if "amount" in data:
-            data["amount"] = float(data["amount"])
-            if kind == "expense" and data["amount"] > 0:
-                data["amount"] = -data["amount"]
-            elif kind == "income" and data["amount"] < 0:
-                data["amount"] = -data["amount"]
-
-        saved = append_manual_tx(data)
-
-        # 🔧 bust cached monthly summary so drawer/overview pick up the new entry
-        try:
-            _MONTHLY_CACHE["monthly"]  = None
-            _MONTHLY_CACHE["key"]      = None
-            _MONTHLY_CACHE["built_at"] = 0.0
-        except Exception:
-            pass
-
-        return jsonify({"ok": True, "saved": saved}), 201
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
-
-
-
-# ------------------ FORECAST / RUNWAY ------------------
-@app.get("/api/forecast")
-def api_forecast():
-    try:
-        weeks = int(request.args.get("weeks", "13"))
-    except Exception:
-        weeks = 13
-    try:
-        balance = float(request.args.get("balance", "0") or 0.0)
-    except Exception:
-        balance = 0.0
-
-    monthly, cfg_live = build_monthly()
-    months_sorted = sorted((_norm_month(k) for k in monthly.keys()))
-    recent = months_sorted[-3:] if months_sorted else []
-
-    weekly_samples = []
-    for mk in recent:
-        blob = monthly.get(mk.replace("-", "_")) or monthly.get(mk) or {}
-        net = float(blob.get("net_cash_flow") or 0.0)
-        weekly_samples.append(net / 4.33)
-    if not weekly_samples:
-        weekly_samples = [0.0]
-
-    base_week = sum(weekly_samples) / len(weekly_samples)
-    hi_week = base_week * 1.3
-    lo_week = base_week * 0.7
-
-    labels = []
-    base_seq, hi_seq, lo_seq = [], [], []
-    today = datetime.today().date()
-    for i in range(weeks):
-        end = today + timedelta(days=7 * (i + 1))
-        labels.append(end.strftime("%Y-%m-%d"))
-        base_seq.append(round(base_week, 2))
-        hi_seq.append(round(hi_week, 2))
-        lo_seq.append(round(lo_week, 2))
-
-    runway_days = None
-    if base_week < 0:
-        try:
-            runway_days = int(max(0, (balance / abs(base_week)) * 7))
-        except Exception:
-            runway_days = None
-
-    return jsonify({
-        "as_of": today.strftime("%Y-%m-%d"),
-        "weeks": labels,
-        "base": base_seq,
-        "hi": hi_seq,
-        "lo": lo_seq,
-        "runway_days": runway_days
-    })
-
-# ------------------ ALL TRANSACTIONS: flat list & search ------------------
-@app.get("/api/tx/all")
-def api_tx_all():
-    """
-    Flat list of transactions across months, with search & filters.
-    Query:
-      q=... (space-separated terms in desc/category/subcategory)
-      type=all|income|expense
-      date_from=YYYY-MM-DD
-      date_to=YYYY-MM-DD
-      months=all|12|24 (default 24)
-      limit=int (default 4000)
-    """
     
-    # Build monthly via same pipeline (overrides applied, then categorized)
-    try:
-        ck, sm, *_ = _load_category_config()
-        ov = _load_desc_overrides()
-        monthly = generate_summary(ck, sm, desc_overrides=ov)
-        _apply_hide_rules_to_summary(monthly)
-        _rebuild_categories_from_tree(monthly)
-
-        rows = _flatten_display_transactions(monthly)
-
-    except Exception as e:
-        try:
-            app.logger.exception("generate_summary() failed on /api/tx/all: %s", e)
-        except Exception:
-            pass
-        monthly = {}
-
-    # Use curated rows (already excludes Transfers/hidden/omitted)
-    rows = _flatten_display_transactions(monthly)
-
-    # Ensure client gets immutable original + a txid
-    def _txid(r):
-        return (r.get("transaction_id") or r.get("id") or r.get("tx_id")
-                or r.get("_id") or r.get("uid") or "")
-
-    for r in rows:
-        r["original_description"] = (
-            r.get("original_description") or
-            r.get("description_raw") or
-            r.get("description") or ""
-        )
-        r["transaction_id"] = _txid(r)
-
-    # ---------- Filters (same semantics you had) ----------
-    q = (request.args.get("q") or "").strip().lower()
-    q_terms = [t for t in q.split() if t]
-    tx_type = (request.args.get("type") or "all").lower().strip()
-    df = (request.args.get("date_from") or "").strip()
-    dt = (request.args.get("date_to") or "").strip()
-    months_param = (request.args.get("months") or "24").strip().lower()
-    try:
-        limit = int(request.args.get("limit") or 4000)
-    except Exception:
-        limit = 4000
-
-    # Months filter (by transaction date)
-    if months_param and months_param != "all":
-        try:
-            n = int(months_param)
-            end = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
-            start = (end - relativedelta(months=n)).replace(day=1)
-            def _in_last_n_months(r):
-                d = _parse_any_date(r.get("date"))
-                return (d is not None) and (d >= start)
-            rows = list(filter(_in_last_n_months, rows))
-        except Exception:
-            pass
-
-    # Date range filter
-    def _in_range(r):
-        d = _parse_any_date(r.get("date"))
-        if not d:
-            return False
-        if df:
-            try:
-                if d < datetime.strptime(df, "%Y-%m-%d"):
-                    return False
-            except Exception:
-                pass
-        if dt:
-            try:
-                if d > datetime.strptime(dt, "%Y-%m-%d"):
-                    return False
-            except Exception:
-                pass
+        # relaxed default: let it through (min_occ later still filters noise)
         return True
-    if df or dt:
-        rows = list(filter(_in_range, rows))
-
-    # Type filter (by category)
-    if tx_type == "income":
-        rows = [r for r in rows if r.get("category") == "Income"]
-    elif tx_type == "expense":
-        rows = [r for r in rows if r.get("category") != "Income"]
-
-    # q filter (AND across terms)
-    if q_terms:
-        def _match(r):
-            hay = " ".join([
-                str(r.get("description", "")),
-                str(r.get("category", "")),
-                str(r.get("subcategory", "")),
-            ]).lower()
-            return all(t in hay for t in q_terms)
-        rows = list(filter(_match, rows))
-
-    # Newest first and limit
-    def _dt(tx):
-        return _parse_any_date(tx.get("date") or "") or datetime.min
-    rows.sort(key=_dt, reverse=True)
-
-    rows = rows[: max(1, limit)]
-    return jsonify({"transactions": rows})
-
-
-# ------------------ MAIN ------------------
-if __name__ == "__main__":
-    app.run(debug=True)
-
-# ======== Admin debug endpoint retained ========
-@app.get("/admin/debug/income_probe")
-def income_probe():
-    import copy
-    needle = (request.args.get("q") or "MOBILE DEPOSIT").upper()
-    cfg = load_cfg()
-    monthly_raw = generate_summary(cfg["CATEGORY_KEYWORDS"], cfg["SUBCATEGORY_MAPS"]) or {}
-
-    def scan(tree):
-        count = 0; sum_amt = 0.0; rows = []
-        def walk(n):
-            kids = n.get("children") or []
-            if kids:
-                for c in kids:
-                    walk(c)
-            else:
-                for tx in (n.get("transactions") or []):
-                    desc = (tx.get("description") or tx.get("desc") or "").upper()
-                    try:
-                        amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-                    except Exception:
-                        amt = 0.0
-
-                    if needle in desc:
-                        rows.append({"date": tx.get("date",""), "desc": tx.get("description",""), "amt": amt})
-                        nonlocal count, sum_amt
-                        count += 1; sum_amt += amt
-        for top in (tree or []):
-            walk(top)
-        return count, round(sum_amt,2), rows[:25]
-
-    pre = {}
-    for mk, blob in monthly_raw.items():
-        c, s, _ = scan(blob.get("tree") or [])
-        pre[_norm_month(mk)] = {"count": c, "sum": s}
-
-    monthly = copy.deepcopy(monthly_raw)
-    _apply_hide_rules_to_summary(monthly)
-    post = {}
-    for mk, blob in monthly.items():
-        c, s, _ = scan(blob.get("tree") or [])
-        post[_norm_month(mk)] = {"count": c, "sum": s}
-
-    return jsonify({"needle": needle, "pre": pre, "post": post})
