@@ -1577,82 +1577,94 @@ def edit_description():
       {
         "transaction_id": "optional",
         "date": "YYYY-MM-DD or MM/DD/YYYY",
-        "amount": -34.56,
+        "amount": -34.56,                 # signed; we'll normalize
         "original_description": "what the UI currently shows",
         "new_description": "desired label"
       }
-    Returns: { ok: true, new_description: "...", new_category: "..." }
+    Returns:
+      { ok: true, new_description: "...", new_category: "..." }
     """
     try:
         payload = request.get_json(force=True) or {}
-        txid   = (payload.get("transaction_id") or payload.get("id") or "").strip()
-        date_s = (payload.get("date") or "")[:10]
-        amount = payload.get("amount", 0.0)
+
+        txid    = (payload.get("transaction_id") or payload.get("id") or "").strip()
+        date_s  = (payload.get("date") or "")[:10]
+        amount  = payload.get("amount", 0.0)
         orig_ui = (payload.get("original_description") or payload.get("description") or "").strip().upper()
         newd    = (payload.get("new_description") or "").strip().upper()
         if not newd:
             return jsonify({"ok": False, "error": "new_description required"}), 400
 
-        ov = _load_desc_overrides()
-        by_id = ov.setdefault("by_txid", {})
-        by_fp = ov.setdefault("by_fingerprint", {})
-
-        # Normalize pieces
+        # --- normalize date + amount ---
         try:
             d = _parse_any_date(date_s)
             ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
         except Exception:
             ds = date_s or ""
+
         try:
-            amt = float(str(amount).replace(",", ""))
+            amt = float(amount or 0.0)
         except Exception:
-            amt = 0.0
+            try:
+                amt = float(str(amount).replace(",", ""))
+            except Exception:
+                amt = 0.0
         amt_pos = abs(amt)
         amt_neg = -abs(amt)
+
+        # --- load + ensure maps ---
+        ov = _load_desc_overrides()
+        by_id = ov.setdefault("by_txid", {})
+        by_fp = ov.setdefault("by_fingerprint", {})
 
         # txid always wins if present
         if txid:
             by_id[txid] = newd
 
-        # Find immutable bank original so our fingerprint matches the parser's
+        # Clear ANY existing fingerprints for this (date, ±amount) pair
+        prefixes = [f"{ds}|{amt_pos:.2f}|", f"{ds}|{amt_neg:.2f}|"]
+        for k in list(by_fp.keys()):
+            if any(k.startswith(p) for p in prefixes):
+                by_fp.pop(k, None)
+
+        # Determine the immutable bank-original description for this row
         bank_orig = _find_bank_original_description(ds, amt)
         if not bank_orig:
             bank_orig = orig_ui
         bank_orig = (bank_orig or "").strip().upper()
 
-        # Helper: exact keys for this row
-        def kpos(desc): return f"{ds}|{amt_pos:.2f}|{(desc or '').strip().upper()}"
-        def kneg(desc): return f"{ds}|{amt_neg:.2f}|{(desc or '').strip().upper()}"
+        # helper to write both +/− amount fingerprints
+        def _put_fp(orig_desc_upper: str):
+            if not orig_desc_upper:
+                return
+            k_pos = _fingerprint_tx(ds, amt_pos, orig_desc_upper)
+            k_neg = _fingerprint_tx(ds, amt_neg, orig_desc_upper)
+            by_fp[k_pos] = newd
+            by_fp[k_neg] = newd
 
-        # If reverting to the raw bank description, just remove any overrides
-        if bank_orig and newd == bank_orig:
-            by_fp.pop(kpos(bank_orig), None)
-            by_fp.pop(kneg(bank_orig), None)
-            if txid:
-                by_id.pop(txid, None)
-        else:
-            # Remove only exact matches for this specific row (no broad prefix wipe)
-            for key in (kpos(bank_orig), kneg(bank_orig), kpos(orig_ui), kneg(orig_ui)):
-                by_fp.pop(key, None)
+        # If reverting to the bank original, don't write an override
+        if not (bank_orig and newd == bank_orig):
+            # 1) map bank-original -> new label
+            _put_fp(bank_orig)
+            # 2) ALSO map the UI text (some rows use UI text instead of bank-original)
+            if orig_ui and orig_ui != bank_orig:
+                _put_fp(orig_ui)
 
-            # Write both +/- variants using the immutable bank original
-            by_fp[kpos(bank_orig)] = newd
-            by_fp[kneg(bank_orig)] = newd
-
+        # persist + bust caches
         _save_desc_overrides(ov)
         _bust_caches()
 
+        # return a fresh category guess for the new description
         cfg_live = load_cfg()
         new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
-
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
+
     except Exception as e:
         app.logger.exception("edit_description failed")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-
-
+# ------------------ ALL ITEMS EXPLORER (flat list) ------------------
 @app.route("/explorer")
 def all_items_explorer():
     cfg_live = load_cfg()
