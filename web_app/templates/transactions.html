@@ -52,8 +52,8 @@
   }
 
   /* Inline edit */
-  td.tx-desc, td.tx-date { cursor: text; }
-  td.tx-desc.editing, td.tx-date.editing { background: rgba(255,255,255,.06); }
+  td.tx-desc { cursor: text; }
+  td.tx-desc.editing { background: rgba(255,255,255,.06); }
   td.tx-desc .spinner-border{ pointer-events:none; }
 </style>
 
@@ -124,7 +124,35 @@
 (function(){
   const $ = (id)=> document.getElementById(id);
   const fmtUSD = (n)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(n||0);
-  const fmtDate= (s)=> s || '';
+
+  // ALWAYS render MM/DD/YYYY, whether input is YYYY-MM-DD or MM/DD/YYYY
+  function fmtDate(s){
+    if (!s) return '';
+    const t = String(s).slice(0, 10);
+    // YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+      const [y,m,d] = t.split('-').map(Number);
+      const mm = String(m).padStart(2,'0');
+      const dd = String(d).padStart(2,'0');
+      return `${mm}/${dd}/${y}`;
+    }
+    // MM/DD/YYYY (normalize zero padding)
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(t)) {
+      const [m,d,y] = t.split('/').map(Number);
+      const mm = String(m).padStart(2,'0');
+      const dd = String(d).padStart(2,'0');
+      return `${mm}/${dd}/${y}`;
+    }
+    // Fallback: try Date()
+    const dt = new Date(t);
+    if (!isNaN(dt)) {
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2,'0');
+      const yy = dt.getFullYear();
+      return `${mm}/${dd}/${yy}`;
+    }
+    return s;
+  }
 
   function monthKey(s){
     if (!s) return '0000-00';
@@ -169,7 +197,6 @@
     const rows = Array.from(tbody.querySelectorAll('tr.month-row'));
     if (!rows.length) return;
     const top = scroller.scrollTop;
-    const theadH = parseFloat(getComputedStyle(scroller).getPropertyValue('--thead-h')) || 44;
     let active = -1;
     for (let i=0;i<rows.length;i++){
       const r = rows[i];
@@ -230,7 +257,7 @@
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
-        const sig = `${t.date||''}|${t.amount||''}|${origDesc}`; // fingerprint uses ORIGINAL bank text
+        const sig = `${t.date||''}|${t.amount||''}|${origDesc}`;
 
         out.push(`
           <tr>
@@ -238,7 +265,7 @@
                 data-tx-id="${escAttr(t.transaction_id||'')}"
                 data-date="${escAttr(t.date||'')}"
                 data-amount="${escAttr(t.amount)}"
-                data-orig-desc="${escAttr(origDesc)}">${fmtDate(t.date)}</td>
+                data-orig-desc="${escAttr(t.original_description||t.description||'')}">${fmtDate(t.date)}</td>
             <td class="tx-desc"
                 data-tx-id="${escAttr(txid)}"
                 data-sig="${escAttr(sig)}"
@@ -265,7 +292,7 @@
   $('date_from').addEventListener('change', load);
   $('date_to').addEventListener('change', load);
 
-  // -------- Inline edit (Description) ----------
+  // -------- Inline edit (description) ----------
   const UPDATE_API = "/api/tx/edit_description";
 
   function beginEdit(td){
@@ -279,13 +306,11 @@
     td.classList.add('editing');
     td.dataset.editing = '1';
 
-    // Create input + accessibility bits
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control form-control-sm';
     input.value = original;
 
-    // unique id/name + hidden label for a11y
     const eidSeed = txId || td.getAttribute('data-sig') || String(Date.now());
     const eid = 'desc-edit-' + eidSeed.toString().replace(/[^\w]/g,'');
     input.id = eid;
@@ -314,7 +339,7 @@
       td.dataset.editing = '0';
       td.style.padding = '';
       const val = (newText ?? original);
-      td.setAttribute('data-desc', val); // keep immutable original bank text in data-orig-desc (unchanged)
+      td.setAttribute('data-desc', val);
       td.innerHTML = escHtml(val);
       if (saved){
         const ok = document.createElement('span');
@@ -350,10 +375,10 @@
       input.disabled = true;
       try{
         const body = {
-          transaction_id: txId || undefined,          // include if present
-          date: dateStr,                               // server accepts MM/DD/YYYY or YYYY-MM-DD
-          amount: Number(amtStr),                      // signed
-          original_description: td.getAttribute('data-orig-desc') || original, // immutable bank text
+          transaction_id: txId || undefined,
+          date: dateStr,
+          amount: Number(amtStr),
+          original_description: td.getAttribute('data-orig-desc') || original,
           new_description: value
         };
 
@@ -367,10 +392,8 @@
           throw new Error((res && res.error) || 'Save failed');
         }
 
-        // Update description immediately
         cleanup(value, true);
 
-        // Update Category cell immediately if server returns new_category
         const row = td.closest('tr');
         const catCell = row && row.querySelector('td.tx-cat');
         if (catCell && res.new_category){
@@ -414,7 +437,7 @@
       if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
       const m2 = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (m2){
-        const mm = m2[1].padStart(2,'0'), dd = m2[2].padStart(2,'0'), yy = m2[3];
+        const mm = String(m2[1]).padStart(2,'0'), dd = String(m2[2]).padStart(2,'0'), yy = m2[3];
         return `${yy}-${mm}-${dd}`;
       }
       return x.slice(0,10);
@@ -433,7 +456,7 @@
     spinner.className = 'ms-2 text-muted';
     spinner.textContent = '…';
 
-    // replace content
+    const oldHtml = td.innerHTML;
     td.innerHTML = '';
     td.appendChild(input);
 
@@ -474,28 +497,15 @@
         }
 
         // Update this cell + sync data-date on desc cell in same row
-        const oldMonth = monthKey(origDateStr);
-        const newMonth = monthKey(iso);
         td.setAttribute('data-date', iso);
         const tr = td.closest('tr');
         const descTd = tr && tr.querySelector('td.tx-desc');
         if (descTd){ descTd.setAttribute('data-date', iso); }
 
-        // If the month bucket changed, rebuild the table so the row moves
-        if (oldMonth !== newMonth){
-          await load();
-          return;
-        }
-
-        // Same month: just repaint this cell
         cleanup(fmtDate(iso));
       }catch(err){
         alert('Save failed: ' + err.message);
         cleanup(fmtDate(origDateStr));
-      }finally{
-        try {
-          spinner.remove();
-        } catch(_) {}
       }
     }
 
