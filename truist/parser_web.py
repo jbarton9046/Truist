@@ -794,11 +794,10 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
         tx.setdefault("original_description", tx.get("description_raw") or tx.get("description") or "")
         tx.setdefault("immutable_orig", tx.get("original_description"))
 
-    # ---- Apply description overrides BEFORE categorization -------------------
+    # ---- Apply description/date overrides BEFORE categorization --------------
     if desc_overrides:
-        # inside generate_summary(...) in parser_web.py
+        # Normalize to YYYY-MM-DD|amount|ORIGINAL bank description (upper)
         def _fp_str(date_s, amount, original_desc):
-            # Normalize date to match app.py/_fingerprint_tx: YYYY-MM-DD
             d = _parse_any_date(date_s)
             ds = d.strftime("%Y-%m-%d") if d else (str(date_s) or "")[:10]
             try:
@@ -810,23 +809,56 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                     amt = 0.0
             return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
 
+        def _apply_one_override(tx, ov):
+            """
+            ov can be:
+              - str  -> description override (legacy)
+              - dict -> supports keys: description, date, category, subcategory
+            """
+            # legacy string: description only
+            if isinstance(ov, str):
+                tx["description"] = clean_description(ov)
+                tx["_desc_overridden"] = True
+                return
+
+            if not isinstance(ov, dict):
+                return
+
+            # description
+            if "description" in ov and ov["description"]:
+                tx["description"] = clean_description(ov["description"])
+                tx["_desc_overridden"] = True
+
+            # date (normalize to MM/DD/YYYY for UI)
+            if "date" in ov and ov["date"]:
+                nd = _parse_any_date(ov["date"])
+                if nd:
+                    if "_raw_date" not in tx:
+                        tx["_raw_date"] = tx.get("date", "")
+                    tx["date"] = nd.strftime("%m/%d/%Y")
+                    tx["_date_overridden"] = True
+
+            # optional category/subcategory overrides
+            if "category" in ov and ov["category"]:
+                tx["category"] = ov["category"]
+            if "subcategory" in ov and ov["subcategory"]:
+                tx["subcategory"] = ov["subcategory"]
+
         for tx in all_tx:
             # 1) Prefer txid mapping
             txid = str(tx.get("transaction_id") or tx.get("id") or tx.get("tx_id") or "").strip()
             if txid and txid in (desc_overrides.get("by_txid", {}) or {}):
-                tx["description"] = desc_overrides["by_txid"][txid]
-                tx["_desc_overridden"] = True
+                _apply_one_override(tx, desc_overrides["by_txid"][txid])
                 continue
 
-            # 2) Fallback: (date, amount, ORIGINAL bank description) string fingerprint
+            # 2) Fallback: (date, amount, ORIGINAL bank description) fingerprint
             raw_orig = (tx.get("original_description") or
                         tx.get("description_raw") or
                         tx.get("description") or "").strip()
             key = _fp_str(tx.get("date") or "", tx.get("amount") or tx.get("amt") or 0.0, raw_orig)
-            newd = (desc_overrides.get("by_fingerprint", {}) or {}).get(key)
-            if newd:
-                tx["description"] = newd
-                tx["_desc_overridden"] = True
+            ov = (desc_overrides.get("by_fingerprint", {}) or {}).get(key)
+            if ov is not None:
+                _apply_one_override(tx, ov)
     # -------------------------------------------------------------------------
 
     # --- Legacy cleanup + categorize missing manual entries ---
@@ -985,7 +1017,6 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                         tx["subcategory"] = subcat_label
                         matched = True
 
-
                         # Sub-subcategory match
                         subsub_map = subsubcategory_maps_live.get(cat, {}).get(subcat_label, {})
                         subsub_matched = None
@@ -1101,6 +1132,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
                 inc["total"] = abs(t)
 
     return monthly_summaries
+
 
 def recent_activity_summary(
     days=30,
