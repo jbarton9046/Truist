@@ -1468,31 +1468,6 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
-def _fingerprint_tx(date_s: str, amount: "Any", orig_desc: str) -> str:
-    """
-    Deterministic fingerprint for a transaction when no explicit transaction_id exists.
-    Combines (YYYY-MM-DD), absolute amount to cents, and the uppercased description.
-    """
-    # Normalize date string
-    try:
-        d = _parse_any_date(date_s)
-        ds = d.strftime("%Y-%m-%d") if d else str(date_s)
-    except Exception:
-        ds = str(date_s)
-
-    # Parse amount as absolute float
-    try:
-        amt_abs = abs(float(amount or 0.0))
-    except Exception:
-        try:
-            amt_abs = abs(float(str(amount).replace(",", "")))
-        except Exception:
-            amt_abs = 0.0
-
-    # Clean description
-    desc = (orig_desc or "").strip().upper()
-
-    return f"{ds}|{amt_abs:.2f}|{desc}"
 def _find_bank_original_description(date_s, amount) -> str:
     """Best-effort lookup of the immutable bank description for (date, amount).
     We intentionally build a summary with NO description overrides, then scan
@@ -1533,6 +1508,29 @@ def _find_bank_original_description(date_s, amount) -> str:
     except Exception:
         pass
     return ""
+
+
+def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
+    """
+    A stable fingerprint for a transaction when no transaction_id exists.
+    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
+    Works well for most bank exports.
+    """
+    try:
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
+    except Exception:
+        ds = date_s or ""
+    try:
+        amt = float(amount or 0.0)
+    except Exception:
+        try:
+            amt = float(str(amount).replace(",", ""))
+        except Exception:
+            amt = 0.0
+    return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
+
+
 @app.get("/transactions")
 def transactions_page():
     """
@@ -1644,31 +1642,10 @@ def edit_description():
         _save_desc_overrides(ov)
         _bust_caches()
 
-        # --- Amount: defensive parse (handles "$", commas, strings) ---
-        try:
-            amt_float = float(amt)
-        except Exception:
-            try:
-                amt_float = float(str(amt).replace(",", "").replace("$", "").strip())
-            except Exception:
-                amt_float = 0.0
+        # compute a fresh category guess from the *new* description
+        cfg_live = load_cfg()
+        new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
 
-        # --- Description: standardize on newd (never reference new_desc) ---
-        desc_for_guess = newd
-
-        # --- Live config (overrides) with fallback to fc ---
-        try:
-            cfg = _load_category_config() or {}
-        except Exception:
-            cfg = {}
-        category_keywords = cfg.get("CATEGORY_KEYWORDS", getattr(fc, "CATEGORY_KEYWORDS", {}))
-        subcategory_maps  = cfg.get("SUBCATEGORY_MAPS",  getattr(fc, "SUBCATEGORY_MAPS", {}))
-
-        # --- Categorize (supports 4-arg or 3-arg signature) ---
-        try:
-            new_category = categorize_transaction(desc_for_guess, amt_float, category_keywords, subcategory_maps)
-        except TypeError:
-            new_category = categorize_transaction(desc_for_guess, amt_float, category_keywords)
 
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
     except Exception as e:
@@ -2131,6 +2108,13 @@ def api_recurrents():
 
     # Pull + normalize config
     RC_CATS = set(x.upper() for x in _as_list(getattr(RC, "RECURRING_CATEGORIES", [])))
+
+
+    # Default allow list for common recurring categories
+    DEFAULT_ALLOW_CATS = {
+        "SUBSCRIPTIONS","UTILITIES","RENT/UTILITIES","PHONE",
+        "INTERNET","INSURANCE","MORTGAGE"
+    }
     RC_MERCH_RAW = [x for x in _as_list(getattr(RC, "RECURRING_MERCHANTS", []))]
     RC_KEYS = [x.upper() for x in _as_list(getattr(RC, "RECURRING_KEYWORDS", []))]
     RC_DENY = [x.upper() for x in _as_list(getattr(RC, "DENY_MERCHANTS", []))]
@@ -2253,25 +2237,17 @@ def api_recurrents():
         merch_cmp = _cmp(raw_desc)
         subcat_cmp = _cmp(subcat or "")
 
-        # keep excluding card payments
         if is_credit_card_like(raw_desc, subcat, cat_top):
             return False
-
+    
         # HOT-FIX: Sarasota water via Paymentus
         if (("PAYMENTUS" in desc_up and "SARASOTA" in desc_up) or ("SARASOTA" in desc_up and "UTILIT" in desc_up)):
             return True
 
-        # deny-lists (keep)
         if subcat_cmp and any(subcat_cmp == d for d in DENY_SUBCATS_CMP):
             return False
         if any(d in merch_cmp for d in DENY_CMP):
             return False
-
-        # default allow for common recurring categories
-        if cat_up in DEFAULT_ALLOW_CATS:
-            return True
-
-        # explicit allows (keep)
         if any(m in merch_cmp for m in ALLOW_CMP):
             return True
         if cat_up == "INCOME" and any(k in desc_up for k in RC_INCOME_KEYS):
@@ -2280,9 +2256,8 @@ def api_recurrents():
             return True
         if any(k in desc_up for k in RC_KEYS):
             return True
+        return False
 
-        # relaxed default: let it through (min_occ later still filters noise)
-        return True
     def looks_like_income(rows_subset, merch_key):
         key_cmp = _cmp(merch_key)
         income_key_cmps = [_cmp(x) for x in RC_INCOME_KEYS]
@@ -2987,8 +2962,11 @@ def income_probe():
             else:
                 for tx in (n.get("transactions") or []):
                     desc = (tx.get("description") or tx.get("desc") or "").upper()
-                    try: amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-                    except Exception: amt = 0.0
+                    try:
+                        amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
+                    except Exception:
+                        amt = 0.0
+
                     if needle in desc:
                         rows.append({"date": tx.get("date",""), "desc": tx.get("description",""), "amt": amt})
                         nonlocal count, sum_amt
