@@ -982,6 +982,7 @@ def api_categories_monthly():
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_date_overrides_to_summary(summary)
+    _apply_hide_rules_to_summary(summary)
 
     # If we have raw txs (first-run / cache-miss path), fall back to a simple top-only rollup.
     txs = _extract_transactions(summary)
