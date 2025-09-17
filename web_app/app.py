@@ -23,6 +23,7 @@ from truist.parser_web import (
     categorize_transaction,
 )
 
+
 from flask import Flask, render_template, abort, request, redirect, url_for, jsonify, Response, flash
 
 # ---- ONE canonical overrides file path (read + write use the same file) ----
@@ -40,13 +41,6 @@ def _save_desc_overrides(d: dict) -> None:
     tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(p)
 
-def _bust_caches():
-    try:
-        _MONTHLY_CACHE["monthly"]  = None
-        _MONTHLY_CACHE["key"]      = None
-        _MONTHLY_CACHE["built_at"] = 0.0
-    except Exception:
-        pass
 
 # ---- Flask app ----
 app = Flask(__name__)
@@ -202,6 +196,17 @@ def _compute_category_movers(monthly: dict) -> dict:
 
     rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
     return {"rows": rows, "prev_month": prev_key, "latest_month": latest_key}
+
+# ---- fallback: cache buster (safe if real one exists elsewhere) ----
+if "_bust_caches" not in globals():
+    def _bust_caches():
+        try:
+            _MONTHLY_CACHE["monthly"] = None
+            _MONTHLY_CACHE["key"] = None
+            _MONTHLY_CACHE["built_at"] = 0.0
+        except Exception:
+            # no-op if cache dict not present yet
+            pass
 
 
 # ---- Safe URL helper to avoid BuildError in templates ----
@@ -1463,6 +1468,31 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
+def _fingerprint_tx(date_s: str, amount: "Any", orig_desc: str) -> str:
+    """
+    Deterministic fingerprint for a transaction when no explicit transaction_id exists.
+    Combines (YYYY-MM-DD), absolute amount to cents, and the uppercased description.
+    """
+    # Normalize date string
+    try:
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else str(date_s)
+    except Exception:
+        ds = str(date_s)
+
+    # Parse amount as absolute float
+    try:
+        amt_abs = abs(float(amount or 0.0))
+    except Exception:
+        try:
+            amt_abs = abs(float(str(amount).replace(",", "")))
+        except Exception:
+            amt_abs = 0.0
+
+    # Clean description
+    desc = (orig_desc or "").strip().upper()
+
+    return f"{ds}|{amt_abs:.2f}|{desc}"
 def _find_bank_original_description(date_s, amount) -> str:
     """Best-effort lookup of the immutable bank description for (date, amount).
     We intentionally build a summary with NO description overrides, then scan
@@ -1473,10 +1503,13 @@ def _find_bank_original_description(date_s, amount) -> str:
         # No overrides: read the raw text
         monthly = generate_summary(ck, sm, desc_overrides={})
         # Flatten
+        candidates = []
         dt_norm = None
-        d = _parse_any_date(date_s)
-        dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
-
+        try:
+            d = _parse_any_date(date_s)
+            dt_norm = d.strftime("%m/%d/%Y") if d else str(date_s)
+        except Exception:
+            dt_norm = str(date_s)
         try:
             target_abs = abs(float(amount or 0.0))
         except Exception:
@@ -1484,7 +1517,6 @@ def _find_bank_original_description(date_s, amount) -> str:
                 target_abs = abs(float(str(amount).replace(',', '')))
             except Exception:
                 target_abs = None
-
         for blob in (monthly or {}).values():
             for t in (blob.get("all_transactions") or []):
                 if dt_norm and (t.get("date") or "") != dt_norm:
@@ -1496,37 +1528,11 @@ def _find_bank_original_description(date_s, amount) -> str:
                     except Exception:
                         continue
                 # Found a candidate; prefer original_description/immutable_orig if present
-                bank = (t.get("original_description")
-                        or t.get("immutable_orig")
-                        or t.get("description")
-                        or "")
+                bank = (t.get("original_description") or t.get("immutable_orig") or t.get("description") or "")
                 return (bank or "").strip().upper()
     except Exception:
         pass
     return ""
-
-
-def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
-    """
-    A stable fingerprint for a transaction when no transaction_id exists.
-    Uses (YYYY-MM-DD, signed amount rounded to cents, UPPER(description)).
-    Works well for most bank exports.
-    """
-    try:
-        d = _parse_any_date(date_s)
-        ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
-    except Exception:
-        ds = date_s or ""
-    try:
-        amt = float(amount or 0.0)
-    except Exception:
-        try:
-            amt = float(str(amount).replace(",", ""))
-        except Exception:
-            amt = 0.0
-    return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
-
-
 @app.get("/transactions")
 def transactions_page():
     """
@@ -1567,7 +1573,6 @@ def transactions_page():
 
 
 @app.post("/api/tx/edit_description")
-
 def edit_description():
     """
     Body (JSON):
@@ -1583,11 +1588,11 @@ def edit_description():
     """
     try:
         payload = request.get_json(force=True) or {}
-        txid  = (payload.get("transaction_id") or payload.get("id") or "").strip()
+        txid   = (payload.get("transaction_id") or payload.get("id") or "").strip()
         date_s = (payload.get("date") or "")[:10]
         amount = payload.get("amount", 0.0)
         orig_ui = (payload.get("original_description") or payload.get("description") or "").strip().upper()
-        newd = (payload.get("new_description") or "").strip().upper()
+        newd    = (payload.get("new_description") or "").strip().upper()
         if not newd:
             return jsonify({"ok": False, "error": "new_description required"}), 400
 
@@ -1618,43 +1623,58 @@ def edit_description():
             by_id[txid] = newd
 
         # 1) Proactively clear ANY existing fingerprints for this (date, amount) pair
-        #    regardless of the 'orig' text. This makes re-edits idempotent.
         prefixes = [f"{ds}|{amt_pos:.2f}|", f"{ds}|{amt_neg:.2f}|"]
-        removed = 0
         for k in list(by_fp.keys()):
             if any(k.startswith(p) for p in prefixes):
                 by_fp.pop(k, None)
-                removed += 1
 
         # 2) Determine the immutable bank original for this row
         bank_orig = _find_bank_original_description(ds, amt)
-        # Fallback to the UI-sent orig if lookup fails
         if not bank_orig:
-            bank_orig = orig_ui
+            bank_orig = orig_ui  # fallback to UI text if lookup fails
 
-        # 3) If the user is reverting to the bank text, don't add a new override
-        if bank_orig and newd.strip().upper() == bank_orig.strip().upper():
-            # no new by_fp entries: we removed the old ones above
-            pass
-        else:
-            # write both +/- amount fingerprints using the bank original text
+        # 3) If NOT reverting, write both +/- amount fingerprints using bank original
+        if not (bank_orig and newd == bank_orig.strip().upper()):
             k_pos = f"{ds}|{amt_pos:.2f}|{bank_orig}"
             k_neg = f"{ds}|{amt_neg:.2f}|{bank_orig}"
             by_fp[k_pos] = newd
             by_fp[k_neg] = newd
 
+        # Persist changes for BOTH branches and bust caches
         _save_desc_overrides(ov)
         _bust_caches()
 
-        # compute a fresh category guess from the *new* description
-        cfg_live = load_cfg()
-        new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
+        # --- Amount: defensive parse (handles "$", commas, strings) ---
+        try:
+            amt_float = float(amt)
+        except Exception:
+            try:
+                amt_float = float(str(amt).replace(",", "").replace("$", "").strip())
+            except Exception:
+                amt_float = 0.0
 
+        # --- Description: standardize on newd (never reference new_desc) ---
+        desc_for_guess = newd
+
+        # --- Live config (overrides) with fallback to fc ---
+        try:
+            cfg = _load_category_config() or {}
+        except Exception:
+            cfg = {}
+        category_keywords = cfg.get("CATEGORY_KEYWORDS", getattr(fc, "CATEGORY_KEYWORDS", {}))
+        subcategory_maps  = cfg.get("SUBCATEGORY_MAPS",  getattr(fc, "SUBCATEGORY_MAPS", {}))
+
+        # --- Categorize (supports 4-arg or 3-arg signature) ---
+        try:
+            new_category = categorize_transaction(desc_for_guess, amt_float, category_keywords, subcategory_maps)
+        except TypeError:
+            new_category = categorize_transaction(desc_for_guess, amt_float, category_keywords)
 
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
     except Exception as e:
         app.logger.exception("edit_description failed")
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/explorer")
 def all_items_explorer():
@@ -1714,16 +1734,18 @@ def _cfg_children_for(level: str, cat: str, sub: str, ssub: str, cfg_live: Dict[
     return []
 
 # ------------------ PATH TRANSACTIONS API (for drawer drill) ------------------
-def _find_node_by_path(tree: List[Dict[str, Any]], path: List[str]) -> Optional[Dict[str, Any]]:
+def _find_node_by_path(tree: list, path: list) -> dict | None:
     if not path:
         return None
+    def norm(x):
+        return (x or "").strip().lower()
     curr_list = tree or []
     node = None
     for seg in path:
-        seg = (seg or "").strip()
+        seg_n = norm(seg)
         found = None
         for n in curr_list:
-            if (n.get("name") or "").strip() == seg:
+            if norm(n.get("name")) == seg_n:
                 found = n
                 break
         if not found:
@@ -1731,13 +1753,6 @@ def _find_node_by_path(tree: List[Dict[str, Any]], path: List[str]) -> Optional[
         node = found
         curr_list = node.get("children") or []
     return node
-
-# Make sure these are imported somewhere near the top of app.py:
-# from flask import request, jsonify
-# from truist.admin_categories import load_cfg
-# from truist.parser_web import generate_summary, get_transactions_for_path, _parse_any_date
-
-# DEPRECATED: legacy alias — forwards to the override-aware handler
 @app.get("/api/txns_for_path")
 def api_txns_for_path_compat():
     app.logger.warning("DEPRECATED /api/txns_for_path called; using /api/path/transactions")
@@ -2126,6 +2141,11 @@ def api_recurrents():
     RC_AMT_LABELS = getattr(RC, "AMOUNT_LABELS", {}) or {}
     RC_VAR_TOL_MAP = getattr(RC, "VARIANCE_TOLERANCE", {}) or {}
     RC_BI_CAP_MAP = getattr(RC, "BIWEEKLY_MAX_PER_MONTH", {}) or {}
+    # Default allow list for common recurring categories
+    DEFAULT_ALLOW_CATS = {
+        "SUBSCRIPTIONS","UTILITIES","RENT/UTILITIES","PHONE",
+        "INTERNET","INSURANCE","MORTGAGE"
+    }
     MISSED_GRACE_DAYS = int(getattr(RC, "MISSED_GRACE_DAYS", 7))
 
     # Variable income config (mobile deposits + tips)
@@ -2233,6 +2253,7 @@ def api_recurrents():
         merch_cmp = _cmp(raw_desc)
         subcat_cmp = _cmp(subcat or "")
 
+        # keep excluding card payments
         if is_credit_card_like(raw_desc, subcat, cat_top):
             return False
 
@@ -2240,10 +2261,17 @@ def api_recurrents():
         if (("PAYMENTUS" in desc_up and "SARASOTA" in desc_up) or ("SARASOTA" in desc_up and "UTILIT" in desc_up)):
             return True
 
+        # deny-lists (keep)
         if subcat_cmp and any(subcat_cmp == d for d in DENY_SUBCATS_CMP):
             return False
         if any(d in merch_cmp for d in DENY_CMP):
             return False
+
+        # default allow for common recurring categories
+        if cat_up in DEFAULT_ALLOW_CATS:
+            return True
+
+        # explicit allows (keep)
         if any(m in merch_cmp for m in ALLOW_CMP):
             return True
         if cat_up == "INCOME" and any(k in desc_up for k in RC_INCOME_KEYS):
@@ -2252,8 +2280,9 @@ def api_recurrents():
             return True
         if any(k in desc_up for k in RC_KEYS):
             return True
-        return False
 
+        # relaxed default: let it through (min_occ later still filters noise)
+        return True
     def looks_like_income(rows_subset, merch_key):
         key_cmp = _cmp(merch_key)
         income_key_cmps = [_cmp(x) for x in RC_INCOME_KEYS]
@@ -2958,11 +2987,8 @@ def income_probe():
             else:
                 for tx in (n.get("transactions") or []):
                     desc = (tx.get("description") or tx.get("desc") or "").upper()
-                    try:
-                        amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-                    except Exception:
-                        amt = 0.0
-
+                    try: amt = float(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
+                    except Exception: amt = 0.0
                     if needle in desc:
                         rows.append({"date": tx.get("date",""), "desc": tx.get("description",""), "amt": amt})
                         nonlocal count, sum_amt
