@@ -234,7 +234,7 @@
 
         out.push(`
           <tr>
-            <td class="text-nowrap">${fmtDate(t.date)}</td>
+            <td class="text-nowrap tx-date" data-tx-id="${escAttr(t.transaction_id||'')}" data-date="${escAttr(t.date||'')}" data-amount="${escAttr(t.amount)}" data-orig-desc="${escAttr(t.original_description||t.description||'')}">${fmtDate(t.date)}</td>
             <td class="tx-desc"
                 data-tx-id="${escAttr(txid)}"
                 data-sig="${escAttr(sig)}"
@@ -393,6 +393,113 @@
   }
 
   scroller.addEventListener('dblclick', (e)=>{ const td = e.target.closest('td.tx-desc'); if (!td) return; beginEdit(td); });
+
+// --- Date inline edit ---
+  const UPDATE_DATE_API = "/api/tx/edit_date";
+
+  function beginEditDate(td){
+    if (!td || td.classList.contains('editing')) return;
+
+    const txId = td.getAttribute('data-tx-id') || '';
+    const origDateStr = td.getAttribute('data-date') || '';
+    const amtStr = td.getAttribute('data-amount') || '';
+    const origDesc = td.getAttribute('data-orig-desc') || '';
+
+    function toISO(s){
+      const x = (s||'').trim();
+      if (!x) return '';
+      // accept YYYY-MM-DD or MM/DD/YYYY
+      const m1 = x.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+      const m2 = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m2){
+        const mm = m2[1].padStart(2,'0'), dd = m2[2].padStart(2,'0'), yy = m2[3];
+        return `${yy}-${mm}-${dd}`;
+      }
+      return x.slice(0,10);
+    }
+
+    td.classList.add('editing');
+    td.dataset.editing = '1';
+
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = toISO(origDateStr);
+    input.className = 'form-control form-control-sm';
+    input.setAttribute('aria-label','Edit date');
+
+    const spinner = document.createElement('span');
+    spinner.className = 'ms-2 text-muted';
+    spinner.textContent = '…';
+
+    // replace content
+    const oldHtml = td.innerHTML;
+    td.innerHTML = '';
+    td.appendChild(input);
+
+    let canceled = false;
+    input.focus();
+    input.select();
+
+    function cleanup(newDisplay){
+      td.classList.remove('editing');
+      td.dataset.editing = '';
+      td.innerHTML = newDisplay;
+    }
+
+    async function commit(){
+      const iso = toISO(input.value);
+      if (!iso || iso === toISO(origDateStr)){
+        cleanup(fmtDate(iso || origDateStr));
+        return;
+      }
+      input.disabled = true;
+      td.appendChild(spinner);
+      try{
+        const body = {
+          transaction_id: txId || undefined,
+          date: origDateStr,
+          amount: Number(amtStr),
+          original_description: origDesc,
+          new_date: iso
+        };
+        const res = await fetch(UPDATE_DATE_API, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body)
+        }).then(r => r.json());
+
+        if (!res || res.ok !== true){
+          throw new Error((res && res.error) || 'Save failed');
+        }
+
+        // Update this cell + sync data-date on desc cell in same row
+        td.setAttribute('data-date', iso);
+        const tr = td.closest('tr');
+        const descTd = tr && tr.querySelector('td.tx-desc');
+        if (descTd){ descTd.setAttribute('data-date', iso); }
+
+        cleanup(fmtDate(iso));
+      }catch(err){
+        alert('Save failed: ' + err.message);
+        cleanup(fmtDate(origDateStr));
+      }
+    }
+
+    function cancel(){ canceled = True; cleanup(fmtDate(origDateStr)); }
+
+    input.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter'){ e.preventDefault(); commit(); }
+      else if (e.key === 'Escape'){ e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', ()=>{ if (!canceled) commit(); });
+  }
+
+  scroller.addEventListener('dblclick', (e)=>{
+    const td = e.target.closest('td.tx-date');
+    if (!td) return;
+    beginEditDate(td);
+  });
 
   load().catch(err=>{ tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`; });
 })();

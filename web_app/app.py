@@ -277,8 +277,6 @@ def _flatten_display_transactions(monthly: dict) -> list:
     return rows
 
 
-
-# --- helper: load description overrides (txid + fingerprint) ---
 def _load_desc_overrides():
     p = _desc_overrides_path()
     try:
@@ -286,10 +284,13 @@ def _load_desc_overrides():
     except Exception:
         data = {}
     return {
+        # existing description override maps
         "by_txid": data.get("by_txid", {}) or {},
         "by_fingerprint": data.get("by_fingerprint", {}) or {},
+        # NEW: date override maps
+        "date_by_txid": data.get("date_by_txid", {}) or {},
+        "date_by_fingerprint": data.get("date_by_fingerprint", {}) or {},
     }
-
 
 def _norm_month(val) -> str:
     """
@@ -1530,6 +1531,78 @@ def _fingerprint_tx(date_s: str, amount: Any, orig_desc: str) -> str:
             amt = 0.0
     return f"{ds}|{amt:.2f}|{(orig_desc or '').strip().upper()}"
 
+def _date_to_iso(s: str) -> str:
+    """Normalize any 'YYYY-MM-DD' or 'MM/DD/YYYY' to ISO 'YYYY-MM-DD'."""
+    d = _parse_any_date(s or "")
+    return d.strftime("%Y-%m-%d") if d else (str(s or "")[:10])
+
+def _txid_of(t: dict) -> str:
+    return (t.get("transaction_id") or t.get("id") or t.get("tx_id") or
+            t.get("_id") or t.get("uid") or "")
+
+def _candidate_descs_for_fp(t: dict) -> list[str]:
+    # Prefer immutable bank text if present, fall back to UI text
+    raw = (t.get("original_description") or t.get("immutable_orig") or "").strip()
+    ui  = (t.get("description") or t.get("desc") or "").strip()
+    out = []
+    if raw: out.append(raw)
+    if ui and ui.upper() != (raw or "").upper(): out.append(ui)
+    return out
+
+def _apply_date_overrides_to_summary(summary: dict) -> None:
+    """
+    Rewrite tx['date'] in the monthly tree according to overrides,
+    without changing which month bucket a tx belongs to.
+    (Good for day corrections like weekend processing.)
+    """
+    if not isinstance(summary, dict):
+        return
+    ov = _load_desc_overrides()
+    by_id = ov.get("date_by_txid", {}) or {}
+    by_fp = ov.get("date_by_fingerprint", {}) or {}
+
+    def maybe_override_date(t: dict) -> None:
+        # 1) Try transaction_id first
+        txid = _txid_of(t)
+        new_iso = None
+        if txid and txid in by_id:
+            new_iso = _date_to_iso(by_id[txid])
+
+        # 2) Try fingerprints (date|±amount|DESC)
+        if not new_iso:
+            # use the tx's current stored date (pre-override) so lookup is stable
+            ds = _date_to_iso(t.get("date", ""))
+            try:
+                amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
+            except Exception:
+                amt = 0.0
+            a_pos, a_neg = abs(amt), -abs(amt)
+            for desc in _candidate_descs_for_fp(t):
+                up = desc.strip().upper()
+                if not up:
+                    continue
+                k1 = _fingerprint_tx(ds, a_pos, up)
+                k2 = _fingerprint_tx(ds, a_neg, up)
+                if k1 in by_fp:
+                    new_iso = _date_to_iso(by_fp[k1]); break
+                if k2 in by_fp:
+                    new_iso = _date_to_iso(by_fp[k2]); break
+
+        if new_iso:
+            t["date"] = new_iso  # safe: rest of app parses both ISO and MM/DD/YYYY
+
+    def walk(n: dict):
+        kids = n.get("children") or []
+        if kids:
+            for c in kids:
+                walk(c)
+        else:
+            for t in (n.get("transactions") or []):
+                maybe_override_date(t)
+
+    for _, month_blob in summary.items():
+        for top in (month_blob.get("tree") or []):
+            walk(top)
 
 @app.get("/transactions")
 def transactions_page():
@@ -1662,6 +1735,76 @@ def edit_description():
     except Exception as e:
         app.logger.exception("edit_description failed")
         return jsonify({"ok": False, "error": str(e)}), 500
+    
+@app.post("/api/tx/edit_date")
+def edit_date():
+    """
+    Body (JSON):
+      {
+        "transaction_id": "optional",
+        "date": "YYYY-MM-DD or MM/DD/YYYY",   # the row's original date (as shown)
+        "amount": -450.00,                    # signed
+        "original_description": "what the UI shows",
+        "new_date": "YYYY-MM-DD or MM/DD/YYYY"
+      }
+    Returns:
+      { ok: true, new_date: "YYYY-MM-DD", month_key: "YYYY-MM" }
+    """
+    try:
+        payload = request.get_json(force=True) or {}
+        txid   = (payload.get("transaction_id") or payload.get("id") or "").strip()
+        date_s = (payload.get("date") or "")[:10]
+        amount = payload.get("amount", 0.0)
+        orig_ui = (payload.get("original_description") or payload.get("description") or "").strip().upper()
+        new_date_raw = (payload.get("new_date") or "").strip()
+        if not new_date_raw:
+            return jsonify({"ok": False, "error": "new_date required"}), 400
+
+        # normalize inputs
+        ds = _date_to_iso(date_s)
+        try:
+            amt = float(amount or 0.0)
+        except Exception:
+            try: amt = float(str(amount).replace(",", ""))
+            except Exception: amt = 0.0
+        new_iso = _date_to_iso(new_date_raw)
+        month_key = new_iso[:7]
+
+        ov = _load_desc_overrides()
+        by_id = ov.setdefault("by_txid", {})              # existing desc map (untouched)
+        by_fp = ov.setdefault("by_fingerprint", {})       # existing desc map (untouched)
+        d_by_id = ov.setdefault("date_by_txid", {})       # NEW date map
+        d_by_fp = ov.setdefault("date_by_fingerprint", {})# NEW date map
+
+        # txid rule (wins if present)
+        if txid:
+            d_by_id[txid] = new_iso
+
+        # Fingerprint rules for both +/− amounts, keyed by the row's ORIGINAL BANK text
+        bank_orig = _find_bank_original_description(ds, amt) or orig_ui or ""
+        bank_orig = bank_orig.strip().upper()
+
+        def put_date_fp(orig_text_upper: str):
+            if not orig_text_upper:
+                return
+            k_pos = _fingerprint_tx(ds,  abs(amt), orig_text_upper)
+            k_neg = _fingerprint_tx(ds, -abs(amt), orig_text_upper)
+            d_by_fp[k_pos] = new_iso
+            d_by_fp[k_neg] = new_iso
+
+        if bank_orig:
+            put_date_fp(bank_orig)
+        if orig_ui and orig_ui != bank_orig:
+            put_date_fp(orig_ui)
+
+        _save_desc_overrides(ov)
+        _bust_caches()
+
+        return jsonify({"ok": True, "new_date": new_iso, "month_key": month_key})
+    except Exception as e:
+        app.logger.exception("edit_date failed")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 # ------------------ ALL ITEMS EXPLORER (flat list) ------------------
