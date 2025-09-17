@@ -1134,6 +1134,7 @@ def generate_summary(category_keywords, subcategory_maps, desc_overrides=None):
     return monthly_summaries
 
 
+
 def recent_activity_summary(
     days=30,
     large_threshold=500,   # kept for compatibility
@@ -1319,49 +1320,103 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
     """
     # Fresh config
     ck, sm, ss, sss_map, _custom, omit_live, amount_rules, _src = _load_category_config()
-
-    hidden_cats = _hidden_categories()  # <-- NEW
+    hidden_cats = _hidden_categories()
 
     # Use discovered base for manual
     statements_base = get_statements_base_dir()
     manual_file = statements_base / "manual_transactions.json"
 
+    # Load overrides (same file app.py writes to)
+    ov = _load_desc_overrides_local()
+    by_txid = (ov.get("by_txid") or {})
+    by_fp   = (ov.get("by_fingerprint") or {})
+
+    # Helper to build the same fingerprint as app.py/_fingerprint_tx
+    def _fp_str(date_s, amount, original_desc):
+        d = _parse_any_date(date_s)
+        ds = d.strftime("%Y-%m-%d") if d else (str(date_s) or "")[:10]
+        try:
+            amt = float(amount or 0.0)
+        except Exception:
+            try:
+                amt = float(str(amount).replace(",", ""))
+            except Exception:
+                amt = 0.0
+        return f"{ds}|{amt:.2f}|{(original_desc or '').strip().upper()}"
+
+    def _apply_one_override_row(row, ovv):
+        if isinstance(ovv, str):
+            row["description"] = clean_description(ovv)
+            row["_desc_overridden"] = True
+            return
+        if not isinstance(ovv, dict):
+            return
+        if ovv.get("description"):
+            row["description"] = clean_description(ovv["description"])
+            row["_desc_overridden"] = True
+        if ovv.get("date"):
+            nd = _parse_any_date(ovv["date"])
+            if nd:
+                row["date"] = nd.strftime("%m/%d/%Y")
+                row["_date_overridden"] = True
+        if ovv.get("category"):
+            row["category"] = ovv["category"]
+        if ovv.get("subcategory"):
+            row["subcategory"] = ovv["subcategory"]
+
     rows = []
 
     # --- Load from discovered sources (JSON + CSV) ---
     for raw in _iter_all_raw_transactions():
-        # Basic normalize like generate_summary (but we don't need custom override here)
-        # We still use categorize_transaction to place into categories
         if isinstance(raw, dict) and raw.get("pending", False):
             continue
-        dt = _parse_any_date(raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED") or raw.get("posting_date") or raw.get("authorized_date"))
+        dt = _parse_any_date(
+            raw.get("date") or raw.get("DATE") or raw.get("posted") or raw.get("POSTED")
+            or raw.get("posting_date") or raw.get("authorized_date")
+        )
         if not dt:
             continue
         try:
             raw_amt = float(raw.get("amount"))
         except Exception:
             raw_amt = 0.0
-        desc = clean_description(
-            raw.get("description") or raw.get("name", "") or raw.get("merchant_name", "") or raw.get("desc", "") or raw.get("original_description", "") or ""
+
+        original_desc = (
+            raw.get("original_description") or raw.get("description") or raw.get("name", "")
+            or raw.get("merchant_name", "") or raw.get("desc", "") or ""
         )
+        desc = clean_description(original_desc)
 
         category = categorize_transaction(desc, raw_amt, ck)
         is_return = _is_return(desc)
         if category == "Income":
-            amt = abs(raw_amt)
+            amt_ui = abs(raw_amt)
         else:
-            amt = abs(raw_amt) if is_return else -abs(raw_amt)
+            amt_ui = abs(raw_amt) if is_return else -abs(raw_amt)
 
         row = {
             "date": dt.strftime("%m/%d/%Y"),
-            "amount": amt,
+            "amount": amt_ui,                 # UI sign
             "category": category,
             "description": desc,
             "is_return": is_return,
+            "original_description": clean_description(original_desc),
+            "transaction_id": raw.get("transaction_id") or raw.get("id") or raw.get("tx_id")
         }
+
+        # --- Apply overrides by_txid first, then by_fingerprint ---
+        txid = str(row.get("transaction_id") or "").strip()
+        if txid and txid in by_txid:
+            _apply_one_override_row(row, by_txid[txid])
+        else:
+            key = _fp_str(row["date"], row["amount"], row["original_description"])
+            ovv = by_fp.get(key)
+            if ovv is not None:
+                _apply_one_override_row(row, ovv)
+
         rows.append(row)
 
-    # --- Load manual entries ---
+    # --- Load manual entries (already normalized) ---
     rows.extend(load_manual_transactions(manual_file))
 
     # --- Legacy cleanup & fill missing category ---
@@ -1374,7 +1429,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
             if r["category"] == "Transfers":
                 r["is_transfer"] = True
 
-    # Deduplicate; keep rows (no offset matcher removal)
+    # Deduplicate
     rows = deduplicate(rows)
 
     # Global omit/skip rules
@@ -1386,7 +1441,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
 
         if _should_omit_tx(desc, amt, omit_live, amount_rules):
             continue
-        # respect hidden categories unless explicitly allowed
         if (not allow_hidden) and (cat_r in hidden_cats):
             continue
         if cat_r == "Transfers" or (cat_r == "Venmo" and round(abs(amt), 2) != 200.00) or (cat_r == "Credit Card" and abs(amt) > 300):
@@ -1401,10 +1455,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
             else:
                 r["owner"] = "Unknown"
 
-        kept.append(r)
-
-    # Sub/sub-sub/sub³ matching using keyword maps
-    for r in kept:
+        # Sub/sub-sub/sub³ matching using keyword maps
         forced_subcat = r.get("subcategory")
         forced_subsub = r.get("sub_subcategory")
         if forced_subcat:
@@ -1443,7 +1494,9 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
             if not matched and sub_map:
                 r["subcategory"] = "🟡 Other/Uncategorized"
 
-    # Sort newest-first
+        kept.append(r)
+
+    # Sort newest-first (after overrides so the edited date is respected)
     kept.sort(key=lambda t: _parse_any_date(t.get("date") or "") or datetime.min, reverse=True)
 
     # --- Path filter ---
@@ -1457,7 +1510,6 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
 
     def match_path(t):
         t_cat  = _norm(t.get("category"))
-        # tolerate legacy aliases
         t_sub  = _norm(t.get("subcategory") or t.get("sub_category"))
         t_ssub = _norm(t.get("subsubcategory") or t.get("sub_subcategory"))
         t_sss  = _norm(t.get("subsubsubcategory") or t.get("sub_sub_subcategory"))
@@ -1487,6 +1539,7 @@ def get_transactions_for_path(level, cat, sub, ssub, sss, limit=50, allow_hidden
         }
         for t in out
     ]
+
 
 
 if __name__ == "__main__":
