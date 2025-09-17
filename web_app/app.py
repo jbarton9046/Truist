@@ -521,11 +521,83 @@ def _apply_hide_rules_to_summary(summary_data):
         month_blob["income_total"] = round(income_sum, 2)
         month_blob["expense_total"] = round(expense_sum, 2)
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
+# Canonicalize subcategory names back to their unique top-level parent
+def _rev_sub_to_cat_map(cfg_live=None) -> dict[str, str]:
+    """Return a case-insensitive map: subcategory -> top-level category."""
+    cfg_live = cfg_live or load_cfg()
+    rev = {}
+    for cat, submap in (cfg_live.get("SUBCATEGORY_MAPS") or {}).items():
+        for sub in (submap or {}).keys():
+            k = str(sub).strip().lower()
+            if k:
+                rev.setdefault(k, cat)
+    return rev
 
 # Rebuild categories mapping from pruned tree (so Income/JL Pay shows consistently)
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
     if not summary_data:
         return
+
+    EPS = 0.005
+    def _amt(x):
+        try: return float(x)
+        except Exception: return 0.0
+
+    def _is_hidden_amount(a: float) -> bool:
+        return abs(a - 10002.02) < EPS or abs(a + 10002.02) < EPS
+
+    # NEW: reverse map for canonicalization
+    REV_SUB_TO_CAT = _rev_sub_to_cat_map()
+
+    for _, month in summary_data.items():
+        tree = month.get("tree") or []
+        cats: dict[str, dict] = {}
+
+        def add_row(top: str, sub: str, ssub: str, s3: str, tx: dict):
+            amt = _amt(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
+            if _is_hidden_amount(amt):
+                return
+            desc = tx.get("description") or tx.get("desc") or ""
+
+            # --- Canonicalize: if top is actually a known subcategory (e.g., 'Tundra'),
+            # promote its parent as the top-level and make the sub be the original top.
+            orig_top = (top or "").strip()
+            parent = REV_SUB_TO_CAT.get(orig_top.lower())
+            if parent:
+                top = parent
+                sub = orig_top  # force 'Vehicles / Tundra'
+
+            if top not in cats:
+                cats[top] = {
+                    "transactions": [],
+                    "total": 0.0,
+                    "subcategories": {},
+                    "subsubcategories": {},
+                    "subsubsubcategories": {},
+                }
+
+            cats[top]["transactions"].append({
+                "date": tx.get("date", ""),
+                "description": desc,
+                "amount": amt,
+                "category": top,
+                "subcategory": sub or "",
+            })
+            cats[top]["total"] += amt
+
+            # level 1
+            if sub:
+                cats[top]["subcategories"][sub] = cats[top]["subcategories"].get(sub, 0.0) + amt
+                # level 2
+                if ssub:
+                    lvl2 = cats[top]["subsubcategories"].setdefault(sub, {})
+                    lvl2[ssub] = lvl2.get(ssub, 0.0) + amt
+                    # level 3
+                    if s3:
+                        lvl3_sub = cats[top]["subsubsubcategories"].setdefault(sub, {})
+                        lvl3_ssub = lvl3_sub.setdefault(ssub, {})
+                        lvl3_ssub[s3] = lvl3_ssub.get(s3, 0.0) + amt
+
 
     EPS = 0.005
     def _amt(x):
@@ -2013,6 +2085,7 @@ def api_path_transactions():
 
     # Build all months (already pruned/categorized)
     monthly, cfg_live = build_monthly()
+    REV_SUB_TO_CAT = _rev_sub_to_cat_map(cfg_live)  # <-- map sub -> parent category
     months_all_sorted = sorted(monthly.keys(), key=_norm_month)
 
     if not months_all_sorted:
@@ -2095,7 +2168,8 @@ def api_path_transactions():
                             amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
                         except Exception:
                             amt = 0.0
-                        if _hidden(amt): continue
+                        if _hidden(amt): 
+                            continue
                         txs.append({
                             "date": t.get("date", ""),
                             "description": t.get("description", t.get("desc", "")),
@@ -2124,7 +2198,8 @@ def api_path_transactions():
                                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
                             except Exception:
                                 amt = 0.0
-                            if _hidden(amt): continue
+                            if _hidden(amt): 
+                                continue
                             txs.append({
                                 "date": t.get("date", ""),
                                 "description": t.get("description", t.get("desc", "")),
@@ -2165,6 +2240,16 @@ def api_path_transactions():
             if not (t.get("subcategory") or "").strip():
                 t["subcategory"] = sub
 
+    # ---- Canonicalize rows: if category is actually a known subcategory,
+    #      promote it to subcategory and set the correct parent category.
+    for t in txs:
+        cat_now = (t.get("category") or "").strip()
+        parent = REV_SUB_TO_CAT.get(cat_now.lower())
+        if parent:
+            # e.g., "Tundra / Bridgecrest" -> "Vehicles / Tundra"
+            t["subcategory"] = cat_now or t.get("subcategory", "")
+            t["category"] = parent
+
     # Merge cfg-derived children with tree-observed children
     cfg_children = _cfg_children_for(level, cat, sub, ssub, cfg_live)
     children_set = set(cfg_children)
@@ -2191,7 +2276,6 @@ def api_path_transactions():
         "magnitude_total": magnitude_total,
         "fallback_all_months_for_path": used_fallback
     })
-
 
 @app.get("/api/recent-activity")
 @app.get("/api/recent_activity")
