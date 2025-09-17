@@ -258,8 +258,6 @@ cfg = {
     "KEYWORDS": getattr(fc, "KEYWORDS", {}),
 }
 
-
-
 def _build_monthly_live() -> dict:
     ck, sm, *_ = _load_category_config()
     ov = _load_desc_overrides()
@@ -276,7 +274,6 @@ def _flatten_display_transactions(monthly: dict) -> list:
         for _, data in (m.get("categories") or {}).items():
             rows.extend(data.get("transactions", []) or [])
     return rows
-
 
 def _load_desc_overrides():
     p = _desc_overrides_path()
@@ -313,7 +310,6 @@ def _norm_month(val) -> str:
 
     return "0000-00"
 # ---------------------------------------------------------------------------
-
 
 def append_manual_tx(tx: dict, path: Path = MANUAL_FILE) -> dict:
     # validate + normalize
@@ -599,7 +595,6 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
 
         month["categories"] = cats
 
-
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
 _CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
 
@@ -625,8 +620,6 @@ def _cache_fingerprint() -> tuple:
         ov2_m = 0
 
     return (manual_m, ov_m, ov2_m, json_m)
-
-
 
 def build_monthly(force: bool = False):
     """
@@ -656,7 +649,6 @@ def build_monthly(force: bool = False):
 
     c.update({"key": fp, "built_at": now, "monthly": monthly, "cfg": cfg_live})
     return monthly, cfg_live
-
 
 # --- Goals storage ---
 def _goals_file() -> Path:
@@ -694,8 +686,6 @@ def _month_key(dt_str):
         except Exception:
             return None
         
-
-
 # ------------------ MIDDLEWARE ------------------
 @app.after_request
 def add_no_cache_headers(resp):
@@ -751,9 +741,6 @@ def refresh_data():
         app.logger.exception("refresh_data error")
         return jsonify(ok=False, error=str(e)), 500
 
-
-
-
 @app.route("/builder")
 def category_builder():
     cfg_live = load_cfg()
@@ -803,7 +790,6 @@ def index():
         expense=expense_total,
     )
 
-
 @app.route("/categories")
 def categories():
     cfg_live = load_cfg()
@@ -830,7 +816,6 @@ def cash_page():
         subsubcategory_maps=cfg_live.get("SUBSUBCATEGORY_MAPS", {}),
         date_today=date.today().isoformat(),  # ⬅ added
     )
-
 
 @app.route("/add-income", methods=["GET"])
 def add_income():
@@ -926,7 +911,6 @@ def debug_keywords():
         }
     })
 
-
 @app.route("/api/category_movers", methods=["GET"])
 def api_category_movers():
     try:
@@ -942,8 +926,6 @@ def api_category_movers():
         try: app.logger.exception("category_movers failed: %s", e)
         except Exception: pass
         return jsonify(ok=True, latest_month=None, prev_month=None, rows=[])
-
-
 
 # ---------- helpers for API ----------
 def _extract_transactions(summary):
@@ -999,7 +981,7 @@ def api_categories_monthly():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
 
     # If we have raw txs (first-run / cache-miss path), fall back to a simple top-only rollup.
     txs = _extract_transactions(summary)
@@ -1082,8 +1064,6 @@ def charts_page():
     since_date = cfg_live.get("SUMMARY_SINCE_DATE")
     cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12, since_date=since_date)
     return render_template("charts.html", cat_monthly=cat_monthly)
-
-
 
 @app.get("/api/cat_monthly")
 def api_cat_monthly():
