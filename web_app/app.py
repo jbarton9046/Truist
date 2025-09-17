@@ -812,6 +812,7 @@ def cash_page():
     _apply_date_overrides_to_summary(summary_data)
     _rebucket_months_by_overrides(summary_data)
     _apply_hide_rules_to_summary(summary_data)
+    _rebuild_categories_from_tree(summary)
 
     return render_template(
         "cash.html",
@@ -1900,20 +1901,20 @@ def edit_date():
 # ------------------ ALL ITEMS EXPLORER (flat list) ------------------
 @app.route("/explorer")
 def all_items_explorer():
-    cfg_live = load_cfg()
-    ov = _load_desc_overrides()
-    summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-    _apply_date_overrides_to_summary(summary)
-    _rebucket_months_by_overrides(summary)
-    _apply_hide_rules_to_summary(summary)
+    # Build the monthly blob with all the same steps, from one source of truth
+    summary = _build_monthly_live()
+
+    months_raw = (request.args.get("months") or "12").strip().lower()
+    months_back = 10**9 if months_raw == "all" else int(months_raw or 12)
+
     cat_monthly = build_cat_monthly_from_summary(
         summary,
-        months_back=int(request.args.get("months", "12") or 12),
+        months_back=months_back,
         since=request.args.get("since"),
         since_date=request.args.get("since_date"),
     )
-
     return render_template("all_items_explorer.html", cat_monthly=cat_monthly)
+
 
 
 # ------------------ ALL CATEGORIES (deep tree) ------------------
@@ -2187,17 +2188,55 @@ def api_path_transactions():
     })
 
 
-# Serve BOTH spellings so old/new JS keep working
 @app.get("/api/recent-activity")
 @app.get("/api/recent_activity")
 def api_recent_activity():
     """
     Dashboard snapshot used by index.html.
-    Rebuilds with the latest description overrides so edits show up immediately.
+    Ensures rebucketed months/totals are used for the headline numbers.
     """
     try:
-        # recent_activity_summary already uses generate_summary(..., desc_overrides=ov)
+        # Keep the existing summary for extras (recent_txs, windows, etc.)
         data = recent_activity_summary()
+
+        # Overlay headline months/totals from the unified pipeline
+        monthly = _build_monthly_live()  # applies: desc overrides → date overrides → REBUCKET → hide → rebuild cats
+        if monthly:
+            keys = sorted(monthly.keys(), key=_norm_month)
+            latest_key = keys[-1]
+            prev_key = keys[-2] if len(keys) > 1 else None
+
+            def _totals(blob):
+                return (
+                    float(blob.get("income_total", 0.0)),
+                    float(blob.get("expense_total", 0.0)),
+                    float(blob.get("net_cash_flow", 0.0)),
+                )
+
+            inc, exp, net = _totals(monthly[latest_key])
+            pinc, pexp, pnet = _totals(monthly.get(prev_key, {})) if prev_key else (0.0, 0.0, 0.0)
+
+            data["latest_month"] = _norm_month(latest_key)
+            data["prev_month"] = _norm_month(prev_key) if prev_key else None
+            data["latest_totals"] = {
+                "income": round(inc, 2),
+                "expense": round(exp, 2),
+                "net": round(net, 2),
+                "prev_income": round(pinc, 2),
+                "prev_expense": round(pexp, 2),
+                "prev_net": round(pnet, 2),
+                "delta_income": round(inc - pinc, 2),
+                "delta_expense": round(exp - pexp, 2),
+                "delta_net": round(net - pnet, 2),
+                "pct_income": round(((inc - pinc) / pinc) * 100, 2) if abs(pinc) > 1e-9 else None,
+                "pct_expense": round(((exp - pexp) / pexp) * 100, 2) if abs(pexp) > 1e-9 else None,
+                "pct_net": round(((net - pnet) / pnet) * 100, 2) if abs(pnet) > 1e-9 else None,
+            }
+
+            # Optional: also refresh “movers” from the rebucketed data
+            mov = _compute_category_movers(monthly)
+            data["movers_abs"] = mov["rows"]
+
     except Exception as e:
         data = {
             "as_of": None,
@@ -2209,17 +2248,15 @@ def api_recent_activity():
                 "delta_income": 0.0, "delta_expense": 0.0, "delta_net": 0.0,
                 "pct_income": None, "pct_expense": None, "pct_net": None,
             },
-            "movers_abs": [],
-            "top_ups": [],
-            "top_downs": [],
-            "recent_txs": [],
-            "recent_windows": {
+            "movers_abs": [], "top_ups": [], "top_downs": [],
+            "recent_txs": [], "recent_windows": {
                 "last_7_expense": 0.0, "last_7_income": 0.0,
                 "last_30_expense": 0.0, "last_30_income": 0.0,
             },
             "error": str(e),
         }
     return jsonify({"data": data})
+
 
 
 # ------------------ SUBSCRIPTIONS API ------------------
