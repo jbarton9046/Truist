@@ -270,12 +270,30 @@ def _build_monthly_live() -> dict:
     return monthly
 
 def _flatten_display_transactions(monthly: dict) -> list:
-    """Only rows that passed omit rules and are not Transfers/hidden cats."""
+    """Only rows that passed omit rules and are not Transfers/hidden cats, with de-dupe."""
     rows = []
-    for m in monthly.values():
+    seen = set()
+    for m in (monthly or {}).values():
         for _, data in (m.get("categories") or {}).items():
-            rows.extend(data.get("transactions", []) or [])
+            for t in (data.get("transactions") or []):
+                #Prefer a real id; otherwise fall back to (date, amount, UPPER(desc))
+                txid = (t.get("transaction_id") or t.get("id") or t.get("tx_id")
+                        or t.get("_id") or t.get("uid") or "")
+                if txid:
+                    key = ("id", txid)
+                else:
+                    try:
+                        amt = round(float(t.get("amount", 0.0) or 0.0), 2)
+                    except Exception:
+                        amt = 0.0
+                    key = ("fp", (str(t.get("date",""))[:10], amt,
+                                  (t.get("description","") or "").strip().upper()))
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append(t)
     return rows
+
 
 def _load_desc_overrides():
     p = _desc_overrides_path()
@@ -533,7 +551,6 @@ def _rev_sub_to_cat_map(cfg_live=None) -> dict[str, str]:
                 rev.setdefault(k, cat)
     return rev
 
-# Rebuild categories mapping from pruned tree (so Income/JL Pay shows consistently)
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
     if not summary_data:
         return
@@ -546,7 +563,7 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
     def _is_hidden_amount(a: float) -> bool:
         return abs(a - 10002.02) < EPS or abs(a + 10002.02) < EPS
 
-    # NEW: reverse map for canonicalization
+    # Canonical: map subcategory -> top-level (e.g., "tundra" -> "Vehicles")
     REV_SUB_TO_CAT = _rev_sub_to_cat_map()
 
     for _, month in summary_data.items():
@@ -559,13 +576,13 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
                 return
             desc = tx.get("description") or tx.get("desc") or ""
 
-            # --- Canonicalize: if top is actually a known subcategory (e.g., 'Tundra'),
-            # promote its parent as the top-level and make the sub be the original top.
+            # --- Canonicalize: if the top name is actually a known subcategory,
+            # promote its parent category and use the original as subcategory.
             orig_top = (top or "").strip()
             parent = REV_SUB_TO_CAT.get(orig_top.lower())
             if parent:
                 top = parent
-                sub = orig_top  # force 'Vehicles / Tundra'
+                sub = orig_top
 
             if top not in cats:
                 cats[top] = {
@@ -585,65 +602,11 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
             })
             cats[top]["total"] += amt
 
-            # level 1
             if sub:
                 cats[top]["subcategories"][sub] = cats[top]["subcategories"].get(sub, 0.0) + amt
-                # level 2
                 if ssub:
                     lvl2 = cats[top]["subsubcategories"].setdefault(sub, {})
                     lvl2[ssub] = lvl2.get(ssub, 0.0) + amt
-                    # level 3
-                    if s3:
-                        lvl3_sub = cats[top]["subsubsubcategories"].setdefault(sub, {})
-                        lvl3_ssub = lvl3_sub.setdefault(ssub, {})
-                        lvl3_ssub[s3] = lvl3_ssub.get(s3, 0.0) + amt
-
-
-    EPS = 0.005
-    def _amt(x):
-        try: return float(x)
-        except Exception: return 0.0
-
-    def _is_hidden_amount(a: float) -> bool:
-        return abs(a - 10002.02) < EPS or abs(a + 10002.02) < EPS
-
-    for _, month in summary_data.items():
-        tree = month.get("tree") or []
-        cats: dict[str, dict] = {}
-
-        def add_row(top: str, sub: str, ssub: str, s3: str, tx: dict):
-            amt = _amt(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
-            if _is_hidden_amount(amt):
-                return
-            desc = tx.get("description") or tx.get("desc") or ""
-
-            if top not in cats:
-                cats[top] = {
-                    "transactions": [],
-                    "total": 0.0,
-                    "subcategories": {},
-                    "subsubcategories": {},
-                    "subsubsubcategories": {},
-                }
-
-            # flat transaction list at top level
-            cats[top]["transactions"].append({
-                "date": tx.get("date", ""),
-                "description": desc,
-                "amount": amt,
-                "category": top,
-                "subcategory": sub or "",
-            })
-            cats[top]["total"] += amt
-
-            # level 1
-            if sub:
-                cats[top]["subcategories"][sub] = cats[top]["subcategories"].get(sub, 0.0) + amt
-                # level 2
-                if ssub:
-                    lvl2 = cats[top]["subsubcategories"].setdefault(sub, {})
-                    lvl2[ssub] = lvl2.get(ssub, 0.0) + amt
-                    # level 3
                     if s3:
                         lvl3_sub = cats[top]["subsubsubcategories"].setdefault(sub, {})
                         lvl3_ssub = lvl3_sub.setdefault(ssub, {})
@@ -657,16 +620,19 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
                 for ch in children:
                     walk(ch, here)
             else:
-                top = here[0] if here else "Uncategorized"
-                sub = here[1] if len(here) > 1 else ""
+                top  = here[0] if here else "Uncategorized"
+                sub  = here[1] if len(here) > 1 else ""
                 ssub = here[2] if len(here) > 2 else ""
-                s3 = here[3] if len(here) > 3 else ""
+                s3   = here[3] if len(here) > 3 else ""
                 for tx in (node.get("transactions") or []):
                     add_row(top, sub, ssub, s3, tx)
 
         for top_node in tree:
             walk(top_node, [])
 
+        # round totals and write back
+        for cat in list(cats.keys()):
+            cats[cat]["total"] = round(cats[cat]["total"], 2)
         month["categories"] = cats
 
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
