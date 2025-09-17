@@ -1862,73 +1862,100 @@ def edit_description():
     
 @app.post("/api/tx/edit_date")
 def edit_date():
-    """
-    Body (JSON):
-      {
-        "transaction_id": "optional",
-        "date": "YYYY-MM-DD or MM/DD/YYYY",   # the row's original date (as shown)
-        "amount": -450.00,                    # signed
-        "original_description": "what the UI shows",
-        "new_date": "YYYY-MM-DD or MM/DD/YYYY"
-      }
-    Returns:
-      { ok: true, new_date: "YYYY-MM-DD", month_key: "YYYY-MM" }
-    """
     try:
         payload = request.get_json(force=True) or {}
         txid   = (payload.get("transaction_id") or payload.get("id") or "").strip()
-        date_s = (payload.get("date") or "")[:10]
-        amount = payload.get("amount", 0.0)
+        date_s = (payload.get("date") or "")[:10]            # may be bank date or a previously overridden date
+        amount = payload.get("amount", None)                 # may be missing!
         orig_ui = (payload.get("original_description") or payload.get("description") or "").strip().upper()
         new_date_raw = (payload.get("new_date") or "").strip()
         if not new_date_raw:
             return jsonify({"ok": False, "error": "new_date required"}), 400
 
-        # normalize inputs
         ds = _date_to_iso(date_s)
-        try:
-            amt = float(amount or 0.0)
-        except Exception:
-            try: amt = float(str(amount).replace(",", ""))
-            except Exception: amt = 0.0
         new_iso = _date_to_iso(new_date_raw)
         month_key = new_iso[:7]
 
-        ov = _load_desc_overrides()
-        by_id = ov.setdefault("by_txid", {})              # existing desc map (untouched)
-        by_fp = ov.setdefault("by_fingerprint", {})       # existing desc map (untouched)
-        d_by_id = ov.setdefault("date_by_txid", {})       # NEW date map
-        d_by_fp = ov.setdefault("date_by_fingerprint", {})# NEW date map
+        # --- Ensure we have a real amount (fallback to lookup if UI omitted it)
+        try:
+            amt = float(amount)
+        except Exception:
+            amt = None
+        if amt is None:
+            # Look up the amount from raw (no overrides) by date+desc (best effort)
+            ck, sm, *_ = _load_category_config()
+            raw = generate_summary(ck, sm, desc_overrides={}) or {}
+            try:
+                # prefer absolute match by date & description; fall back to date only
+                candidates = []
+                for blob in raw.values():
+                    for t in (blob.get("all_transactions") or []):
+                        if (t.get("description","").strip().upper() == orig_ui) and (t.get("date","")[:10] == (datetime.strptime(ds, "%Y-%m-%d").strftime("%m/%d/%Y"))):
+                            candidates.append(t)
+                if not candidates:
+                    for blob in raw.values():
+                        for t in (blob.get("all_transactions") or []):
+                            if t.get("date","")[:10] == (datetime.strptime(ds, "%Y-%m-%d").strftime("%m/%d/%Y")):
+                                candidates.append(t)
+                if candidates:
+                    amt = float(candidates[0].get("amount", 0.0) or 0.0)
+                else:
+                    amt = 0.0
+            except Exception:
+                amt = 0.0
 
-        # txid rule (wins if present)
+        # --- Prepare override maps
+        ov   = _load_desc_overrides()
+        d_by_id = ov.setdefault("date_by_txid", {})
+        d_by_fp = ov.setdefault("date_by_fingerprint", {})
+
+        # --- txid wins
         if txid:
             d_by_id[txid] = new_iso
 
-        # Fingerprint rules for both +/− amounts, keyed by the row's ORIGINAL BANK text
-        bank_orig = _find_bank_original_description(ds, amt) or orig_ui or ""
-        bank_orig = bank_orig.strip().upper()
-
-        def put_date_fp(orig_text_upper: str):
-            if not orig_text_upper:
+        # --- Build fingerprints for BOTH +/− amounts and BOTH possible source dates
+        bank_orig_desc = (_find_bank_original_description(ds, amt) or orig_ui or "").strip().upper()
+        def put_for_date(src_iso, desc_upper):
+            if not desc_upper:
                 return
-            k_pos = _fingerprint_tx(ds,  abs(amt), orig_text_upper)
-            k_neg = _fingerprint_tx(ds, -abs(amt), orig_text_upper)
+            k_pos = _fingerprint_tx(src_iso,  abs(amt), desc_upper)
+            k_neg = _fingerprint_tx(src_iso, -abs(amt), desc_upper)
             d_by_fp[k_pos] = new_iso
             d_by_fp[k_neg] = new_iso
 
-        if bank_orig:
-            put_date_fp(bank_orig)
-        if orig_ui and orig_ui != bank_orig:
-            put_date_fp(orig_ui)
+        # 1) keys using the date we received from the client (may be bank or previously overridden)
+        put_for_date(ds, bank_orig_desc)
+        if orig_ui and orig_ui != bank_orig_desc:
+            put_for_date(ds, orig_ui)
+
+        # 2) ALSO write keys using the bank-original date (helps when the row was already edited once)
+        #    (derive bank date by scanning raw summary)
+        try:
+            ck, sm, *_ = _load_category_config()
+            raw = generate_summary(ck, sm, desc_overrides={}) or {}
+            bank_ds_iso = None
+            mmdd = datetime.strptime(ds, "%Y-%m-%d").strftime("%m/%d/%Y")
+            for blob in raw.values():
+                for t in (blob.get("all_transactions") or []):
+                    dmm = (t.get("date","") or "")[:10]
+                    desc_up = (t.get("original_description") or t.get("immutable_orig") or t.get("description","")).strip().upper()
+                    if desc_up == bank_orig_desc and (abs(float(t.get("amount",0.0))) - abs(float(amt)) < 0.005):
+                        bank_ds_iso = _date_to_iso(dmm)
+                        break
+                if bank_ds_iso: break
+            if bank_ds_iso:
+                put_for_date(bank_ds_iso, bank_orig_desc)
+                if orig_ui and orig_ui != bank_orig_desc:
+                    put_for_date(bank_ds_iso, orig_ui)
+        except Exception:
+            pass
 
         _save_desc_overrides(ov)
         _bust_caches()
-
         return jsonify({"ok": True, "new_date": new_iso, "month_key": month_key})
     except Exception as e:
         app.logger.exception("edit_date failed")
         return jsonify({"ok": False, "error": str(e)}), 500
-
 
 
 # ------------------ ALL ITEMS EXPLORER (flat list) ------------------
