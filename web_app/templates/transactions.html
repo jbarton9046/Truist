@@ -52,8 +52,8 @@
   }
 
   /* Inline edit */
-  td.tx-desc { cursor: text; }
-  td.tx-desc.editing { background: rgba(255,255,255,.06); }
+  td.tx-desc, td.tx-date { cursor: text; }
+  td.tx-desc.editing, td.tx-date.editing { background: rgba(255,255,255,.06); }
   td.tx-desc .spinner-border{ pointer-events:none; }
 </style>
 
@@ -234,7 +234,11 @@
 
         out.push(`
           <tr>
-            <td class="text-nowrap tx-date" data-tx-id="${escAttr(t.transaction_id||'')}" data-date="${escAttr(t.date||'')}" data-amount="${escAttr(t.amount)}" data-orig-desc="${escAttr(t.original_description||t.description||'')}">${fmtDate(t.date)}</td>
+            <td class="text-nowrap tx-date"
+                data-tx-id="${escAttr(t.transaction_id||'')}"
+                data-date="${escAttr(t.date||'')}"
+                data-amount="${escAttr(t.amount)}"
+                data-orig-desc="${escAttr(origDesc)}">${fmtDate(t.date)}</td>
             <td class="tx-desc"
                 data-tx-id="${escAttr(txid)}"
                 data-sig="${escAttr(sig)}"
@@ -261,7 +265,7 @@
   $('date_from').addEventListener('change', load);
   $('date_to').addEventListener('change', load);
 
-  // -------- Inline edit ----------
+  // -------- Inline edit (Description) ----------
   const UPDATE_API = "/api/tx/edit_description";
 
   function beginEdit(td){
@@ -373,9 +377,6 @@
           catCell.textContent = res.new_category;
         }
 
-        // Optional: refresh full table if you want subcats to update
-        // setTimeout(load, 150);
-
       }catch(err){
         console.error('Save failed:', err);
         cleanup(original, false);
@@ -394,7 +395,7 @@
 
   scroller.addEventListener('dblclick', (e)=>{ const td = e.target.closest('td.tx-desc'); if (!td) return; beginEdit(td); });
 
-// --- Date inline edit ---
+  // --- Date inline edit ---
   const UPDATE_DATE_API = "/api/tx/edit_date";
 
   function beginEditDate(td){
@@ -433,7 +434,6 @@
     spinner.textContent = '…';
 
     // replace content
-    const oldHtml = td.innerHTML;
     td.innerHTML = '';
     td.appendChild(input);
 
@@ -474,19 +474,32 @@
         }
 
         // Update this cell + sync data-date on desc cell in same row
+        const oldMonth = monthKey(origDateStr);
+        const newMonth = monthKey(iso);
         td.setAttribute('data-date', iso);
         const tr = td.closest('tr');
         const descTd = tr && tr.querySelector('td.tx-desc');
         if (descTd){ descTd.setAttribute('data-date', iso); }
 
+        // If the month bucket changed, rebuild the table so the row moves
+        if (oldMonth !== newMonth){
+          await load();
+          return;
+        }
+
+        // Same month: just repaint this cell
         cleanup(fmtDate(iso));
       }catch(err){
         alert('Save failed: ' + err.message);
         cleanup(fmtDate(origDateStr));
+      }finally{
+        try {
+          spinner.remove();
+        } catch(_) {}
       }
     }
 
-    function cancel(){ canceled = True; cleanup(fmtDate(origDateStr)); }
+    function cancel(){ canceled = true; cleanup(fmtDate(origDateStr)); }
 
     input.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter'){ e.preventDefault(); commit(); }

@@ -264,6 +264,7 @@ def _build_monthly_live() -> dict:
     ck, sm, *_ = _load_category_config()
     ov = _load_desc_overrides()
     monthly = generate_summary(ck, sm, desc_overrides=ov)
+    _apply_date_overrides_to_summary(monthly)  
     _apply_hide_rules_to_summary(monthly)
     _rebuild_categories_from_tree(monthly)
     return monthly
@@ -649,7 +650,7 @@ def build_monthly(force: bool = False):
         cfg_live["SUBCATEGORY_MAPS"],
         desc_overrides=ov
     ) or {}
-
+    _apply_date_overrides_to_summary(monthly)
     _apply_hide_rules_to_summary(monthly)
     _rebuild_categories_from_tree(monthly)
 
@@ -765,6 +766,7 @@ def index():
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         summary_data = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_date_overrides_to_summary(summary_data)
         _apply_hide_rules_to_summary(summary_data)
         _rebuild_categories_from_tree(summary_data)
     except Exception as e:
@@ -817,6 +819,7 @@ def cash_page():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+    _apply_date_overrides_to_summary(summary_data)
     _apply_hide_rules_to_summary(summary_data)
 
     return render_template(
@@ -1073,7 +1076,7 @@ def charts_page():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
     since_date = cfg_live.get("SUMMARY_SINCE_DATE")
@@ -1087,7 +1090,7 @@ def api_cat_monthly():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
 
@@ -1106,7 +1109,7 @@ def api_cat_monthly_debug():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)  # <-- add this
 
@@ -1138,6 +1141,7 @@ def goals_page():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     _rebuild_categories_from_tree(summary)
     cat_monthly = build_top_level_monthly_from_summary(
@@ -1160,7 +1164,7 @@ def build_cat_monthly_somehow():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
 
     def norm_month(k: str) -> str:
@@ -1616,6 +1620,7 @@ def transactions_page():
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         monthly = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_date_overrides_to_summary(monthly)
         _apply_hide_rules_to_summary(monthly)
         _rebuild_categories_from_tree(monthly)
 
@@ -1813,7 +1818,7 @@ def all_items_explorer():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     cat_monthly = build_cat_monthly_from_summary(
         summary,
@@ -1831,7 +1836,7 @@ def all_categories_page():
     cfg_live = load_cfg()
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-
+    _apply_date_overrides_to_summary(summary)
     _apply_hide_rules_to_summary(summary)
     cat_monthly = build_cat_monthly_from_summary(
         summary,
@@ -2995,6 +3000,7 @@ def api_tx_all():
         ck, sm, *_ = _load_category_config()
         ov = _load_desc_overrides()
         monthly = generate_summary(ck, sm, desc_overrides=ov)
+        _apply_date_overrides_to_summary(monthly)
         _apply_hide_rules_to_summary(monthly)
         _rebuild_categories_from_tree(monthly)
 
