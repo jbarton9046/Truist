@@ -812,7 +812,7 @@ def cash_page():
     _apply_date_overrides_to_summary(summary_data)
     _rebucket_months_by_overrides(summary_data)
     _apply_hide_rules_to_summary(summary_data)
-    _rebuild_categories_from_tree(summary)
+    _rebuild_categories_from_tree(summary_data)
 
     return render_template(
         "cash.html",
@@ -1901,21 +1901,31 @@ def edit_date():
 # ------------------ ALL ITEMS EXPLORER (flat list) ------------------
 @app.route("/explorer")
 def all_items_explorer():
-    # Build the monthly blob with all the same steps, from one source of truth
+    # 1) Canonical monthly data (overrides → rebucket → hide → rebuild)
     summary = _build_monthly_live()
 
+    # 2) Parse query params safely
     months_raw = (request.args.get("months") or "12").strip().lower()
-    months_back = 10**9 if months_raw == "all" else int(months_raw or 12)
+    if months_raw == "all":
+        months_back = 10**9  # effectively “no limit”
+    else:
+        try:
+            months_back = max(1, int(months_raw))
+        except Exception:
+            months_back = 12  # fallback
 
+    since = (request.args.get("since") or "").strip() or None
+    since_date = (request.args.get("since_date") or "").strip() or None
+
+    # 3) Build payload with the same monthly blob used everywhere
     cat_monthly = build_cat_monthly_from_summary(
         summary,
         months_back=months_back,
-        since=request.args.get("since"),
-        since_date=request.args.get("since_date"),
+        since=since,
+        since_date=since_date,
     )
+
     return render_template("all_items_explorer.html", cat_monthly=cat_monthly)
-
-
 
 # ------------------ ALL CATEGORIES (deep tree) ------------------
 @app.route("/all-categories", endpoint="all_categories_page")
