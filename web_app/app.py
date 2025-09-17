@@ -806,22 +806,17 @@ def categories():
 # --- REPLACE your existing /cash route with this (adds date_today) ---
 @app.route("/cash", methods=["GET"])
 def cash_page():
+    summary_data = _build_monthly_live()
     cfg_live = load_cfg()
-    ov = _load_desc_overrides()
-    summary_data = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
-    _apply_date_overrides_to_summary(summary_data)
-    _rebucket_months_by_overrides(summary_data)
-    _apply_hide_rules_to_summary(summary_data)
-    _rebuild_categories_from_tree(summary_data)
-
     return render_template(
         "cash.html",
         summary_data=summary_data,
         category_keywords=cfg_live["CATEGORY_KEYWORDS"],
         subcategory_maps=cfg_live["SUBCATEGORY_MAPS"],
         subsubcategory_maps=cfg_live.get("SUBSUBCATEGORY_MAPS", {}),
-        date_today=date.today().isoformat(),  # ⬅ added
+        date_today=date.today().isoformat(),
     )
+
 
 @app.route("/add-income", methods=["GET"])
 def add_income():
