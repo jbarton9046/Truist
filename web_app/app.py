@@ -114,7 +114,7 @@ EXEMPT_PATHS = {
 EXEMPT_PREFIXES = ("/static/",)
 
 from pathlib import Path
-import json, os, time
+import json, os
 from flask import jsonify, request
 
 def _desc_overrides_path():
