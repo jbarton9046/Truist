@@ -1577,12 +1577,11 @@ def edit_description():
       {
         "transaction_id": "optional",
         "date": "YYYY-MM-DD or MM/DD/YYYY",
-        "amount": -34.56,                 # bank-signed or UI-signed; we normalize
+        "amount": -34.56,
         "original_description": "what the UI currently shows",
         "new_description": "desired label"
       }
-    Returns:
-      { ok: true, new_description: "...", new_category: "..." }
+    Returns: { ok: true, new_description: "...", new_category: "..." }
     """
     try:
         payload = request.get_json(force=True) or {}
@@ -1595,62 +1594,62 @@ def edit_description():
             return jsonify({"ok": False, "error": "new_description required"}), 400
 
         ov = _load_desc_overrides()
-        ov.setdefault("by_txid", {})
-        ov.setdefault("by_fingerprint", {})
-        by_id = ov["by_txid"]
-        by_fp = ov["by_fingerprint"]
+        by_id = ov.setdefault("by_txid", {})
+        by_fp = ov.setdefault("by_fingerprint", {})
 
-        # Normalize fingerprint pieces
+        # Normalize pieces
         try:
             d = _parse_any_date(date_s)
             ds = d.strftime("%Y-%m-%d") if d else (date_s or "")
         except Exception:
             ds = date_s or ""
         try:
-            amt = float(amount or 0.0)
+            amt = float(str(amount).replace(",", ""))
         except Exception:
-            try:
-                amt = float(str(amount).replace(",", ""))
-            except Exception:
-                amt = 0.0
+            amt = 0.0
         amt_pos = abs(amt)
         amt_neg = -abs(amt)
 
-        # 0) If txid is present, set it unconditionally (txid always wins)
+        # txid always wins if present
         if txid:
             by_id[txid] = newd
 
-        # 1) Proactively clear ANY existing fingerprints for this (date, amount) pair
-        prefixes = [f"{ds}|{amt_pos:.2f}|", f"{ds}|{amt_neg:.2f}|"]
-        for k in list(by_fp.keys()):
-            if any(k.startswith(p) for p in prefixes):
-                by_fp.pop(k, None)
-
-        # 2) Determine the immutable bank original for this row
+        # Find immutable bank original so our fingerprint matches the parser's
         bank_orig = _find_bank_original_description(ds, amt)
         if not bank_orig:
-            bank_orig = orig_ui  # fallback to UI text if lookup fails
+            bank_orig = orig_ui
+        bank_orig = (bank_orig or "").strip().upper()
 
-        # 3) If NOT reverting, write both +/- amount fingerprints using bank original
-        if not (bank_orig and newd == bank_orig.strip().upper()):
-            k_pos = f"{ds}|{amt_pos:.2f}|{bank_orig}"
-            k_neg = f"{ds}|{amt_neg:.2f}|{bank_orig}"
-            by_fp[k_pos] = newd
-            by_fp[k_neg] = newd
+        # Helper: exact keys for this row
+        def kpos(desc): return f"{ds}|{amt_pos:.2f}|{(desc or '').strip().upper()}"
+        def kneg(desc): return f"{ds}|{amt_neg:.2f}|{(desc or '').strip().upper()}"
 
-        # Persist changes for BOTH branches and bust caches
+        # If reverting to the raw bank description, just remove any overrides
+        if bank_orig and newd == bank_orig:
+            by_fp.pop(kpos(bank_orig), None)
+            by_fp.pop(kneg(bank_orig), None)
+            if txid:
+                by_id.pop(txid, None)
+        else:
+            # Remove only exact matches for this specific row (no broad prefix wipe)
+            for key in (kpos(bank_orig), kneg(bank_orig), kpos(orig_ui), kneg(orig_ui)):
+                by_fp.pop(key, None)
+
+            # Write both +/- variants using the immutable bank original
+            by_fp[kpos(bank_orig)] = newd
+            by_fp[kneg(bank_orig)] = newd
+
         _save_desc_overrides(ov)
         _bust_caches()
 
-        # compute a fresh category guess from the *new* description
         cfg_live = load_cfg()
         new_category = categorize_transaction(newd, float(amt or 0.0), cfg_live["CATEGORY_KEYWORDS"])
-
 
         return jsonify({"ok": True, "new_description": newd, "new_category": new_category})
     except Exception as e:
         app.logger.exception("edit_description failed")
         return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 @app.route("/explorer")
