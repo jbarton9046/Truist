@@ -1,4 +1,5 @@
 # web_app/app.py
+from collections import defaultdict as _dd2
 from pathlib import Path
 from time import time
 from datetime import date, datetime, timedelta
@@ -262,7 +263,8 @@ def _build_monthly_live() -> dict:
     ck, sm, *_ = _load_category_config()
     ov = _load_desc_overrides()
     monthly = generate_summary(ck, sm, desc_overrides=ov)
-    _apply_date_overrides_to_summary(monthly)  
+    _apply_date_overrides_to_summary(monthly)
+    _rebucket_months_by_overrides(monthly)
     _apply_hide_rules_to_summary(monthly)
     _rebuild_categories_from_tree(monthly)
     return monthly
@@ -644,6 +646,7 @@ def build_monthly(force: bool = False):
         desc_overrides=ov
     ) or {}
     _apply_date_overrides_to_summary(monthly)
+    _rebucket_months_by_overrides(monthly)
     _apply_hide_rules_to_summary(monthly)
     _rebuild_categories_from_tree(monthly)
 
@@ -754,6 +757,7 @@ def index():
         ov = _load_desc_overrides()
         summary_data = generate_summary(ck, sm, desc_overrides=ov)
         _apply_date_overrides_to_summary(summary_data)
+        _rebucket_months_by_overrides(summary_data)
         _apply_hide_rules_to_summary(summary_data)
         _rebuild_categories_from_tree(summary_data)
     except Exception as e:
@@ -982,6 +986,7 @@ def api_categories_monthly():
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_date_overrides_to_summary(summary)
+    _rebucket_months_by_overrides(summary)
     _apply_hide_rules_to_summary(summary)
 
     # If we have raw txs (first-run / cache-miss path), fall back to a simple top-only rollup.
@@ -1060,8 +1065,9 @@ def charts_page():
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_date_overrides_to_summary(summary)
+    _rebucket_months_by_overrides(summary)
     _apply_hide_rules_to_summary(summary)
-    _rebuild_categories_from_tree(summary)  # <-- add this
+    _rebuild_categories_from_tree(summary)
     since_date = cfg_live.get("SUMMARY_SINCE_DATE")
     cat_monthly = build_top_level_monthly_from_summary(summary, months_back=12, since_date=since_date)
     return render_template("charts.html", cat_monthly=cat_monthly)
@@ -1072,8 +1078,9 @@ def api_cat_monthly():
     ov = _load_desc_overrides()
     summary = generate_summary(cfg_live["CATEGORY_KEYWORDS"], cfg_live["SUBCATEGORY_MAPS"], desc_overrides=ov)
     _apply_date_overrides_to_summary(summary)
+    _rebucket_months_by_overrides(summary)
     _apply_hide_rules_to_summary(summary)
-    _rebuild_categories_from_tree(summary)  # <-- add this
+    _rebuild_categories_from_tree(summary)
 
     months_back = int(request.args.get("months_back") or 12)
     since_date = request.args.get("since_date") or cfg_live.get("SUMMARY_SINCE_DATE")
@@ -1599,6 +1606,87 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
     for _, month_blob in summary.items():
         for top in (month_blob.get("tree") or []):
             walk(top)
+
+def _rebucket_months_by_overrides(summary: dict) -> None:
+    """
+    Move transactions to the month bucket that matches their overridden date.
+    Assumes _apply_date_overrides_to_summary(...) already ran (so tx['_iso_date'] is set when edited).
+    After moves, totals will be recomputed by _apply_hide_rules_to_summary(...).
+    """
+    if not isinstance(summary, dict) or not summary:
+        return
+
+    # Map between normalized 'YYYY-MM' and whatever raw keys the summary uses.
+    norm_to_raw: dict[str, str] = {}
+    raw_keys = list(summary.keys())
+    for rk in raw_keys:
+        norm_to_raw.setdefault(_norm_month(rk), rk)
+
+    uses_underscore = any("_" in k for k in raw_keys)
+
+    def raw_from_norm(n: str) -> str:
+        return n.replace("-", "_") if uses_underscore else n
+
+    # 1) Collect moves: for each leaf tx, if its (overridden) month != current month, mark it for move.
+    moves: dict[str, list[tuple[list[str], dict]]] = _dd2(list)  # {target_norm: [(path_parts, tx), ...]}
+
+    def walk(node: dict, path: list[str], month_raw: str):
+        kids = node.get("children") or []
+        if kids:
+            for ch in kids:
+                nm = (ch.get("name") or "").strip()
+                walk(ch, path + ([nm] if nm else []), month_raw)
+        else:
+            txs = list(node.get("transactions") or [])
+            kept = []
+            cur_norm = _norm_month(month_raw)
+            for t in txs:
+                iso = t.get("_iso_date")
+                if not iso:
+                    d = _parse_any_date(t.get("date") or "")
+                    iso = d.strftime("%Y-%m-%d") if d else None
+                tgt_norm = (iso or "")[:7]
+                if tgt_norm and tgt_norm != cur_norm:
+                    moves[tgt_norm].append((path, t))
+                else:
+                    kept.append(t)
+            node["transactions"] = kept
+
+    for raw_key, blob in summary.items():
+        for top in (blob.get("tree") or []):
+            walk(top, [], raw_key)
+
+    # 2) Apply moves: create month + path as needed and append the tx.
+    def ensure_leaf(tree_list: list, path_parts: list[str]) -> dict:
+        cur = tree_list
+        node = None
+        for seg in path_parts:
+            seg = str(seg or "").strip()
+            if not seg:
+                continue
+            found = None
+            for n in cur:
+                if (n.get("name") or "").strip().lower() == seg.lower():
+                    found = n
+                    break
+            if not found:
+                found = {"name": seg, "children": []}
+                cur.append(found)
+            node = found
+            cur = node.setdefault("children", [])
+        if node is None:
+            node = {"name": "Uncategorized", "children": []}
+            tree_list.append(node)
+        node.setdefault("transactions", [])
+        return node
+
+    for tgt_norm, items in moves.items():
+        raw_tgt = norm_to_raw.get(tgt_norm) or raw_from_norm(tgt_norm)
+        month_blob = summary.setdefault(raw_tgt, {})
+        month_blob.setdefault("tree", [])
+        for path_parts, tx in items:
+            leaf = ensure_leaf(month_blob["tree"], path_parts)
+            leaf["transactions"].append(tx)
 
 @app.get("/transactions")
 def transactions_page():
