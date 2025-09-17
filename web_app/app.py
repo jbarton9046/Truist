@@ -1557,10 +1557,20 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
     """
     Rewrite tx['date'] in the monthly tree according to overrides,
     without changing which month bucket a tx belongs to.
-    (Good for day corrections like weekend processing.)
+    Forces the DISPLAY date to MM/DD/YYYY for consistency app-wide.
     """
     if not isinstance(summary, dict):
         return
+
+    def _iso_to_mmdd(iso: str) -> str:
+        # Convert 'YYYY-MM-DD' -> 'MM/DD/YYYY' (fallback to original slice on error)
+        s = (iso or "")[:10]
+        try:
+            y, m, d = s.split("-")
+            return f"{int(m):02d}/{int(d):02d}/{y}"
+        except Exception:
+            return s
+
     ov = _load_desc_overrides()
     by_id = ov.get("date_by_txid", {}) or {}
     by_fp = ov.get("date_by_fingerprint", {}) or {}
@@ -1574,7 +1584,6 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
 
         # 2) Try fingerprints (date|±amount|DESC)
         if not new_iso:
-            # use the tx's current stored date (pre-override) so lookup is stable
             ds = _date_to_iso(t.get("date", ""))
             try:
                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
@@ -1582,7 +1591,7 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
                 amt = 0.0
             a_pos, a_neg = abs(amt), -abs(amt)
             for desc in _candidate_descs_for_fp(t):
-                up = desc.strip().upper()
+                up = (desc or "").strip().upper()
                 if not up:
                     continue
                 k1 = _fingerprint_tx(ds, a_pos, up)
@@ -1593,7 +1602,9 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
                     new_iso = _date_to_iso(by_fp[k2]); break
 
         if new_iso:
-            t["date"] = new_iso  # safe: rest of app parses both ISO and MM/DD/YYYY
+            # Keep ISO as a helper for sorting (optional) and set display date to MM/DD/YYYY
+            t["_iso_date"] = new_iso
+            t["date"] = _iso_to_mmdd(new_iso)
 
     def walk(n: dict):
         kids = n.get("children") or []
