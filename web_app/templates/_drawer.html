@@ -277,3 +277,83 @@
   });
 })();
 </script>
+
+<!-- Keyword pill close-buttons & deletion wiring -->
+<script>
+(function(){
+  'use strict';
+  const list = document.getElementById('kw-list');
+  if (!list) return;
+
+  // Add a close (×) button to any pill missing one
+  function decoratePills(root){
+    (root || list).querySelectorAll('.pill').forEach(pill => {
+      if (pill.querySelector('.pill-close')) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pill-close';
+      btn.setAttribute('aria-label', 'Remove keyword');
+      btn.textContent = '×';
+      // ensure pill has role=button for accessibility if it's clickable
+      if (!pill.getAttribute('role')) pill.setAttribute('role', 'button');
+      pill.appendChild(btn);
+    });
+  }
+
+  // Initial decoration (in case server-side rendered)
+  decoratePills();
+
+  // Re-decorate after external refreshes add pills
+  const mo = new MutationObserver(muts => {
+    let needs = false;
+    for (const m of muts) {
+      if (m.addedNodes && m.addedNodes.length) { needs = true; break; }
+    }
+    if (needs) decoratePills();
+  });
+  mo.observe(list, { childList: true, subtree: true });
+
+  // Deletion handler with graceful fallbacks
+  async function handleDelete(pill){
+    const kw = pill.dataset.keyword || pill.getAttribute('data-keyword') || pill.textContent.trim();
+    const path = pill.dataset.path || pill.getAttribute('data-path') || '';
+    // 1) If a global controller exists, let it do the real work
+    if (typeof window.deleteKeyword === 'function') {
+      try {
+        await window.deleteKeyword({ keyword: kw, path });
+      } catch(e) { /* swallow to still update UI */ }
+    } else {
+      // 2) Otherwise, emit a custom event for app code to catch
+      const ev = new CustomEvent('keyword:delete', { detail: { keyword: kw, path }, bubbles: true });
+      pill.dispatchEvent(ev);
+    }
+    // 3) Optimistic UI: remove the pill immediately
+    pill.remove();
+    // 4) Ask the global refresher (if present) to resync
+    if (typeof window.refreshKeywords === 'function') {
+      setTimeout(window.refreshKeywords, 50);
+    }
+  }
+
+  // Delegate clicks on the tiny ×
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pill-close');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pill = btn.closest('.pill');
+    if (pill) handleDelete(pill);
+  });
+
+  // Keyboard support (Delete/Backspace when pill focused)
+  list.addEventListener('keydown', (e) => {
+    if (!e.target.classList.contains('pill')) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      const pill = e.target;
+      const btn = pill.querySelector('.pill-close');
+      if (btn) btn.click();
+    }
+  });
+})();
+</script>

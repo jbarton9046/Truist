@@ -268,6 +268,46 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
    Drawer (global, glassy, sticky)
    ========================================================= */
 
+/* Keyword pill with inner close button */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .28rem .6rem .28rem .6rem;
+  border: 1px solid var(--bs-border-color, rgba(255,255,255,.15));
+  background: rgba(255,255,255,.06);
+  border-radius: 999px;
+  line-height: 1.1;
+  font-size: .9rem;
+  white-space: nowrap;
+}
+
+.pill .pill-text {
+  max-width: 14rem;            /* long keywords don’t blow up the row */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pill .pill-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  opacity: .65;
+  line-height: 1;
+  font-weight: 700;
+  font-size: 12px;             /* size of the “×” */
+}
+.pill .pill-close:hover { opacity: 1; }
+.pill .pill-close:focus { outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,.15); }
+
+
 /* Backdrop blur */
 .offcanvas-backdrop.show{
   background: rgba(8,12,20,.34) !important;
