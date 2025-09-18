@@ -482,8 +482,9 @@ def _apply_hide_rules_to_summary(summary_data):
     ✅ FIX: if a node has children AND its own transactions, we exclude any of the
     parent's transactions that also appear under descendants (no double-counting).
 
-    ✅ NEW: also de-dupe **across the whole month** so the same tx can't be counted
-    in two different branches after edits.
+    ✅ NEW: after totals are computed, sort children at every level by |total| desc,
+            then by name for stability. This keeps rebucketed subcats (e.g., Tundra)
+            in correct order by amount.
     """
     EPS = 0.005
     HIDE_SENTINELS = (10002.02, -10002.02)
@@ -536,13 +537,12 @@ def _apply_hide_rules_to_summary(summary_data):
                 or "").strip().upper()
         return f"fp|{_fingerprint_tx(iso, a, desc)}"
 
-    def _prune_and_total(node, seen_global: set[str]):
+    def _prune_and_total(node):
         """
         Recursively:
           • prune hidden transactions
           • compute totals bottom-up
-          • when a node has children, EXCLUDE any parent tx that duplicates a child's tx
-          • EXCLUDE any tx already seen elsewhere in the month (cross-branch de-dupe)
+          • when a node has children, EXCLUDE any parent tx that duplicate a child's tx
         Returns (total, keys_set) where keys_set are tx keys in this subtree.
         """
         if not isinstance(node, dict):
@@ -550,15 +550,15 @@ def _apply_hide_rules_to_summary(summary_data):
 
         children = node.get("children") or []
 
-        # First, handle children to collect their keys (for parent-vs-child de-dupe)
+        # First, handle children to collect their keys (for de-dupe)
         kids_total = 0.0
         kids_keys = set()
         for ch in children:
-            ct, ck = _prune_and_total(ch, seen_global)
+            ct, ck = _prune_and_total(ch)
             kids_total += ct
             kids_keys |= ck
 
-        # Prune this node's own txs and drop duplicates
+        # Prune this node's own txs and drop those that duplicate a child
         here_raw = list(node.get("transactions") or [])
         here_kept = [t for t in here_raw if not _should_hide(t)]
         here_unique = []
@@ -568,15 +568,12 @@ def _apply_hide_rules_to_summary(summary_data):
             if k in kids_keys:
                 # duplicate of a descendant row → don't count it here
                 continue
-            if k in seen_global:
-                # duplicate already counted under another branch this month
-                continue
             here_unique.append(t)
             here_keys.add(k)
-            seen_global.add(k)
-
         node["transactions"] = here_unique  # keep display in sync with totals
+
         here_total = _sum_signed_tx(here_unique)
+
         node["total"] = round(here_total + kids_total, 2)
         return node["total"], (kids_keys | here_keys)
 
@@ -601,6 +598,18 @@ def _apply_hide_rules_to_summary(summary_data):
             tot = 0.0
         return abs(tot) > EPS
 
+    # NEW: sort children by |total| desc, then name (stable, recursive)
+    def _sort_tree_by_amount(node):
+        if not isinstance(node, dict):
+            return
+        kids = node.get("children") or []
+        for ch in kids:
+            _sort_tree_by_amount(ch)
+        # sort after kids have totals
+        kids.sort(key=lambda n: (abs(float(n.get("total") or 0.0)) * -1,
+                                 (n.get("name") or "").lower()))
+        node["children"] = kids
+
     if not isinstance(summary_data, dict):
         return
 
@@ -608,11 +617,8 @@ def _apply_hide_rules_to_summary(summary_data):
         if not isinstance(month_blob, dict):
             continue
         tree = month_blob.get("tree") or []
-
-        # NEW: global seen set for this month (prevents cross-branch double counting)
-        seen_global: set[str] = set()
         for top in tree:
-            _prune_and_total(top, seen_global)
+            _prune_and_total(top)
 
         pruned_tree = []
         for top in tree:
@@ -642,7 +648,9 @@ def _apply_hide_rules_to_summary(summary_data):
         month_blob["expense_total"] = round(expense_sum, 2)
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
 
-
+        # 🔽 finally, sort the visible tree for this month
+        for top in month_blob.get("tree", []):
+            _sort_tree_by_amount(top)
 
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
     """
