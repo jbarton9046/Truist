@@ -1734,65 +1734,70 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
 
 def _rebucket_months_by_overrides(summary: dict) -> None:
     """
-    After _apply_date_overrides_to_summary() has possibly changed tx['_iso_date'],
-    physically move transactions to the correct month blob based on that iso date.
-    Then trim empty months. Category rollups can be rebuilt afterwards.
+    After _apply_date_overrides_to_summary() possibly sets tx['_iso_date'],
+    move transactions to the correct month blob based on that iso date.
+    Works for BOTH leaf nodes and hybrid parent nodes that have their own txs.
+    Then trim truly empty months. Category rollups can be rebuilt afterwards.
     """
     if not isinstance(summary, dict) or not summary:
         return
 
-    # helper: iterate leaves
-    def _leaves(month_blob):
-        def walk(n):
-            kids = n.get("children") or []
-            if kids:
-                for c in kids: 
-                    yield from walk(c)
+    staged: dict[str, list[dict]] = {}  # new_month_key -> txs
+
+    # Walk a single month blob and pull out txs that belong elsewhere
+    def walk_node(n: dict, month_key: str):
+        # process this node's OWN transactions (even if it has children)
+        txs = n.get("transactions") or []
+        keep = []
+        for t in txs:
+            iso = (t.get("_iso_date") or _date_to_iso(t.get("date") or t.get("_bank_iso_date") or ""))[:10]
+            new_mk = iso[:7] if iso else month_key
+            t["month"] = new_mk
+            if new_mk != month_key:
+                staged.setdefault(new_mk, []).append(t)
             else:
-                yield n
-        for root in (month_blob.get("tree") or []):
-            yield from walk(root)
+                keep.append(t)
+        n["transactions"] = keep
 
-    # 1) collect moves out of their current month
-    staged = {}  # month_key -> list[tx]
+        # then descend
+        for c in (n.get("children") or []):
+            walk_node(c, month_key)
+
+    # 1) collect movers out of their current month from *all* nodes
     for month_key, blob in list(summary.items()):
-        for leaf in _leaves(blob):
-            txs = leaf.get("transactions") or []
-            keep = []
-            for t in txs:
-                iso = (t.get("_iso_date") or _date_to_iso(t.get("date") or t.get("_bank_iso_date") or ""))[:10]
-                new_mk = iso[:7] if iso else month_key
-                t["month"] = new_mk  # handy for clients
-                if new_mk != month_key:
-                    staged.setdefault(new_mk, []).append(t)
-                else:
-                    keep.append(t)
-            leaf["transactions"] = keep
+        for root in (blob.get("tree") or []):
+            walk_node(root, month_key)
 
-    # 2) ensure destination months exist & append moved txs at a temporary root leaf
+    # 2) ensure destination months exist & append moved txs under a temp root
     for new_mk, txs in staged.items():
         if new_mk not in summary:
-            # minimal month blob; categories rebuilt later
             summary[new_mk] = {"tree": [{"name": "__root__", "transactions": []}]}
-        # drop into (or create) the temp root leaf
         roots = summary[new_mk].get("tree") or []
         if not roots:
             roots = [{"name": "__root__", "transactions": []}]
             summary[new_mk]["tree"] = roots
         roots[0].setdefault("transactions", []).extend(txs)
 
-    # 3) drop months that ended up empty (no txs anywhere)
-    def _month_has_any_tx(blob):
-        for leaf in _leaves(blob):
-            if leaf.get("transactions"):
-                return True
-        return False
+    # 3) drop months that ended up empty (no txs anywhere in the tree)
+    def month_has_any_tx(blob: dict) -> bool:
+        found = False
+        def scan(n: dict):
+            nonlocal found
+            if found:
+                return
+            if n.get("transactions"):
+                found = True
+                return
+            for c in (n.get("children") or []):
+                scan(c)
+        for r in (blob.get("tree") or []):
+            scan(r)
+        return found
 
     for mk, blob in list(summary.items()):
-        if not _month_has_any_tx(blob):
+        if not month_has_any_tx(blob):
             summary.pop(mk, None)
-
-
+            
 @app.get("/transactions")
 def transactions_page():
     """
