@@ -1653,6 +1653,9 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
     Rewrite tx['date'] in the monthly tree according to overrides,
     without changing which month bucket a tx belongs to.
     Forces the DISPLAY date to MM/DD/YYYY for consistency app-wide.
+
+    NOTE: Processes a node's own transactions even if it has children
+    (fixes hybrid nodes like 'Vehicles -> Tundra' holding their own txs).
     """
     if not isinstance(summary, dict):
         return
@@ -1720,17 +1723,17 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
             t["date"] = _iso_to_mmdd(new_iso)
 
     def walk(n: dict):
-        kids = n.get("children") or []
-        if kids:
-            for c in kids:
-                walk(c)
-        else:
-            for t in (n.get("transactions") or []):
-                maybe_override_date(t)
+        # ALWAYS process this node's own transactions (even if it has children)
+        for t in (n.get("transactions") or []):
+            maybe_override_date(t)
+        # then descend
+        for c in (n.get("children") or []):
+            walk(c)
 
     for _, month_blob in summary.items():
         for top in (month_blob.get("tree") or []):
             walk(top)
+
 
 def _rebucket_months_by_overrides(summary: dict) -> None:
     """
@@ -1797,7 +1800,7 @@ def _rebucket_months_by_overrides(summary: dict) -> None:
     for mk, blob in list(summary.items()):
         if not month_has_any_tx(blob):
             summary.pop(mk, None)
-            
+
 @app.get("/transactions")
 def transactions_page():
     """
