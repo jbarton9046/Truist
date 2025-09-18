@@ -210,7 +210,8 @@
         <input id="kw-add-input" class="form-control form-control-sm" placeholder="Add keyword…" />
         <button id="kw-add-btn" class="btn btn-sm btn-primary">Add</button>
       </div>
-      <div id="kw-list" class="d-flex flex-wrap gap-2 small"></div>
+      <!-- NOTE: added data-path so pills can inherit if they don't carry it -->
+      <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path="{{ path_str }}"></div>
     </div>
 
     <!-- Actions -->
@@ -296,6 +297,10 @@
       btn.textContent = '×';
       // ensure pill has role=button for accessibility if it's clickable
       if (!pill.getAttribute('role')) pill.setAttribute('role', 'button');
+      // inherit data-path from the list if pill doesn't have one
+      if (!pill.hasAttribute('data-path') && list.dataset.path) {
+        pill.setAttribute('data-path', list.dataset.path);
+      }
       pill.appendChild(btn);
     });
   }
@@ -316,20 +321,32 @@
   // Deletion handler with graceful fallbacks
   async function handleDelete(pill){
     const kw = pill.dataset.keyword || pill.getAttribute('data-keyword') || pill.textContent.trim();
-    const path = pill.dataset.path || pill.getAttribute('data-path') || '';
+    const path = pill.dataset.path || pill.getAttribute('data-path') || list.dataset.path || '';
+
     // 1) If a global controller exists, let it do the real work
     if (typeof window.deleteKeyword === 'function') {
       try {
         await window.deleteKeyword({ keyword: kw, path });
       } catch(e) { /* swallow to still update UI */ }
     } else {
-      // 2) Otherwise, emit a custom event for app code to catch
+      // 2) Otherwise, try direct API DELETE (minimal, no dependency on globals)
+      if (kw && path) {
+        try {
+          const url = `/api/keywords?path=${encodeURIComponent(path)}&keyword=${encodeURIComponent(kw)}`;
+          await fetch(url, { method: 'DELETE' });
+        } catch(e) {
+          /* ignore; UI will still remove optimistically */
+        }
+      }
+      // 3) Also emit a custom event for any external listeners
       const ev = new CustomEvent('keyword:delete', { detail: { keyword: kw, path }, bubbles: true });
       pill.dispatchEvent(ev);
     }
-    // 3) Optimistic UI: remove the pill immediately
+
+    // 4) Optimistic UI: remove the pill immediately
     pill.remove();
-    // 4) Ask the global refresher (if present) to resync
+
+    // 5) Ask the global refresher (if present) to resync
     if (typeof window.refreshKeywords === 'function') {
       setTimeout(window.refreshKeywords, 50);
     }

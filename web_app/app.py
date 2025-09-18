@@ -1,6 +1,7 @@
 # web_app/app.py
 from collections import defaultdict as _dd2
 from pathlib import Path
+from keywords_api import bp as keywords_bp
 from time import time
 from datetime import date, datetime, timedelta
 from werkzeug.routing import BuildError
@@ -269,6 +270,7 @@ app.logger.info("[Config] Using CONFIG_DIR=%s", os.environ.get("CONFIG_DIR"))
 # ---- Blueprints (admin UI + keyword APIs) ----
 from truist.admin_categories import admin_categories_bp, load_cfg
 app.register_blueprint(admin_categories_bp)
+app.register_blueprint(keywords_bp)
 
 # ------------------ CATEGORY TREE + CFG ------------------
 cfg = {
