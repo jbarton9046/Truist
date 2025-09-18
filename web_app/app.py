@@ -455,6 +455,8 @@ def _apply_hide_rules_to_summary(summary_data):
     Prune hidden/sentinel transfers (±10002.02) and the specific Robinhood -$450.00
     from the monthly tree, recompute node totals, and recompute per-month income/expense/net totals.
     Also removes now-empty categories.
+
+    NOTE: supports 'hybrid' nodes that have both children and their own transactions.
     """
     EPS = 0.005
     HIDE_SENTINELS = (10002.02, -10002.02)
@@ -491,24 +493,35 @@ def _apply_hide_rules_to_summary(summary_data):
         return s
 
     def _prune_and_total(node):
-        """Recursively drop hidden transactions at leaves and compute totals bottom-up."""
+        """
+        Recursively drop hidden transactions and compute totals bottom-up.
+
+        IMPORTANT: A node may have BOTH children and its own transactions. We:
+          - prune its own transactions
+          - total = (kept own tx total) + (sum of child totals)
+        """
         if not isinstance(node, dict):
             return 0.0
+
         children = node.get("children") or []
-        # Leaf
-        if not children:
-            txs = list(node.get("transactions") or [])
-            kept = [t for t in txs if not _should_hide(t)]
-            node["transactions"] = kept
-            total = _sum_signed_tx(kept)
-            node["total"] = round(total, 2)
-            return total
-        # Non-leaf
-        total = 0.0
-        for ch in children:
-            total += _prune_and_total(ch)
-        node["total"] = round(total, 2)
-        return total
+
+        # prune this node's own txs (even if it has children)
+        here_raw = list(node.get("transactions") or [])
+        here_kept = [t for t in here_raw if not _should_hide(t)]
+        node["transactions"] = here_kept
+        here_total = _sum_signed_tx(here_kept)
+
+        # add children totals
+        if children:
+            kids_total = 0.0
+            for ch in children:
+                kids_total += _prune_and_total(ch)
+            node["total"] = round(here_total + kids_total, 2)
+            return node["total"]
+
+        # leaf
+        node["total"] = round(here_total, 2)
+        return node["total"]
 
     def _prune_empty_nodes(node):
         """Remove empty children (no transactions/children, ~zero total)."""
@@ -547,30 +560,30 @@ def _apply_hide_rules_to_summary(summary_data):
                 pruned_tree.append(top)
         month_blob["tree"] = pruned_tree
 
+        # recompute month income/expense/net
         income_sum = 0.0
         expense_sum = 0.0
 
-        def _walk_leaves(n):
+        def _walk(n):
             nonlocal income_sum, expense_sum
             ch = n.get("children") or []
-            if ch:
-                for c in ch:
-                    _walk_leaves(c)
-            else:
-                for t in (n.get("transactions") or []):
-                    a = _amt(t)
-                    if a > 0:
-                        income_sum += a
-                    elif a < 0:
-                        expense_sum += (-a)
+            # count this node's own (kept) txs as well
+            for t in (n.get("transactions") or []):
+                a = _amt(t)
+                if a > 0:
+                    income_sum += a
+                elif a < 0:
+                    expense_sum += (-a)
+            for c in ch:
+                _walk(c)
 
         for top in pruned_tree:
-            _walk_leaves(top)
+            _walk(top)
 
         month_blob["income_total"] = round(income_sum, 2)
         month_blob["expense_total"] = round(expense_sum, 2)
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
-# Canonicalize subcategory names back to their unique top-level parent
+
 def _rev_sub_to_cat_map(cfg_live=None) -> dict[str, str]:
     """Return a case-insensitive map: subcategory -> top-level category."""
     cfg_live = cfg_live or load_cfg()
@@ -607,8 +620,7 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
                 return
             desc = tx.get("description") or tx.get("desc") or ""
 
-            # --- Canonicalize: if the top name is actually a known subcategory,
-            # promote its parent category and use the original as subcategory.
+            # If the "top" is actually a known subcategory, promote its parent
             orig_top = (top or "").strip()
             parent = REV_SUB_TO_CAT.get(orig_top.lower())
             if parent:
@@ -647,16 +659,19 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
             name = (node.get("name") or "").strip()
             here = parts + ([name] if name else [])
             children = node.get("children") or []
-            if children:
-                for ch in children:
-                    walk(ch, here)
-            else:
+
+            # ALWAYS add this node's own transactions (even if it has children)
+            if node.get("transactions"):
                 top  = here[0] if here else "Uncategorized"
                 sub  = here[1] if len(here) > 1 else ""
                 ssub = here[2] if len(here) > 2 else ""
                 s3   = here[3] if len(here) > 3 else ""
                 for tx in (node.get("transactions") or []):
                     add_row(top, sub, ssub, s3, tx)
+
+            # then descend
+            for ch in children:
+                walk(ch, here)
 
         for top_node in tree:
             walk(top_node, [])
@@ -665,6 +680,7 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
         for cat in list(cats.keys()):
             cats[cat]["total"] = round(cats[cat]["total"], 2)
         month["categories"] = cats
+
 
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
 _CACHE_TTL_SEC = 30  # rebuild at most every 30s unless data/config changed
