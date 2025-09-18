@@ -314,6 +314,29 @@ def _flatten_display_transactions(monthly: dict) -> list:
                 rows.append(t)
     return rows
 
+# Reverse lookup: subcategory (lowercased) -> parent top-level category
+def _rev_sub_to_cat_map(cfg_live: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    try:
+        cfg = cfg_live or load_cfg()
+    except Exception:
+        cfg = {"SUBCATEGORY_MAPS": {}}
+
+    seen: defaultdict[str, set[str]] = defaultdict(set)
+    for cat, submap in (cfg.get("SUBCATEGORY_MAPS") or {}).items():
+        if not isinstance(submap, dict):
+            continue
+        for sub in submap.keys():
+            s = str(sub).strip().lower()
+            if s:
+                seen[s].add(str(cat))
+
+    # only keep subs that belong to exactly one parent
+    out: Dict[str, str] = {}
+    for sub_lower, parents in seen.items():
+        if len(parents) == 1:
+            out[sub_lower] = next(iter(parents))
+    return out
+
 
 def _load_desc_overrides():
     p = _desc_overrides_path()
@@ -456,7 +479,8 @@ def _apply_hide_rules_to_summary(summary_data):
     from the monthly tree, recompute node totals, and recompute per-month income/expense/net totals.
     Also removes now-empty categories.
 
-    NOTE: supports 'hybrid' nodes that have both children and their own transactions.
+    ✅ FIX: if a node has children AND its own transactions, we exclude any of the
+    parent's transactions that also appear under descendants (no double-counting).
     """
     EPS = 0.005
     HIDE_SENTINELS = (10002.02, -10002.02)
@@ -492,36 +516,62 @@ def _apply_hide_rules_to_summary(summary_data):
             s += _amt(t)
         return s
 
+    # canonical, stable key for de-dupe (txid else bank-iso-date|amount|UPPER(desc))
+    def _tx_key(t: dict) -> str:
+        txid = _txid_of(t)
+        if txid:
+            return f"id|{txid}"
+        iso = (t.get("_bank_iso_date") or _date_to_iso(t.get("date", "")))[:10]
+        try:
+            a = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
+        except Exception:
+            a = 0.0
+        desc = (t.get("original_description")
+                or t.get("immutable_orig")
+                or t.get("description")
+                or t.get("desc")
+                or "").strip().upper()
+        return f"fp|{_fingerprint_tx(iso, a, desc)}"
+
     def _prune_and_total(node):
         """
-        Recursively drop hidden transactions and compute totals bottom-up.
-
-        IMPORTANT: A node may have BOTH children and its own transactions. We:
-          - prune its own transactions
-          - total = (kept own tx total) + (sum of child totals)
+        Recursively:
+          • prune hidden transactions
+          • compute totals bottom-up
+          • when a node has children, EXCLUDE any parent tx that duplicate a child's tx
+        Returns (total, keys_set) where keys_set are tx keys in this subtree.
         """
         if not isinstance(node, dict):
-            return 0.0
+            return 0.0, set()
 
         children = node.get("children") or []
 
-        # prune this node's own txs (even if it has children)
+        # First, handle children to collect their keys (for de-dupe)
+        kids_total = 0.0
+        kids_keys = set()
+        for ch in children:
+            ct, ck = _prune_and_total(ch)
+            kids_total += ct
+            kids_keys |= ck
+
+        # Prune this node's own txs and drop those that duplicate a child
         here_raw = list(node.get("transactions") or [])
         here_kept = [t for t in here_raw if not _should_hide(t)]
-        node["transactions"] = here_kept
-        here_total = _sum_signed_tx(here_kept)
+        here_unique = []
+        here_keys = set()
+        for t in here_kept:
+            k = _tx_key(t)
+            if k in kids_keys:
+                # duplicate of a descendant row → don't count it here
+                continue
+            here_unique.append(t)
+            here_keys.add(k)
+        node["transactions"] = here_unique  # keep display in sync with totals
 
-        # add children totals
-        if children:
-            kids_total = 0.0
-            for ch in children:
-                kids_total += _prune_and_total(ch)
-            node["total"] = round(here_total + kids_total, 2)
-            return node["total"]
+        here_total = _sum_signed_tx(here_unique)
 
-        # leaf
-        node["total"] = round(here_total, 2)
-        return node["total"]
+        node["total"] = round(here_total + kids_total, 2)
+        return node["total"], (kids_keys | here_keys)
 
     def _prune_empty_nodes(node):
         """Remove empty children (no transactions/children, ~zero total)."""
@@ -560,21 +610,19 @@ def _apply_hide_rules_to_summary(summary_data):
                 pruned_tree.append(top)
         month_blob["tree"] = pruned_tree
 
-        # recompute month income/expense/net
+        # recompute month income/expense/net from the (now de-duped) tree
         income_sum = 0.0
         expense_sum = 0.0
 
         def _walk(n):
             nonlocal income_sum, expense_sum
-            ch = n.get("children") or []
-            # count this node's own (kept) txs as well
             for t in (n.get("transactions") or []):
                 a = _amt(t)
                 if a > 0:
                     income_sum += a
                 elif a < 0:
                     expense_sum += (-a)
-            for c in ch:
+            for c in (n.get("children") or []):
                 _walk(c)
 
         for top in pruned_tree:
@@ -584,18 +632,15 @@ def _apply_hide_rules_to_summary(summary_data):
         month_blob["expense_total"] = round(expense_sum, 2)
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
 
-def _rev_sub_to_cat_map(cfg_live=None) -> dict[str, str]:
-    """Return a case-insensitive map: subcategory -> top-level category."""
-    cfg_live = cfg_live or load_cfg()
-    rev = {}
-    for cat, submap in (cfg_live.get("SUBCATEGORY_MAPS") or {}).items():
-        for sub in (submap or {}).keys():
-            k = str(sub).strip().lower()
-            if k:
-                rev.setdefault(k, cat)
-    return rev
 
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
+    """
+    Build month['categories'] from the tree.
+
+    ✅ FIX: de-dupe across the whole month when ingesting rows into categories,
+    so a parent copy of a tx doesn't double the category totals if it also
+    exists under a child node.
+    """
     if not summary_data:
         return
 
@@ -607,14 +652,35 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
     def _is_hidden_amount(a: float) -> bool:
         return abs(a - 10002.02) < EPS or abs(a + 10002.02) < EPS
 
-    # Canonical: map subcategory -> top-level (e.g., "tundra" -> "Vehicles")
     REV_SUB_TO_CAT = _rev_sub_to_cat_map()
+
+    def _tx_key(t: dict) -> str:
+        txid = _txid_of(t)
+        if txid:
+            return f"id|{txid}"
+        iso = (t.get("_bank_iso_date") or _date_to_iso(t.get("date", "")))[:10]
+        try:
+            a = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
+        except Exception:
+            a = 0.0
+        desc = (t.get("original_description")
+                or t.get("immutable_orig")
+                or t.get("description")
+                or t.get("desc")
+                or "").strip().upper()
+        return f"fp|{_fingerprint_tx(iso, a, desc)}"
 
     for _, month in summary_data.items():
         tree = month.get("tree") or []
         cats: dict[str, dict] = {}
+        seen_keys = set()  # <— de-dupe within the whole month
 
         def add_row(top: str, sub: str, ssub: str, s3: str, tx: dict):
+            k = _tx_key(tx)
+            if k in seen_keys:
+                return
+            seen_keys.add(k)
+
             amt = _amt(tx.get("amount", tx.get("amt", 0.0)) or 0.0)
             if _is_hidden_amount(amt):
                 return
@@ -660,7 +726,7 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
             here = parts + ([name] if name else [])
             children = node.get("children") or []
 
-            # ALWAYS add this node's own transactions (even if it has children)
+            # add this node's own transactions (after de-dupe)
             if node.get("transactions"):
                 top  = here[0] if here else "Uncategorized"
                 sub  = here[1] if len(here) > 1 else ""
@@ -669,7 +735,6 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
                 for tx in (node.get("transactions") or []):
                     add_row(top, sub, ssub, s3, tx)
 
-            # then descend
             for ch in children:
                 walk(ch, here)
 
@@ -680,6 +745,7 @@ def _rebuild_categories_from_tree(summary_data: dict) -> None:
         for cat in list(cats.keys()):
             cats[cat]["total"] = round(cats[cat]["total"], 2)
         month["categories"] = cats
+
 
 
 _MONTHLY_CACHE = {"key": None, "built_at": 0.0, "monthly": None, "cfg": None}
