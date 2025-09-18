@@ -1,7 +1,7 @@
 # web_app/app.py
 from collections import defaultdict as _dd2
 from pathlib import Path
-from keywords_api import bp as keywords_bp
+from web_app.keywords_api import bp as keywords_bp
 from time import time
 from datetime import date, datetime, timedelta
 from werkzeug.routing import BuildError
