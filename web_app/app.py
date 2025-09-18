@@ -481,6 +481,9 @@ def _apply_hide_rules_to_summary(summary_data):
 
     ✅ FIX: if a node has children AND its own transactions, we exclude any of the
     parent's transactions that also appear under descendants (no double-counting).
+
+    ✅ NEW: also de-dupe **across the whole month** so the same tx can't be counted
+    in two different branches after edits.
     """
     EPS = 0.005
     HIDE_SENTINELS = (10002.02, -10002.02)
@@ -533,12 +536,13 @@ def _apply_hide_rules_to_summary(summary_data):
                 or "").strip().upper()
         return f"fp|{_fingerprint_tx(iso, a, desc)}"
 
-    def _prune_and_total(node):
+    def _prune_and_total(node, seen_global: set[str]):
         """
         Recursively:
           • prune hidden transactions
           • compute totals bottom-up
-          • when a node has children, EXCLUDE any parent tx that duplicate a child's tx
+          • when a node has children, EXCLUDE any parent tx that duplicates a child's tx
+          • EXCLUDE any tx already seen elsewhere in the month (cross-branch de-dupe)
         Returns (total, keys_set) where keys_set are tx keys in this subtree.
         """
         if not isinstance(node, dict):
@@ -546,15 +550,15 @@ def _apply_hide_rules_to_summary(summary_data):
 
         children = node.get("children") or []
 
-        # First, handle children to collect their keys (for de-dupe)
+        # First, handle children to collect their keys (for parent-vs-child de-dupe)
         kids_total = 0.0
         kids_keys = set()
         for ch in children:
-            ct, ck = _prune_and_total(ch)
+            ct, ck = _prune_and_total(ch, seen_global)
             kids_total += ct
             kids_keys |= ck
 
-        # Prune this node's own txs and drop those that duplicate a child
+        # Prune this node's own txs and drop duplicates
         here_raw = list(node.get("transactions") or [])
         here_kept = [t for t in here_raw if not _should_hide(t)]
         here_unique = []
@@ -564,12 +568,15 @@ def _apply_hide_rules_to_summary(summary_data):
             if k in kids_keys:
                 # duplicate of a descendant row → don't count it here
                 continue
+            if k in seen_global:
+                # duplicate already counted under another branch this month
+                continue
             here_unique.append(t)
             here_keys.add(k)
+            seen_global.add(k)
+
         node["transactions"] = here_unique  # keep display in sync with totals
-
         here_total = _sum_signed_tx(here_unique)
-
         node["total"] = round(here_total + kids_total, 2)
         return node["total"], (kids_keys | here_keys)
 
@@ -601,8 +608,11 @@ def _apply_hide_rules_to_summary(summary_data):
         if not isinstance(month_blob, dict):
             continue
         tree = month_blob.get("tree") or []
+
+        # NEW: global seen set for this month (prevents cross-branch double counting)
+        seen_global: set[str] = set()
         for top in tree:
-            _prune_and_total(top)
+            _prune_and_total(top, seen_global)
 
         pruned_tree = []
         for top in tree:
@@ -631,6 +641,7 @@ def _apply_hide_rules_to_summary(summary_data):
         month_blob["income_total"] = round(income_sum, 2)
         month_blob["expense_total"] = round(expense_sum, 2)
         month_blob["net_cash_flow"] = round(income_sum - expense_sum, 2)
+
 
 
 def _rebuild_categories_from_tree(summary_data: dict) -> None:
