@@ -1762,7 +1762,7 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
         if txid and txid in by_id:
             new_iso = _date_to_iso(by_id[txid])
 
-        # 2) Try fingerprints (date|±amount|DESC)
+        # 2) Try fingerprints (date|±amount|DESC) — EXACT base date only
         if not new_iso:
             try:
                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
@@ -1783,17 +1783,6 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
                 if k2 in by_fp:
                     new_iso = _date_to_iso(by_fp[k2]); break
 
-                # Fallback: suffix match across ANY base date
-                if not new_iso:
-                    suf_pos = f"|{a_pos:.2f}|{up}"
-                    suf_neg = f"|{a_neg:.2f}|{up}"
-                    for k in list(by_fp.keys()):
-                        if k.endswith(suf_pos) or k.endswith(suf_neg):
-                            new_iso = _date_to_iso(by_fp[k])
-                            break
-                    if new_iso:
-                        break
-
         if new_iso:
             # Keep ISO for sorting; set display date to MM/DD/YYYY
             t["_iso_date"] = new_iso
@@ -1810,6 +1799,7 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
     for _, month_blob in summary.items():
         for top in (month_blob.get("tree") or []):
             walk(top)
+
 
 
 def _rebucket_months_by_overrides(summary: dict) -> None:
