@@ -55,6 +55,11 @@
   td.tx-desc { cursor: text; }
   td.tx-desc.editing { background: rgba(255,255,255,.06); }
   td.tx-desc .spinner-border{ pointer-events:none; }
+
+  /* (2) Date inline edit + (3) bank-original hint */
+  td.tx-date { cursor: pointer; }
+  td.tx-date.editing { background: rgba(255,255,255,.06); }
+  .bank-hint { opacity:.7; font-size:.8em; }
 </style>
 
 <div class="tx-wrap">
@@ -153,7 +158,19 @@
     }
     return s;
   }
-
+  function toISODate(s){
+    const x = (s||'').trim();
+    if (!x) return '';
+    const m1 = x.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
+    const m2 = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m2){
+      const mm = String(m2[1]).padStart(2,'0');
+      const dd = String(m2[2]).padStart(2,'0');
+      return `${m2[3]}-${mm}-${dd}`;
+    }
+    return x.slice(0,10);
+  }
   function monthKey(s){
     if (!s) return '0000-00';
     const t = String(s);
@@ -253,11 +270,21 @@
         const amt = toNumber(t.amount);
         const cls = amt < 0 ? 'amt-neg' : (amt > 0 ? 'amt-pos' : '');
         const rawDesc  = String(t.description || '');
-        const origDesc = String(t.immutable_orig || t.original_description || t.description || ''); /* immutable */
+        const origDesc = String(t.immutable_orig || t.original_description || t.description || '');
         const safeDesc = escHtml(rawDesc);
         const cat = (t.category||'') + (t.subcategory?(' / '+t.subcategory):'');
         const txid = txIdOf(t);
-        const sig = `${t.date||''}|${t.amount||''}|${origDesc}`;
+
+        // (3) bank-original hint support
+        const bankIso = (t.bank_iso_date || '').slice(0,10);
+        const shownIso = toISODate(t.date || '');
+        const bankDiffers = bankIso && bankIso !== shownIso;
+        const dateHtml = `
+          <div class="d-flex flex-column">
+            <div>${fmtDate(t.date)}</div>
+            ${bankIso ? `<div class="bank-hint text-muted">${bankDiffers ? 'bank: ' : ''}${bankIso}</div>` : ''}
+          </div>
+        `;
 
         out.push(`
           <tr>
@@ -265,10 +292,11 @@
                 data-tx-id="${escAttr(t.transaction_id||'')}"
                 data-date="${escAttr(t.date||'')}"
                 data-amount="${escAttr(t.amount)}"
-                data-orig-desc="${escAttr(t.original_description||t.description||'')}">${fmtDate(t.date)}</td>
+                data-orig-desc="${escAttr(t.original_description||t.description||'')}"
+                data-bank-iso="${escAttr(bankIso)}">${dateHtml}</td>
             <td class="tx-desc"
                 data-tx-id="${escAttr(txid)}"
-                data-sig="${escAttr(sig)}"
+                data-sig="${escAttr((t.date||'')+'|'+(t.amount||'')+'|'+(origDesc))}"
                 data-desc="${escAttr(rawDesc)}"
                 data-orig-desc="${escAttr(origDesc)}"
                 data-date="${escAttr(t.date || '')}"
@@ -418,7 +446,7 @@
 
   scroller.addEventListener('dblclick', (e)=>{ const td = e.target.closest('td.tx-desc'); if (!td) return; beginEdit(td); });
 
-  // --- Date inline edit ---
+  // -------- (2) Inline edit (date) ----------
   const UPDATE_DATE_API = "/api/tx/edit_date";
 
   function beginEditDate(td){
@@ -428,60 +456,53 @@
     const origDateStr = td.getAttribute('data-date') || '';
     const amtStr = td.getAttribute('data-amount') || '';
     const origDesc = td.getAttribute('data-orig-desc') || '';
-
-    function toISO(s){
-      const x = (s||'').trim();
-      if (!x) return '';
-      // accept YYYY-MM-DD or MM/DD/YYYY
-      const m1 = x.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m1) return `${m1[1]}-${m1[2]}-${m1[3]}`;
-      const m2 = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m2){
-        const mm = String(m2[1]).padStart(2,'0'), dd = String(m2[2]).padStart(2,'0'), yy = m2[3];
-        return `${yy}-${mm}-${dd}`;
-      }
-      return x.slice(0,10);
-    }
+    const bankIso = td.getAttribute('data-bank-iso') || '';
 
     td.classList.add('editing');
     td.dataset.editing = '1';
 
     const input = document.createElement('input');
     input.type = 'date';
-    input.value = toISO(origDateStr);
+    input.value = toISODate(origDateStr);
     input.className = 'form-control form-control-sm';
     input.setAttribute('aria-label','Edit date');
+    input.style.minWidth = '9.5rem';
 
-    const spinner = document.createElement('span');
-    spinner.className = 'ms-2 text-muted';
-    spinner.textContent = '…';
-
-    const oldHtml = td.innerHTML;
+    const oldDisplay = td.innerHTML;
     td.innerHTML = '';
     td.appendChild(input);
+    input.focus();
 
     let canceled = false;
-    input.focus();
-    input.select();
+
+    function renderCell(displayIsoOrMmdd){
+      const shownIso = toISODate(displayIsoOrMmdd);
+      const bankDiffers = bankIso && bankIso !== shownIso;
+      td.innerHTML = `
+        <div class="d-flex flex-column">
+          <div>${fmtDate(displayIsoOrMmdd)}</div>
+          ${bankIso ? `<div class="bank-hint text-muted">${bankDiffers ? 'bank: ' : ''}${bankIso}</div>` : ''}
+        </div>
+      `;
+    }
 
     function cleanup(newDisplay){
       td.classList.remove('editing');
       td.dataset.editing = '';
-      td.innerHTML = newDisplay;
+      renderCell(newDisplay);
     }
 
     async function commit(){
-      const iso = toISO(input.value);
-      if (!iso || iso === toISO(origDateStr)){
-        cleanup(fmtDate(iso || origDateStr));
+      const iso = toISODate(input.value);
+      if (!iso || iso === toISODate(origDateStr)){
+        cleanup(origDateStr);
         return;
       }
       input.disabled = true;
-      td.appendChild(spinner);
       try{
         const body = {
           transaction_id: txId || undefined,
-          date: origDateStr,
+          date: origDateStr,                // PRE-EDIT display date
           amount: Number(amtStr),
           original_description: origDesc,
           new_date: iso
@@ -496,20 +517,20 @@
           throw new Error((res && res.error) || 'Save failed');
         }
 
-        // Update this cell + sync data-date on desc cell in same row
+        // Update attributes + sibling desc cell's data-date
         td.setAttribute('data-date', iso);
         const tr = td.closest('tr');
         const descTd = tr && tr.querySelector('td.tx-desc');
         if (descTd){ descTd.setAttribute('data-date', iso); }
 
-        cleanup(fmtDate(iso));
+        cleanup(res.new_date || iso);
       }catch(err){
         alert('Save failed: ' + err.message);
-        cleanup(fmtDate(origDateStr));
+        cleanup(origDateStr);
       }
     }
 
-    function cancel(){ canceled = true; cleanup(fmtDate(origDateStr)); }
+    function cancel(){ canceled = true; cleanup(origDateStr); }
 
     input.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter'){ e.preventDefault(); commit(); }
@@ -524,6 +545,7 @@
     beginEditDate(td);
   });
 
+  // initial
   load().catch(err=>{ tbody.innerHTML = `<tr><td colspan="4" class="text-danger">Failed to load: ${err.message}</td></tr>`; });
 })();
 </script>

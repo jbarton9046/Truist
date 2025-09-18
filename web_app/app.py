@@ -60,6 +60,26 @@ def _debug_fp():
     by_fp = (_load_desc_overrides() or {}).get("by_fingerprint", {}) or {}
     return jsonify({"key_pos": k1, "key_neg": k2, "present": (k1 in by_fp) or (k2 in by_fp)})
 
+@app.get("/__debug/date_fp")
+def _debug_date_fp():
+    date_s = (request.args.get("date") or "")[:10]
+    try:
+        amt = float(request.args.get("amt") or request.args.get("amount") or 0.0)
+    except Exception:
+        amt = 0.0
+    orig = (request.args.get("orig") or "").strip().upper()
+    k1 = _fingerprint_tx(date_s,  abs(amt), orig)
+    k2 = _fingerprint_tx(date_s, -abs(amt), orig)
+    maps = (_load_desc_overrides() or {})
+    d_by_fp = (maps.get("date_by_fingerprint") or {}) or {}
+    return jsonify({
+        "key_pos": k1,
+        "key_neg": k2,
+        "present": (k1 in d_by_fp) or (k2 in d_by_fp),
+        "value_pos": d_by_fp.get(k1),
+        "value_neg": d_by_fp.get(k2),
+    })
+
 @app.get("/__debug/desc_overrides")
 def debug_desc_overrides():
     try:
@@ -3283,6 +3303,9 @@ def api_tx_all():
             r.get("description") or ""
         )
         r["transaction_id"] = _txid(r)
+        # ⬇️ expose immutable bank/original ISO date to the client if present
+        if r.get("_bank_iso_date"):
+            r["bank_iso_date"] = r["_bank_iso_date"]
 
     # ---------- Filters (same semantics you had) ----------
     q = (request.args.get("q") or "").strip().lower()
@@ -3354,7 +3377,6 @@ def api_tx_all():
 
     rows = rows[: max(1, limit)]
     return jsonify({"transactions": rows})
-
 
 # ------------------ MAIN ------------------
 if __name__ == "__main__":
