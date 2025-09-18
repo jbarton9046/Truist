@@ -1805,50 +1805,71 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
 def _rebucket_months_by_overrides(summary: dict) -> None:
     """
     After _apply_date_overrides_to_summary() possibly sets tx['_iso_date'],
-    move transactions to the correct month blob based on that iso date.
-    Works for BOTH leaf nodes and hybrid parent nodes that have their own txs.
-    Then trim truly empty months. Category rollups can be rebuilt afterwards.
+    move transactions to the correct month blob based on that ISO date.
+    ✅ Preserves the original CATEGORY PATH instead of parking under '__root__'.
+    Then trims truly empty months.
     """
     if not isinstance(summary, dict) or not summary:
         return
 
-    staged: dict[str, list[dict]] = {}  # new_month_key -> txs
+    # stage moves as (new_month_key, path_parts, tx)
+    staged: list[tuple[str, list[str], dict]] = []
 
-    # Walk a single month blob and pull out txs that belong elsewhere
-    def walk_node(n: dict, month_key: str):
-        # process this node's OWN transactions (even if it has children)
-        txs = n.get("transactions") or []
+    def walk_node(node: dict, month_key: str, path_so_far: list[str]) -> None:
+        name = (node.get("name") or "").strip()
+        here_path = path_so_far + ([name] if name else [])
+        txs = node.get("transactions") or []
         keep = []
         for t in txs:
+            # prefer explicit override; else normalize current date safely
             iso = (t.get("_iso_date") or _date_to_iso(t.get("date") or t.get("_bank_iso_date") or ""))[:10]
             new_mk = iso[:7] if iso else month_key
             t["month"] = new_mk
             if new_mk != month_key:
-                staged.setdefault(new_mk, []).append(t)
+                # move later, but remember the full path we came from
+                staged.append((new_mk, here_path, t))
             else:
                 keep.append(t)
-        n["transactions"] = keep
+        node["transactions"] = keep
 
-        # then descend
-        for c in (n.get("children") or []):
-            walk_node(c, month_key)
+        for c in (node.get("children") or []):
+            walk_node(c, month_key, here_path)
 
-    # 1) collect movers out of their current month from *all* nodes
+    # 1) collect all movers (and remove them from their source nodes)
     for month_key, blob in list(summary.items()):
         for root in (blob.get("tree") or []):
-            walk_node(root, month_key)
+            walk_node(root, month_key, [])
 
-    # 2) ensure destination months exist & append moved txs under a temp root
-    for new_mk, txs in staged.items():
-        if new_mk not in summary:
-            summary[new_mk] = {"tree": [{"name": "__root__", "transactions": []}]}
-        roots = summary[new_mk].get("tree") or []
-        if not roots:
-            roots = [{"name": "__root__", "transactions": []}]
-            summary[new_mk]["tree"] = roots
-        roots[0].setdefault("transactions", []).extend(txs)
+    # helper: ensure a path exists in a tree and return the leaf node
+    def _ensure_path(tree_list: list[dict], parts: list[str]) -> dict:
+        cur_list = tree_list
+        node = None
+        for seg in [p for p in parts if p and p != "__root__"]:
+            seg_n = seg.strip().lower()
+            found = None
+            for n in cur_list:
+                if (n.get("name") or "").strip().lower() == seg_n:
+                    found = n
+                    break
+            if not found:
+                found = {"name": seg, "children": [], "transactions": []}
+                cur_list.append(found)
+            node = found
+            cur_list = node.setdefault("children", [])
+        if node is None:
+            # fallback if we somehow had an empty path
+            node = {"name": "Uncategorized", "children": [], "transactions": []}
+            tree_list.append(node)
+        return node
 
-    # 3) drop months that ended up empty (no txs anywhere in the tree)
+    # 2) drop movers into their destination months under the SAME path
+    for new_mk, path_parts, tx in staged:
+        blob = summary.setdefault(new_mk, {"tree": []})
+        tree = blob.setdefault("tree", [])
+        leaf = _ensure_path(tree, path_parts)
+        leaf.setdefault("transactions", []).append(tx)
+
+    # 3) drop months that ended up empty
     def month_has_any_tx(blob: dict) -> bool:
         found = False
         def scan(n: dict):
@@ -1856,8 +1877,7 @@ def _rebucket_months_by_overrides(summary: dict) -> None:
             if found:
                 return
             if n.get("transactions"):
-                found = True
-                return
+                found = True; return
             for c in (n.get("children") or []):
                 scan(c)
         for r in (blob.get("tree") or []):
