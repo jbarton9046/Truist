@@ -426,6 +426,17 @@ def _normalize_form_date(raw: str) -> str:
     except ValueError:
         return raw
 
+def _build_monthly_for_ui():
+    ck, sm, *_ = _load_category_config()
+    ov = _load_desc_overrides()
+    monthly = generate_summary(ck, sm, desc_overrides=ov)
+    _apply_date_overrides_to_summary(monthly)
+    _rebucket_months_by_overrides(monthly)        # <-- critical
+    _apply_hide_rules_to_summary(monthly)
+    _rebuild_categories_from_tree(monthly)
+    return monthly
+
+
 def save_manual_form_transaction(form, tx_type: str):
     raw_amount = abs(float(form["amount"]))
     amount = raw_amount if tx_type == "income" else -raw_amount
@@ -1647,16 +1658,16 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
         # 1) Try transaction_id first
         txid = _txid_of(t)
         new_iso = None
+
+        # Normalize current display date to ISO and remember original once
+        ds = _date_to_iso(t.get("date", ""))
+        t.setdefault("_bank_iso_date", ds)
+
         if txid and txid in by_id:
             new_iso = _date_to_iso(by_id[txid])
 
         # 2) Try fingerprints (date|±amount|DESC)
         if not new_iso:
-            ds = _date_to_iso(t.get("date", ""))
-
-            # NEW: persist the original/bank iso date once for this row
-            t.setdefault("_bank_iso_date", ds)
-
             try:
                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
             except Exception:
@@ -1677,7 +1688,6 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
                     new_iso = _date_to_iso(by_fp[k2]); break
 
                 # Fallback: suffix match across ANY base date
-                # (handles “second/third edit” cases written under older base dates)
                 if not new_iso:
                     suf_pos = f"|{a_pos:.2f}|{up}"
                     suf_neg = f"|{a_neg:.2f}|{up}"
@@ -1706,88 +1716,66 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
         for top in (month_blob.get("tree") or []):
             walk(top)
 
-
-
 def _rebucket_months_by_overrides(summary: dict) -> None:
     """
-    Move transactions to the month bucket that matches their overridden date.
-    Assumes _apply_date_overrides_to_summary(...) already ran (so tx['_iso_date'] is set when edited).
-    After moves, totals will be recomputed by _apply_hide_rules_to_summary(...).
+    After _apply_date_overrides_to_summary() has possibly changed tx['_iso_date'],
+    physically move transactions to the correct month blob based on that iso date.
+    Then trim empty months. Category rollups can be rebuilt afterwards.
     """
     if not isinstance(summary, dict) or not summary:
         return
 
-    # Map between normalized 'YYYY-MM' and whatever raw keys the summary uses.
-    norm_to_raw: dict[str, str] = {}
-    raw_keys = list(summary.keys())
-    for rk in raw_keys:
-        norm_to_raw.setdefault(_norm_month(rk), rk)
+    # helper: iterate leaves
+    def _leaves(month_blob):
+        def walk(n):
+            kids = n.get("children") or []
+            if kids:
+                for c in kids: 
+                    yield from walk(c)
+            else:
+                yield n
+        for root in (month_blob.get("tree") or []):
+            yield from walk(root)
 
-    uses_underscore = any("_" in k for k in raw_keys)
-
-    def raw_from_norm(n: str) -> str:
-        return n.replace("-", "_") if uses_underscore else n
-
-    # 1) Collect moves: for each leaf tx, if its (overridden) month != current month, mark it for move.
-    moves: dict[str, list[tuple[list[str], dict]]] = _dd2(list)  # {target_norm: [(path_parts, tx), ...]}
-
-    def walk(node: dict, path: list[str], month_raw: str):
-        kids = node.get("children") or []
-        if kids:
-            for ch in kids:
-                nm = (ch.get("name") or "").strip()
-                walk(ch, path + ([nm] if nm else []), month_raw)
-        else:
-            txs = list(node.get("transactions") or [])
-            kept = []
-            cur_norm = _norm_month(month_raw)
+    # 1) collect moves out of their current month
+    staged = {}  # month_key -> list[tx]
+    for month_key, blob in list(summary.items()):
+        for leaf in _leaves(blob):
+            txs = leaf.get("transactions") or []
+            keep = []
             for t in txs:
-                iso = t.get("_iso_date")
-                if not iso:
-                    d = _parse_any_date(t.get("date") or "")
-                    iso = d.strftime("%Y-%m-%d") if d else None
-                tgt_norm = (iso or "")[:7]
-                if tgt_norm and tgt_norm != cur_norm:
-                    moves[tgt_norm].append((path, t))
+                iso = (t.get("_iso_date") or _date_to_iso(t.get("date") or t.get("_bank_iso_date") or ""))[:10]
+                new_mk = iso[:7] if iso else month_key
+                t["month"] = new_mk  # handy for clients
+                if new_mk != month_key:
+                    staged.setdefault(new_mk, []).append(t)
                 else:
-                    kept.append(t)
-            node["transactions"] = kept
+                    keep.append(t)
+            leaf["transactions"] = keep
 
-    for raw_key, blob in summary.items():
-        for top in (blob.get("tree") or []):
-            walk(top, [], raw_key)
+    # 2) ensure destination months exist & append moved txs at a temporary root leaf
+    for new_mk, txs in staged.items():
+        if new_mk not in summary:
+            # minimal month blob; categories rebuilt later
+            summary[new_mk] = {"tree": [{"name": "__root__", "transactions": []}]}
+        # drop into (or create) the temp root leaf
+        roots = summary[new_mk].get("tree") or []
+        if not roots:
+            roots = [{"name": "__root__", "transactions": []}]
+            summary[new_mk]["tree"] = roots
+        roots[0].setdefault("transactions", []).extend(txs)
 
-    # 2) Apply moves: create month + path as needed and append the tx.
-    def ensure_leaf(tree_list: list, path_parts: list[str]) -> dict:
-        cur = tree_list
-        node = None
-        for seg in path_parts:
-            seg = str(seg or "").strip()
-            if not seg:
-                continue
-            found = None
-            for n in cur:
-                if (n.get("name") or "").strip().lower() == seg.lower():
-                    found = n
-                    break
-            if not found:
-                found = {"name": seg, "children": []}
-                cur.append(found)
-            node = found
-            cur = node.setdefault("children", [])
-        if node is None:
-            node = {"name": "Uncategorized", "children": []}
-            tree_list.append(node)
-        node.setdefault("transactions", [])
-        return node
+    # 3) drop months that ended up empty (no txs anywhere)
+    def _month_has_any_tx(blob):
+        for leaf in _leaves(blob):
+            if leaf.get("transactions"):
+                return True
+        return False
 
-    for tgt_norm, items in moves.items():
-        raw_tgt = norm_to_raw.get(tgt_norm) or raw_from_norm(tgt_norm)
-        month_blob = summary.setdefault(raw_tgt, {})
-        month_blob.setdefault("tree", [])
-        for path_parts, tx in items:
-            leaf = ensure_leaf(month_blob["tree"], path_parts)
-            leaf["transactions"].append(tx)
+    for mk, blob in list(summary.items()):
+        if not _month_has_any_tx(blob):
+            summary.pop(mk, None)
+
 
 @app.get("/transactions")
 def transactions_page():
@@ -1805,8 +1793,6 @@ def transactions_page():
         _rebucket_months_by_overrides(monthly)
         _apply_hide_rules_to_summary(monthly)
         _rebuild_categories_from_tree(monthly)
-
-        rows = _flatten_display_transactions(monthly)
 
     except Exception as e:
         try:
