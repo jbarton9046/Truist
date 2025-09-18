@@ -1499,6 +1499,28 @@ def build_top_level_monthly_from_summary(summary, months_back=12, since_date=Non
 
     return {"months": month_keys, "categories": categories}
 
+def _find_bank_original_date_for(amount, bank_orig_upper: str) -> str | None:
+    """Return ISO YYYY-MM-DD of the bank/original date for a given (amount, bank description)."""
+    try:
+        ck, sm, *_ = _load_category_config()
+        monthly = generate_summary(ck, sm, desc_overrides={})  # no overrides
+        target = round(abs(float(amount or 0.0)), 2)
+        for blob in (monthly or {}).values():
+            for t in (blob.get("all_transactions") or []):
+                desc = (t.get("original_description") or t.get("immutable_orig") or t.get("description") or "")
+                if (desc or "").strip().upper() != bank_orig_upper:
+                    continue
+                try:
+                    a = round(abs(float(t.get("amount", 0.0) or 0.0)), 2)
+                except Exception:
+                    continue
+                if a == target:
+                    return _date_to_iso(t.get("date", ""))
+    except Exception:
+        pass
+    return None
+
+
 def _find_bank_original_description(date_s, amount) -> str:
     """Best-effort lookup of the immutable bank description for (date, amount).
     We intentionally build a summary with NO description overrides, then scan
@@ -1611,15 +1633,22 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
         # 2) Try fingerprints (date|±amount|DESC)
         if not new_iso:
             ds = _date_to_iso(t.get("date", ""))
+
+            # NEW: persist the original/bank iso date once for this row
+            t.setdefault("_bank_iso_date", ds)
+
             try:
                 amt = float(t.get("amount", t.get("amt", 0.0)) or 0.0)
             except Exception:
                 amt = 0.0
             a_pos, a_neg = abs(amt), -abs(amt)
+
             for desc in _candidate_descs_for_fp(t):
                 up = (desc or "").strip().upper()
                 if not up:
                     continue
+
+                # Exact match for the same base date
                 k1 = _fingerprint_tx(ds, a_pos, up)
                 k2 = _fingerprint_tx(ds, a_neg, up)
                 if k1 in by_fp:
@@ -1627,8 +1656,20 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
                 if k2 in by_fp:
                     new_iso = _date_to_iso(by_fp[k2]); break
 
+                # Fallback: suffix match across ANY base date
+                # (handles “second/third edit” cases written under older base dates)
+                if not new_iso:
+                    suf_pos = f"|{a_pos:.2f}|{up}"
+                    suf_neg = f"|{a_neg:.2f}|{up}"
+                    for k in list(by_fp.keys()):
+                        if k.endswith(suf_pos) or k.endswith(suf_neg):
+                            new_iso = _date_to_iso(by_fp[k])
+                            break
+                    if new_iso:
+                        break
+
         if new_iso:
-            # Keep ISO as a helper for sorting (optional) and set display date to MM/DD/YYYY
+            # Keep ISO for sorting; set display date to MM/DD/YYYY
             t["_iso_date"] = new_iso
             t["date"] = _iso_to_mmdd(new_iso)
 
@@ -1644,6 +1685,8 @@ def _apply_date_overrides_to_summary(summary: dict) -> None:
     for _, month_blob in summary.items():
         for top in (month_blob.get("tree") or []):
             walk(top)
+
+
 
 def _rebucket_months_by_overrides(summary: dict) -> None:
     """
@@ -1890,8 +1933,10 @@ def edit_date():
         try:
             amt = float(amount or 0.0)
         except Exception:
-            try: amt = float(str(amount).replace(",", ""))
-            except Exception: amt = 0.0
+            try:
+                amt = float(str(amount).replace(",", ""))
+            except Exception:
+                amt = 0.0
         amt_pos, amt_neg = abs(amt), -abs(amt)
 
         new_iso   = _date_to_iso(new_raw)
@@ -1960,8 +2005,6 @@ def edit_date():
     except Exception as e:
         app.logger.exception("edit_date failed")
         return jsonify({"ok": False, "error": str(e)}), 500
-
-
 
 # ------------------ ALL ITEMS EXPLORER (flat list) ------------------
 @app.route("/explorer")
