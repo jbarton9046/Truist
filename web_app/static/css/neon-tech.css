@@ -506,3 +506,69 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   opacity: .85;
 }
 .manage-drawer .btn-close:hover{ opacity: 1; }
+
+/* =========================================================
+   Pill refinements (drawer keyword chips)
+   ========================================================= */
+.manage-drawer .pill{
+  flex: none;                     /* don’t collapse in tight rows */
+  min-height: 28px;               /* comfortable hit target */
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.manage-drawer .pill:hover{
+  background: rgba(255,255,255,.10);
+  border-color: var(--hair);
+  box-shadow: 0 2px 10px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.manage-drawer .pill:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.12), 0 0 0 4px rgba(37,99,235,.35);
+}
+
+/* selected/active state (e.g., when filtering by a keyword) */
+.manage-drawer .pill[aria-pressed="true"],
+.manage-drawer .pill.is-active{
+  background: color-mix(in oklab, var(--accent-ink) 18%, transparent);
+  border-color: color-mix(in oklab, var(--accent-ink) 38%, transparent);
+}
+
+/* better truncation + tooltip affordance */
+.manage-drawer .pill .pill-text{
+  max-width: 18rem;               /* a bit more room inside the drawer */
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* close button: larger tap target + subtle hover plate */
+.manage-drawer .pill .pill-close{
+  width: 20px;
+  height: 20px;
+  margin-left: .1rem;
+  border-radius: 6px;             /* less circular = clearer affordance */
+}
+.manage-drawer .pill .pill-close:hover{
+  background: rgba(255,255,255,.12);
+}
+.manage-drawer .pill .pill-close:focus-visible{
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.14);
+}
+
+/* row container for chips */
+.manage-drawer .pill-row{
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem .55rem;
+  align-items: center;
+}
+
+/* “deleting” micro-state while JS removes the chip */
+@media (prefers-reduced-motion: no-preference){
+  .manage-drawer .pill.is-removing{
+    transform: scale(.98);
+    opacity: .4;
+    filter: saturate(.6);
+    transition: transform .12s ease, opacity .12s ease, filter .12s ease;
+  }
+}
