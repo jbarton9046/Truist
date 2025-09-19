@@ -192,7 +192,8 @@
         <input id="kw-add-input" class="form-control form-control-sm" placeholder="Add keyword…" />
         <button id="kw-add-btn" class="btn btn-sm btn-primary">Add</button>
       </div>
-      <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path=""></div>
+      <!-- IMPORTANT: seed path for builder via Jinja -->
+      <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path="{{ path_str|default('', true) }}"></div>
     </div>
 
     <div class="drawer-pane" data-pane="actions">
@@ -216,7 +217,7 @@
   </div>
 </div>
 
-<!-- Tabs + refresh-on-open -->
+<!-- Tabs + refresh-on-open (non-destructive) -->
 <script>
 (function(){
   'use strict';
@@ -227,22 +228,23 @@
   function showPane(name){
     tabs.forEach(t => t.classList.toggle('active', (t.dataset.tab === name)));
     panes.forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none');
-    if (name === 'keywords' && typeof window.refreshKeywords === 'function') {
-      window.refreshKeywords();
-      setTimeout(window.refreshKeywords, 120);
+    const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
+    if (name === 'keywords' && typeof refresh === 'function') {
+      refresh(); setTimeout(refresh, 120);
     }
   }
   tabs.forEach(t => t.addEventListener('click', (e)=>{ e.preventDefault(); showPane(t.dataset.tab||'overview'); }));
   document.addEventListener('show.bs.offcanvas', (ev)=>{
     if (ev.target && ev.target.id === 'dashCategoryManager') {
       const active = dash.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
-      if (active === 'keywords' && window.refreshKeywords) { window.refreshKeywords(); setTimeout(window.refreshKeywords, 120); }
+      const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
+      if (active === 'keywords' && typeof refresh === 'function') { refresh(); setTimeout(refresh, 120); }
     }
   });
 })();
 </script>
 
-<!-- Keyword pill close-buttons & deletion wiring -->
+<!-- Keyword pill close-buttons & deletion wiring (non-destructive) -->
 <script>
 (function(){
   'use strict';
@@ -264,9 +266,11 @@
   async function handleDelete(pill){
     const kw = pill.dataset.keyword || pill.getAttribute('data-keyword') || pill.textContent.trim();
     const path = pill.dataset.path || list.dataset.path || '';
-    if (window.deleteKeyword) { try { await window.deleteKeyword({ keyword: kw, path }); } catch(e){} }
+    const del = window.deleteKeyword || (window.btDrawerFallback && window.btDrawerFallback.deleteKeyword);
+    if (typeof del === 'function') { try { await del({ keyword: kw, path }); } catch(e){} }
     pill.remove();
-    if (window.refreshKeywords) setTimeout(window.refreshKeywords, 50);
+    const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
+    if (typeof refresh === 'function') setTimeout(refresh, 50);
   }
   list.addEventListener('click', (e)=>{
     const btn = e.target.closest('.kw-x'); if (!btn) return;
@@ -280,107 +284,50 @@
 })();
 </script>
 
-<!-- ===== Universal Drawer Controller (compact, self-contained) ===== -->
+<!-- ===== Builder-only FALLBACK controller (namespaced, won't overwrite globals) ===== -->
 <script>
 (function(){
   'use strict';
-  if (window.openCategoryManager && window.refreshKeywords) return; // already present on non-builder pages
+  // If your real controller is already loaded on this page, do nothing.
+  if (window.refreshKeywords && window.openCategoryManager) return;
 
   const $ = (s,r=document)=>r.querySelector(s);
-  const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
-  const host = $('#dashCategoryManager');
+  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const host = $('#dashCategoryManager'); if (!host) return;
   const kwList = $('#kw-list');
-  if (!host) return;
 
   const urls = window.CL_URLS || {};
   const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
+  const GETS = [urls.KW_GET_URL, '/admin/categories/keywords', '/admin/api/keywords', '/api/keywords', '/admin/categories/keywords_for_name', '/api/keywords_for_name'].filter(Boolean);
+  const POSTS_ADD = [urls.KW_ADD_URL, '/admin/categories/keyword/add', '/admin/api/keyword_add', '/api/keyword_add', '/admin/categories/keywords', '/api/keywords'].filter(Boolean);
+  const POSTS_REM = [urls.KW_REMOVE_URL, '/admin/categories/keyword/remove', '/admin/api/keyword_remove', '/api/keyword_remove', '/admin/categories/keywords', '/api/keywords'].filter(Boolean);
 
-  // Multi-backend keyword candidates (by path OR by name/levels OR unified /keywords)
-  const GETS = [
-    urls.KW_GET_URL, '/admin/categories/keywords', '/admin/api/keywords', '/api/keywords',
-    '/admin/categories/keywords_for_name', '/api/keywords_for_name'
-  ].filter(Boolean);
-  const POSTS_ADD = [
-    urls.KW_ADD_URL, '/admin/categories/keyword/add', '/admin/api/keyword_add', '/api/keyword_add', '/admin/categories/keywords', '/api/keywords'
-  ];
-  const POSTS_REM = [
-    urls.KW_REMOVE_URL, '/admin/categories/keyword/remove', '/admin/api/keyword_remove', '/api/keyword_remove', '/admin/categories/keywords', '/api/keywords'
-  ];
+  const state = { ctx:{ level:'category', cat:'', sub:'', ssub:'', sss:'', month:'' }, children:[], tx:[], total:0 };
 
-  const state = { ctx:{ level:'category', cat:'', sub:'', ssub:'', sss:'', month:'' }, months:[], children:[], tx:[], total:0 };
+  function setKwPathAttr() {
+    // seed from data-path if provided by template
+    const seeded = kwList && kwList.dataset.path && kwList.dataset.path.trim();
+    if (seeded) return;
+    const parts = [state.ctx.cat,state.ctx.sub,state.ctx.ssub,state.ctx.sss].filter(Boolean);
+    if (kwList) kwList.dataset.path = parts.join(' › ');
+  }
 
-  // -------- helpers
-  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  const fmtUSD = n => { try { return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(+n||0); } catch { return '$'+Number(+n||0).toFixed(2);} };
-
-  const pathParts = ()=>[state.ctx.cat,state.ctx.sub,state.ctx.ssub,state.ctx.sss].filter(Boolean);
-  const setKwPathAttr = ()=>{ kwList.dataset.path = pathParts().join(' › '); };
-
-  // -------- renderers
   function renderBreadcrumb(){
     const nav = $('#drawer-breadcrumb'); if (!nav) return;
-    const parts = pathParts();
+    const parts = (kwList.dataset.path || '').split(' › ').filter(Boolean);
     const root = `<a href="#" data-bc="-1">All Categories</a>`;
-    const segs = [root];
-    parts.forEach((p,i)=>{ segs.push(`<a href="#" data-bc="${i}">${esc(p)}</a>`); });
+    const segs = [root].concat(parts.map((p,i)=>`<a href="#" data-bc="${i}">${esc(p)}</a>`));
     nav.innerHTML = segs.join(' ');
-    nav.querySelectorAll('a[data-bc]').forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        e.preventDefault();
-        const idx = +a.dataset.bc;
-        if (idx < 0) state.ctx.cat=state.ctx.sub=state.ctx.ssub=state.ctx.sss='';
-        else ['cat','sub','ssub','sss'].slice(idx+1).forEach(k=>state.ctx[k]='');
-        fetchPathTx();
-      });
-    });
   }
 
-  function renderChildren(){
-    const wrap = $('#drawer-children'); if (!wrap) return;
-    const kids = state.children||[];
-    if (!kids.length){ wrap.innerHTML='<span class="muted">No children.</span>'; return; }
-    wrap.innerHTML = kids.map(k=>`<a class="pill" data-child="${esc(k)}"><span class="label">${esc(k)}</span><span class="chev">›</span></a>`).join('');
-    wrap.querySelectorAll('[data-child]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        const name = el.getAttribute('data-child');
-        if (!state.ctx.cat) state.ctx.cat=name;
-        else if (!state.ctx.sub) state.ctx.sub=name;
-        else if (!state.ctx.ssub) state.ctx.ssub=name;
-        else state.ctx.sss=name;
-        fetchPathTx();
-      });
-    });
-  }
-
-  function renderTx(){
-    const body=$('#drawer-tx-body'); if(!body) return;
-    const rows=state.tx||[];
-    if(!rows.length){ body.innerHTML='<tr><td colspan="4" class="text-muted">No transactions.</td></tr>'; return; }
-    body.innerHTML = rows.map(t=>{
-      const amt=Number(t.amount||0), cls=amt<0?'tx-neg':'tx-pos';
-      const catPath = t.sssubcategory || t.subsubcategory || t.subcategory || t.category || '';
-      return `<tr>
-        <td class="mono">${esc(t.date||'')}</td>
-        <td>${esc(t.description||'')}</td>
-        <td class="mono ${cls}">${fmtUSD(amt)}</td>
-        <td><span class="pill pill-sm">${esc(catPath)}</span></td>
-      </tr>`;
-    }).join('');
-  }
-
-  // -------- keywords I/O (works for path or name/levels or unified)
   async function kwGet(){
-    const parts = pathParts();
-    const last = parts[parts.length-1] || '';
-    const qpCommon = new URLSearchParams({ level: state.ctx.level, cat: state.ctx.cat, sub: state.ctx.sub, ssub: state.ctx.ssub, sss: state.ctx.sss, name:last });
-    qpCommon.set('_', Date.now());
-
+    const path = kwList.dataset.path || '';
     for (const base of GETS){
       try{
-        let url = base;
-        if (/keywords_for_name/i.test(base)) url += '?' + qpCommon.toString();
-        else url += '?' + new URLSearchParams({ path: kwList.dataset.path || parts.join(' › '), _ : Date.now() }).toString();
-
+        const isByName = /keywords_for_name/i.test(base);
+        const url = isByName
+          ? base + '?' + new URLSearchParams({ name: path.split(' › ').pop()||'', _ : Date.now() })
+          : base + '?' + new URLSearchParams({ path, _ : Date.now() });
         const r = await fetch(url, { headers:{'Accept':'application/json'} });
         if (!r.ok) continue;
         const j = await r.json();
@@ -391,8 +338,9 @@
     }
     return [];
   }
+
   async function kwPost(cands, keyword, remove){
-    const payload = { keyword, path: kwList.dataset.path || pathParts().join(' › '), level: state.ctx.level, cat: state.ctx.cat, sub: state.ctx.sub, ssub: state.ctx.ssub, sss: state.ctx.sss };
+    const payload = { keyword, path: kwList.dataset.path || '' };
     for (const base of cands){
       try{
         const body = (/\/keywords(?:$|\?)/.test(base)) ? { ...payload, action: remove?'remove':'add', remove: !!remove } : payload;
@@ -403,72 +351,42 @@
     return false;
   }
 
-  // -------- public API
   async function refreshKeywords(){
-    const list = $('#kw-list'); if (!list) return;
+    if (!kwList) return;
     setKwPathAttr();
-    list.innerHTML = '<span class="muted">Loading…</span>';
+    kwList.innerHTML = '<span class="muted">Loading…</span>';
     const kws = await kwGet();
-    list.innerHTML = kws.length ? kws.map(k=>`<span class="pill" data-keyword="${esc(k)}">${esc(k)}<button class="kw-x" aria-label="Remove">×</button></span>`).join(' ') : '<span class="muted">No keywords yet.</span>';
+    kwList.innerHTML = kws.length
+      ? kws.map(k=>`<span class="pill" data-keyword="${esc(k)}">${esc(k)}<button class="kw-x" aria-label="Remove">×</button></span>`).join(' ')
+      : '<span class="muted">No keywords yet.</span>';
   }
-  async function addKeyword({ keyword }){ if (!keyword) return false; return kwPost(POSTS_ADD, keyword, false); }
-  async function deleteKeyword({ keyword }){ if (!keyword) return false; return kwPost(POSTS_REM, keyword, true); }
+  async function addKeyword({ keyword }){ if (!keyword) return false; const ok = await kwPost(POSTS_ADD, keyword, false); if (ok) refreshKeywords(); return ok; }
+  async function deleteKeyword({ keyword }){ if (!keyword) return false; const ok = await kwPost(POSTS_REM, keyword, true); if (ok) refreshKeywords(); return ok; }
 
-  window.refreshKeywords = window.refreshKeywords || refreshKeywords;
-  window.addKeyword      = window.addKeyword      || addKeyword;
-  window.deleteKeyword   = window.deleteKeyword   || deleteKeyword;
+  // expose only under a namespaced object so we don't overwrite your globals
+  window.btDrawerFallback = { refreshKeywords, addKeyword, deleteKeyword };
 
-  // -------- path + tx fetch (kept minimal for builder)
-  async function fetchPathTx(){
-    // keep path attr in sync
-    setKwPathAttr();
-    renderBreadcrumb();
-
-    // fetch children/tx if endpoint exists; otherwise just refresh keywords
+  // Minimal children/tx fetch so month/total/children still loads if API exists
+  (async function fetchPathTx(){
     try{
-      const q = new URLSearchParams({ level: state.ctx.level, cat: state.ctx.cat, sub: state.ctx.sub, ssub: state.ctx.ssub, sss: state.ctx.sss, months:'all', _: Date.now() });
-      const r = await fetch((PATH_TXN_URL||'/api/path/transactions') + '?' + q.toString(), { headers:{'Accept':'application/json'} });
+      const r = await fetch((PATH_TXN_URL||'/api/path/transactions')+'?'+new URLSearchParams({ months:'all', _ : Date.now() }), { headers:{'Accept':'application/json'} });
       if (r.ok){
         const j = await r.json();
-        state.children = j.children || j.kids || [];
-        state.tx = j.tx || j.transactions || [];
-        state.total = Number(j.total ?? j.net_total ?? 0);
-        const totalEl = document.getElementById('drawer-total'); if (totalEl) totalEl.textContent = fmtUSD(state.total);
-        renderChildren(); renderTx();
+        const totalEl = document.getElementById('drawer-total');
+        if (totalEl && (j.total ?? j.net_total) != null) totalEl.textContent = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(+((j.total ?? j.net_total) || 0));
       }
     }catch(_){}
-    // always refresh keywords for current path
+    renderBreadcrumb();
     refreshKeywords();
-  }
+  })();
 
-  // -------- Add box wiring
+  // Wire the add box
   (function(){
     const input = $('#kw-add-input'), btn = $('#kw-add-btn');
     if (!input || !btn) return;
-    const commit = async ()=>{
-      const v = (input.value||'').trim(); if (!v) return;
-      await addKeyword({ keyword:v }); input.value=''; refreshKeywords();
-    };
+    const commit = async ()=>{ const v=(input.value||'').trim(); if(!v) return; await addKeyword({ keyword:v }); input.value=''; };
     btn.addEventListener('click', e=>{ e.preventDefault(); commit(); });
-    input.addEventListener('keydown', e=>{ if (e.key === 'Enter') commit(); });
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
   })();
-
-  // -------- Open API for buttons (optional)
-  function openCategoryManager(ctx){
-    // adopt incoming context (if any)
-    const c = ctx || {};
-    state.ctx.level=c.level||state.ctx.level;
-    state.ctx.cat=c.cat||''; state.ctx.sub=c.sub||''; state.ctx.ssub=c.ssub||''; state.ctx.sss=c.sss||'';
-    fetchPathTx();
-
-    // show the offcanvas (works even if Bootstrap not loaded)
-    const el = host;
-    const oc = (window.bootstrap && window.bootstrap.Offcanvas) ? (window._cmOC || (window._cmOC = new bootstrap.Offcanvas(el))) : null;
-    if (oc) oc.show(); else { el.classList.add('show'); el.style.display='block'; }
-  }
-  window.openCategoryManager = window.openCategoryManager || openCategoryManager;
-
-  // initial paint (root)
-  fetchPathTx();
 })();
 </script>
