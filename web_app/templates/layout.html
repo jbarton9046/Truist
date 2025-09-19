@@ -509,13 +509,21 @@
       #dashCategoryManager .offcanvas-body table td:nth-child(4){ width:160px; white-space:nowrap; }
       #dashCategoryManager .offcanvas-body table td:nth-child(4) .pill{ white-space:nowrap; }
 
-      /* Keyword pill with tiny close in the upper-right corner */
+      /* ==========================
+         Keyword pills — INLINE ×
+         ========================== */
+      /* reset in case any legacy styles slipped in */
+      #dashCategoryManager .kw-pill .kw-x{
+        position: static !important;
+        background: none !important;
+        border: 0 !important;
+        box-shadow: none !important;
+      }
+
       #dashCategoryManager .kw-pill{
-        position: relative;
         display:inline-flex; align-items:center;
-        gap:.35rem; line-height:1;
-        padding:.22rem .65rem;
-        padding-right: 1.4rem;               /* room for the × */
+        gap:.45rem; line-height:1;
+        padding:.30rem .70rem;
         border-radius:999px;
         background: color-mix(in oklab, var(--accent-ink) 12%, transparent);
         color: var(--accent-ink);
@@ -523,16 +531,17 @@
         font-weight:600; font-size:.85rem;
       }
       #dashCategoryManager .kw-pill .kw-x{
-        position:absolute; right:-6px; top:-6px;
-        width:18px; height:18px; border-radius:50%;
-        display:inline-grid; place-items:center;
-        font-size:.9rem; line-height:1;
-        border:1px solid rgba(255,255,255,.35);
-        background: rgba(255,255,255,.12);
-        color: var(--accent-ink);
-        cursor:pointer;
+        appearance: none; -webkit-appearance: none;
+        display:inline-flex; align-items:center; justify-content:center;
+        width:16px; height:16px; margin-left:.1rem;
+        line-height:1; font-weight:700; font-size:14px;
+        opacity:.55; cursor:pointer; transform: translateY(-1px);
       }
-      #dashCategoryManager .kw-pill .kw-x:hover{ background: rgba(255,255,255,.18); }
+      #dashCategoryManager .kw-pill:hover .kw-x{ opacity:.9; }
+      #dashCategoryManager .kw-pill .kw-x:focus-visible{
+        outline:2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
+        outline-offset:2px; border-radius:4px;
+      }
     </style>
 
     <!-- UNIVERSAL DRAWER CONTROLLER (inline; replaces external drawer.js) -->

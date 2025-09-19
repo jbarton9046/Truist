@@ -179,6 +179,15 @@
       outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
       outline-offset: 2px; border-radius: 4px;
     }
+
+    /* ---------- HARD RESET for any old absolute/plate styles from other CSS ---------- */
+    #dashCategoryManager .kw-pill .kw-x,
+    #dashCategoryManager #kw-list .pill .kw-x{
+      position: static !important;
+      background: none !important;
+      border: 0 !important;
+      box-shadow: none !important;
+    }
   </style>
 
   <div class="offcanvas-body">
