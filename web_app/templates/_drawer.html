@@ -157,35 +157,26 @@
     .btn-ghost{ padding:.45rem .75rem; border-radius:.6rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#e6f0ff; }
     .btn-ghost:hover{ background:rgba(255,255,255,.12); }
 
-    /* ---------- Keywords pills: inline, borderless close icon integrated ---------- */
+    /* ---------- Keywords pills: inline, borderless close icon (old rule removed) ---------- */
     #kw-list .pill{
-      position: static;           /* no offset padding for a floating icon */
-      padding-right: .75rem;
+      position: static;            /* no offset for a floating X */
+      padding-right: .75rem;       /* normal padding */
     }
     #kw-list .pill .pill-close{
-      appearance: none;
-      -webkit-appearance: none;
-      background: none !important;
-      border: none !important;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;                /* visual size of × */
-      height: 16px;
+      appearance: none; -webkit-appearance: none;
+      background: none; border: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      position: static;            /* inline, part of the chip */
+      width: 16px; height: 16px;
       margin-left: .1rem;
-      line-height: 1;
-      font-weight: 700;
-      font-size: 14px;            /* × size */
-      opacity: .45;
-      cursor: pointer;
-      position: static !important;/* inline, not absolute */
-      transform: translateY(-1px);/* optical centering with text */
+      line-height: 1; font-weight: 700; font-size: 14px;
+      opacity: .55; cursor: pointer;
+      transform: translateY(-1px); /* optical centering with text */
     }
-    #kw-list .pill:hover .pill-close{ opacity: .85; }
+    #kw-list .pill:hover .pill-close{ opacity: .9; }
     #kw-list .pill .pill-close:focus-visible{
       outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
-      outline-offset: 2px;
-      border-radius: 4px;
+      outline-offset: 2px; border-radius: 4px;
     }
   </style>
 
@@ -375,7 +366,7 @@
     const btn = e.target.closest('.pill-close');
     if (!btn) return;
     e.preventDefault();
-    e.stopPropagation();
+       e.stopPropagation();
     const pill = btn.closest('.pill');
     if (pill) handleDelete(pill);
   });
