@@ -1080,14 +1080,21 @@
     if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
     if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-    const state = { level, cat, sub, ssub, sss, allowHidden: true };
+    const ctx = { level, cat, sub, ssub, sss, allowHidden: true };
 
-    if (typeof window.openDrawerForPath === 'function') {
-      window.openDrawerForPath(state);
-    } else if (typeof window.openCategoryManager === 'function' && level === 'category') {
-      window.openCategoryManager(cat, { allowHidden: true });
+    if (typeof window.openCategoryManager === 'function') {
+      window.openCategoryManager(ctx);
+    } else if (typeof window.openDrawerForPath === 'function') {
+      window.openDrawerForPath(ctx);
+    } else if (typeof window.dashManage === 'function') {
+      // final fallback: synthesize a [data-manage] element for the global delegate
+      const faux = document.createElement('a');
+      Object.assign(faux.dataset, {
+        manage: '', level, cat, sub, ssub, sss, allowHidden: 'true'
+      });
+      window.dashManage(e, faux);
     } else {
-      alert('Drawer UI not loaded yet.');
+      alert('Drawer controller not loaded yet.');
     }
   });
 
@@ -1574,6 +1581,97 @@
     } catch(e) {}
     return origFetch(input, init);
   };
+})();
+</script>
+
+<!-- Builder-scoped Keywords fallback: if drawer shows "No keywords", try INSPECT -->
+<script>
+(function(){
+  // Only enhance on builder page
+  if (!/builder/i.test(location.pathname)) return;
+
+  const ORIGINAL_REFRESH = window.refreshKeywords;
+
+  window.refreshKeywords = async function(){
+    // First let the universal controller do its thing (if defined)
+    if (typeof ORIGINAL_REFRESH === 'function') {
+      await ORIGINAL_REFRESH();
+    }
+
+    const host = document.getElementById('kw-list');
+    if (!host) return;
+
+    // If we already have pills rendered, stop.
+    const hasPills = !!host.querySelector('.kw-pill, .pill');
+    const raw = (host.textContent || '').trim();
+    const looksEmpty = !hasPills && (!raw || /^no keywords/i.test(raw));
+    if (!looksEmpty) return;
+
+    // Build context from builder selections
+    function readCtx(){
+      const get = id => (document.getElementById(id)?.value || '');
+      const cat = get('post_cat') || get('selCategory');
+      const sub = get('post_sub') || get('selSub');
+      const ssub= get('post_ssub')|| get('selSubSub');
+      const sss = get('post_sss') || get('selSubSubSub');
+
+      let level = 'category';
+      if (sss) level = 'subsubsubcategory';
+      else if (ssub) level = 'subsubcategory';
+      else if (sub) level = 'subcategory';
+      return { level, cat, sub, ssub, sss };
+    }
+
+    const ctx = readCtx();
+    const qp = new URLSearchParams({
+      level: ctx.level || 'category',
+      cat: ctx.cat || '',
+      sub: ctx.sub || '',
+      ssub: ctx.ssub || '',
+      sss: ctx.sss || '',
+      allow_hidden: '1',
+      _: Date.now()
+    });
+
+    try {
+      const url = (window.CL_URLS && window.CL_URLS.INSPECT_URL) || '/admin/categories/inspect';
+      const r = await fetch(url + '?' + qp.toString(), { headers: { 'Accept': 'application/json' }});
+      if (!r.ok) return;
+      const j = await r.json();
+      const kws = (j && (j.keywords || (j.data && j.data.keywords))) || [];
+      if (!Array.isArray(kws) || !kws.length) return;
+
+      const esc = s => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      host.innerHTML = kws.map(k =>
+        `<span class="kw-pill">
+           <span class="kw-text">${esc(k)}</span>
+           <span class="kw-x" role="button" tabindex="0" data-kw="${encodeURIComponent(k)}" title="Remove" aria-label="Remove keyword">×</span>
+         </span>`
+      ).join(' ');
+
+      host.querySelectorAll('.kw-x').forEach(btn => {
+        btn.addEventListener('click', async e => {
+          e.preventDefault();
+          const kw = decodeURIComponent(btn.dataset.kw || '');
+          if (typeof window.deleteKeyword === 'function') {
+            await window.deleteKeyword({ keyword: kw, path: '' });
+            window.refreshKeywords && window.refreshKeywords();
+          }
+        });
+      });
+    } catch(_) { /* ignore */ }
+  };
+
+  // Ensure refresh when the offcanvas opens on the Keywords tab
+  document.addEventListener('show.bs.offcanvas', function (ev) {
+    if (ev.target && ev.target.id === 'dashCategoryManager') {
+      const active = ev.target.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
+      if (active === 'keywords' && typeof window.refreshKeywords === 'function') {
+        window.refreshKeywords();
+        setTimeout(window.refreshKeywords, 120);
+      }
+    }
+  });
 })();
 </script>
 
