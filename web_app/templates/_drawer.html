@@ -398,3 +398,126 @@
   });
 })();
 </script>
+
+<!-- === Drawer Unifier Shim (global) ===
+     Ensures builder + all pages share the same keyword behavior. -->
+<script>
+(function(){
+  'use strict';
+  if (window.refreshKeywords && window.addKeyword && window.deleteKeyword) return;
+
+  const list = document.getElementById('kw-list');
+  if (!list) return;
+
+  // Flexible endpoints (tries each until one works)
+  const GET_CANDIDATES = [
+    '/admin/categories/keywords',
+    '/admin/api/keywords',
+    '/api/keywords'
+  ];
+  const ADD_CANDIDATES = [
+    '/admin/categories/keyword/add',
+    '/admin/api/keyword_add',
+    '/api/keyword_add',
+    '/admin/categories/keywords' // unified POST fallback
+  ];
+  const REM_CANDIDATES = [
+    '/admin/categories/keyword/remove',
+    '/admin/api/keyword_remove',
+    '/api/keyword_remove',
+    '/admin/categories/keywords' // unified POST fallback (with {action:'remove'})
+  ];
+
+  async function tryGet(path){
+    let last;
+    for (const base of GET_CANDIDATES){
+      const url = base + '?path=' + encodeURIComponent(path) + '&_=' + Date.now();
+      try {
+        const r = await fetch(url, { headers:{'Accept':'application/json'} });
+        if (!r.ok) { last = r.status; continue; }
+        const j = await r.json();
+        return Array.isArray(j) ? j : (Array.isArray(j.keywords) ? j.keywords : []);
+      } catch(e){ last = e; }
+    }
+    console.warn('Keywords GET failed:', last);
+    return [];
+  }
+
+  async function tryPost(candidates, payload, remove){
+    let last;
+    for (const base of candidates){
+      try{
+        const body = (/\/keywords$/.test(base) || /\/keywords\?/.test(base))
+          ? { ...payload, action: remove ? 'remove' : 'add', remove: !!remove }
+          : payload;
+
+        const r = await fetch(base, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(body)
+        });
+        if (r.ok) return true;
+        last = r.status;
+      }catch(e){ last = e; }
+    }
+    console.warn('Keyword POST failed:', last);
+    return false;
+  }
+
+  function pillHtml(k){
+    const safe = String(k).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+    return `<span class="pill" data-keyword="${safe}">${safe}<button class="kw-x" aria-label="Remove keyword">×</button></span>`;
+  }
+
+  async function refreshKeywords(){
+    const path = list.dataset.path || '';
+    list.innerHTML = '<span class="muted">Loading…</span>';
+    const kws = path ? await tryGet(path) : [];
+    if (!kws.length){
+      list.innerHTML = '<span class="muted">No keywords yet.</span>';
+      return;
+    }
+    list.innerHTML = kws.map(pillHtml).join(' ');
+  }
+
+  async function addKeyword({ keyword, path }){
+    if (!keyword) return false;
+    path = path || list.dataset.path || '';
+    return await tryPost(ADD_CANDIDATES, { keyword, path }, false);
+  }
+
+  async function deleteKeyword({ keyword, path }){
+    if (!keyword) return false;
+    path = path || list.dataset.path || '';
+    return await tryPost(REM_CANDIDATES, { keyword, path }, true);
+  }
+
+  // Expose globally so existing code hooks in the same way everywhere
+  if (!window.refreshKeywords) window.refreshKeywords = refreshKeywords;
+  if (!window.addKeyword)      window.addKeyword      = addKeyword;
+  if (!window.deleteKeyword)   window.deleteKeyword   = deleteKeyword;
+
+  // Wire the "Add" controls if present (works across pages)
+  const addInput = document.getElementById('kw-add-input');
+  const addBtn   = document.getElementById('kw-add-btn');
+  if (addInput && addBtn){
+    const commit = async () => {
+      const v = (addInput.value || '').trim();
+      if (!v) return;
+      await addKeyword({ keyword: v });
+      addInput.value = '';
+      refreshKeywords();
+    };
+    addBtn.addEventListener('click', e => { e.preventDefault(); commit(); });
+    addInput.addEventListener('keydown', e => { if (e.key === 'Enter') commit(); });
+  }
+
+  // Auto-refresh when drawer opens on the Keywords tab
+  document.addEventListener('show.bs.offcanvas', function(ev){
+    if (ev.target && ev.target.id === 'dashCategoryManager'){
+      const active = ev.target.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
+      if (active === 'keywords') refreshKeywords();
+    }
+  });
+})();
+</script>
