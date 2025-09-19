@@ -432,7 +432,7 @@
                   <span>Category</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
                   <span class="text-muted">·</span>
-                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="category">View drawer</button>
+                  <a href="#" class="link-manage" title="Manage in drawer" data-manage data-level="category">View drawer</a>
                 </label>
                 <div class="onebar" data-level="cat">
                   <select id="selCategory" class="form-select onebar-select"></select>
@@ -449,7 +449,7 @@
                   <span>Subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
                   <span class="text-muted">·</span>
-                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subcategory">View drawer</button>
+                  <a href="#" class="link-manage" title="Manage in drawer" data-manage data-level="subcategory">View drawer</a>
                 </label>
                 <div class="onebar" data-level="sub">
                   <select id="selSub" class="form-select onebar-select"></select>
@@ -466,7 +466,7 @@
                   <span>Sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
                   <span class="text-muted">·</span>
-                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubcategory">View drawer</button>
+                  <a href="#" class="link-manage" title="Manage in drawer" data-manage data-level="subsubcategory">View drawer</a>
                 </label>
                 <div class="onebar" data-level="ssub">
                   <select id="selSubSub" class="form-select onebar-select"></select>
@@ -483,7 +483,7 @@
                   <span>Sub-sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
                   <span class="text-muted">·</span>
-                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubsubcategory">View drawer</button>
+                  <a href="#" class="link-manage" title="Manage in drawer" data-manage data-level="subsubsubcategory">View drawer</a>
                 </label>
                 <div class="onebar" data-level="sss">
                   <select id="selSubSubSub" class="form-select onebar-select"></select>
@@ -1066,32 +1066,40 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* ---------- NEW: “View drawer” buttons wiring (uses universal drawer from layout) ---------- */
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.drawer-link');
-    if (!btn) return;
-    e.preventDefault();
+  /* Drawer wiring shim removed to rely on global [data-manage] from layout */
+if (!btn) return;
+e.preventDefault();
 
-    const level = btn.dataset.level;
-    const { cat, sub, ssub, sss } = readValues();
+const level = btn.dataset.level;
+const { cat, sub, ssub, sss } = readValues();
 
-    if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
-    if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
-    if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
-    if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
+if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
+if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
+if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
+if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-    const state = { level, cat, sub, ssub, sss, allowHidden: true };
-    /* remember for the builder-local keyword adapter */
-    window.__drawerCtx = state;
+const state = {
+  level,
+  cat,
+  sub,
+  ssub,
+  sss,
+  month: (window.CURRENT_MONTH || ''),
+  allowHidden: true
+};
 
-    if (typeof window.openDrawerForPath === 'function') {
-      window.openDrawerForPath(state);
-    } else if (typeof window.openCategoryManager === 'function' && level === 'category') {
-      window.openCategoryManager(cat, { allowHidden: true });
-    } else {
-      alert('Drawer UI not loaded yet.');
-    }
-  });
+/* remember for the builder-local keyword adapter */
+window.__drawerCtx = state;
+
+if (typeof window.openDrawerForPath === 'function') {
+  window.openDrawerForPath(state);
+} else if (typeof window.openCategoryManager === 'function') {
+  // ✅ pass ONE object (same shape used across the app)
+  window.openCategoryManager(state);
+} else {
+  alert('Drawer UI not loaded yet.');
+}
+
 
   /* ---------- Misc panel wiring ---------- */
   function miscLabelsParam(){
@@ -1481,9 +1489,7 @@
                data-cat="${esc(ds.cat)}"
                data-sub="${esc(ds.sub)}"
                data-ssub="${esc(ds.ssub)}"
-               data-sss="${esc(ds.sss)}"
-               onclick="return (window.dashManage ? dashManage(event, this) : (window.openCategoryManager ? (openCategoryManager({level:'${esc(ds.level)}',cat:'${esc(ds.cat)}',sub:'${esc(ds.sub)}',ssub:'${esc(ds.ssub)}',sss:'${esc(ds.sss)}'}), false) : false));"
-            >manage</a>
+               data-sss="${esc(ds.sss)}" data-month="${window.CURRENT_MONTH||''}" >manage</a>
           </td>
         </tr>`;
       }).join('') : `<tr><td colspan="3" class="text-muted">No paths found for that keyword.</td></tr>`;
