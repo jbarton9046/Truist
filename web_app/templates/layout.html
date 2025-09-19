@@ -536,6 +536,9 @@
         width:16px; height:16px; margin-left:.1rem;
         line-height:1; font-weight:700; font-size:14px;
         opacity:.55; cursor:pointer; transform: translateY(-1px);
+        /* NEW: ensure the “×” inherits the pill’s color (no black) */
+        color: currentColor !important;
+        -webkit-text-fill-color: currentColor !important;
       }
       #dashCategoryManager .kw-pill:hover .kw-x{ opacity:.9; }
       #dashCategoryManager .kw-pill .kw-x:focus-visible{
@@ -898,9 +901,11 @@
           return;
         }
 
+        /* CHANGED: render a span.kw-x (inline) so the glyph inherits color */
         host.innerHTML = kws.map(k =>
-          `<span class="kw-pill">${esc(k)}
-             <button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button>
+          `<span class="kw-pill">
+             <span class="kw-text">${esc(k)}</span>
+             <span class="kw-x" role="button" tabindex="0" data-kw="${encodeURIComponent(k)}" title="Remove" aria-label="Remove keyword">×</span>
            </span>`
         ).join(' ');
 
@@ -1354,6 +1359,5 @@
       })();
     </script>
 
-  <script src="{{ url_for('static', filename='js/keywords_controller.js') }}"></script>
   </body>
 </html>
