@@ -158,10 +158,10 @@
   </style>
 
   <div class="offcanvas-body">
-    <div class="drawer-tabbar" role="tablist">
-      <a href="#" class="drawer-tab active" id="tab-overview" data-tab="overview" role="tab" aria-selected="true" aria-controls="pane-overview">Overview</a>
-      <a href="#" class="drawer-tab" id="tab-keywords" data-tab="keywords" role="tab" aria-selected="false" aria-controls="pane-keywords">Keywords</a>
-      <a href="#" class="drawer-tab" id="tab-actions" data-tab="actions" role="tab" aria-selected="false" aria-controls="pane-actions">Actions</a>
+    <div class="drawer-tabbar">
+      <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
+      <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
+      <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
     </div>
 
     <div class="mb-2">
@@ -169,7 +169,7 @@
       <div id="drawer-children" class="pill-row"></div>
     </div>
 
-    <div class="drawer-pane" id="pane-overview" data-pane="overview" role="tabpanel" aria-labelledby="tab-overview" style="display:block;">
+    <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
           <thead>
@@ -187,7 +187,7 @@
       </div>
     </div>
 
-    <div class="drawer-pane" id="pane-keywords" data-pane="keywords" role="tabpanel" aria-labelledby="tab-keywords">
+    <div class="drawer-pane" data-pane="keywords">
       <div class="d-flex align-items-center gap-2 mb-2">
         <input id="kw-add-input" class="form-control form-control-sm" placeholder="Add keyword…" />
         <button id="kw-add-btn" class="btn btn-sm btn-primary">Add</button>
@@ -196,7 +196,7 @@
       <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path="{{ path_str|default('', true) }}"></div>
     </div>
 
-    <div class="drawer-pane" id="pane-actions" data-pane="actions" role="tabpanel" aria-labelledby="tab-actions">
+    <div class="drawer-pane" data-pane="actions">
       <div class="small text-muted">Hook <code>[data-action]</code> buttons to <code>runAction(kind)</code>.</div>
     </div>
   </div>
@@ -226,16 +226,8 @@
   const panes = dash.querySelectorAll('.drawer-pane');
 
   function showPane(name){
-    tabs.forEach(t => {
-      const active = (t.dataset.tab === name);
-      t.classList.toggle('active', active);
-      t.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    panes.forEach(p => {
-      const on = (p.dataset.pane === name);
-      p.style.display = on ? 'block' : 'none';
-      p.toggleAttribute('hidden', !on);
-    });
+    tabs.forEach(t => t.classList.toggle('active', (t.dataset.tab === name)));
+    panes.forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none');
     const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
     if (name === 'keywords' && typeof refresh === 'function') {
       refresh(); setTimeout(refresh, 120);
@@ -396,19 +388,8 @@
     btn.addEventListener('click', e=>{ e.preventDefault(); commit(); });
     input.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
   })();
-
-  // Minimal overlay open/close wiring if main controller isn't present
-  (function(){
-    const openBtn = document.getElementById('drawer-months-open');
-    const overlay = document.getElementById('drawer-months-overlay');
-    const cancel  = document.getElementById('drawer-months-cancel');
-    if (openBtn && overlay) openBtn.addEventListener('click', ()=> overlay.hidden = false);
-    if (cancel && overlay)  cancel.addEventListener('click', ()=> overlay.hidden = true);
-    overlay?.addEventListener('click', (e)=> { if (e.target === overlay) overlay.hidden = true; });
-  })();
 })();
 </script>
-
 <script>
 /* Guard against late-loading controllers clearing the keyword list.
    If content gets emptied while we have a valid path, re-populate via fallback. */
@@ -437,3 +418,4 @@
   setTimeout(() => { if (hasPath() && !hasPills()) restore(); }, 200);
 })();
 </script>
+
