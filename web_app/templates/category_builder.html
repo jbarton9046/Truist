@@ -53,7 +53,6 @@
      (tokens from layout.html)
      =========================== */
 
-  /* Keywords Used: card + head */
   .kb-card{
     border-radius:16px;
     border:1px solid var(--card-border) !important;
@@ -72,13 +71,11 @@
     backdrop-filter:saturate(120%) blur(6px);
   }
 
-  /* List / container inside Keywords Used */
   #kwMiniList{ max-height:35vh; overflow:auto; background:transparent; isolation:isolate; }
   .kb-card .list-group{ border:1px solid var(--hair); border-radius:12px; background:transparent; }
   .kb-card .list-group-item{ background:transparent; color:var(--text); border-color:var(--hair); }
   .kb-card .list-group-item:hover{ background:rgba(255,255,255,.05); }
 
-  /* Frosted sticky table headers (this page) */
   .misc-card .table thead th,
   .kb-table thead th{
     position: sticky;
@@ -98,56 +95,27 @@
   .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
   .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
-  /* === Keywords Used counts: ghost blue numbers (no pill), floated right === */
-  #kwMiniList .list-group-item{
-    position: relative;
-    padding-right: 40px;
-    font-family: inherit;
-  }
+  #kwMiniList .list-group-item{ position: relative; padding-right: 40px; font-family: inherit; }
   #kwMiniList .list-group-item .badge{
-    position: absolute;
-    top: 50%;
-    right: 12px;
-    transform: translateY(-50%);
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    color: var(--link, #9ec5ff) !important;
-    font-weight: 700;
-    font-size: .95rem;
-    line-height: 1;
-    padding: 0;
-    min-width: 0;
-    width: auto;
-    height: auto;
-    pointer-events: none;
+    position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+    background: transparent !important; border: 0 !important; box-shadow: none !important;
+    color: var(--link, #9ec5ff) !important; font-weight: 700; font-size: .95rem; line-height: 1;
+    padding: 0; min-width: 0; width: auto; height: auto; pointer-events: none;
     text-shadow: 0 0 10px rgba(158,197,255,.35);
   }
   #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 0 !important; }
 
-  /* Helper/hint text to match theme */
   .form-text, #submitHint { color: var(--muted) !important; }
-  #kwMiniFilter.form-control{
-    background: color-mix(in oklab, var(--card-bg) 85%, #000 0%);
-    color: var(--text);
-    border: 1px solid var(--hair);
-  }
-  #kwMiniFilter::placeholder{
-    color: color-mix(in oklab, var(--muted) 90%, transparent);
-    opacity: 1;
-  }
+  #kwMiniFilter.form-control{ background: color-mix(in oklab, var(--card-bg) 85%, #000 0%); color: var(--text); border: 1px solid var(--hair); }
+  #kwMiniFilter::placeholder{ color: color-mix(in oklab, var(--muted) 90%, transparent); opacity: 1; }
 
-  /* Bits you asked to hide (DOM remains for JS) */
   #miscMeta{ display:none !important; }
   #kbTip{ display:none !important; }
   #kwMiniDetails .kb-placeholder{ display:none !important; }
 
   /* ============= GLASS SELECT (non-destructive wrapper) ============= */
   .gs-wrap{ position:relative; width:100%; }
-  .gs-native{
-    position:absolute; inset:0; width:100%; height:100%;
-    opacity:0; pointer-events:none;
-  }
+  .gs-native{ position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; }
   .gs-trigger{
     width:100%; display:flex; align-items:center; justify-content:space-between; gap:.5rem;
     padding:.55rem .9rem; border-radius:12px; cursor:pointer; user-select:none;
@@ -159,16 +127,11 @@
   .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .gs-caret{ opacity:.8; }
 
-  /* Popup itself (will be portaled to body on open) */
   .gs-popup{
-    position: fixed;                       /* body-level placement */
-    min-width: 240px;
-    max-height:320px; overflow:auto;
-    z-index:1051;                          /* above scrim (1040) and near modal(1050) */
+    position: fixed; min-width: 240px; max-height:320px; overflow:auto; z-index:1051;
     padding:6px; border-radius:14px; border:1px solid var(--card-border);
     background: color-mix(in oklab, var(--card-bg) 82%, transparent);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
     box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
   }
   .gs-list{ margin:0; padding:0; list-style:none; }
@@ -177,38 +140,20 @@
     color: var(--text);
   }
   .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
-  .gs-option[aria-selected="true"]{
-    background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35)
-  }
+  .gs-option[aria-selected="true"]{ background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35) }
   .gs-option[data-disabled="true"]{ color: var(--muted); cursor:default; }
   .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
 
-  /* NEW: the blur layer behind the popup (like drawer) */
   .gs-scrim{
     position:fixed; inset:0; z-index:1040;
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
     background: rgba(8,12,20,.28);
   }
 
-  /* ---- tiny entrance animations for glass select ---- */
-  @keyframes gsPopIn {
-    from { opacity: 0; transform: translateY(6px) scale(.98); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  @keyframes gsFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-  .gs-popup{
-    animation: gsPopIn .14s ease-out;
-    transform-origin: top left;
-    will-change: transform, opacity;
-  }
-  .gs-scrim{
-    animation: gsFadeIn .12s ease-out;
-    will-change: opacity;
-  }
+  @keyframes gsPopIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes gsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
+  .gs-scrim{ animation: gsFadeIn .12s ease-out; will-change: opacity; }
 </style>
 
 <div class="container-fluid my-4">
@@ -274,9 +219,8 @@
           const norm = s => String(s||'').trim().toLowerCase();
 
           function collectAllKeywordsAndPaths(cfg){
-            const kwSet = new Map();     // normalized -> display
-            const pathsByKw = new Map(); // normalized -> Set(paths)
-
+            const kwSet = new Map();
+            const pathsByKw = new Map();
             function add(kw, pathArr){
               const n = norm(kw);
               if (!n) return;
@@ -824,7 +768,6 @@
     if (prev.ssubNew) oneBarEnterNew('ssub'); else oneBarExitNew('ssub', false);
     if (prev.sssNew)  oneBarEnterNew('sss');  else oneBarExitNew('sss', false);
 
-    /* refresh custom glass selects after options change */
     if (window.refreshGlassSelects) window.refreshGlassSelects();
   }
 
@@ -895,7 +838,6 @@
     }
     kwInput.focus();
   }
-  /* make available to Keyword panel script */
   window.applyPathToLeft = applyPathToLeft;
 
   /* ---------- manage area (modal) ---------- */
@@ -1066,7 +1008,7 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* ---------- NEW: “View drawer” buttons wiring (uses universal drawer from layout) ---------- */
+  /* ---------- NEW: “View drawer” buttons wiring ---------- */
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.drawer-link');
     if (!btn) return;
@@ -1081,7 +1023,8 @@
     if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
     const state = { level, cat, sub, ssub, sss, allowHidden: true };
-    /* remember for the builder-local keyword adapter */
+
+    /* remember context so the fetch shim can fall back to path */
     window.__drawerCtx = state;
 
     if (typeof window.openDrawerForPath === 'function') {
@@ -1207,7 +1150,6 @@
     updateEnablement();
   });
 
-  /* ---------- builder wiring ---------- */
   [selCategory, selSub, selSubSub, selSubSubSub].forEach((sel) => {
     sel.addEventListener('change', () => {
       const level = (sel === selCategory) ? 'cat' : (sel === selSub) ? 'sub' : (sel === selSubSub) ? 'ssub' : 'sss';
@@ -1272,12 +1214,10 @@
     wrap.insertBefore(trigger, select);
     const labelEl = trigger.querySelector('.gs-label');
 
-    // Popup lives in body when open
     const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
     const list = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox');
     popup.appendChild(list);
 
-    // Scrim (blur layer)
     const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden = true;
 
     function syncLabel(){
@@ -1356,7 +1296,6 @@
       trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
     }
 
-    // typing
     let buf='', t=null;
     function typeAhead(k){
       buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
@@ -1375,7 +1314,6 @@
     rebuild();
   }
 
-  // Public: upgrade all current selects
   window.refreshGlassSelects = function(){
     document.querySelectorAll('.onebar-select').forEach(wrapSelect);
   };
@@ -1391,7 +1329,6 @@
   // =========================
   (function(){
     const QS = (s,r=document)=>r.querySelector(s);
-    const QSA = (s,r=document)=>Array.from(r.querySelectorAll(s));
     const esc = s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
     const el = {
@@ -1557,174 +1494,101 @@
 })();
 </script>
 
-<!-- ensure drawer data includes allow_hidden=1 for inspect calls -->
+<!-- ensure drawer data includes allow_hidden=1 and normalize keyword lookups -->
 <script>
 (function(){
   const origFetch = window.fetch;
-  window.fetch = function(input, init){
+
+  function toURL(input){
+    try{ return new URL(typeof input === 'string' ? input : input.url, window.location.origin); }
+    catch(_e){ return null; }
+  }
+
+  function ctxPath(){
+    const c = window.__drawerCtx || {};
+    return [c.cat,c.sub,c.ssub,c.sss].filter(Boolean).join('/');
+  }
+
+  async function readJSONSafe(res){
+    try{
+      const ct = (res.headers.get('content-type')||'').toLowerCase();
+      if (!ct.includes('json')) return null;
+      const clone = res.clone();
+      return await clone.json();
+    }catch(_e){ return null; }
+  }
+
+  function isEmptyKeywordsPayload(j){
+    if (!j) return true;
+    if (Array.isArray(j)) return j.length === 0;
+    if (Array.isArray(j.keywords)) return j.keywords.length === 0;
+    if (Array.isArray(j.data)) return j.data.length === 0;
+    return false; // unknown shape, don’t touch
+  }
+
+  window.fetch = async function(input, init){
+    let url = toURL(input);
     try {
-      let url = typeof input === 'string' ? input : (input && input.url) || '';
-      if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
-        const u = new URL(url, window.location.origin);
-        u.searchParams.set('allow_hidden', '1');
-        if (typeof input === 'string') {
-          input = u.toString();
-        } else {
-          input = new Request(u.toString(), input);
-        }
+      if (url && url.pathname.includes('/admin/categories/inspect') && !url.searchParams.has('allow_hidden')) {
+        url.searchParams.set('allow_hidden', '1');
+        input = (typeof input === 'string') ? url.toString() : new Request(url.toString(), init || input);
       }
     } catch(e) {}
-    return origFetch(input, init);
-  };
-})();
-</script>
 
-<!-- BUILDER-LOCAL KEYWORD ADAPTER -->
-<script>
-/*
-  This page-level shim guarantees the drawer’s Keywords tab works here,
-  regardless of which backend route is enabled. It tries, in order:
+    // First request
+    let res = await origFetch(input, init);
 
-  GET  /admin/api/keywords_for_name?name=LAST
-  GET  /admin/categories/keywords_for_name?name=LAST
-  GET  /admin/api/keywords_for_path?path=Cat/Sub/...
-  GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
-  GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
+    // If it wasn't a keyword request, just return it.
+    url = toURL(input);
+    if (!url) return res;
 
-  And exposes:
-    window.refreshKeywords()
-    window.deleteKeyword({ keyword, path })
-    window.addKeyword(kw)
-*/
-(function(){
-  'use strict';
+    const isKwName = /keywords?_for_name/.test(url.pathname);
+    const isKwPath = /keywords?_for_path/.test(url.pathname) || /\/keywords$/.test(url.pathname);
+    const isKw = isKwName || isKwPath;
 
-  const $ = (id)=>document.getElementById(id);
+    if (!isKw) return res;
 
-  function ctxPathStr(ctx){
-    return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/');
-  }
+    // If drawer said "No keywords yet", try graceful fallbacks:
+    const first = await readJSONSafe(res);
+    if (!isEmptyKeywordsPayload(first)) return res; // we got data
 
-  function guessCtx(){
-    // Prefer the remembered context from the “View drawer” click
-    const ctx = (window.__drawerCtx || {});
-    return {
-      level: ctx.level || 'category',
-      cat:   ctx.cat   || '',
-      sub:   ctx.sub   || '',
-      ssub:  ctx.ssub  || '',
-      sss:   ctx.sss   || ''
-    };
-  }
-
-  async function tryJson(urls){
-    let last;
-    for (const u of urls){
-      try{
-        const r = await fetch(u, { headers: { 'Accept':'application/json' }});
-        if (r.ok) return await r.json();
-        last = new Error('GET '+u+' → '+r.status);
-      }catch(e){ last = e; }
-    }
-    throw last || new Error('No keyword endpoint worked');
-  }
-
-  async function tryPost(urls, body){
-    let last;
-    for (const u of urls){
-      try{
-        const r = await fetch(u, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
-        if (r.ok){
-          const ct = (r.headers.get('content-type')||'').toLowerCase();
-          return ct.includes('json') ? await r.json() : await r.text();
+    try{
+      const candidates = [];
+      if (isKwName){
+        const raw = url.searchParams.get('name') || '';
+        if (raw){
+          const up = raw.toUpperCase();
+          const lo = raw.toLowerCase();
+          if (up !== raw){ const u = new URL(url); u.searchParams.set('name', up); candidates.push(u); }
+          if (lo !== raw){ const u = new URL(url); u.searchParams.set('name', lo); candidates.push(u); }
         }
-        last = new Error('POST '+u+' → '+r.status);
-      }catch(e){ last = e; }
-    }
-    throw last || new Error('No keyword POST endpoint worked');
-  }
+        // also try by path if we have it
+        const path = ctxPath();
+        if (path){
+          const u1 = new URL(url); u1.pathname = u1.pathname.replace('keywords_for_name','keywords_for_path'); u1.search = '?path='+encodeURIComponent(path); candidates.push(u1);
+          const u2 = new URL('/admin/categories/keywords_for_path', window.location.origin); u2.search = '?path='+encodeURIComponent(path); candidates.push(u2);
+          const u3 = new URL('/admin/categories/keywords', window.location.origin); u3.search = '?path='+encodeURIComponent(path)+'&name='+(url.searchParams.get('name')||''); candidates.push(u3);
+        }
+      } else if (isKwPath){
+        // if path based failed, also try the name variants
+        const path = url.searchParams.get('path') || ctxPath();
+        const last = (path.split('/').filter(Boolean).pop()||'');
+        if (last){
+          const u1 = new URL('/admin/api/keywords_for_name', window.location.origin); u1.search='?name='+encodeURIComponent(last); candidates.push(u1);
+          const u2 = new URL('/admin/categories/keywords_for_name', window.location.origin); u2.search='?name='+encodeURIComponent(last.toUpperCase()); candidates.push(u2);
+          const u3 = new URL('/admin/categories/keywords', window.location.origin); u3.search='?name='+encodeURIComponent(last)+'&path='+encodeURIComponent(path); candidates.push(u3);
+        }
+      }
 
-  async function refreshKeywords(){
-    const list = $('kw-list'); if (!list) return;
-    list.innerHTML = '<span class="muted">Loading…</span>';
+      for (const cand of candidates){
+        const r = await origFetch(cand.toString(), init);
+        const j = await readJSONSafe(r);
+        if (!isEmptyKeywordsPayload(j)) return r;
+      }
+    }catch(_e){ /* swallow and fall through */ }
 
-    const ctx = guessCtx();
-    const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
-    const path = ctxPathStr(ctx);
-
-    const qs = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
-
-    const candidates = [
-      `/admin/api/keywords_for_name?${qs({name:last})}`,
-      `/admin/categories/keywords_for_name?${qs({name:last})}`,
-      `/admin/api/keywords_for_path?${qs({path})}`,
-      `/admin/categories/keywords_for_path?${qs({path})}`,
-      `/admin/categories/keywords?${qs({name:last, path})}`
-    ];
-
-    let arr = [];
-    try{
-      const j = await tryJson(candidates);
-      if (Array.isArray(j)) arr = j;
-      else if (j && Array.isArray(j.keywords)) arr = j.keywords;
-      else if (j && Array.isArray(j.data)) arr = j.data;
-    }catch(e){
-      console.warn('Keywords GET failed', e);
-      arr = [];
-    }
-
-    if (!arr.length){
-      list.innerHTML = '<span class="muted">No keywords yet.</span>';
-      return;
-    }
-
-    list.innerHTML = arr.map(k =>
-      `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
-    ).join(' ');
-
-    list.addEventListener('click', function onX(e){
-      const btn = e.target.closest('.kw-x'); if (!btn) return;
-      e.preventDefault();
-      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path }).then(refreshKeywords);
-    }, { once:true });
-  }
-
-  async function deleteKeyword({ keyword, path }){
-    const body = { keyword, path };
-    const posts = [
-      '/admin/api/keyword_remove',
-      '/admin/categories/keyword_remove',
-      '/admin/categories/keywords' // unified
-    ];
-    try{
-      await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body));
-    }catch(e){
-      console.warn('Keyword remove failed', e);
-    }
-  }
-
-  async function addKeyword(kw){
-    const ctx = guessCtx();
-    const body = Object.assign({ keyword: kw, name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'', path: ctxPathStr(ctx) }, ctx);
-    const posts = [
-      '/admin/api/keyword_add',
-      '/admin/categories/keyword_add',
-      '/admin/categories/keywords' // unified
-    ];
-    try{
-      await tryPost(posts, Object.assign({ action:'add' }, body));
-    }catch(e){
-      console.warn('Keyword add failed', e);
-    }
-  }
-
-  // Expose so the drawer’s inline scripts can call these on this page
-  window.refreshKeywords = refreshKeywords;
-  window.deleteKeyword   = deleteKeyword;
-  window.addKeyword      = addKeyword;
-
-  // If user clicks the drawer “Add” button inside the Keywords tab,
-  // our addKeyword will be picked up by the drawer’s handler.
+    return res; // nothing worked; return original empty
+  };
 })();
 </script>
 
