@@ -586,3 +586,14 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
 .manage-drawer .pill{
   color: var(--accent-ink);  /* or just inherit if you prefer */
 }
+
+.manage-drawer .pill .kw-x{
+  color: currentColor;
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  border: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-left: .1rem;
+  line-height: 1; font-weight: 700; font-size: 14px;
+  transform: translateY(-1px); cursor: pointer;
+}
