@@ -572,3 +572,17 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
     transition: transform .12s ease, opacity .12s ease, filter .12s ease;
   }
 }
+
+/* Ensure keyword close controls use the pill's text color inside the drawer */
+.manage-drawer .pill .kw-x,
+.manage-drawer .pill .pill-close{
+  color: currentColor;                 /* inherit from the pill */
+  -webkit-text-fill-color: currentColor; /* WebKit guard */
+  background: none;
+  border: 0;
+}
+
+/* (Optional) make sure the pill itself defines the color explicitly */
+.manage-drawer .pill{
+  color: var(--accent-ink);  /* or just inherit if you prefer */
+}
