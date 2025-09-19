@@ -171,10 +171,14 @@
       width: 16px; height: 16px;
       margin-left: .1rem;
       line-height: 1; font-weight: 700; font-size: 14px;
-      opacity: .55; cursor: pointer;
+      cursor: pointer;
       transform: translateY(-1px); /* optical centering with text */
+
+      /* >>> CHANGED: match pill text color and keep full opacity */
+      color: currentColor;
+      opacity: 1;
     }
-    #kw-list .pill:hover .kw-x{ opacity: .9; }
+    #kw-list .pill:hover .kw-x{ opacity: 1; }
     #kw-list .pill .kw-x:focus-visible{
       outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
       outline-offset: 2px; border-radius: 4px;
