@@ -174,7 +174,7 @@
       cursor: pointer;
       transform: translateY(-1px); /* optical centering with text */
 
-      /* >>> CHANGED: match pill text color and keep full opacity */
+      /* default intent — will be reinforced by the override below */
       color: currentColor;
       opacity: 1;
     }
@@ -184,16 +184,12 @@
       outline-offset: 2px; border-radius: 4px;
     }
 
-    /* === Added per request: drawer-scoped kw-x rule === */
-    .manage-drawer .pill .kw-x{
-      color: currentColor;
-      -webkit-text-fill-color: currentColor;
-      background: none;
-      border: 0;
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 16px; height: 16px; margin-left: .1rem;
-      line-height: 1; font-weight: 700; font-size: 14px;
-      transform: translateY(-1px); cursor: pointer;
+    /* ===== FINAL OVERRIDE: ensure the × inherits the pill text color ===== */
+    #dashCategoryManager #kw-list .pill .kw-x,
+    #dashCategoryManager #kw-list .pill .pill-close{
+      color: inherit !important;
+      -webkit-text-fill-color: inherit !important; /* Safari */
+      opacity: 1 !important;
     }
   </style>
 

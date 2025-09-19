@@ -587,6 +587,7 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   color: var(--accent-ink);  /* or just inherit if you prefer */
 }
 
+/* Keep the inline X comfortably clickable */
 .manage-drawer .pill .kw-x{
   color: currentColor;
   -webkit-text-fill-color: currentColor;
@@ -596,4 +597,14 @@ body[data-route="/goals"] .table .input-group .form-control{ text-align:left !im
   width: 16px; height: 16px; margin-left: .1rem;
   line-height: 1; font-weight: 700; font-size: 14px;
   transform: translateY(-1px); cursor: pointer;
+}
+
+/* ===== FINAL OVERRIDE (strongest): force X to match pill color everywhere ===== */
+#dashCategoryManager #kw-list .pill .kw-x,
+#dashCategoryManager #kw-list .pill .pill-close,
+.manage-drawer .pill .kw-x,
+.manage-drawer .pill .pill-close{
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+  opacity: 1 !important;
 }
