@@ -104,7 +104,7 @@
       --pill-border-hover: color-mix(in oklab, var(--accent-ink) 58%, transparent);
     }
     #dashCategoryManager .pill{
-      display:inline-flex; align-items:center; gap:.4rem; line-height:1;
+      display:inline-flex; align-items:center; gap:.5rem; line-height:1;
       padding:.35rem .75rem; border-radius:999px;
       background:var(--pill-bg); color:var(--pill-fg); border:1px solid var(--pill-border);
       text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s;
@@ -157,12 +157,13 @@
     .btn-ghost{ padding:.45rem .75rem; border-radius:.6rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#e6f0ff; }
     .btn-ghost:hover{ background:rgba(255,255,255,.12); }
 
-    /* ---------- Keywords pills: inline, borderless close icon (old rule removed) ---------- */
+    /* ---------- Keywords pills: inline, borderless close icon (NEW) ---------- */
     #kw-list .pill{
       position: static;            /* no offset for a floating X */
       padding-right: .75rem;       /* normal padding */
     }
-    #kw-list .pill .pill-close{
+    /* new class to avoid any legacy .pill-close rules elsewhere */
+    #kw-list .pill .kw-x{
       appearance: none; -webkit-appearance: none;
       background: none; border: 0;
       display: inline-flex; align-items: center; justify-content: center;
@@ -173,8 +174,8 @@
       opacity: .55; cursor: pointer;
       transform: translateY(-1px); /* optical centering with text */
     }
-    #kw-list .pill:hover .pill-close{ opacity: .9; }
-    #kw-list .pill .pill-close:focus-visible{
+    #kw-list .pill:hover .kw-x{ opacity: .9; }
+    #kw-list .pill .kw-x:focus-visible{
       outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
       outline-offset: 2px; border-radius: 4px;
     }
@@ -298,10 +299,15 @@
   // Add a close (×) button to any pill missing one
   function decoratePills(root){
     (root || list).querySelectorAll('.pill').forEach(pill => {
-      if (pill.querySelector('.pill-close')) return;
+      // Remove any legacy close buttons that might carry old styles
+      pill.querySelectorAll('.pill-close').forEach(n => n.remove());
+
+      // If we already added the new button, skip
+      if (pill.querySelector('.kw-x')) return;
+
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'pill-close';
+      btn.className = 'kw-x';
       btn.setAttribute('aria-label', 'Remove keyword');
       btn.textContent = '×';
       // ensure pill has role=button for accessibility if it's clickable
@@ -363,10 +369,10 @@
 
   // Delegate clicks on the ×
   list.addEventListener('click', (e) => {
-    const btn = e.target.closest('.pill-close');
+    const btn = e.target.closest('.kw-x');
     if (!btn) return;
     e.preventDefault();
-       e.stopPropagation();
+    e.stopPropagation();
     const pill = btn.closest('.pill');
     if (pill) handleDelete(pill);
   });
@@ -377,7 +383,7 @@
     if (e.key === 'Backspace' || e.key === 'Delete') {
       e.preventDefault();
       const pill = e.target;
-      const btn = pill.querySelector('.pill-close');
+      const btn = pill.querySelector('.kw-x');
       if (btn) btn.click();
     }
   });
