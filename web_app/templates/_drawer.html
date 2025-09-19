@@ -390,3 +390,32 @@
   })();
 })();
 </script>
+<script>
+/* Guard against late-loading controllers clearing the keyword list.
+   If content gets emptied while we have a valid path, re-populate via fallback. */
+(function () {
+  const list = document.getElementById('kw-list');
+  if (!list) return;
+
+  // Let any external controller detect that the fallback owns the drawer
+  document.documentElement.setAttribute('data-drawer-owner', 'fallback');
+
+  const hasPills = () => !!list.querySelector('.pill');
+  const hasPath  = () => !!(list.dataset.path || '').trim();
+
+  const restore = () => {
+    const fb = window.btDrawerFallback;
+    if (fb && typeof fb.refreshKeywords === 'function') fb.refreshKeywords();
+  };
+
+  // If list becomes empty (or replaced with non-pill content) while we have a path, restore it.
+  const mo = new MutationObserver(() => {
+    if (hasPath() && !hasPills()) restore();
+  });
+  mo.observe(list, { childList: true, subtree: true });
+
+  // Also run one delayed check in case a late script clears once on init
+  setTimeout(() => { if (hasPath() && !hasPills()) restore(); }, 200);
+})();
+</script>
+
