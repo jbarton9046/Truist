@@ -1080,21 +1080,16 @@
     if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
     if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-    const ctx = { level, cat, sub, ssub, sss, allowHidden: true };
+    const state = { level, cat, sub, ssub, sss, allowHidden: true };
+    /* remember for the builder-local keyword adapter */
+    window.__drawerCtx = state;
 
-    if (typeof window.openCategoryManager === 'function') {
-      window.openCategoryManager(ctx);
-    } else if (typeof window.openDrawerForPath === 'function') {
-      window.openDrawerForPath(ctx);
-    } else if (typeof window.dashManage === 'function') {
-      // final fallback: synthesize a [data-manage] element for the global delegate
-      const faux = document.createElement('a');
-      Object.assign(faux.dataset, {
-        manage: '', level, cat, sub, ssub, sss, allowHidden: 'true'
-      });
-      window.dashManage(e, faux);
+    if (typeof window.openDrawerForPath === 'function') {
+      window.openDrawerForPath(state);
+    } else if (typeof window.openCategoryManager === 'function' && level === 'category') {
+      window.openCategoryManager(cat, { allowHidden: true });
     } else {
-      alert('Drawer controller not loaded yet.');
+      alert('Drawer UI not loaded yet.');
     }
   });
 
@@ -1449,7 +1444,7 @@
         <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
           ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
         </span>`).join('');
-      QSA('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
+      document.querySelectorAll('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
         const kw=ch.getAttribute('data-kw')||''; el.q.value=kw; runSearch();
       }));
     }
@@ -1584,94 +1579,152 @@
 })();
 </script>
 
-<!-- Builder-scoped Keywords fallback: if drawer shows "No keywords", try INSPECT -->
+<!-- BUILDER-LOCAL KEYWORD ADAPTER -->
 <script>
+/*
+  This page-level shim guarantees the drawer’s Keywords tab works here,
+  regardless of which backend route is enabled. It tries, in order:
+
+  GET  /admin/api/keywords_for_name?name=LAST
+  GET  /admin/categories/keywords_for_name?name=LAST
+  GET  /admin/api/keywords_for_path?path=Cat/Sub/...
+  GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
+  GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
+
+  And exposes:
+    window.refreshKeywords()
+    window.deleteKeyword({ keyword, path })
+    window.addKeyword(kw)
+*/
 (function(){
-  // Only enhance on builder page
-  if (!/builder/i.test(location.pathname)) return;
+  'use strict';
 
-  const ORIGINAL_REFRESH = window.refreshKeywords;
+  const $ = (id)=>document.getElementById(id);
 
-  window.refreshKeywords = async function(){
-    // First let the universal controller do its thing (if defined)
-    if (typeof ORIGINAL_REFRESH === 'function') {
-      await ORIGINAL_REFRESH();
-    }
+  function ctxPathStr(ctx){
+    return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/');
+  }
 
-    const host = document.getElementById('kw-list');
-    if (!host) return;
-
-    // If we already have pills rendered, stop.
-    const hasPills = !!host.querySelector('.kw-pill, .pill');
-    const raw = (host.textContent || '').trim();
-    const looksEmpty = !hasPills && (!raw || /^no keywords/i.test(raw));
-    if (!looksEmpty) return;
-
-    // Build context from builder selections
-    function readCtx(){
-      const get = id => (document.getElementById(id)?.value || '');
-      const cat = get('post_cat') || get('selCategory');
-      const sub = get('post_sub') || get('selSub');
-      const ssub= get('post_ssub')|| get('selSubSub');
-      const sss = get('post_sss') || get('selSubSubSub');
-
-      let level = 'category';
-      if (sss) level = 'subsubsubcategory';
-      else if (ssub) level = 'subsubcategory';
-      else if (sub) level = 'subcategory';
-      return { level, cat, sub, ssub, sss };
-    }
-
-    const ctx = readCtx();
-    const qp = new URLSearchParams({
+  function guessCtx(){
+    // Prefer the remembered context from the “View drawer” click
+    const ctx = (window.__drawerCtx || {});
+    return {
       level: ctx.level || 'category',
-      cat: ctx.cat || '',
-      sub: ctx.sub || '',
-      ssub: ctx.ssub || '',
-      sss: ctx.sss || '',
-      allow_hidden: '1',
-      _: Date.now()
-    });
+      cat:   ctx.cat   || '',
+      sub:   ctx.sub   || '',
+      ssub:  ctx.ssub  || '',
+      sss:   ctx.sss   || ''
+    };
+  }
 
-    try {
-      const url = (window.CL_URLS && window.CL_URLS.INSPECT_URL) || '/admin/categories/inspect';
-      const r = await fetch(url + '?' + qp.toString(), { headers: { 'Accept': 'application/json' }});
-      if (!r.ok) return;
-      const j = await r.json();
-      const kws = (j && (j.keywords || (j.data && j.data.keywords))) || [];
-      if (!Array.isArray(kws) || !kws.length) return;
-
-      const esc = s => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      host.innerHTML = kws.map(k =>
-        `<span class="kw-pill">
-           <span class="kw-text">${esc(k)}</span>
-           <span class="kw-x" role="button" tabindex="0" data-kw="${encodeURIComponent(k)}" title="Remove" aria-label="Remove keyword">×</span>
-         </span>`
-      ).join(' ');
-
-      host.querySelectorAll('.kw-x').forEach(btn => {
-        btn.addEventListener('click', async e => {
-          e.preventDefault();
-          const kw = decodeURIComponent(btn.dataset.kw || '');
-          if (typeof window.deleteKeyword === 'function') {
-            await window.deleteKeyword({ keyword: kw, path: '' });
-            window.refreshKeywords && window.refreshKeywords();
-          }
-        });
-      });
-    } catch(_) { /* ignore */ }
-  };
-
-  // Ensure refresh when the offcanvas opens on the Keywords tab
-  document.addEventListener('show.bs.offcanvas', function (ev) {
-    if (ev.target && ev.target.id === 'dashCategoryManager') {
-      const active = ev.target.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
-      if (active === 'keywords' && typeof window.refreshKeywords === 'function') {
-        window.refreshKeywords();
-        setTimeout(window.refreshKeywords, 120);
-      }
+  async function tryJson(urls){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { headers: { 'Accept':'application/json' }});
+        if (r.ok) return await r.json();
+        last = new Error('GET '+u+' → '+r.status);
+      }catch(e){ last = e; }
     }
-  });
+    throw last || new Error('No keyword endpoint worked');
+  }
+
+  async function tryPost(urls, body){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+        if (r.ok){
+          const ct = (r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : await r.text();
+        }
+        last = new Error('POST '+u+' → '+r.status);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('No keyword POST endpoint worked');
+  }
+
+  async function refreshKeywords(){
+    const list = $('kw-list'); if (!list) return;
+    list.innerHTML = '<span class="muted">Loading…</span>';
+
+    const ctx = guessCtx();
+    const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
+    const path = ctxPathStr(ctx);
+
+    const qs = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+
+    const candidates = [
+      `/admin/api/keywords_for_name?${qs({name:last})}`,
+      `/admin/categories/keywords_for_name?${qs({name:last})}`,
+      `/admin/api/keywords_for_path?${qs({path})}`,
+      `/admin/categories/keywords_for_path?${qs({path})}`,
+      `/admin/categories/keywords?${qs({name:last, path})}`
+    ];
+
+    let arr = [];
+    try{
+      const j = await tryJson(candidates);
+      if (Array.isArray(j)) arr = j;
+      else if (j && Array.isArray(j.keywords)) arr = j.keywords;
+      else if (j && Array.isArray(j.data)) arr = j.data;
+    }catch(e){
+      console.warn('Keywords GET failed', e);
+      arr = [];
+    }
+
+    if (!arr.length){
+      list.innerHTML = '<span class="muted">No keywords yet.</span>';
+      return;
+    }
+
+    list.innerHTML = arr.map(k =>
+      `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
+    ).join(' ');
+
+    list.addEventListener('click', function onX(e){
+      const btn = e.target.closest('.kw-x'); if (!btn) return;
+      e.preventDefault();
+      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path }).then(refreshKeywords);
+    }, { once:true });
+  }
+
+  async function deleteKeyword({ keyword, path }){
+    const body = { keyword, path };
+    const posts = [
+      '/admin/api/keyword_remove',
+      '/admin/categories/keyword_remove',
+      '/admin/categories/keywords' // unified
+    ];
+    try{
+      await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body));
+    }catch(e){
+      console.warn('Keyword remove failed', e);
+    }
+  }
+
+  async function addKeyword(kw){
+    const ctx = guessCtx();
+    const body = Object.assign({ keyword: kw, name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'', path: ctxPathStr(ctx) }, ctx);
+    const posts = [
+      '/admin/api/keyword_add',
+      '/admin/categories/keyword_add',
+      '/admin/categories/keywords' // unified
+    ];
+    try{
+      await tryPost(posts, Object.assign({ action:'add' }, body));
+    }catch(e){
+      console.warn('Keyword add failed', e);
+    }
+  }
+
+  // Expose so the drawer’s inline scripts can call these on this page
+  window.refreshKeywords = refreshKeywords;
+  window.deleteKeyword   = deleteKeyword;
+  window.addKeyword      = addKeyword;
+
+  // If user clicks the drawer “Add” button inside the Keywords tab,
+  // our addKeyword will be picked up by the drawer’s handler.
 })();
 </script>
 
