@@ -45,21 +45,28 @@
     }
     #dashCategoryManager .form-control::placeholder { color: color-mix(in oklab, var(--accent-ink) 65%, white); }
 
-    /* ---------- Breadcrumb: chip-style ---------- */
+    /* ---------- Breadcrumb: chip-style, professional look ---------- */
     #dashCategoryManager .drawer-breadcrumb{
-      display:flex; flex-wrap:wrap; align-items:center; gap:.35rem .45rem;
+      display:flex; flex-wrap:wrap; align-items:center;
+      gap:.35rem .45rem;
     }
     #dashCategoryManager .drawer-breadcrumb a{
-      display:inline-flex; align-items:center; gap:.4rem; max-width:100%;
+      display:inline-flex; align-items:center; gap:.4rem;
+      max-width: 100%;
       padding:.28rem .6rem; border-radius:.6rem;
       background: color-mix(in oklab, var(--accent-ink) 12%, transparent);
       color: var(--text); border:1px solid var(--hair);
-      text-decoration:none; box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
-      transition: background .15s ease, border-color .15s ease;
+      text-decoration:none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+      transition: background .15s ease, border-color .15s ease, transform .05s ease;
     }
     #dashCategoryManager .drawer-breadcrumb a:hover{
       background: color-mix(in oklab, var(--accent-ink) 18%, transparent);
       border-color: color-mix(in oklab, var(--accent-ink) 48%, transparent);
+    }
+    #dashCategoryManager .drawer-breadcrumb a .crumb-text{
+      display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      max-width: 12rem;
     }
     #dashCategoryManager .drawer-breadcrumb a:not(:last-child)::after{
       content:"›"; margin-left:.35rem; opacity:.65;
@@ -69,20 +76,26 @@
     #dashCategoryManager .drawer-tabbar{
       display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.08); margin:.25rem 0 .75rem;
     }
-    #dashCategoryManager .drawer-tab{ padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:var(--text); }
-    #dashCategoryManager .drawer-tab.active{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-bottom-color:transparent; }
+    #dashCategoryManager .drawer-tab{
+      padding:.35rem .65rem; border-radius:.5rem .5rem 0 0; text-decoration:none; color:var(--text);
+    }
+    #dashCategoryManager .drawer-tab.active{
+      background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-bottom-color:transparent;
+    }
     #dashCategoryManager .drawer-pane{ display:none; }
 
     /* ---------- Table theme ---------- */
     #dashCategoryManager table thead th{
-      background: var(--thead-bg) !important; color: var(--table-head-fg, var(--text)) !important; border-bottom: 1px solid var(--hair);
+      background: var(--thead-bg) !important;
+      color: var(--table-head-fg, var(--text)) !important;
+      border-bottom: 1px solid var(--hair);
     }
     #dashCategoryManager table td, #dashCategoryManager table th{ color: var(--text); }
 
     .mono{ font-variant-numeric: tabular-nums; }
     .tx-neg{ color:#d36b6b; } .tx-pos{ color:#6bd39c; }
 
-    /* ---------- Pills ---------- */
+    /* ---------- Pills: colors driven by global accent ---------- */
     #dashCategoryManager{
       --pill-fg: var(--accent-ink);
       --pill-bg: color-mix(in oklab, var(--accent-ink) 14%, transparent);
@@ -96,12 +109,14 @@
       background:var(--pill-bg); color:var(--pill-fg); border:1px solid var(--pill-border);
       text-decoration:none; cursor:pointer; transition:background .15s, border-color .15s, color .15s;
     }
-    #dashCategoryManager .pill:hover{ background:var(--pill-bg-hover); border-color:var(--pill-border-hover); }
+    #dashCategoryManager .pill:hover{
+      background:var(--pill-bg-hover); border-color:var(--pill-border-hover);
+    }
     #dashCategoryManager .pill-sm{ padding:.25rem .55rem; font-size:.875rem; cursor:default; }
     .pill-row{ display:flex; flex-wrap:wrap; gap:.5rem .6rem; }
     .pill .chev{ opacity:.7; }
 
-    /* ---------- Small glass button ---------- */
+    /* ---------- Small “glass” button in header ---------- */
     .glass-btn{
       display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .6rem; border-radius:.6rem;
       border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10);
@@ -110,7 +125,7 @@
     }
     .glass-btn:hover{ background:rgba(255,255,255,.14); }
 
-    /* ---------- FULL overlay selector ---------- */
+    /* ---------- FULL overlay selector (glass panel) ---------- */
     #drawer-months-overlay[hidden]{ display:none; }
     #drawer-months-overlay{
       position:fixed; inset:0; z-index:1055; background:rgba(0,0,0,.45);
@@ -125,12 +140,16 @@
       backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
       display:flex; flex-direction:column;
     }
-    .glass-panel .hdr{ padding:.9rem 1.1rem; font-weight:600; color:#cfe1ff; border-bottom:1px solid rgba(255,255,255,.12); }
+    .glass-panel .hdr{
+      padding: .9rem 1.1rem; font-weight:600; color:#cfe1ff;
+      border-bottom:1px solid rgba(255,255,255,.12);
+    }
     .glass-panel .list{ overflow:auto; padding:.35rem .35rem 1rem; }
     .glass-item{
       display:flex; align-items:center; justify-content:space-between;
       padding:.6rem .9rem; margin:.15rem .25rem; border-radius:.65rem;
-      color:#d9e7ff; background:transparent; border:0; width:calc(100% - .5rem); text-align:left;
+      color:#d9e7ff; background:transparent; border:0; width:calc(100% - .5rem);
+      text-align:left;
     }
     .glass-item:hover{ background:rgba(255,255,255,.08); }
     .glass-divider{ height:1px; background:rgba(255,255,255,.12); margin:.25rem .5rem; }
@@ -138,37 +157,45 @@
     .btn-ghost{ padding:.45rem .75rem; border-radius:.6rem; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#e6f0ff; }
     .btn-ghost:hover{ background:rgba(255,255,255,.12); }
 
-    /* ---------- Keyword pills: inline close ---------- */
-    #kw-list .pill{ position: static; padding-right:.75rem; }
+    /* ---------- Keywords pills: inline, borderless close icon (NEW) ---------- */
+    #kw-list .pill{
+      position: static;            /* no offset for a floating X */
+      padding-right: .75rem;       /* normal padding */
+    }
+    /* new class to avoid any legacy .pill-close rules elsewhere */
     #kw-list .pill .kw-x{
-      appearance:none; -webkit-appearance:none; background:none; border:0;
-      display:inline-flex; align-items:center; justify-content:center;
-      position:static; width:16px; height:16px; margin-left:.1rem;
-      line-height:1; font-weight:700; font-size:14px; opacity:.55; cursor:pointer;
-      transform: translateY(-1px);
+      appearance: none; -webkit-appearance: none;
+      background: none; border: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      position: static;            /* inline, part of the chip */
+      width: 16px; height: 16px;
+      margin-left: .1rem;
+      line-height: 1; font-weight: 700; font-size: 14px;
+      opacity: .55; cursor: pointer;
+      transform: translateY(-1px); /* optical centering with text */
     }
-    #kw-list .pill:hover .kw-x{ opacity:.9; }
+    #kw-list .pill:hover .kw-x{ opacity: .9; }
     #kw-list .pill .kw-x:focus-visible{
-      outline:2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
-      outline-offset:2px; border-radius:4px;
+      outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
+      outline-offset: 2px; border-radius: 4px;
     }
-    /* Kill any legacy absolute-X rules */
-    #dashCategoryManager .kw-pill .kw-x,
-    #dashCategoryManager #kw-list .pill .kw-x{ position:static!important; background:none!important; border:0!important; box-shadow:none!important; }
   </style>
 
   <div class="offcanvas-body">
+    <!-- Tabs -->
     <div class="drawer-tabbar">
       <a href="#" class="drawer-tab active" data-tab="overview">Overview</a>
       <a href="#" class="drawer-tab" data-tab="keywords">Keywords</a>
       <a href="#" class="drawer-tab" data-tab="actions">Actions</a>
     </div>
 
+    <!-- Children -->
     <div class="mb-2">
       <div class="fw-semibold mb-1">Children:</div>
       <div id="drawer-children" class="pill-row"></div>
     </div>
 
+    <!-- Overview -->
     <div class="drawer-pane" data-pane="overview" style="display:block;">
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -176,7 +203,7 @@
             <tr>
               <th class="w-25">Date</th>
               <th>Description</th>
-              <th class="w-25">Amount</th>
+              <th class="w-25">Amount</th> <!-- removed text-end to align with left-align JS/CSS -->
               <th class="w-25">Cat</th>
             </tr>
           </thead>
@@ -187,17 +214,19 @@
       </div>
     </div>
 
+    <!-- Keywords -->
     <div class="drawer-pane" data-pane="keywords">
       <div class="d-flex align-items-center gap-2 mb-2">
         <input id="kw-add-input" class="form-control form-control-sm" placeholder="Add keyword…" />
         <button id="kw-add-btn" class="btn btn-sm btn-primary">Add</button>
       </div>
-      <!-- IMPORTANT: seed path for builder via Jinja -->
-      <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path="{{ path_str|default('', true) }}"></div>
+      <!-- NOTE: added data-path so pills can inherit if they don't carry it -->
+      <div id="kw-list" class="d-flex flex-wrap gap-2 small" data-path="{{ path_str }}"></div>
     </div>
 
+    <!-- Actions -->
     <div class="drawer-pane" data-pane="actions">
-      <div class="small text-muted">Hook <code>[data-action]</code> buttons to <code>runAction(kind)</code>.</div>
+      <div class="small text-muted">Hook <code>[data-action]</code> buttons to <code>runAction(kind)</code> in <code>drawer.js</code>.</div>
     </div>
   </div>
 </div>
@@ -207,9 +236,11 @@
   <div class="glass-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-months-title">
     <div class="hdr" id="drawer-months-title">Select month…</div>
     <div class="list" id="drawer-months-overlay-list">
+      <!-- static header items -->
       <div class="glass-item" data-value="">Latest month</div>
       <div class="glass-item" data-value="all">All months</div>
       <div class="glass-divider"></div>
+      <!-- dynamic months inserted by JS -->
     </div>
     <div class="panel-actions">
       <button type="button" class="btn-ghost" id="drawer-months-cancel">Close</button>
@@ -217,205 +248,144 @@
   </div>
 </div>
 
-<!-- Tabs + refresh-on-open (non-destructive) -->
+<!-- Minimal, non-conflicting helpers: tab switch + delegate to global refreshKeywords -->
 <script>
 (function(){
   'use strict';
-  const dash = document.getElementById('dashCategoryManager'); if (!dash) return;
+  const dash = document.getElementById('dashCategoryManager');
+  if (!dash) return;
+
+  // Tab switching (the universal controller also binds; this keeps behavior
+  // if that script is ever absent, and otherwise does not conflict)
   const tabs  = dash.querySelectorAll('.drawer-tab');
   const panes = dash.querySelectorAll('.drawer-pane');
 
   function showPane(name){
     tabs.forEach(t => t.classList.toggle('active', (t.dataset.tab === name)));
     panes.forEach(p => p.style.display = (p.dataset.pane === name) ? 'block' : 'none');
-    const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
-    if (name === 'keywords' && typeof refresh === 'function') {
-      refresh(); setTimeout(refresh, 120);
+    if (name === 'keywords' && typeof window.refreshKeywords === 'function') {
+      // use the universal controller's fetcher to avoid duplicate logic
+      window.refreshKeywords();
+      // slight delay for breadcrumb changes rendered just before tab switch
+      setTimeout(window.refreshKeywords, 120);
     }
   }
-  tabs.forEach(t => t.addEventListener('click', (e)=>{ e.preventDefault(); showPane(t.dataset.tab||'overview'); }));
-  document.addEventListener('show.bs.offcanvas', (ev)=>{
+
+  tabs.forEach(t => t.addEventListener('click', function(e){
+    e.preventDefault();
+    showPane(this.getAttribute('data-tab') || 'overview');
+  }));
+
+  // If the offcanvas shows with Keywords active, refresh via global fetcher
+  document.addEventListener('show.bs.offcanvas', function(ev){
     if (ev.target && ev.target.id === 'dashCategoryManager') {
       const active = dash.querySelector('.drawer-tab.active')?.dataset.tab || 'overview';
-      const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
-      if (active === 'keywords' && typeof refresh === 'function') { refresh(); setTimeout(refresh, 120); }
-    }
-  });
-})();
-</script>
-
-<!-- Keyword pill close-buttons & deletion wiring (non-destructive) -->
-<script>
-(function(){
-  'use strict';
-  const list = document.getElementById('kw-list'); if (!list) return;
-
-  function decoratePills(root){
-    (root||list).querySelectorAll('.pill').forEach(pill=>{
-      pill.querySelectorAll('.pill-close').forEach(n=>n.remove());
-      if (pill.querySelector('.kw-x')) return;
-      const btn = document.createElement('button');
-      btn.type='button'; btn.className='kw-x'; btn.setAttribute('aria-label','Remove keyword'); btn.textContent='×';
-      if (!pill.getAttribute('role')) pill.setAttribute('role','button');
-      pill.appendChild(btn);
-    });
-  }
-  decoratePills();
-  new MutationObserver(m=>{ if (m.some(x=>x.addedNodes && x.addedNodes.length)) decoratePills(); }).observe(list,{childList:true,subtree:true});
-
-  async function handleDelete(pill){
-    const kw = pill.dataset.keyword || pill.getAttribute('data-keyword') || pill.textContent.trim();
-    const path = pill.dataset.path || list.dataset.path || '';
-    const del = window.deleteKeyword || (window.btDrawerFallback && window.btDrawerFallback.deleteKeyword);
-    if (typeof del === 'function') { try { await del({ keyword: kw, path }); } catch(e){} }
-    pill.remove();
-    const refresh = window.refreshKeywords || (window.btDrawerFallback && window.btDrawerFallback.refreshKeywords);
-    if (typeof refresh === 'function') setTimeout(refresh, 50);
-  }
-  list.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.kw-x'); if (!btn) return;
-    e.preventDefault(); e.stopPropagation();
-    const pill = btn.closest('.pill'); if (pill) handleDelete(pill);
-  });
-  list.addEventListener('keydown', (e)=>{
-    if (!e.target.classList.contains('pill')) return;
-    if (e.key==='Backspace' || e.key==='Delete'){ e.preventDefault(); e.target.querySelector('.kw-x')?.click(); }
-  });
-})();
-</script>
-
-<!-- ===== Builder-only FALLBACK controller (namespaced, won't overwrite globals) ===== -->
-<script>
-(function(){
-  'use strict';
-  // If your real controller is already loaded on this page, do nothing.
-  if (window.refreshKeywords && window.openCategoryManager) return;
-
-  const $ = (s,r=document)=>r.querySelector(s);
-  const esc = s => String(s||'').replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  const host = $('#dashCategoryManager'); if (!host) return;
-  const kwList = $('#kw-list');
-
-  const urls = window.CL_URLS || {};
-  const PATH_TXN_URL = urls.PATH_TXN_URL || '/api/path/transactions';
-  const GETS = [urls.KW_GET_URL, '/admin/categories/keywords', '/admin/api/keywords', '/api/keywords', '/admin/categories/keywords_for_name', '/api/keywords_for_name'].filter(Boolean);
-  const POSTS_ADD = [urls.KW_ADD_URL, '/admin/categories/keyword/add', '/admin/api/keyword_add', '/api/keyword_add', '/admin/categories/keywords', '/api/keywords'].filter(Boolean);
-  const POSTS_REM = [urls.KW_REMOVE_URL, '/admin/categories/keyword/remove', '/admin/api/keyword_remove', '/api/keyword_remove', '/admin/categories/keywords', '/api/keywords'].filter(Boolean);
-
-  const state = { ctx:{ level:'category', cat:'', sub:'', ssub:'', sss:'', month:'' }, children:[], tx:[], total:0 };
-
-  function setKwPathAttr() {
-    // seed from data-path if provided by template
-    const seeded = kwList && kwList.dataset.path && kwList.dataset.path.trim();
-    if (seeded) return;
-    const parts = [state.ctx.cat,state.ctx.sub,state.ctx.ssub,state.ctx.sss].filter(Boolean);
-    if (kwList) kwList.dataset.path = parts.join(' › ');
-  }
-
-  function renderBreadcrumb(){
-    const nav = $('#drawer-breadcrumb'); if (!nav) return;
-    const parts = (kwList.dataset.path || '').split(' › ').filter(Boolean);
-    const root = `<a href="#" data-bc="-1">All Categories</a>`;
-    const segs = [root].concat(parts.map((p,i)=>`<a href="#" data-bc="${i}">${esc(p)}</a>`));
-    nav.innerHTML = segs.join(' ');
-  }
-
-  async function kwGet(){
-    const path = kwList.dataset.path || '';
-    for (const base of GETS){
-      try{
-        const isByName = /keywords_for_name/i.test(base);
-        const url = isByName
-          ? base + '?' + new URLSearchParams({ name: path.split(' › ').pop()||'', _ : Date.now() })
-          : base + '?' + new URLSearchParams({ path, _ : Date.now() });
-        const r = await fetch(url, { headers:{'Accept':'application/json'} });
-        if (!r.ok) continue;
-        const j = await r.json();
-        if (Array.isArray(j)) return j;
-        if (j && Array.isArray(j.keywords)) return j.keywords;
-        if (j && Array.isArray(j.data)) return j.data;
-      }catch(_){}
-    }
-    return [];
-  }
-
-  async function kwPost(cands, keyword, remove){
-    const payload = { keyword, path: kwList.dataset.path || '' };
-    for (const base of cands){
-      try{
-        const body = (/\/keywords(?:$|\?)/.test(base)) ? { ...payload, action: remove?'remove':'add', remove: !!remove } : payload;
-        const r = await fetch(base, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-        if (r.ok) return true;
-      }catch(_){}
-    }
-    return false;
-  }
-
-  async function refreshKeywords(){
-    if (!kwList) return;
-    setKwPathAttr();
-    kwList.innerHTML = '<span class="muted">Loading…</span>';
-    const kws = await kwGet();
-    kwList.innerHTML = kws.length
-      ? kws.map(k=>`<span class="pill" data-keyword="${esc(k)}">${esc(k)}<button class="kw-x" aria-label="Remove">×</button></span>`).join(' ')
-      : '<span class="muted">No keywords yet.</span>';
-  }
-  async function addKeyword({ keyword }){ if (!keyword) return false; const ok = await kwPost(POSTS_ADD, keyword, false); if (ok) refreshKeywords(); return ok; }
-  async function deleteKeyword({ keyword }){ if (!keyword) return false; const ok = await kwPost(POSTS_REM, keyword, true); if (ok) refreshKeywords(); return ok; }
-
-  // expose only under a namespaced object so we don't overwrite your globals
-  window.btDrawerFallback = { refreshKeywords, addKeyword, deleteKeyword };
-
-  // Minimal children/tx fetch so month/total/children still loads if API exists
-  (async function fetchPathTx(){
-    try{
-      const r = await fetch((PATH_TXN_URL||'/api/path/transactions')+'?'+new URLSearchParams({ months:'all', _ : Date.now() }), { headers:{'Accept':'application/json'} });
-      if (r.ok){
-        const j = await r.json();
-        const totalEl = document.getElementById('drawer-total');
-        if (totalEl && (j.total ?? j.net_total) != null) totalEl.textContent = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(+((j.total ?? j.net_total) || 0));
+      if (active === 'keywords' && typeof window.refreshKeywords === 'function') {
+        window.refreshKeywords();
+        setTimeout(window.refreshKeywords, 120);
       }
-    }catch(_){}
-    renderBreadcrumb();
-    refreshKeywords();
-  })();
-
-  // Wire the add box
-  (function(){
-    const input = $('#kw-add-input'), btn = $('#kw-add-btn');
-    if (!input || !btn) return;
-    const commit = async ()=>{ const v=(input.value||'').trim(); if(!v) return; await addKeyword({ keyword:v }); input.value=''; };
-    btn.addEventListener('click', e=>{ e.preventDefault(); commit(); });
-    input.addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
-  })();
+    }
+  });
 })();
 </script>
+
+<!-- Keyword pill close-buttons & deletion wiring -->
 <script>
-/* Guard against late-loading controllers clearing the keyword list.
-   If content gets emptied while we have a valid path, re-populate via fallback. */
-(function () {
+(function(){
+  'use strict';
   const list = document.getElementById('kw-list');
   if (!list) return;
 
-  // Let any external controller detect that the fallback owns the drawer
-  document.documentElement.setAttribute('data-drawer-owner', 'fallback');
+  // Add a close (×) button to any pill missing one
+  function decoratePills(root){
+    (root || list).querySelectorAll('.pill').forEach(pill => {
+      // Remove any legacy close buttons that might carry old styles
+      pill.querySelectorAll('.pill-close').forEach(n => n.remove());
 
-  const hasPills = () => !!list.querySelector('.pill');
-  const hasPath  = () => !!(list.dataset.path || '').trim();
+      // If we already added the new button, skip
+      if (pill.querySelector('.kw-x')) return;
 
-  const restore = () => {
-    const fb = window.btDrawerFallback;
-    if (fb && typeof fb.refreshKeywords === 'function') fb.refreshKeywords();
-  };
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'kw-x';
+      btn.setAttribute('aria-label', 'Remove keyword');
+      btn.textContent = '×';
+      // ensure pill has role=button for accessibility if it's clickable
+      if (!pill.getAttribute('role')) pill.setAttribute('role', 'button');
+      // inherit data-path from the list if pill doesn't have one
+      if (!pill.hasAttribute('data-path') && list.dataset.path) {
+        pill.setAttribute('data-path', list.dataset.path);
+      }
+      pill.appendChild(btn);
+    });
+  }
 
-  // If list becomes empty (or replaced with non-pill content) while we have a path, restore it.
-  const mo = new MutationObserver(() => {
-    if (hasPath() && !hasPills()) restore();
+  // Initial decoration (in case server-side rendered)
+  decoratePills();
+
+  // Re-decorate after external refreshes add pills
+  const mo = new MutationObserver(muts => {
+    let needs = false;
+    for (const m of muts) {
+      if (m.addedNodes && m.addedNodes.length) { needs = true; break; }
+    }
+    if (needs) decoratePills();
   });
   mo.observe(list, { childList: true, subtree: true });
 
-  // Also run one delayed check in case a late script clears once on init
-  setTimeout(() => { if (hasPath() && !hasPills()) restore(); }, 200);
+  // Deletion handler with graceful fallbacks
+  async function handleDelete(pill){
+    const kw = pill.dataset.keyword || pill.getAttribute('data-keyword') || pill.textContent.trim();
+    const path = pill.dataset.path || pill.getAttribute('data-path') || list.dataset.path || '';
+
+    // 1) If a global controller exists, let it do the real work
+    if (typeof window.deleteKeyword === 'function') {
+      try {
+        await window.deleteKeyword({ keyword: kw, path });
+      } catch(e) { /* swallow to still update UI */ }
+    } else {
+      // 2) Otherwise, try direct API DELETE (minimal, no dependency on globals)
+      if (kw && path) {
+        try {
+          const url = `/api/keywords?path=${encodeURIComponent(path)}&keyword=${encodeURIComponent(kw)}`;
+          await fetch(url, { method: 'DELETE' });
+        } catch(e) {
+          /* ignore; UI will still remove optimistically */
+        }
+      }
+      // 3) Also emit a custom event for any external listeners
+      const ev = new CustomEvent('keyword:delete', { detail: { keyword: kw, path }, bubbles: true });
+      pill.dispatchEvent(ev);
+    }
+
+    // 4) Optimistic UI: remove the pill immediately
+    pill.remove();
+
+    // 5) Ask the global refresher (if present) to resync
+    if (typeof window.refreshKeywords === 'function') {
+      setTimeout(window.refreshKeywords, 50);
+    }
+  }
+
+  // Delegate clicks on the ×
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('.kw-x');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pill = btn.closest('.pill');
+    if (pill) handleDelete(pill);
+  });
+
+  // Keyboard support (Delete/Backspace when pill focused)
+  list.addEventListener('keydown', (e) => {
+    if (!e.target.classList.contains('pill')) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      const pill = e.target;
+      const btn = pill.querySelector('.kw-x');
+      if (btn) btn.click();
+    }
+  });
 })();
 </script>
-
