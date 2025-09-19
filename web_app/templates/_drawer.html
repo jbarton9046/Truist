@@ -171,6 +171,49 @@
     #kw-list .pill .pill-close:focus{ outline: none; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
   </style>
 
+  <!-- OVERRIDES: inline, borderless close icon that feels part of the pill -->
+  <style>
+    /* Make × part of the chip; no background/border; perfect alignment */
+    #dashCategoryManager #kw-list .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;                 /* space between text and × */
+      padding: .35rem .75rem;
+      position: relative;          /* anchor for hit-area pseudo */
+    }
+    #dashCategoryManager #kw-list .pill .pill-close{
+      all: unset;                  /* wipe the absolute/plate styles above */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      margin-left: .1rem;
+      line-height: 1;
+      font-weight: 700;
+      font-size: 14px;             /* size of the × */
+      opacity: .45;
+      cursor: pointer;
+      position: static !important; /* inline, not absolute */
+      background: none !important; /* no plate */
+      border: none !important;     /* no border */
+      transform: translateY(-1px); /* optical center with text */
+    }
+    #dashCategoryManager #kw-list .pill:hover .pill-close{ opacity: .85; }
+    #dashCategoryManager #kw-list .pill .pill-close:focus-visible{
+      outline: 2px solid color-mix(in oklab, var(--accent-ink) 50%, transparent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    /* Larger invisible click target without changing look */
+    #dashCategoryManager #kw-list .pill .pill-close::after{
+      content: "";
+      position: absolute;
+      inset: -6px -6px -6px -6px;  /* expands hit area */
+      pointer-events: auto;
+    }
+  </style>
+
   <div class="offcanvas-body">
     <!-- Tabs -->
     <div class="drawer-tabbar">
