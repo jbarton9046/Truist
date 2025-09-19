@@ -23,15 +23,37 @@
   .misc-scroll { max-height: 60vh; overflow:auto; }
   .pointer { cursor:pointer; }
 
-  /* --- Keyword Finder (left column) --- */
+  /* --- Keyword Finder (light defaults to be themed below) --- */
   .kb-card { border-radius:1rem; border:1px solid #e9ecef; background:#fff; }
   .kb-card .kb-head { padding:.6rem .9rem; border-bottom:1px solid #edf2f7; }
   .kb-card .kb-body { padding:.75rem; }
   .kb-muted { color:#6c757d; }
+  .kb-toolbar {
+    position: sticky; top:.25rem; z-index:5; background:#fff; padding:.6rem .8rem;
+    border:1px solid #eaecf0; border-radius:.75rem; box-shadow:0 1px 0 rgba(0,0,0,.02);
+    margin-bottom: .75rem;
+  }
+  .kb-chip {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.2rem .55rem; border-radius:999px; background:#f1f3f5; color:#212529;
+    border:1px solid #e9ecef; margin:.15rem .25rem 0 0; font-size:.9rem; cursor:pointer;
+  }
+  .kb-chip:hover { background:#e9ecef; }
+  .kb-manage {
+    display:inline-flex; align-items:center; gap:.35rem; text-decoration:none;
+    padding:.15rem .5rem; border-radius:999px; background:#e7f1ff; color:#0a58ca;
+    border:1px solid #cfe2ff; font-weight:600;
+  }
+  .kb-manage:hover { background:#dbe9ff; border-color:#b6d4fe; color:#0a58ca; }
   .kb-path { max-width:480px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .kb-table thead th { position:sticky; top:0; background:#fff; z-index:1; }
 
-  /* Dark / glass overrides (tokens from layout.html) */
+  /* ===========================
+     Dark / glass overrides
+     (tokens from layout.html)
+     =========================== */
+
+  /* Keywords Used: card + head */
   .kb-card{
     border-radius:16px;
     border:1px solid var(--card-border) !important;
@@ -50,11 +72,13 @@
     backdrop-filter:saturate(120%) blur(6px);
   }
 
+  /* List / container inside Keywords Used */
   #kwMiniList{ max-height:35vh; overflow:auto; background:transparent; isolation:isolate; }
   .kb-card .list-group{ border:1px solid var(--hair); border-radius:12px; background:transparent; }
   .kb-card .list-group-item{ background:transparent; color:var(--text); border-color:var(--hair); }
   .kb-card .list-group-item:hover{ background:rgba(255,255,255,.05); }
 
+  /* Frosted sticky table headers (this page) */
   .misc-card .table thead th,
   .kb-table thead th{
     position: sticky;
@@ -71,23 +95,120 @@
       inset 0 1px 0 rgba(255,255,255,.05),
       0 10px 18px rgba(2, 6, 23, .25);
   }
+  .misc-card .table thead th:first-child{ border-top-left-radius:12px; }
+  .misc-card .table thead th:last-child{  border-top-right-radius:12px; }
 
-  #kwMiniList .list-group-item{ position: relative; padding-right: 40px; font-family: inherit; }
+  /* === Keywords Used counts: ghost blue numbers (no pill), floated right === */
+  #kwMiniList .list-group-item{
+    position: relative;
+    padding-right: 40px;
+    font-family: inherit;
+  }
   #kwMiniList .list-group-item .badge{
-    position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
-    background: transparent !important; border: 0 !important; box-shadow: none !important;
-    color: var(--link, #9ec5ff) !important; font-weight: 700; font-size: .95rem; line-height: 1;
-    padding: 0; min-width: 0; width: auto; height: auto; pointer-events: none;
+    position: absolute;
+    top: 50%;
+    right: 12px;
+    transform: translateY(-50%);
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: var(--link, #9ec5ff) !important;
+    font-weight: 700;
+    font-size: .95rem;
+    line-height: 1;
+    padding: 0;
+    min-width: 0;
+    width: auto;
+    height: auto;
+    pointer-events: none;
     text-shadow: 0 0 10px rgba(158,197,255,.35);
   }
   #kwMiniList .list-group-item .badge.rounded-pill{ border-radius: 0 !important; }
 
+  /* Helper/hint text to match theme */
   .form-text, #submitHint { color: var(--muted) !important; }
+  #kwMiniFilter.form-control{
+    background: color-mix(in oklab, var(--card-bg) 85%, #000 0%);
+    color: var(--text);
+    border: 1px solid var(--hair);
+  }
+  #kwMiniFilter::placeholder{
+    color: color-mix(in oklab, var(--muted) 90%, transparent);
+    opacity: 1;
+  }
 
-  /* ======= Keywords for current path (right column) ======= */
-  .kwp-card { border:1px solid var(--card-border); border-radius:.75rem; background:var(--card-bg); }
-  .kwp-chip { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .55rem; border-radius:999px; background:#f1f3f5; color:#212529; border:1px solid #e9ecef; margin:.15rem .25rem .15rem 0; }
-  .kwp-chip button { border:0; background:transparent; padding:0 .2rem; cursor:pointer; }
+  /* Bits you asked to hide (DOM remains for JS) */
+  #miscMeta{ display:none !important; }
+  #kbTip{ display:none !important; }
+  #kwMiniDetails .kb-placeholder{ display:none !important; }
+
+  /* ============= GLASS SELECT (non-destructive wrapper) ============= */
+  .gs-wrap{ position:relative; width:100%; }
+  .gs-native{
+    position:absolute; inset:0; width:100%; height:100%;
+    opacity:0; pointer-events:none;
+  }
+  .gs-trigger{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+    padding:.55rem .9rem; border-radius:12px; cursor:pointer; user-select:none;
+    background: color-mix(in oklab, var(--card-bg) 90%, transparent);
+    color: var(--text); border:1px solid var(--hair);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 4px 14px rgba(0,0,0,.25);
+  }
+  .gs-trigger:focus-visible{ outline:2px solid #80b3ff; outline-offset:2px; }
+  .gs-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gs-caret{ opacity:.8; }
+
+  /* Popup itself (will be portaled to body on open) */
+  .gs-popup{
+    position: fixed;                       /* body-level placement */
+    min-width: 240px;
+    max-height:320px; overflow:auto;
+    z-index:1051;                          /* above scrim (1040) and near modal(1050) */
+    padding:6px; border-radius:14px; border:1px solid var(--card-border);
+    background: color-mix(in oklab, var(--card-bg) 82%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .gs-list{ margin:0; padding:0; list-style:none; }
+  .gs-option{
+    padding:.6rem .75rem; border-radius:10px; display:flex; align-items:center; gap:.5rem; cursor:pointer;
+    color: var(--text);
+  }
+  .gs-option:hover, .gs-option[aria-current="true"]{ background:rgba(255,255,255,.06) }
+  .gs-option[aria-selected="true"]{
+    background:rgba(129,196,255,.10); box-shadow:inset 0 0 0 1px rgba(129,196,255,.35)
+  }
+  .gs-option[data-disabled="true"]{ color: var(--muted); cursor:default; }
+  .gs-divider{ height:1px; margin:6px 0; background:var(--hair); opacity:.8; border-radius:1px; }
+
+  /* NEW: the blur layer behind the popup (like drawer) */
+  .gs-scrim{
+    position:fixed; inset:0; z-index:1040;
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(8,12,20,.28);
+  }
+
+  /* ---- tiny entrance animations for glass select ---- */
+  @keyframes gsPopIn {
+    from { opacity: 0; transform: translateY(6px) scale(.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes gsFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .gs-popup{
+    animation: gsPopIn .14s ease-out;
+    transform-origin: top left;
+    will-change: transform, opacity;
+  }
+  .gs-scrim{
+    animation: gsFadeIn .12s ease-out;
+    will-change: opacity;
+  }
 </style>
 
 <div class="container-fluid my-4">
@@ -112,7 +233,7 @@
   <!-- ========================= -->
   <div class="row g-3">
 
-    <!-- 1) Keywords Used (left) -->
+    <!-- 1) Keywords Used -->
     <div class="col-12 col-xl-6">
       <div class="kb-card">
         <div class="kb-head d-flex justify-content-between align-items-center">
@@ -140,7 +261,7 @@
         window.CFG = window.CFG || JSON.parse(document.getElementById('cfg-json').textContent || '{}');
       </script>
 
-      <!-- Compact keywords logic (unchanged) -->
+      <!-- Compact keywords logic (5-path cap + Show all) -->
       <script>
         (function(){
           const CFG = window.CFG || {};
@@ -297,7 +418,7 @@
       </script>
     </div>
 
-    <!-- 2) Build Path & Keyword (right) -->
+    <!-- 2) Build Path & Keyword -->
     <div class="col-12 col-xl-6">
       <form id="formUpsert" method="POST" action="{{ url_for('admin_categories.upsert_path_and_keyword') }}">
         <div class="card shadow-sm">
@@ -310,6 +431,8 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Category</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="category">Manage</button>
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="category">View drawer</button>
                 </label>
                 <div class="onebar" data-level="cat">
                   <select id="selCategory" class="form-select onebar-select"></select>
@@ -325,6 +448,8 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subcategory">Manage</button>
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="sub">
                   <select id="selSub" class="form-select onebar-select"></select>
@@ -340,6 +465,8 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubcategory">Manage</button>
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="ssub">
                   <select id="selSubSub" class="form-select onebar-select"></select>
@@ -355,6 +482,8 @@
                 <label class="form-label d-flex align-items-center gap-2">
                   <span>Sub-sub-subcategory</span>
                   <button type="button" class="btn btn-link p-0 align-baseline manage-link" data-level="subsubsubcategory">Manage</button>
+                  <span class="text-muted">·</span>
+                  <button type="button" class="btn btn-link p-0 align-baseline drawer-link" data-level="subsubsubcategory">View drawer</button>
                 </label>
                 <div class="onebar" data-level="sss">
                   <select id="selSubSubSub" class="form-select onebar-select"></select>
@@ -367,7 +496,7 @@
 
               <hr class="mt-2 mb-1">
 
-              <!-- Optional Keyword (form post) -->
+              <!-- Optional Keyword -->
               <div class="col-12">
                 <label class="form-label">Keyword (optional)</label>
                 <div class="input-group">
@@ -386,25 +515,6 @@
                 <button type="submit" id="btnSaveAll" class="btn btn-primary" disabled>Save Path</button>
                 <small class="form-text text-muted" id="submitHint">Pick or enter a Category to enable.</small>
               </div>
-
-              <!-- ====== Keywords for current path (live via API, no drawer) ====== -->
-              <div class="col-12">
-                <div class="kwp-card p-3 mt-2">
-                  <div class="d-flex align-items-center justify-content-between">
-                    <div class="fw-semibold">Keywords for this path</div>
-                    <div class="small muted" id="kwp-count">—</div>
-                  </div>
-                  <div class="mt-2">
-                    <div id="kwp-list" class="small"></div>
-                  </div>
-                  <div class="input-group input-group-sm mt-2">
-                    <input id="kwp-new" class="form-control" placeholder="Add keyword…">
-                    <button id="kwp-add" type="button" class="btn btn-outline-primary">Add</button>
-                  </div>
-                  <div class="form-text mt-1" id="kwp-status"></div>
-                </div>
-              </div>
-
             </div>
           </div>
         </div>
@@ -421,7 +531,9 @@
     </div>
   </div>
 
-  <!-- Row 2: Misc (unchanged) -->
+  <!-- ========================= -->
+  <!-- Row 2: Misc underneath    -->
+  <!-- ========================= -->
   <div class="row g-3 mt-1">
     <div class="col-12">
       <div class="card misc-card shadow-sm">
@@ -477,12 +589,42 @@
       </div>
     </div>
   </div>
+
+  <!-- Manage Modal (unchanged) -->
+  <div class="modal fade" id="manageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="manageTitle">Manage</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="manageBody">
+          <!-- filled by JS -->
+        </div>
+        <div class="modal-footer">
+          <div class="me-auto d-flex align-items-center gap-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="chkCascade">
+              <label class="form-check-label" for="chkCascade">Cascade delete children & keywords</label>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" id="btnPreviewCascade" type="button">Preview impact</button>
+            <span class="muted small" id="cascadePreview" style="display:none;">Preview: —</span>
+          </div>
+          <button class="btn btn-primary" id="saveManage" type="button">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="manageArea" class="mt-4 d-none"></div>
 </div>
 
+
+
 <script>
-  // Endpoints (make sure we have defaults)
+  // Safe defaults so Keyword Finder / drawer work even if CL_URLS isn’t injected from layout
   window.CL_URLS = Object.assign({
-    KW_GET_URL: '/admin/categories/keywords',     // path-based
+    KW_GET_URL: '/admin/api/keywords_for_name',
     KW_ADD_URL: '/admin/api/keyword_add',
     KW_REMOVE_URL: '/admin/api/keyword_remove',
     INSPECT_URL: '/admin/categories/inspect',
@@ -493,22 +635,6 @@
 
 <script>
   const CFG = window.CFG || {};
-
-  /* ---------- helpers ---------- */
-  function csrfToken(){
-    const m = document.querySelector('meta[name="csrf-token"]');
-    return m ? m.content : '';
-  }
-  function headersJSON(){
-    const h = { 'Content-Type': 'application/json' };
-    const t = csrfToken(); if (t) h['X-CSRFToken'] = t;
-    return h;
-  }
-  function qs(obj){
-    const sp = new URLSearchParams();
-    Object.entries(obj).forEach(([k,v]) => { if (v !== undefined && v !== null) sp.set(k, v); });
-    return sp.toString();
-  }
 
   /* ---------- data access ---------- */
   function getAllCategories() {
@@ -657,14 +783,10 @@
     return {cat, sub, ssub, sss};
   }
 
-  function currentPath(){
-    const {cat, sub, ssub, sss} = readValues();
-    return [cat, sub, ssub, sss].filter(Boolean).join('/');
-  }
-
   function updatePathPreview(){
-    const p = currentPath();
-    currentPathBadge.textContent = p ? p.replaceAll('/', ' › ') : '—';
+    const {cat, sub, ssub, sss} = readValues();
+    const parts = [cat, sub, ssub, sss].filter(Boolean);
+    currentPathBadge.textContent = parts.length ? parts.join(' › ') : '—';
   }
 
   function populateSelects(){
@@ -702,6 +824,7 @@
     if (prev.ssubNew) oneBarEnterNew('ssub'); else oneBarExitNew('ssub', false);
     if (prev.sssNew)  oneBarEnterNew('sss');  else oneBarExitNew('sss', false);
 
+    /* refresh custom glass selects after options change */
     if (window.refreshGlassSelects) window.refreshGlassSelects();
   }
 
@@ -734,7 +857,6 @@
 
     updatePathPreview();
     updateVisibility();
-    refreshKeywordsForPath(); // keep right-side keywords in sync
   }
 
   function onLevelChange(level){
@@ -773,9 +895,42 @@
     }
     kwInput.focus();
   }
+  /* make available to Keyword panel script */
   window.applyPathToLeft = applyPathToLeft;
 
-  /* ---------- Manage modal wiring (unchanged) ---------- */
+  /* ---------- manage area (modal) ---------- */
+  function qs(obj){
+    const sp = new URLSearchParams();
+    Object.entries(obj).forEach(([k,v]) => { if (v !== undefined && v !== null) sp.set(k, v); });
+    return sp.toString();
+  }
+
+  async function previewCascadeTotals(level, ctx, names){
+    let totals = { nodes: 0, keywords: 0, transactions: 0, okCount: 0 };
+    for (const name of names){
+      const params = { level, cat: ctx.cat || '', sub: ctx.sub || '', ssub: ctx.ssub || '', sss: '' };
+      if (level === 'category') { params.cat = name; params.sub = params.ssub = params.sss = ''; }
+      if (level === 'subcategory') { params.sub = name; params.ssub = params.sss = ''; }
+      if (level === 'subsubcategory') { params.ssub = name; params.sss = ''; }
+      if (level === 'subsubsubcategory') { params.sss = name; }
+      try{
+        const r = await fetch(`/admin/categories/cascade_preview?${qs(params)}`);
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (j && j.ok && j.data){
+          const n = (j.data.nodes_total ?? j.data.total_nodes ?? j.data.nodes?.total ?? j.data.nodes?.total_nodes ?? 1);
+          const k = (j.data.keywords ?? 0);
+          const t = (j.data.transactions ?? 0);
+          totals.nodes += Number(n)||0;
+          totals.keywords += Number(k)||0;
+          totals.transactions += Number(t)||0;
+          totals.okCount += 1;
+        }
+      }catch(_e){}
+    }
+    return totals;
+  }
+
   function buildManageBody(level, items){
     if (!items.length){
       return `<div class="text-center muted">No items at this level.</div>`;
@@ -819,17 +974,64 @@
     const modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
     if (modal) modal.show();
 
+    const btnPreview = document.getElementById('btnPreviewCascade');
+    const divPreview = document.getElementById('cascadePreview');
+    const chkCascade = document.getElementById('chkCascade');
+
+    async function computeAndShowPreview() {
+      const deletes = Array.from(document.querySelectorAll('.btn-delete'))
+        .filter(btn => btn.dataset.deleted === 'true')
+        .map(btn => btn.dataset.name);
+      if (!deletes.length){ divPreview.style.display='none'; return; }
+      divPreview.style.display='inline';
+      divPreview.textContent = 'Preview: calculating…';
+      try{
+        const totals = await previewCascadeTotals(level, ctx, deletes);
+        if (totals.okCount > 0){
+          divPreview.textContent = `Preview: ${totals.nodes} node(s), ${totals.keywords} keyword(s), affecting ${totals.transactions} transaction row(s).`;
+        }else{
+          divPreview.textContent = 'Preview unavailable (endpoint not found). You can still proceed.';
+        }
+      }catch(e){
+        divPreview.textContent = 'Preview failed. You can still proceed.';
+      }
+    }
+    btnPreview.onclick = (e)=>{ e.preventDefault(); computeAndShowPreview(); };
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        const isDeleted = btn.dataset.deleted === 'true';
+        btn.dataset.deleted = isDeleted ? 'false' : 'true';
+        btn.closest('tr').style.opacity = isDeleted ? '1' : '0.5';
+        if (chkCascade?.checked) { computeAndShowPreview(); }
+      });
+    });
+
     document.getElementById('saveManage').onclick = async () => {
       const edits = Array.from(document.querySelectorAll('.edit-name'))
         .map(inp => ({ old: inp.dataset.old, new: inp.value.trim() }));
       const deletes = Array.from(document.querySelectorAll('.btn-delete'))
         .filter(btn => btn.dataset.deleted === 'true')
         .map(btn => btn.dataset.name);
+      const wantsCascade = !!chkCascade?.checked;
+
+      if (wantsCascade && deletes.length){
+        let msg = 'This will cascade delete selected item(s) and all of their children & keywords.\n\n';
+        try{
+          const totals = await previewCascadeTotals(level, ctx, deletes);
+          if (totals.okCount > 0){
+            msg += `Impact:\n• ${totals.nodes} node(s)\n• ${totals.keywords} keyword(s)\n• ${totals.transactions} transaction row(s)\n\n`;
+          }
+        }catch(_e){}
+        msg += 'Proceed?';
+        if (!confirm(msg)) return;
+      }
 
       const res = await fetch('/admin/api/manage_category', {
         method: 'POST',
-        headers: headersJSON(),
-        body: JSON.stringify({ level, ctx, edits, deletes, cascade: !!document.getElementById('chkCascade')?.checked })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level, ctx, edits, deletes, cascade: wantsCascade })
       }).then(r => r.json()).catch(()=>({ok:false, error:'Network error'}));
 
       if (!res.ok){
@@ -864,114 +1066,34 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* ---------- Keywords for current path (right card) ---------- */
-  const kwpList   = document.getElementById('kwp-list');
-  const kwpCount  = document.getElementById('kwp-count');
-  const kwpNew    = document.getElementById('kwp-new');
-  const kwpAddBtn = document.getElementById('kwp-add');
-  const kwpStatus = document.getElementById('kwp-status');
+  /* ---------- NEW: “View drawer” buttons wiring (uses universal drawer from layout) ---------- */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.drawer-link');
+    if (!btn) return;
+    e.preventDefault();
 
-  function setKwpMsg(msg, ok=true){
-    kwpStatus.textContent = msg || '';
-    kwpStatus.classList.toggle('text-danger', !ok);
-  }
+    const level = btn.dataset.level;
+    const { cat, sub, ssub, sss } = readValues();
 
-  function renderKwp(list){
-    const arr = Array.isArray(list) ? list : (Array.isArray(list?.keywords) ? list.keywords : []);
-    kwpCount.textContent = `${arr.length} keyword${arr.length===1?'':'s'}`;
-    kwpList.innerHTML = arr.length ? arr.map(k=>`
-      <span class="kwp-chip">
-        <span>${k}</span>
-        <button title="Remove" data-k="${k}">×</button>
-      </span>
-    `).join('') : '<span class="muted">No keywords yet.</span>';
-  }
+    if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
+    if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
+    if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
+    if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-  async function fetchKeywords(path){
-    if (!path){ renderKwp([]); return; }
-    setKwpMsg('Loading…');
-    try{
-      const url = `${window.CL_URLS.KW_GET_URL}?${qs({ path })}`;
-      const res = await fetch(url);
-      const j = await res.json().catch(()=>({}));
-      renderKwp(j);
-      setKwpMsg('');
-    }catch(e){
-      setKwpMsg('Failed to load keywords', false);
-    }
-  }
+    const state = { level, cat, sub, ssub, sss, allowHidden: true };
+    /* remember for the builder-local keyword adapter */
+    window.__drawerCtx = state;
 
-  async function addKeyword(path, kw){
-    if (!path || !kw) return;
-    setKwpMsg('Adding…');
-    try{
-      const res = await fetch(window.CL_URLS.KW_ADD_URL, {
-        method: 'POST',
-        headers: headersJSON(),
-        body: JSON.stringify({ path, keyword: kw })
-      }).then(r => r.json());
-      if (res && res.ok !== false){
-        kwpNew.value = '';
-        await fetchKeywords(path);
-        setKwpMsg('Added.');
-      }else{
-        throw new Error(res?.error || 'Add failed');
-      }
-    }catch(e){
-      setKwpMsg(String(e.message || e), false);
-    }
-  }
-
-  async function removeKeyword(path, kw){
-    if (!path || !kw) return;
-    setKwpMsg('Removing…');
-    try{
-      const res = await fetch(window.CL_URLS.KW_REMOVE_URL, {
-        method: 'POST',
-        headers: headersJSON(),
-        body: JSON.stringify({ path, keyword: kw })
-      }).then(r => r.json());
-      if (res && res.ok !== false){
-        await fetchKeywords(path);
-        setKwpMsg('Removed.');
-      }else{
-        throw new Error(res?.error || 'Remove failed');
-      }
-    }catch(e){
-      setKwpMsg(String(e.message || e), false);
-    }
-  }
-
-  function refreshKeywordsForPath(){
-    fetchKeywords(currentPath());
-  }
-
-  kwpAddBtn.addEventListener('click', ()=>{
-    const p = currentPath();
-    const k = (kwpNew.value || '').trim();
-    if (!p){ setKwpMsg('Pick a path first.', false); return; }
-    if (!k){ setKwpMsg('Type a keyword.', false); return; }
-    addKeyword(p, k);
-  });
-
-  kwpNew.addEventListener('keydown', (e)=>{
-    if (e.key === 'Enter'){
-      e.preventDefault();
-      kwpAddBtn.click();
+    if (typeof window.openDrawerForPath === 'function') {
+      window.openDrawerForPath(state);
+    } else if (typeof window.openCategoryManager === 'function' && level === 'category') {
+      window.openCategoryManager(cat, { allowHidden: true });
+    } else {
+      alert('Drawer UI not loaded yet.');
     }
   });
 
-  kwpList.addEventListener('click', (e)=>{
-    const b = e.target.closest('button[data-k]');
-    if (!b) return;
-    const p = currentPath();
-    const k = b.dataset.k || '';
-    if (confirm(`Remove keyword “${k}”?`)){
-      removeKeyword(p, k);
-    }
-  });
-
-  /* ---------- Misc + builder wiring ---------- */
+  /* ---------- Misc panel wiring ---------- */
   function miscLabelsParam(){
     const labs = [];
     if (lblMisc.checked) labs.push('Miscellaneous');
@@ -1062,7 +1184,7 @@
     if (pathLink){
       e.preventDefault();
       const p = pathLink.dataset.path || '';
-      applyPathToLeft(p.replaceAll('/', ' > '));
+      applyPathToLeft(p);
     }
   });
 
@@ -1085,6 +1207,7 @@
     updateEnablement();
   });
 
+  /* ---------- builder wiring ---------- */
   [selCategory, selSub, selSubSub, selSubSubSub].forEach((sel) => {
     sel.addEventListener('change', () => {
       const level = (sel === selCategory) ? 'cat' : (sel === selSub) ? 'sub' : (sel === selSubSub) ? 'ssub' : 'sss';
@@ -1122,10 +1245,487 @@
     if (btnSaveAll.disabled) e.preventDefault();
   });
 
-  // init
   populateSelects();
   updateVisibility();
   updateEnablement();
   fetchMisc();
 </script>
+
+<!-- === NEW: Glass Select (blurred custom dropdown via portal + scrim) === -->
+<script>
+(function(){
+  function wrapSelect(select){
+    if (select.dataset.gsInit === '1') return;
+    select.dataset.gsInit = '1';
+
+    const wrap = document.createElement('div'); wrap.className='gs-wrap';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.classList.add('gs-native');
+
+    const trigger = document.createElement('button');
+    trigger.type='button';
+    trigger.className='gs-trigger';
+    trigger.setAttribute('aria-haspopup','listbox');
+    trigger.setAttribute('aria-expanded','false');
+    trigger.innerHTML = '<span class="gs-label"></span><span class="gs-caret">▾</span>';
+    wrap.insertBefore(trigger, select);
+    const labelEl = trigger.querySelector('.gs-label');
+
+    // Popup lives in body when open
+    const popup = document.createElement('div'); popup.className='gs-popup'; popup.hidden=true;
+    const list = document.createElement('ul'); list.className='gs-list'; list.setAttribute('role','listbox');
+    popup.appendChild(list);
+
+    // Scrim (blur layer)
+    const scrim = document.createElement('div'); scrim.className='gs-scrim'; scrim.hidden = true;
+
+    function syncLabel(){
+      const opt = select.selectedOptions[0];
+      labelEl.textContent = opt ? opt.textContent : 'Select…';
+    }
+
+    function placePopup(){
+      const r = trigger.getBoundingClientRect();
+      popup.style.left = Math.round(r.left) + 'px';
+      popup.style.top  = Math.round(r.bottom + 6) + 'px';
+      popup.style.minWidth = Math.max(240, Math.round(r.width)) + 'px';
+      popup.style.maxWidth = Math.round(Math.min(window.innerWidth - 24, r.width * 1.6)) + 'px';
+    }
+
+    function close(){
+      if (popup.hidden) return;
+      popup.hidden = true;
+      scrim.hidden = true;
+      trigger.setAttribute('aria-expanded','false');
+      if (popup.parentNode !== wrap) wrap.appendChild(popup);
+      if (scrim.parentNode) scrim.parentNode.removeChild(scrim);
+      window.removeEventListener('resize', onWin);
+      window.removeEventListener('scroll', onWin, true);
+    }
+
+    function open(){
+      if (!popup.parentNode || popup.parentNode === wrap) document.body.appendChild(popup);
+      if (!scrim.parentNode) document.body.appendChild(scrim);
+      scrim.hidden = false;
+      popup.hidden = false;
+      trigger.setAttribute('aria-expanded','true');
+      placePopup();
+      popup.focus?.();
+      window.addEventListener('resize', onWin);
+      window.addEventListener('scroll', onWin, true);
+    }
+
+    function toggle(){ popup.hidden ? open() : close(); }
+    function onWin(){ placePopup(); }
+
+    function apply(value){
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles:true }));
+      syncLabel(); close();
+    }
+
+    function rebuild(){
+      list.innerHTML = '';
+      const opts = Array.from(select.options);
+      opts.forEach((o, idx)=>{
+        if (idx===1 && opts[0]?.disabled){
+          const hr = document.createElement('div'); hr.className='gs-divider'; list.appendChild(hr);
+        }
+        const li = document.createElement('li');
+        li.className='gs-option'; li.setAttribute('role','option');
+        li.dataset.value = o.value;
+        if (o.disabled) li.dataset.disabled = 'true';
+        if (o.selected) li.setAttribute('aria-selected','true');
+        li.textContent = o.textContent;
+        li.addEventListener('click', ()=>{ if (!o.disabled) apply(o.value); });
+        li.addEventListener('mousemove', ()=>{
+          list.querySelectorAll('.gs-option[aria-current="true"]').forEach(x=>x.removeAttribute('aria-current'));
+          li.setAttribute('aria-current','true');
+        });
+        list.appendChild(li);
+      });
+      syncLabel();
+      mirrorVisibility();
+    }
+
+    const mo = new MutationObserver(rebuild);
+    mo.observe(select, { childList:true, subtree:true, attributes:true, attributeFilter:['value','disabled','class'] });
+
+    function mirrorVisibility(){
+      trigger.style.display = select.classList.contains('d-none') ? 'none' : '';
+    }
+
+    // typing
+    let buf='', t=null;
+    function typeAhead(k){
+      buf += k.toLowerCase(); clearTimeout(t); t=setTimeout(()=>buf='',600);
+      const f = Array.from(select.options).find(o=>!o.disabled && o.text.toLowerCase().startsWith(buf));
+      if (f) apply(f.value);
+    }
+    trigger.addEventListener('keydown', (e)=>{
+      if (e.key===' '||e.key==='Enter'||e.key==='ArrowDown'){ e.preventDefault(); open(); return; }
+      if (/^[\w\s]$/.test(e.key)) typeAhead(e.key);
+    });
+
+    trigger.addEventListener('click', toggle);
+    scrim.addEventListener('click', close);
+    document.addEventListener('click', (e)=>{ if (!popup.hidden && !popup.contains(e.target) && !trigger.contains(e.target)) close(); });
+
+    rebuild();
+  }
+
+  // Public: upgrade all current selects
+  window.refreshGlassSelects = function(){
+    document.querySelectorAll('.onebar-select').forEach(wrapSelect);
+  };
+
+  if (document.readyState !== 'loading') window.refreshGlassSelects();
+  else document.addEventListener('DOMContentLoaded', window.refreshGlassSelects);
+})();
+</script>
+
+<script>
+  // =========================
+  // === Keyword Finder JS ===
+  // =========================
+  (function(){
+    const QS = (s,r=document)=>r.querySelector(s);
+    const QSA = (s,r=document)=>Array.from(r.querySelectorAll(s));
+    const esc = s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+    const el = {
+      form: QS('#kb-form'),
+      q: QS('#kb-q'),
+      resultKw: QS('#kb-resultKw'),
+      body: QS('#kb-body'),
+      count: QS('#kb-count'),
+      cloud: QS('#kb-cloud'),
+      kwcount: QS('#kb-kwcount'),
+      status: QS('#kb-status'),
+      btnClear: QS('#kb-clear'),
+      btnMD: QS('#kb-md'),
+      btnReindex: QS('#kb-reindex'),
+    };
+
+    let INDEX = new Map();
+
+    const levelName = d => ['category','subcategory','subsubcategory','subsubsubcategory'][Math.min(d-1,3)] || 'category';
+
+    function buildIndexFromCFG(){
+      const idx = new Map();
+      const add = (kw, parts) => {
+        const key = String(kw||'').trim().toLowerCase();
+        if (!key) return;
+        const path = parts.filter(Boolean).join(' / ');
+        if (!idx.has(key)) idx.set(key, new Set());
+        idx.get(key).add(path);
+      };
+
+      const CK  = (window.CFG && window.CFG.CATEGORY_KEYWORDS) || {};
+      const SK  = (window.CFG && window.CFG.SUBCATEGORY_KEYWORDS) || {};
+      const S2K = (window.CFG && window.CFG.SUBSUBCATEGORY_KEYWORDS) || {};
+      const S3K = (window.CFG && window.CFG.SUBSUBSUBCATEGORY_KEYWORDS) || {};
+
+      Object.keys(CK).forEach(cat=>{ (CK[cat]||[]).forEach(kw=> add(kw, [cat])); });
+      Object.keys(SK).forEach(cat=>{ const o = SK[cat]||{}; Object.keys(o).forEach(sub=>{ (o[sub]||[]).forEach(kw=> add(kw, [cat, sub])); }); });
+      Object.keys(S2K).forEach(cat=>{ const o = S2K[cat]||{}; Object.keys(o).forEach(sub=>{ const oo = o[sub]||{}; Object.keys(oo).forEach(ssub=>{ (oo[ssub]||[]).forEach(kw=> add(kw, [cat, sub, ssub])); }); }); });
+      Object.keys(S3K).forEach(cat=>{ const o = S3K[cat]||{}; Object.keys(o).forEach(sub=>{ const oo = o[sub]||{}; Object.keys(oo).forEach(ssub=>{ const ooo = oo[ssub]||{}; Object.keys(ooo).forEach(sss=>{ (ooo[sss]||[]).forEach(kw=> add(kw, [cat, sub, ssub, sss])); }); }); }); });
+
+      return idx;
+    }
+
+    function renderCloud(){
+      const entries = Array.from(INDEX.entries())
+        .map(([k,set])=>({kw:k,count:set.size}))
+        .sort((a,b)=> a.kw.localeCompare(b.kw));
+      el.kwcount.textContent = entries.length;
+      el.cloud.innerHTML = entries.map(e=>`
+        <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
+          ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
+        </span>`).join('');
+      document.querySelectorAll('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
+        const kw=ch.getAttribute('data-kw')||''; el.q.value=kw; runSearch();
+      }));
+    }
+
+    function renderMatches(keyword){
+      const key = (keyword||'').trim().toLowerCase();
+      el.resultKw.textContent = key ? `for “${keyword}”` : '';
+      if (!key){
+        el.count.textContent='0';
+        el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Type a keyword and press Search.</td></tr>`;
+        return;
+      }
+      if (!INDEX || INDEX.size===0){
+        el.count.textContent='0';
+        el.body.innerHTML=`<tr><td colspan="3" class="text-muted">Index is empty. Click Re-index.</td></tr>`;
+        return;
+      }
+      const hits = Array.from(INDEX.keys()).filter(k=>k.includes(key));
+      const paths = new Set(); hits.forEach(h=> INDEX.get(h).forEach(p=>paths.add(p)));
+      const rows = Array.from(paths).sort((a,b)=> a.localeCompare(b));
+
+      el.count.textContent = rows.length;
+      el.body.innerHTML = rows.length ? rows.map(p=>{
+        const parts=p.split(' / ').map(s=>s.trim()).filter(Boolean);
+        const ds={ level: levelName(parts.length), cat:parts[0]||'', sub:parts[1]||'', ssub:parts[2]||'', sss:parts[3]||'' };
+        return `<tr>
+          <td class="kb-path" title="${esc(p)}">${esc(p)}</td>
+          <td>${esc(ds.level)}</td>
+          <td class="text-end">
+            <a href="#"
+               class="kb-manage"
+               data-manage
+               data-level="${esc(ds.level)}"
+               data-cat="${esc(ds.cat)}"
+               data-sub="${esc(ds.sub)}"
+               data-ssub="${esc(ds.ssub)}"
+               data-sss="${esc(ds.sss)}"
+               onclick="return (window.dashManage ? dashManage(event, this) : (window.openCategoryManager ? (openCategoryManager({level:'${esc(ds.level)}',cat:'${esc(ds.cat)}',sub:'${esc(ds.sub)}',ssub:'${esc(ds.ssub)}',sss:'${esc(ds.sss)}'}), false) : false));"
+            >manage</a>
+          </td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="3" class="text-muted">No paths found for that keyword.</td></tr>`;
+    }
+
+    function reindexFast(){
+      const t0 = performance.now();
+      INDEX = buildIndexFromCFG();
+      renderCloud();
+      el.status.textContent = `Ready (local) in ${Math.round(performance.now()-t0)}ms.`;
+    }
+
+    function runSearch(ev){
+      if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+      renderMatches(el.q.value||'');
+    }
+
+    if (el.form) el.form.addEventListener('submit', runSearch);
+    if (el.btnClear) el.btnClear.addEventListener('click', ()=>{ el.q.value=''; renderMatches(''); });
+    if (el.btnMD) el.btnMD.addEventListener('click', ()=>{ el.q.value='MOBILE DEPOSIT'; renderMatches('MOBILE DEPOSIT'); });
+    if (el.btnReindex) el.btnReindex.addEventListener('click', (e)=> reindexFast());
+
+    reindexFast();
+  })();
+</script>
+
+<script>
+(function () {
+  const EPS = 0.005;
+
+  function shouldHide(desc, amtText) {
+    const d = (desc || "").toUpperCase();
+    const a = Number(String(amtText || "").replace(/[^0-9.-]/g, "")) || 0;
+
+    if (Math.abs(a - 10002.02) < EPS || Math.abs(a + 10002.02) < EPS) return true;
+    if (d.includes("ROBINHOOD") && Math.abs(a + 450.0) < EPS) return true;
+
+    return false;
+  }
+
+  function scrub(container) {
+    const sections = Array.from(container.querySelectorAll("h1,h2,h3,h4,h5,h6"))
+      .filter(h => /misc\s*\/\s*uncategorized/i.test(h.textContent || ""));
+
+    sections.forEach(h => {
+      const scope = h.parentElement || document;
+      const tables = scope.querySelectorAll("table");
+      tables.forEach(tbl => {
+        const rows = tbl.querySelectorAll("tbody tr");
+        rows.forEach(tr => {
+          const tds = tr.querySelectorAll("td");
+          if (tds.length < 3) return;
+          const desc = tds[1]?.innerText || tds[1]?.textContent || "";
+          const amt  = tds[2]?.innerText || tds[2]?.textContent || "";
+          if (shouldHide(desc, amt)) tr.remove();
+        });
+      });
+    });
+  }
+
+  scrub(document);
+
+  const obs = new MutationObserver(muts => {
+    for (const m of muts) {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType === 1) scrub(node);
+      });
+    }
+  });
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
+
+<!-- ensure drawer data includes allow_hidden=1 for inspect calls -->
+<script>
+(function(){
+  const origFetch = window.fetch;
+  window.fetch = function(input, init){
+    try {
+      let url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
+        const u = new URL(url, window.location.origin);
+        u.searchParams.set('allow_hidden', '1');
+        if (typeof input === 'string') {
+          input = u.toString();
+        } else {
+          input = new Request(u.toString(), input);
+        }
+      }
+    } catch(e) {}
+    return origFetch(input, init);
+  };
+})();
+</script>
+
+<!-- BUILDER-LOCAL KEYWORD ADAPTER -->
+<script>
+/*
+  This page-level shim guarantees the drawer’s Keywords tab works here,
+  regardless of which backend route is enabled. It tries, in order:
+
+  GET  /admin/api/keywords_for_name?name=LAST
+  GET  /admin/categories/keywords_for_name?name=LAST
+  GET  /admin/api/keywords_for_path?path=Cat/Sub/...
+  GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
+  GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
+
+  And exposes:
+    window.refreshKeywords()
+    window.deleteKeyword({ keyword, path })
+    window.addKeyword(kw)
+*/
+(function(){
+  'use strict';
+
+  const $ = (id)=>document.getElementById(id);
+
+  function ctxPathStr(ctx){
+    return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/');
+  }
+
+  function guessCtx(){
+    // Prefer the remembered context from the “View drawer” click
+    const ctx = (window.__drawerCtx || {});
+    return {
+      level: ctx.level || 'category',
+      cat:   ctx.cat   || '',
+      sub:   ctx.sub   || '',
+      ssub:  ctx.ssub  || '',
+      sss:   ctx.sss   || ''
+    };
+  }
+
+  async function tryJson(urls){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { headers: { 'Accept':'application/json' }});
+        if (r.ok) return await r.json();
+        last = new Error('GET '+u+' → '+r.status);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('No keyword endpoint worked');
+  }
+
+  async function tryPost(urls, body){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+        if (r.ok){
+          const ct = (r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : await r.text();
+        }
+        last = new Error('POST '+u+' → '+r.status);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('No keyword POST endpoint worked');
+  }
+
+  async function refreshKeywords(){
+    const list = $('kw-list'); if (!list) return;
+    list.innerHTML = '<span class="muted">Loading…</span>';
+
+    const ctx = guessCtx();
+    const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
+    const path = ctxPathStr(ctx);
+
+    const qs = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+
+    const candidates = [
+      `/admin/api/keywords_for_name?${qs({name:last})}`,
+      `/admin/categories/keywords_for_name?${qs({name:last})}`,
+      `/admin/api/keywords_for_path?${qs({path})}`,
+      `/admin/categories/keywords_for_path?${qs({path})}`,
+      `/admin/categories/keywords?${qs({name:last, path})}`
+    ];
+
+    let arr = [];
+    try{
+      const j = await tryJson(candidates);
+      if (Array.isArray(j)) arr = j;
+      else if (j && Array.isArray(j.keywords)) arr = j.keywords;
+      else if (j && Array.isArray(j.data)) arr = j.data;
+    }catch(e){
+      console.warn('Keywords GET failed', e);
+      arr = [];
+    }
+
+    if (!arr.length){
+      list.innerHTML = '<span class="muted">No keywords yet.</span>';
+      return;
+    }
+
+    list.innerHTML = arr.map(k =>
+      `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
+    ).join(' ');
+
+    list.addEventListener('click', function onX(e){
+      const btn = e.target.closest('.kw-x'); if (!btn) return;
+      e.preventDefault();
+      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path }).then(refreshKeywords);
+    }, { once:true });
+  }
+
+  async function deleteKeyword({ keyword, path }){
+    const body = { keyword, path };
+    const posts = [
+      '/admin/api/keyword_remove',
+      '/admin/categories/keyword_remove',
+      '/admin/categories/keywords' // unified
+    ];
+    try{
+      await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body));
+    }catch(e){
+      console.warn('Keyword remove failed', e);
+    }
+  }
+
+  async function addKeyword(kw){
+    const ctx = guessCtx();
+    const body = Object.assign({ keyword: kw, name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'', path: ctxPathStr(ctx) }, ctx);
+    const posts = [
+      '/admin/api/keyword_add',
+      '/admin/categories/keyword_add',
+      '/admin/categories/keywords' // unified
+    ];
+    try{
+      await tryPost(posts, Object.assign({ action:'add' }, body));
+    }catch(e){
+      console.warn('Keyword add failed', e);
+    }
+  }
+
+  // Expose so the drawer’s inline scripts can call these on this page
+  window.refreshKeywords = refreshKeywords;
+  window.deleteKeyword   = deleteKeyword;
+  window.addKeyword      = addKeyword;
+
+  // If user clicks the drawer “Add” button inside the Keywords tab,
+  // our addKeyword will be picked up by the drawer’s handler.
+})();
+</script>
+
 {% endblock %}
