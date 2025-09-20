@@ -1522,114 +1522,127 @@
 </script>
 
 <script>
-(function () {
-  const EPS = 0.005;
-
-  function shouldHide(desc, amtText) {
-    const d = (desc || "").toUpperCase();
-    const a = Number(String(amtText || "").replace(/[^0-9.-]/g, "")) || 0;
-
-    if (Math.abs(a - 10002.02) < EPS || Math.abs(a + 10002.02) < EPS) return true;
-    if (d.includes("ROBINHOOD") && Math.abs(a + 450.0) < EPS) return true;
-
-    return false;
-  }
-
-  function scrub(container) {
-    const sections = Array.from(container.querySelectorAll("h1,h2,h3,h4,h5,h6"))
-      .filter(h => /misc\s*\/\s*uncategorized/i.test(h.textContent || ""));
-
-    sections.forEach(h => {
-      const scope = h.parentElement || document;
-      const tables = scope.querySelectorAll("table");
-      tables.forEach(tbl => {
-        const rows = tbl.querySelectorAll("tbody tr");
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll("td");
-          if (tds.length < 3) return;
-          const desc = tds[1]?.innerText || tds[1]?.textContent || "";
-          const amt  = tds[2]?.innerText || tds[2]?.textContent || "";
-          if (shouldHide(desc, amt)) tr.remove();
-        });
-      });
-    });
-  }
-
-  scrub(document);
-
-  const obs = new MutationObserver(muts => {
-    for (const m of muts) {
-      m.addedNodes.forEach(node => {
-        if (node.nodeType === 1) scrub(node);
-      });
-    }
-  });
-  obs.observe(document.documentElement, { childList: true, subtree: true });
-})();
-</script>
-
-<script>
 (function(){
-  // ========= FETCH PATCH =========
+  // ========= FETCH + KEYWORD SHIM (runs once) =========
+  if (window.__builderFetchWrapped) return;
+  window.__builderFetchWrapped = true;
+
   const origFetch = window.fetch;
 
+  // -------- context helpers ----------
   function ctxFromDrawer(){
     const c = (window.__drawerCtx || {});
-    return { level: c.level || 'category', cat: c.cat||'', sub: c.sub||'', ssub: c.ssub||'', sss: c.sss||'' };
+    return {
+      level: c.level || 'category',
+      cat:   c.cat   || '',
+      sub:   c.sub   || '',
+      ssub:  c.ssub  || '',
+      sss:   c.sss   || ''
+    };
   }
   function pathFromCtx(ctx){ return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/'); }
-  function qs(o){ return Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'); }
 
-  async function getKeywordsMerged({ name, path }){
-    const ctx  = ctxFromDrawer();
-    const last = name || [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
-    const pth  = path || pathFromCtx(ctx);
-    const urls = [
-      `/admin/api/keywords_for_name?${qs({name:last})}`,
-      `/admin/categories/keywords_for_name?${qs({name:last})}`,
-      `/admin/api/keywords_for_path?${qs({path:pth})}`,
-      `/admin/categories/keywords_for_path?${qs({path:pth})}`,
-      `/admin/categories/keywords?${qs({name:last, path:pth})}`
-    ];
-    for (const url of urls){
-      try{
-        const r = await origFetch(url, { headers: { 'Accept':'application/json' }});
-        if (!r.ok) continue;
-        const j = await r.json();
-        if (Array.isArray(j)) return j;
-        if (j && Array.isArray(j.keywords)) return j.keywords;
-        if (j && Array.isArray(j.data)) return j.data;
-      }catch(_e){}
+  // Merge keywords from any CFG shape at each depth
+  function fromCFGKeywords(parts){
+    const CFG = window.CFG || {};
+    const [cat, sub, ssub, sss] = parts;
+    const out = new Set();
+
+    // level 1
+    if (cat){
+      (CFG.CATEGORY_KEYWORDS?.[cat] || []).forEach(k => out.add(String(k)));
     }
-    return [];
+    // level 2
+    if (cat && sub){
+      (CFG.SUBCATEGORY_MAPS?.[cat]?.[sub] || []).forEach(k => out.add(String(k)));
+      (CFG.SUBCATEGORY_KEYWORDS?.[cat]?.[sub] || []).forEach(k => out.add(String(k)));
+    }
+    // level 3
+    if (cat && sub && ssub){
+      (CFG.SUBSUBCATEGORY_MAPS?.[cat]?.[sub]?.[ssub] || []).forEach(k => out.add(String(k)));
+      (CFG.SUBSUBCATEGORY_KEYWORDS?.[cat]?.[sub]?.[ssub] || []).forEach(k => out.add(String(k)));
+    }
+    // level 4
+    if (cat && sub && ssub && sss){
+      (CFG.SUBSUBSUBCATEGORY_MAPS?.[cat]?.[sub]?.[ssub]?.[sss] || []).forEach(k => out.add(String(k)));
+      (CFG.SUBSUBSUBCATEGORY_KEYWORDS?.[cat]?.[sub]?.[ssub]?.[sss] || []).forEach(k => out.add(String(k)));
+    }
+
+    return Array.from(out);
   }
 
+  // Optional debug helper (run in DevTools)
+  window.__debugKW = function (ctxOverride){
+    const ctx = ctxOverride || ctxFromDrawer();
+    const parts = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
+    const kws = fromCFGKeywords(parts);
+    console.info('[builder] debug keywords for', parts.join(' / '), kws);
+    return kws;
+  };
+
+  // -------- unified fetch wrapper ----------
   window.fetch = async function(input, init){
     try{
+      // Normalize
       let url = (typeof input === 'string') ? input : (input && input.url) || '';
+      const req = (typeof input === 'string') ? null : input;
+      const method = (init?.method || req?.method || 'GET').toUpperCase();
+
       if (url){
         const u = new URL(url, window.location.origin);
 
-        // keep: ensure allow_hidden on inspect
+        // Always add allow_hidden=1 to /inspect calls
         if (u.pathname.includes('/admin/categories/inspect') && !u.searchParams.has('allow_hidden')){
           u.searchParams.set('allow_hidden','1');
-          input = (typeof input === 'string') ? u.toString() : new Request(u.toString(), input);
           url = u.toString();
+          input = (typeof input === 'string') ? url : new Request(url, req || init || {});
         }
 
-        // intercept any drawer "keywords" calls
-        const isKw =
-          /\/admin\/(categories|api)\/(keywords|keywords_for_name|keywords_for_path)/.test(u.pathname);
+        // Intercept **all** drawer keyword routes (GET or POST)
+        const isKw = /\/admin\/(api|categories)\/(keywords|keywords_for_name|keywords_for_path)\b/i.test(u.pathname);
         if (isKw){
-          const data = await getKeywordsMerged({ name: u.searchParams.get('name')||'', path: u.searchParams.get('path')||'' });
-          return new Response(JSON.stringify({ ok:true, keywords:data }), { status:200, headers:{'Content-Type':'application/json'}});
+          // derive name/path from URL, or fall back to current drawer ctx
+          let name = u.searchParams.get('name') || '';
+          let path = u.searchParams.get('path') || '';
+
+          // If POST, try to pick up JSON body params (best-effort)
+          if (method === 'POST' && !name || method === 'POST' && !path){
+            try{
+              const bodySrc = init?.body || (req ? await req.clone().text() : '');
+              if (bodySrc) {
+                const jb = JSON.parse(bodySrc);
+                if (!name && typeof jb?.name === 'string') name = jb.name;
+                if (!path && typeof jb?.path === 'string') path = jb.path;
+              }
+            }catch(_e){}
+          }
+
+          if (!name || !path){
+            const ctx = ctxFromDrawer();
+            const partsCtx = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
+            if (!name) name = partsCtx[partsCtx.length - 1] || '';
+            if (!path) path = partsCtx.join('/');
+          }
+
+          // Prefer path→parts; ensure it contains name at the end
+          let parts = (path || '').split('/').map(s=>s.trim()).filter(Boolean);
+          if (name && parts[parts.length-1] !== name) parts.push(name);
+
+          const keywords = fromCFGKeywords(parts);
+          console.info('[builder] intercepted keywords for', parts.join(' / '), keywords);
+
+          const body = JSON.stringify({ ok:true, path, name, keywords, data: keywords });
+          return new Response(body, { status:200, headers:{'Content-Type':'application/json'} });
         }
       }
-    }catch(_e){}
+    }catch(e){
+      console.warn('[builder] fetch wrapper error, falling back', e);
+    }
+    // default: network
     return origFetch(input, init);
   };
 
-  // ========= PAGE-LEVEL KEYWORD API (single source) =========
+  // -------- Page-level helpers used by the drawer ----------
   function pickKwListEl(){
     return document.getElementById('kw-list') ||
            document.querySelector('[data-kw-list]') ||
@@ -1637,99 +1650,94 @@
            document.getElementById('keywordsList') ||
            document.getElementById('kwList');
   }
-  function guessCtx(){ return ctxFromDrawer(); }
-  function ctxPathStr(ctx){ return pathFromCtx(ctx); }
 
-  async function tryJson(urls){
-    let last;
-    for (const u of urls){
-      try{
-        const r = await fetch(u, { headers:{'Accept':'application/json'} });
-        if (r.ok) return await r.json();
-        last = new Error('GET '+u+' → '+r.status);
-      }catch(e){ last = e; }
+  function qs(o){ return Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'); }
+
+  // Nudge the drawer’s keyword list to (re)render from the intercepted endpoint
+  async function refreshKeywords(){
+    let list = pickKwListEl(), tries = 0;
+    while (!list && tries < 60){ await new Promise(r=>setTimeout(r,20)); list = pickKwListEl(); tries++; }
+    if (!list) return;
+
+    list.innerHTML = '<span class="muted">Loading…</span>';
+
+    const ctx = ctxFromDrawer();
+    const parts = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
+    const name  = parts[parts.length-1] || '';
+    const path  = parts.join('/');
+
+    // call any keywords endpoint — our fetch shim will answer
+    const url = `/admin/categories/keywords?${qs({ name, path })}`;
+
+    try{
+      const r = await fetch(url, { headers:{'Accept':'application/json'} });
+      const j = await r.json();
+      const arr = Array.isArray(j) ? j : (j?.keywords || j?.data || []);
+      if (!arr.length){ list.innerHTML = '<span class="muted">No keywords yet.</span>'; return; }
+
+      list.innerHTML = arr.map(k =>
+        `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
+      ).join(' ');
+
+      list.addEventListener('click', function onX(e){
+        const btn = e.target.closest('.kw-x'); if (!btn) return;
+        e.preventDefault();
+        deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path })
+          .then(refreshKeywords)
+          .catch(()=>{});
+      }, { once:true });
+
+    }catch(_e){
+      list.innerHTML = '<span class="text-danger">Failed to load keywords.</span>';
     }
-    throw last || new Error('No keyword endpoint worked');
   }
+
   async function tryPost(urls, body){
     let last;
     for (const u of urls){
       try{
         const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
-        if (r.ok){ const ct=(r.headers.get('content-type')||'').toLowerCase(); return ct.includes('json')? await r.json(): await r.text(); }
+        if (r.ok){
+          const ct = (r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : await r.text();
+        }
         last = new Error('POST '+u+' → '+r.status);
       }catch(e){ last = e; }
     }
     throw last || new Error('No keyword POST endpoint worked');
   }
 
-  async function refreshKeywords(){
-    let list = pickKwListEl(), tries=0;
-    while (!list && tries<60){ await new Promise(r=>setTimeout(r,20)); list=pickKwListEl(); tries++; }
-    if (!list) return;
-    list.innerHTML = '<span class="muted">Loading…</span>';
-
-    const ctx  = guessCtx();
-    const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
-    const path = ctxPathStr(ctx);
-    const qs2  = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
-    const candidates = [
-      `/admin/api/keywords_for_name?${qs2({name:last})}`,
-      `/admin/categories/keywords_for_name?${qs2({name:last})}`,
-      `/admin/api/keywords_for_path?${qs2({path})}`,
-      `/admin/categories/keywords_for_path?${qs2({path})}`,
-      `/admin/categories/keywords?${qs2({name:last, path})}`
-    ];
-
-    let arr=[];
-    try{
-      const j = await tryJson(candidates);
-      if (Array.isArray(j)) arr=j;
-      else if (j && Array.isArray(j.keywords)) arr=j.keywords;
-      else if (j && Array.isArray(j.data)) arr=j.data;
-    }catch(_e){ arr=[]; }
-
-    if (!arr.length){ list.innerHTML='<span class="muted">No keywords yet.</span>'; return; }
-
-    list.innerHTML = arr.map(k =>
-      `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
-    ).join(' ');
-
-    list.addEventListener('click', function onX(e){
-      const btn = e.target.closest('.kw-x'); if (!btn) return;
-      e.preventDefault();
-      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path })
-        .then(refreshKeywords).catch(()=>{});
-    }, { once:true });
-  }
-
   async function deleteKeyword({ keyword, path }){
-    const body = { keyword, path };
     const posts = [
       '/admin/api/keyword_remove',
       '/admin/categories/keyword_remove',
-      '/admin/categories/keywords'
+      '/admin/categories/keywords'  // unified
     ];
-    try{ await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body)); } catch(_e){}
+    try{ await tryPost(posts, { keyword, path, remove:true, action:'remove' }); }catch(_e){}
   }
+
   async function addKeyword(kw){
-    const ctx = guessCtx();
-    const body = Object.assign({
+    const ctx = ctxFromDrawer();
+    const body = {
       keyword: kw,
       name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'',
-      path: ctxPathStr(ctx)
-    }, ctx);
+      path: pathFromCtx(ctx),
+      ...ctx,
+      action: 'add'
+    };
     const posts = [
       '/admin/api/keyword_add',
       '/admin/categories/keyword_add',
-      '/admin/categories/keywords'
+      '/admin/categories/keywords' // unified
     ];
-    try{ await tryPost(posts, Object.assign({ action:'add' }, body)); } catch(_e){}
+    try{ await tryPost(posts, body); }catch(_e){}
   }
 
+  // Expose to the drawer
   window.refreshKeywords = refreshKeywords;
   window.deleteKeyword   = deleteKeyword;
   window.addKeyword      = addKeyword;
+
 })();
 </script>
 
