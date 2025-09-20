@@ -1542,7 +1542,7 @@
   }
   function pathFromCtx(ctx){ return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/'); }
 
-  // Merge keywords from any CFG shape at each depth
+  // Merge keywords from CFG at any depth (supports both *MAPS and *KEYWORDS shapes)
   function fromCFGKeywords(parts){
     const CFG = window.CFG || {};
     const [cat, sub, ssub, sss] = parts;
@@ -1571,19 +1571,12 @@
     return Array.from(out);
   }
 
-  // Optional debug helper (run in DevTools)
-  window.__debugKW = function (ctxOverride){
-    const ctx = ctxOverride || ctxFromDrawer();
-    const parts = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
-    const kws = fromCFGKeywords(parts);
-    console.info('[builder] debug keywords for', parts.join(' / '), kws);
-    return kws;
-  };
+  // Small utility
+  const qs = (o)=>Object.entries(o).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
 
   // -------- unified fetch wrapper ----------
   window.fetch = async function(input, init){
     try{
-      // Normalize
       let url = (typeof input === 'string') ? input : (input && input.url) || '';
       const req = (typeof input === 'string') ? null : input;
       const method = (init?.method || req?.method || 'GET').toUpperCase();
@@ -1598,51 +1591,42 @@
           input = (typeof input === 'string') ? url : new Request(url, req || init || {});
         }
 
-        // Intercept **all** drawer keyword routes (GET or POST)
-        const isKw = /\/admin\/(api|categories)\/(keywords|keywords_for_name|keywords_for_path)\b/i.test(u.pathname);
-        if (isKw){
-          // derive name/path from URL, or fall back to current drawer ctx
+        // Intercept only the drawer keyword **GET** endpoints and return a raw array
+        const isKeywordGET =
+          method === 'GET' &&
+          /\/admin\/(api|categories)\/(keywords|keywords_for_name|keywords_for_path)\b/i.test(u.pathname);
+
+        if (isKeywordGET){
+          // derive name/path from URL or drawer ctx
           let name = u.searchParams.get('name') || '';
           let path = u.searchParams.get('path') || '';
-
-          // If POST, try to pick up JSON body params (best-effort)
-          if (method === 'POST' && !name || method === 'POST' && !path){
-            try{
-              const bodySrc = init?.body || (req ? await req.clone().text() : '');
-              if (bodySrc) {
-                const jb = JSON.parse(bodySrc);
-                if (!name && typeof jb?.name === 'string') name = jb.name;
-                if (!path && typeof jb?.path === 'string') path = jb.path;
-              }
-            }catch(_e){}
-          }
-
           if (!name || !path){
             const ctx = ctxFromDrawer();
-            const partsCtx = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
-            if (!name) name = partsCtx[partsCtx.length - 1] || '';
-            if (!path) path = partsCtx.join('/');
+            const parts = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean);
+            if (!name) name = parts[parts.length - 1] || '';
+            if (!path) path = parts.join('/');
           }
 
-          // Prefer path→parts; ensure it contains name at the end
+          // Build parts and ensure 'name' is the tail
           let parts = (path || '').split('/').map(s=>s.trim()).filter(Boolean);
           if (name && parts[parts.length-1] !== name) parts.push(name);
 
           const keywords = fromCFGKeywords(parts);
-          console.info('[builder] intercepted keywords for', parts.join(' / '), keywords);
 
-          const body = JSON.stringify({ ok:true, path, name, keywords, data: keywords });
-          return new Response(body, { status:200, headers:{'Content-Type':'application/json'} });
+          // Return a PLAIN ARRAY the drawer expects
+          return new Response(JSON.stringify(keywords), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
         }
       }
     }catch(e){
       console.warn('[builder] fetch wrapper error, falling back', e);
     }
-    // default: network
     return origFetch(input, init);
   };
 
-  // -------- Page-level helpers used by the drawer ----------
+  // -------- Page-level helpers (optional) ----------
   function pickKwListEl(){
     return document.getElementById('kw-list') ||
            document.querySelector('[data-kw-list]') ||
@@ -1651,9 +1635,7 @@
            document.getElementById('kwList');
   }
 
-  function qs(o){ return Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'); }
-
-  // Nudge the drawer’s keyword list to (re)render from the intercepted endpoint
+  // Manually force the keywords list to load (uses our GET shim above)
   async function refreshKeywords(){
     let list = pickKwListEl(), tries = 0;
     while (!list && tries < 60){ await new Promise(r=>setTimeout(r,20)); list = pickKwListEl(); tries++; }
@@ -1666,25 +1648,40 @@
     const name  = parts[parts.length-1] || '';
     const path  = parts.join('/');
 
-    // call any keywords endpoint — our fetch shim will answer
-    const url = `/admin/categories/keywords?${qs({ name, path })}`;
-
     try{
-      const r = await fetch(url, { headers:{'Accept':'application/json'} });
-      const j = await r.json();
-      const arr = Array.isArray(j) ? j : (j?.keywords || j?.data || []);
-      if (!arr.length){ list.innerHTML = '<span class="muted">No keywords yet.</span>'; return; }
+      // our fetch shim will return a raw array here
+      const r = await fetch(`/admin/categories/keywords?${qs({ name, path })}`, { headers:{'Accept':'application/json'} });
+      const arr = await r.json();
+      if (!Array.isArray(arr) || !arr.length){ list.innerHTML = '<span class="muted">No keywords yet.</span>'; return; }
 
       list.innerHTML = arr.map(k =>
         `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
       ).join(' ');
 
-      list.addEventListener('click', function onX(e){
+      // Click-to-remove (POST calls are NOT intercepted)
+      list.addEventListener('click', async function onX(e){
         const btn = e.target.closest('.kw-x'); if (!btn) return;
         e.preventDefault();
-        deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path })
-          .then(refreshKeywords)
-          .catch(()=>{});
+        const keyword = decodeURIComponent(btn.dataset.kw||'');
+        const body = JSON.stringify({
+          keyword,
+          path,
+          action: 'remove',
+          remove: true
+        });
+
+        const posts = [
+          '/admin/api/keyword_remove',
+          '/admin/categories/keyword_remove',
+          '/admin/categories/keywords'
+        ];
+        for (const p of posts){
+          try{
+            const pr = await fetch(p, { method:'POST', headers:{'Content-Type':'application/json'}, body });
+            if (pr.ok) break;
+          }catch(_e){}
+        }
+        refreshKeywords();
       }, { once:true });
 
     }catch(_e){
@@ -1711,7 +1708,7 @@
     const posts = [
       '/admin/api/keyword_remove',
       '/admin/categories/keyword_remove',
-      '/admin/categories/keywords'  // unified
+      '/admin/categories/keywords'
     ];
     try{ await tryPost(posts, { keyword, path, remove:true, action:'remove' }); }catch(_e){}
   }
@@ -1728,7 +1725,7 @@
     const posts = [
       '/admin/api/keyword_add',
       '/admin/categories/keyword_add',
-      '/admin/categories/keywords' // unified
+      '/admin/categories/keywords'
     ];
     try{ await tryPost(posts, body); }catch(_e){}
   }
@@ -1740,5 +1737,6 @@
 
 })();
 </script>
+
 
 {% endblock %}
