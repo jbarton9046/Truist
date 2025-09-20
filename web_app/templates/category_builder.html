@@ -1066,43 +1066,46 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* ===== Drawer wiring: open the drawer from any [data-manage] link on this page ===== */
+  <!-- Drawer wiring: open the drawer and force-initialize the Keywords list -->
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-manage]');
     if (!btn) return;
     e.preventDefault();
 
-    const level = btn.dataset.level || 'category';
     const { cat, sub, ssub, sss } = readValues();
+    const level = btn.dataset.level || 'category';
 
     if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
     if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
     if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
     if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-    const state = {
-      level,
-      cat,
-      sub,
-      ssub,
-      sss,
-      month: (window.CURRENT_MONTH || ''),
-      allowHidden: true
-    };
-
-    /* remember for the builder-local keyword adapter */
+    const state = { level, cat, sub, ssub, sss, month: (window.CURRENT_MONTH || ''), allowHidden: true };
     window.__drawerCtx = state;
 
     if (typeof window.openDrawerForPath === 'function') {
       window.openDrawerForPath(state);
     } else if (typeof window.openCategoryManager === 'function') {
-      // ✅ pass ONE object (same shape used across the app)
       window.openCategoryManager(state);
     } else {
       alert('Drawer UI not loaded yet.');
+      return;
     }
+
+    // --- Nudge the Keywords tab to populate immediately ---
+    // We retry briefly until the drawer's DOM exists, then call the page shim.
+    const start = Date.now();
+    (function tryKick() {
+      // if the drawer puts its keywords list in #kw-list (usual), or if the tab container exists
+      const hasDrawer = document.getElementById('kw-list') ||
+                        document.querySelector('[data-drawer], .drawer, .category-drawer');
+      if (hasDrawer) {
+        try { window.refreshKeywords?.(); } catch(_) {}
+        return;
+      }
+      if (Date.now() - start < 1200) { requestAnimationFrame(tryKick); }
+    })();
   });
-  /* ===== end drawer wiring ===== */
 
   /* ---------- Misc panel wiring ---------- */
   function miscLabelsParam(){
