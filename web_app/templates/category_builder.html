@@ -1066,7 +1066,6 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  <!-- Drawer wiring: open the drawer and force-initialize the Keywords list -->
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-manage]');
     if (!btn) return;
@@ -1656,14 +1655,32 @@
     throw last || new Error('No keyword POST endpoint worked');
   }
 
+  // === Added helper: locate the drawer’s keywords list robustly
+  function pickKwListEl(){
+    return document.getElementById('kw-list') ||
+           document.querySelector('[data-kw-list]') ||
+           document.querySelector('.kw-list') ||
+           document.getElementById('keywordsList') ||
+           document.getElementById('kwList');
+  }
+
+  // === Replaced: refreshKeywords with retry until drawer DOM mounts
   async function refreshKeywords(){
-    const list = $('kw-list'); if (!list) return;
+    // wait briefly for the drawer DOM to mount if needed
+    let list = pickKwListEl();
+    let tries = 0;
+    while (!list && tries < 20){ // ~400ms total
+      await new Promise(r => setTimeout(r, 20));
+      list = pickKwListEl();
+      tries++;
+    }
+    if (!list) return; // drawer not present yet; do nothing
+
     list.innerHTML = '<span class="muted">Loading…</span>';
 
     const ctx = guessCtx();
     const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
     const path = ctxPathStr(ctx);
-
     const qs = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
 
     const candidates = [
@@ -1735,8 +1752,6 @@
   window.deleteKeyword   = deleteKeyword;
   window.addKeyword      = addKeyword;
 
-  // If user clicks the drawer “Add” button inside the Keywords tab,
-  // our addKeyword will be picked up by the drawer’s handler.
 })();
 </script>
 
