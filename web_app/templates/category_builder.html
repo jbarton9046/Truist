@@ -161,10 +161,10 @@
 
   /* Popup itself (will be portaled to body on open) */
   .gs-popup{
-    position: fixed;                       /* body-level placement */
+    position: fixed;
     min-width: 240px;
     max-height:320px; overflow:auto;
-    z-index:1051;                          /* above scrim (1040) and near modal(1050) */
+    z-index:1051;
     padding:6px; border-radius:14px; border:1px solid var(--card-border);
     background: color-mix(in oklab, var(--card-bg) 82%, transparent);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
@@ -192,28 +192,19 @@
   }
 
   /* ---- tiny entrance animations for glass select ---- */
-  @keyframes gsPopIn {
-    from { opacity: 0; transform: translateY(6px) scale(.98); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  @keyframes gsFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-  .gs-popup{
-    animation: gsPopIn .14s ease-out;
-    transform-origin: top left;
-    will-change: transform, opacity;
-  }
-  .gs-scrim{
-    animation: gsFadeIn .12s ease-out;
-    will-change: opacity;
-  }
+  @keyframes gsPopIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes gsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .gs-popup{ animation: gsPopIn .14s ease-out; transform-origin: top left; will-change: transform, opacity; }
+  .gs-scrim{ animation: gsFadeIn .12s ease-out; will-change: opacity; }
 </style>
 
 <div class="container-fluid my-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="m-0">🧩 Category Builder</h2>
+    <!-- NEW: Category → Recurring button -->
+    <div class="d-flex align-items-center gap-2">
+      <button id="btnCatToRecurring" class="btn btn-sm btn-primary">Add category to Recurring</button>
+    </div>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -381,13 +372,12 @@
               ? `<div class="mt-1"><a href="#" class="small kw-show-all" data-kw="${item.display}">Show all (${total - MAX_PATHS_SHOWN} more)</a></div>`
               : '';
 
-            elDetails.innerHTML = 
+            elDetails.innerHTML =
               `<div class="small">
                 <div class="mb-1"><strong>${item.display}</strong> used in ${item.pathsCount} path(s) ${usage}</div>
                 <ul class="ps-3 mb-2" style="max-height:20vh; overflow:auto;">${lines || '<li class="kb-muted">No paths found.</li>'}</ul>
                 ${more}
-              </div>`
-            ;
+              </div>`;
           }
 
           elFilter.addEventListener('input', (e)=> renderList(e.target.value));
@@ -571,7 +561,7 @@
                     <th>Description</th>
                     <th class="text-end" style="width: 110px;">Amount</th>
                     <th style="width: 30%;">Path</th>
-                    <th class="text-end" style="width: 220px;">Action</th>
+                    <th class="text-end" style="width: 110px;">Action</th>
                   </tr>
                 </thead>
                 <tbody id="miscTableBody">
@@ -611,6 +601,99 @@
             <span class="muted small" id="cascadePreview" style="display:none;">Preview: —</span>
           </div>
           <button class="btn btn-primary" id="saveManage" type="button">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEW: Add Category → Recurring (modal) -->
+  <div class="modal fade" id="catToRecurringModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Category to Recurring</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">Category</label>
+              <select id="rcCat" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Subcategory</label>
+              <select id="rcSub" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Sub-subcategory</label>
+              <select id="rcSsub" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">Sub-sub-sub</label>
+              <select id="rcSss" class="form-select form-select-sm"></select>
+            </div>
+
+            <div class="col-12">
+              <div class="small text-muted" id="rcMeta">—</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Proposed keywords (edit as needed)</label>
+              <input id="rcKeywords" class="form-control" placeholder="e.g. NETFLIX; NETFLIX.COM; *NETFLIX*">
+              <div class="form-text">Semicolon-separated. We’ll create rules from these and attach to this category path.</div>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label">Amount rule</label>
+              <select id="rcAmountMode" class="form-select form-select-sm">
+                <option value="none">Ignore amount</option>
+                <option value="median">≈ median ±10%</option>
+                <option value="tight">≈ median ±3%</option>
+              </select>
+              <div class="form-text" id="rcAmtHint">—</div>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label">Frequency hint</label>
+              <select id="rcFreq" class="form-select form-select-sm">
+                <option value="">Auto-detect</option>
+                <option>Monthly</option>
+                <option>Biweekly</option>
+                <option>Quarterly</option>
+                <option>Annual</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-4">
+              <label class="form-label">Lookback window</label>
+              <select id="rcLookback" class="form-select form-select-sm">
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365" selected>365 days</option>
+                <option value="all">All time</option>
+              </select>
+            </div>
+
+            <div class="col-12 mt-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rcSimulate" checked>
+                <label class="form-check-label" for="rcSimulate">Preview first (don’t save yet)</label>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="border rounded p-2 small" id="rcPreviewBox" style="min-height:80px;">
+                <div class="text-muted">Pick a path and click Preview.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" id="rcPreview" class="btn btn-outline-primary">Preview</button>
+          <button type="button" id="rcConfirm" class="btn btn-primary">Add to Recurring</button>
         </div>
       </div>
     </div>
@@ -1092,7 +1175,6 @@
     }
 
     // --- Nudge the Keywords tab to populate immediately ---
-    // We retry briefly until the drawer's DOM exists, then call the page shim.
     const start = Date.now();
     (function tryKick() {
       const hasDrawer = document.getElementById('kw-list') ||
@@ -1166,7 +1248,6 @@
       const path = (r.path || '');
       const safeDesc = escHtml(desc);
       const safePath = escHtml(path);
-      const amtRaw = Number(r.amount || 0);
       return `
         <tr>
           <td class="mono small">${date || '—'}</td>
@@ -1176,26 +1257,12 @@
             <a href="#" class="link-path small" data-path="${safePath}">${safePath}</a>
           </td>
           <td class="text-end">
-            <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-secondary btn-use" data-key="${safeDesc}">Use as keyword</button>
-              <button class="btn btn-outline-primary btn-add-recurring"
-                      data-desc="${safeDesc}"
-                      data-amount="${isFinite(amtRaw)?amtRaw:''}">Add to Recurring</button>
-            </div>
+            <button class="btn btn-sm btn-outline-secondary btn-use" data-key="${safeDesc}">Use as keyword</button>
           </td>
         </tr>
       `;
     }).join('');
     miscTableBody.innerHTML = html;
-  }
-
-  // Seed → go to /recurring so the finder there can pick it up
-  function seedRecurringAndGo({desc, amount}){
-    try{
-      const seed = { q: String(desc||'').trim(), amount: (amount===''?undefined:Number(amount)), from:'builder', ts: Date.now() };
-      localStorage.setItem('__recurringSeed', JSON.stringify(seed));
-    }catch(_e){}
-    window.location.href = '/recurring';
   }
 
   document.addEventListener('click', (e) => {
@@ -1209,11 +1276,6 @@
         kwInput.focus();
       }
     }
-    const addBtn = e.target.closest('.btn-add-recurring');
-    if (addBtn){
-      e.preventDefault();
-      seedRecurringAndGo({ desc: addBtn.dataset.desc || '', amount: addBtn.dataset.amount || '' });
-    }
     const pathLink = e.target.closest('.link-path');
     if (pathLink){
       e.preventDefault();
@@ -1221,22 +1283,6 @@
       applyPathToLeft(p);
     }
   });
-
-  // Global helper so you can enable this elsewhere too
-  window.installAddToRecurringButtons = function(root=document){
-    root.querySelectorAll('[data-desc], .tx-desc, td.description, td[data-field="description"]').forEach(cell=>{
-      if (cell.querySelector('.btn-add-to-recurring')) return;
-      const desc = (cell.getAttribute('data-desc') || cell.textContent || '').trim();
-      const btn = document.createElement('button');
-      btn.type='button';
-      btn.className='btn btn-sm btn-outline-primary ms-2 btn-add-to-recurring';
-      btn.textContent='Add to Recurring';
-      btn.addEventListener('click', ()=>{
-        seedRecurringAndGo({ desc });
-      });
-      cell.appendChild(btn);
-    });
-  };
 
   miscRefresh.addEventListener('click', fetchMisc);
   miscSearch.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); fetchMisc(); } });
@@ -1775,5 +1821,180 @@
 })();
 </script>
 
+<!-- ====== NEW: Category → Recurring JS ====== -->
+<script>
+(function(){
+  let modal;
+
+  function money(n){
+    const v = Number(n||0);
+    const s = v < 0 ? '-$' : '$';
+    return s + Math.abs(v).toFixed(2);
+  }
+
+  function populate(sel, items, ph){
+    sel.innerHTML = '';
+    const o0 = document.createElement('option'); o0.value=''; o0.textContent = ph || '—';
+    sel.appendChild(o0);
+    items.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+  }
+
+  function getPath(){
+    const cat  = document.getElementById('rcCat').value || '';
+    const sub  = document.getElementById('rcSub').value || '';
+    const ssub = document.getElementById('rcSsub').value || '';
+    const sss  = document.getElementById('rcSss').value || '';
+    return { cat, sub, ssub, sss };
+  }
+
+  function setMeta(text){ document.getElementById('rcMeta').textContent = text || '—'; }
+
+  async function callJSON(urls, body){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (r.ok) return await r.json().catch(()=>({}));
+        last = new Error(`${u} → ${r.status}`);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('no endpoint');
+  }
+
+  async function preview(){
+    const {cat, sub, ssub, sss} = getPath();
+    const lb   = document.getElementById('rcLookback').value || '365';
+    const amtMode = document.getElementById('rcAmountMode').value || 'none';
+    const freq    = document.getElementById('rcFreq').value || '';
+
+    if (!cat){ alert('Pick at least a Category.'); return; }
+
+    setMeta('Loading preview…');
+
+    const payload = { path:{cat,sub,ssub,sss}, lookback: lb, amount_mode: amtMode, frequency_hint: freq };
+
+    try{
+      const res = await callJSON(
+        ['/admin/recurring/propose_from_category','/api/recurring/propose_from_category'],
+        payload
+      );
+      const box = document.getElementById('rcPreviewBox');
+      const kw  = Array.isArray(res.keywords) ? res.keywords : [];
+      const cnt = Number(res.count||res.sample_count||0);
+      const med = res.median || res.amount?.median;
+      const dates = res.dates || [];
+      const sample = Array.isArray(res.sample) ? res.sample : [];
+      if (kw.length) document.getElementById('rcKeywords').value = kw.join('; ');
+      const amtHint = document.getElementById('rcAmtHint');
+      if (amtMode === 'none') amtHint.textContent = 'Amount ignored';
+      if (amtMode === 'median') amtHint.textContent = med ? `~ ${money(med)} ±10%` : 'median unavailable';
+      if (amtMode === 'tight')  amtHint.textContent = med ? `~ ${money(med)} ±3%`  : 'median unavailable';
+      setMeta(`${cnt || sample.length} transaction(s) found${dates?.length? ' • '+dates.length+' dates':''}`);
+
+      const list = (sample.slice(0,8)).map(r=>{
+        const d = (r.date||'').slice(0,10);
+        const m = String(r.merchant || r.description || r.desc || '').toUpperCase();
+        const a = r.amount!=null? money(r.amount) : '';
+        return `<div class="d-flex justify-content-between"><span class="text-truncate me-2" style="max-width:70%;">${m||'—'}</span><span class="mono">${a}</span></div>`;
+      }).join('');
+      box.innerHTML = list || '<div class="text-muted">No sample returned.</div>';
+    }catch(err){
+      setMeta('Preview unavailable.');
+      document.getElementById('rcPreviewBox').innerHTML =
+        '<div class="text-muted">No preview endpoint found. You can still save — keywords and median will be computed server-side.</div>';
+    }
+  }
+
+  async function confirmAdd(){
+    const {cat, sub, ssub, sss} = getPath();
+    const lb     = document.getElementById('rcLookback').value || '365';
+    const kws    = (document.getElementById('rcKeywords').value || '').split(';').map(s=>s.trim()).filter(Boolean);
+    const amtMode= document.getElementById('rcAmountMode').value || 'none';
+    const freq   = document.getElementById('rcFreq').value || '';
+    const simulate = document.getElementById('rcSimulate').checked;
+
+    if (!cat){ alert('Pick at least a Category.'); return; }
+
+    const payload = {
+      path: { cat, sub, ssub, sss },
+      keywords: kws,
+      amount_mode: amtMode,
+      frequency: freq || '',
+      lookback: lb,
+      simulate: !!simulate
+    };
+
+    try{
+      const res = await callJSON(
+        ['/admin/recurring/upsert_from_category','/api/recurring/upsert_from_category'],
+        payload
+      );
+      if (simulate){
+        alert('Preview built server-side. Disable “Preview first” to save.\n\nPayload:\n' + JSON.stringify(payload, null, 2));
+      }else{
+        alert('Added to Recurring.');
+      }
+      const mEl = document.getElementById('catToRecurringModal');
+      (bootstrap && bootstrap.Modal.getInstance(mEl))?.hide();
+    }catch(err){
+      alert('Could not add to Recurring.\n\n' + String(err) + '\n\nTried endpoints:\n' +
+        '/admin/recurring/upsert_from_category\n/api/recurring/upsert_from_category');
+    }
+  }
+
+  function openModal(){
+    const mEl = document.getElementById('catToRecurringModal');
+    modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(mEl) : null;
+    if (modal) modal.show();
+
+    const rcCat  = document.getElementById('rcCat');
+    const rcSub  = document.getElementById('rcSub');
+    const rcSsub = document.getElementById('rcSsub');
+    const rcSss  = document.getElementById('rcSss');
+
+    populate(rcCat, getAllCategories(), 'Select category…');
+    populate(rcSub, [], '—'); populate(rcSsub, [], '—'); populate(rcSss, [], '—');
+    setMeta('—');
+    document.getElementById('rcKeywords').value = '';
+    document.getElementById('rcPreviewBox').innerHTML = '<div class="text-muted">Pick a path and click Preview.</div>';
+    document.getElementById('rcAmtHint').textContent = '—';
+
+    rcCat.onchange = ()=>{
+      const cat = rcCat.value || '';
+      populate(rcSub, cat ? getSubs(cat) : [], 'Select subcategory…');
+      populate(rcSsub, [], '—');
+      populate(rcSss, [], '—');
+      setMeta('—');
+    };
+    rcSub.onchange = ()=>{
+      const cat = rcCat.value || '';
+      const sub = rcSub.value || '';
+      populate(rcSsub, (cat && sub) ? getSSubs(cat, sub) : [], 'Select sub-subcategory…');
+      populate(rcSss, [], '—');
+      setMeta('—');
+    };
+    rcSsub.onchange = ()=>{
+      const cat = rcCat.value || '';
+      const sub = rcSub.value || '';
+      const ssub= rcSsub.value || '';
+      populate(rcSss, (cat && sub && ssub) ? getSSSubs(cat, sub, ssub) : [], 'Select sub-sub-sub…');
+      setMeta('—');
+    };
+    rcSss.onchange = ()=> setMeta('—');
+
+    document.getElementById('rcPreview').onclick = preview;
+    document.getElementById('rcConfirm').onclick = confirmAdd;
+  }
+
+  function attach(){
+    const btn = document.getElementById('btnCatToRecurring');
+    if (!btn) return;
+    btn.addEventListener('click', openModal);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();
+</script>
 
 {% endblock %}
