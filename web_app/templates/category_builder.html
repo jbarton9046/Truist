@@ -1567,10 +1567,9 @@
   obs.observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
-
-<!-- ensure drawer data includes allow_hidden=1 for inspect calls -->
 <script>
 (function(){
+  // keep: ensure allow_hidden=1 on inspect calls
   const origFetch = window.fetch;
   window.fetch = function(input, init){
     try {
@@ -1593,16 +1592,16 @@
 <!-- BUILDER-LOCAL KEYWORD ADAPTER -->
 <script>
 /*
-  This page-level shim guarantees the drawer’s Keywords tab works here,
-  regardless of which backend route is enabled. It tries, in order:
+  This page-level shim guarantees the drawer’s Keywords tab works here.
+  It tries, in order:
 
-  GET  /admin/api/keywords_for_name?name=LAST
-  GET  /admin/categories/keywords_for_name?name=LAST
-  GET  /admin/api/keywords_for_path?path=Cat/Sub/...
-  GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
-  GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
+    GET  /admin/api/keywords_for_name?name=LAST
+    GET  /admin/categories/keywords_for_name?name=LAST
+    GET  /admin/api/keywords_for_path?path=Cat/Sub/...
+    GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
+    GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
 
-  And exposes:
+  Exposes:
     window.refreshKeywords()
     window.deleteKeyword({ keyword, path })
     window.addKeyword(kw)
@@ -1610,14 +1609,22 @@
 (function(){
   'use strict';
 
-  const $ = (id)=>document.getElementById(id);
+  // --- helpers --------------------------------------------------
+
+  function pickKwListEl(){
+    return document.getElementById('kw-list') ||
+           document.querySelector('[data-kw-list]') ||
+           document.querySelector('.kw-list') ||
+           document.getElementById('keywordsList') ||
+           document.getElementById('kwList');
+  }
 
   function ctxPathStr(ctx){
     return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/');
   }
 
   function guessCtx(){
-    // Prefer the remembered context from the “View drawer” click
+    // Prefer context set when “View drawer” was clicked
     const ctx = (window.__drawerCtx || {});
     return {
       level: ctx.level || 'category',
@@ -1644,7 +1651,11 @@
     let last;
     for (const u of urls){
       try{
-        const r = await fetch(u, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+        const r = await fetch(u, {
+          method:'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(body||{})
+        });
         if (r.ok){
           const ct = (r.headers.get('content-type')||'').toLowerCase();
           return ct.includes('json') ? await r.json() : await r.text();
@@ -1655,21 +1666,13 @@
     throw last || new Error('No keyword POST endpoint worked');
   }
 
-  // === Added helper: locate the drawer’s keywords list robustly
-  function pickKwListEl(){
-    return document.getElementById('kw-list') ||
-           document.querySelector('[data-kw-list]') ||
-           document.querySelector('.kw-list') ||
-           document.getElementById('keywordsList') ||
-           document.getElementById('kwList');
-  }
+  // --- exported ops ---------------------------------------------
 
-  // === Replaced: refreshKeywords with retry until drawer DOM mounts
   async function refreshKeywords(){
     // wait briefly for the drawer DOM to mount if needed
     let list = pickKwListEl();
     let tries = 0;
-    while (!list && tries < 20){ // ~400ms total
+    while (!list && tries < 60){ // up to ~1.2s
       await new Promise(r => setTimeout(r, 20));
       list = pickKwListEl();
       tries++;
@@ -1681,7 +1684,9 @@
     const ctx = guessCtx();
     const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
     const path = ctxPathStr(ctx);
-    const qs = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+
+    const qs = (o)=>Object.entries(o)
+      .map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
 
     const candidates = [
       `/admin/api/keywords_for_name?${qs({name:last})}`,
@@ -1711,10 +1716,13 @@
       `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
     ).join(' ');
 
+    // Avoid duplicate bindings by using {once:true}
     list.addEventListener('click', function onX(e){
       const btn = e.target.closest('.kw-x'); if (!btn) return;
       e.preventDefault();
-      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path }).then(refreshKeywords);
+      deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path })
+        .then(refreshKeywords)
+        .catch(()=>{/* noop */});
     }, { once:true });
   }
 
@@ -1734,7 +1742,12 @@
 
   async function addKeyword(kw){
     const ctx = guessCtx();
-    const body = Object.assign({ keyword: kw, name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'', path: ctxPathStr(ctx) }, ctx);
+    const body = Object.assign({
+      keyword: kw,
+      name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'',
+      path: ctxPathStr(ctx)
+    }, ctx);
+
     const posts = [
       '/admin/api/keyword_add',
       '/admin/categories/keyword_add',
@@ -1747,11 +1760,10 @@
     }
   }
 
-  // Expose so the drawer’s inline scripts can call these on this page
+  // --- expose for the drawer -----------------------------------
   window.refreshKeywords = refreshKeywords;
   window.deleteKeyword   = deleteKeyword;
   window.addKeyword      = addKeyword;
-
 })();
 </script>
 
