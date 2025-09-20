@@ -571,7 +571,7 @@
                     <th>Description</th>
                     <th class="text-end" style="width: 110px;">Amount</th>
                     <th style="width: 30%;">Path</th>
-                    <th class="text-end" style="width: 110px;">Action</th>
+                    <th class="text-end" style="width: 220px;">Action</th>
                   </tr>
                 </thead>
                 <tbody id="miscTableBody">
@@ -1095,7 +1095,6 @@
     // We retry briefly until the drawer's DOM exists, then call the page shim.
     const start = Date.now();
     (function tryKick() {
-      // if the drawer puts its keywords list in #kw-list (usual), or if the tab container exists
       const hasDrawer = document.getElementById('kw-list') ||
                         document.querySelector('[data-drawer], .drawer, .category-drawer');
       if (hasDrawer) {
@@ -1128,6 +1127,8 @@
       return (f < 0 ? '-' : '') + '$' + Math.abs(f).toFixed(2);
     } catch(e) { return n; }
   }
+
+  function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   async function fetchMisc(){
     setMiscLoading();
@@ -1163,23 +1164,38 @@
       const desc = (r.desc || '');
       const amt  = fmtAmt(r.amount);
       const path = (r.path || '');
-      const safeDesc = desc.replace(/"/g,'&quot;');
-      const safePath = path.replace(/"/g,'&quot;');
+      const safeDesc = escHtml(desc);
+      const safePath = escHtml(path);
+      const amtRaw = Number(r.amount || 0);
       return `
         <tr>
           <td class="mono small">${date || '—'}</td>
-          <td>${desc}</td>
+          <td>${safeDesc}</td>
           <td class="text-end mono">${amt}</td>
           <td>
-            <a href="#" class="link-path small" data-path="${safePath}">${path}</a>
+            <a href="#" class="link-path small" data-path="${safePath}">${safePath}</a>
           </td>
           <td class="text-end">
-            <button class="btn btn-sm btn-outline-secondary btn-use" data-key="${safeDesc}">Use as keyword</button>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-secondary btn-use" data-key="${safeDesc}">Use as keyword</button>
+              <button class="btn btn-outline-primary btn-add-recurring"
+                      data-desc="${safeDesc}"
+                      data-amount="${isFinite(amtRaw)?amtRaw:''}">Add to Recurring</button>
+            </div>
           </td>
         </tr>
       `;
     }).join('');
     miscTableBody.innerHTML = html;
+  }
+
+  // Seed → go to /recurring so the finder there can pick it up
+  function seedRecurringAndGo({desc, amount}){
+    try{
+      const seed = { q: String(desc||'').trim(), amount: (amount===''?undefined:Number(amount)), from:'builder', ts: Date.now() };
+      localStorage.setItem('__recurringSeed', JSON.stringify(seed));
+    }catch(_e){}
+    window.location.href = '/recurring';
   }
 
   document.addEventListener('click', (e) => {
@@ -1193,6 +1209,11 @@
         kwInput.focus();
       }
     }
+    const addBtn = e.target.closest('.btn-add-recurring');
+    if (addBtn){
+      e.preventDefault();
+      seedRecurringAndGo({ desc: addBtn.dataset.desc || '', amount: addBtn.dataset.amount || '' });
+    }
     const pathLink = e.target.closest('.link-path');
     if (pathLink){
       e.preventDefault();
@@ -1200,6 +1221,22 @@
       applyPathToLeft(p);
     }
   });
+
+  // Global helper so you can enable this elsewhere too
+  window.installAddToRecurringButtons = function(root=document){
+    root.querySelectorAll('[data-desc], .tx-desc, td.description, td[data-field="description"]').forEach(cell=>{
+      if (cell.querySelector('.btn-add-to-recurring')) return;
+      const desc = (cell.getAttribute('data-desc') || cell.textContent || '').trim();
+      const btn = document.createElement('button');
+      btn.type='button';
+      btn.className='btn btn-sm btn-outline-primary ms-2 btn-add-to-recurring';
+      btn.textContent='Add to Recurring';
+      btn.addEventListener('click', ()=>{
+        seedRecurringAndGo({ desc });
+      });
+      cell.appendChild(btn);
+    });
+  };
 
   miscRefresh.addEventListener('click', fetchMisc);
   miscSearch.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); fetchMisc(); } });
