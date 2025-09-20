@@ -169,6 +169,17 @@
   </div>
 </div>
 
+<!-- Manual Recurring Overrides (edit as needed) -->
+<script id="recurring-overrides" type="application/json">
+{
+  "include": [],
+  "exclude": {},
+  "override": [],
+  "pins": [],
+  "schedules": []
+}
+</script>
+
 <script>
 (function(){
   const winSel = document.getElementById('win');
@@ -372,6 +383,185 @@
     });
   }
 
+  // ====== Manual Recurring Overrides (helpers) ======
+  function readOverrides(){
+    try{
+      const el = document.getElementById('recurring-overrides');
+      if (el && el.textContent) return JSON.parse(el.textContent);
+    }catch(_e){}
+    try{
+      const raw = localStorage.getItem('recurring_overrides');
+      if (raw) return JSON.parse(raw);
+    }catch(_e){}
+    return { include:[], exclude:{}, override:[], pins:[], schedules:[] };
+  }
+  function mmddyyyyToIso(s){
+    if (!s) return '';
+    const parts = s.split('/');
+    if (parts.length === 3){
+      const [m,d,y] = parts.map(x=>Number(x));
+      if (y && m && d) return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+    return s;
+  }
+  function nextFromDayOfMonth(day){
+    const n = Number(day||0);
+    if (!n) return null;
+    const now = new Date();
+    const cur = new Date(now.getFullYear(), now.getMonth(), n);
+    const base = (cur >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) ? cur
+             : new Date(now.getFullYear(), now.getMonth()+1, n);
+    return base.toISOString().slice(0,10);
+  }
+  function pickMedianAbsolute(series){
+    const v = series.map(n => Math.abs(Number(n||0))).filter(n => n>0).sort((a,b)=>a-b);
+    if (!v.length) return 0;
+    const m = Math.floor(v.length/2);
+    return v.length % 2 ? v[m] : (v[m-1]+v[m])/2;
+  }
+  function textMatch(hay, needles){
+    const H = String(hay||'').toUpperCase();
+    return (needles||[]).some(n => H.includes(String(n||'').toUpperCase()));
+  }
+  function applyRecurringOverrides(data){
+    const o = readOverrides();
+    if (!data || typeof data !== 'object') return data;
+    data.streams = Array.isArray(data.streams) ? data.streams.slice() : [];
+    data.transactions = Array.isArray(data.transactions) ? data.transactions.slice() : [];
+    data.upcoming = Array.isArray(data.upcoming) ? data.upcoming.slice() : [];
+
+    const txs = data.transactions;
+    const txByKey = txs.reduce((acc, t) => {
+      const k = t._stream_key || t.merchant_key || '';
+      (acc[k] ||= []).push(t);
+      return acc;
+    }, {});
+
+    // Exclude streams
+    if (o.exclude){
+      const exKw = (o.exclude.keywords||[]).map(s=>s.toUpperCase());
+      const exMer = (o.exclude.merchants||[]).map(s=>s.toUpperCase());
+      data.streams = data.streams.filter(s => {
+        const m = String(s.merchant || s.label || '').toUpperCase();
+        const hitMer = exMer.some(x => m.includes(x));
+        const hitKw  = exKw.some(x => m.includes(x));
+        return !(hitMer || hitKw);
+      });
+    }
+
+    // Force include by keywords
+    (o.include||[]).forEach(rule => {
+      const label = rule.label || (rule.keywords && rule.keywords[0]) || 'Manual stream';
+      const subset = txs.filter(t => {
+        const desc = (t.description || t.merchant || t.merchant_name || '').toString();
+        return textMatch(desc, rule.keywords||[]);
+      });
+
+      let amount = rule.amount;
+      if ((amount == null) && rule.amountFallback === 'median6'){
+        amount = pickMedianAbsolute(subset.map(t => t.amount));
+        amount = Number(Number(amount).toFixed(2));
+      }
+
+      const next = rule.next || (rule.dayOfMonth ? nextFromDayOfMonth(rule.dayOfMonth) : null);
+
+      const existing = data.streams.find(s => String(s.merchant||s.label||'').toLowerCase() === String(label).toLowerCase());
+      const payload = {
+        _key: existing? existing._key : `manual:${label}`,
+        merchant: label,
+        label,
+        amount: amount != null ? Number(amount) : (existing?.amount ?? 0),
+        count: existing?.count ?? (subset.length || ''),
+        freq: rule.freq || existing?.freq || 'monthly',
+        next: next || existing?.next || null,
+        _manual_category: rule.category || existing?._manual_category || ''
+      };
+
+      if (existing){
+        Object.assign(existing, payload);
+      } else {
+        data.streams.push(payload);
+      }
+
+      if (rule.graceDays && payload.next){
+        const lastHit = subset
+          .map(t => mmddyyyyToIso(t.date || ''))
+          .filter(Boolean)
+          .sort()
+          .pop();
+        if (lastHit){
+          const ms = (d) => new Date(d).getTime();
+          const days = (ms(payload.next) - ms(lastHit)) / 86400000;
+          if (days < 0 && Math.abs(days) <= Number(rule.graceDays)){
+            if ((payload.freq||'').toLowerCase() === 'monthly'){
+              const dt = new Date(payload.next + 'T00:00:00');
+              dt.setMonth(dt.getMonth()+1);
+              payload.next = dt.toISOString().slice(0,10);
+            }
+          }
+        }
+      }
+    });
+
+    // Field overrides
+    (o.override||[]).forEach(ovr => {
+      const matcher = (s) => {
+        const name = String(s.merchant || s.label || '').toUpperCase();
+        return textMatch(name, (ovr.match?.keywords)||[]);
+      };
+      data.streams.forEach(s => {
+        if (matcher(s)){
+          Object.assign(s, ovr.set||{});
+          if (ovr.set?.dayOfMonth && !ovr.set.next){
+            s.next = nextFromDayOfMonth(ovr.set.dayOfMonth) || s.next;
+          }
+        }
+      });
+    });
+
+    // Pins (one-off)
+    (o.pins||[]).forEach(p => {
+      data.upcoming.push({
+        date: p.date,
+        category: p.category || 'Misc',
+        amount: Number(p.amount||0),
+        merchant: p.label || 'Pinned',
+        _stream_key: `pin:${(p.label||p.date)}`
+      });
+    });
+
+    // Schedules (manual streams + upcoming)
+    (o.schedules||[]).forEach(sch => {
+      const label = sch.label || 'Manual schedule';
+      const next = sch.next || (sch.dayOfMonth ? nextFromDayOfMonth(sch.dayOfMonth) : null);
+      const exists = data.streams.find(s => String(s.merchant||s.label||'').toLowerCase() === label.toLowerCase());
+      const stream = {
+        _key: exists? exists._key : `sched:${label}`,
+        merchant: label,
+        label,
+        amount: Number(sch.amount||0),
+        count: exists?.count ?? '',
+        freq: sch.freq || 'monthly',
+        next: next,
+        _manual_category: sch.category || ''
+      };
+      if (exists) Object.assign(exists, stream); else data.streams.push(stream);
+
+      if (next){
+        data.upcoming.push({
+          date: next,
+          category: sch.category || 'Scheduled',
+          amount: Number(sch.amount||0),
+          merchant: label,
+          _stream_key: stream._key
+        });
+      }
+    });
+
+    return data;
+  }
+  // ====== /Manual Recurring Overrides ======
+
   let cachedData = null;
 
   async function load() {
@@ -379,7 +569,10 @@
     const horizon = horSel.value;
     const url = `/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
     const res = await fetch(url);
-    const data = await res.json();
+    const base = await res.json();
+
+    // merge manual overrides here
+    const data = applyRecurringOverrides(base);
     cachedData = data;
 
     const pm = data.projected_month || {
