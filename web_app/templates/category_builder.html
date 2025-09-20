@@ -381,13 +381,13 @@
               ? `<div class="mt-1"><a href="#" class="small kw-show-all" data-kw="${item.display}">Show all (${total - MAX_PATHS_SHOWN} more)</a></div>`
               : '';
 
-            elDetails.innerHTML = `
-              <div class="small">
+            elDetails.innerHTML = 
+              `<div class="small">
                 <div class="mb-1"><strong>${item.display}</strong> used in ${item.pathsCount} path(s) ${usage}</div>
                 <ul class="ps-3 mb-2" style="max-height:20vh; overflow:auto;">${lines || '<li class="kb-muted">No paths found.</li>'}</ul>
                 ${more}
-              </div>
-            `;
+              </div>`
+            ;
           }
 
           elFilter.addEventListener('input', (e)=> renderList(e.target.value));
@@ -1066,40 +1066,43 @@
     openManageModal(level, items, { cat, sub, ssub });
   });
 
-  /* Drawer wiring shim removed to rely on global [data-manage] from layout */
-if (!btn) return;
-e.preventDefault();
+  /* ===== Drawer wiring: open the drawer from any [data-manage] link on this page ===== */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-manage]');
+    if (!btn) return;
+    e.preventDefault();
 
-const level = btn.dataset.level;
-const { cat, sub, ssub, sss } = readValues();
+    const level = btn.dataset.level || 'category';
+    const { cat, sub, ssub, sss } = readValues();
 
-if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
-if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
-if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
-if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
+    if (level === 'category' && !cat) { alert('Pick a Category first.'); return; }
+    if (level === 'subcategory' && (!cat || !sub)) { alert('Pick a Category and Subcategory first.'); return; }
+    if (level === 'subsubcategory' && (!cat || !sub || !ssub)) { alert('Pick a Category, Subcategory, and Sub-subcategory first.'); return; }
+    if (level === 'subsubsubcategory' && (!cat || !sub || !ssub || !sss)) { alert('Pick a full path first.'); return; }
 
-const state = {
-  level,
-  cat,
-  sub,
-  ssub,
-  sss,
-  month: (window.CURRENT_MONTH || ''),
-  allowHidden: true
-};
+    const state = {
+      level,
+      cat,
+      sub,
+      ssub,
+      sss,
+      month: (window.CURRENT_MONTH || ''),
+      allowHidden: true
+    };
 
-/* remember for the builder-local keyword adapter */
-window.__drawerCtx = state;
+    /* remember for the builder-local keyword adapter */
+    window.__drawerCtx = state;
 
-if (typeof window.openDrawerForPath === 'function') {
-  window.openDrawerForPath(state);
-} else if (typeof window.openCategoryManager === 'function') {
-  // ✅ pass ONE object (same shape used across the app)
-  window.openCategoryManager(state);
-} else {
-  alert('Drawer UI not loaded yet.');
-}
-
+    if (typeof window.openDrawerForPath === 'function') {
+      window.openDrawerForPath(state);
+    } else if (typeof window.openCategoryManager === 'function') {
+      // ✅ pass ONE object (same shape used across the app)
+      window.openCategoryManager(state);
+    } else {
+      alert('Drawer UI not loaded yet.');
+    }
+  });
+  /* ===== end drawer wiring ===== */
 
   /* ---------- Misc panel wiring ---------- */
   function miscLabelsParam(){
@@ -1448,8 +1451,8 @@ if (typeof window.openDrawerForPath === 'function') {
         .map(([k,set])=>({kw:k,count:set.size}))
         .sort((a,b)=> a.kw.localeCompare(b.kw));
       el.kwcount.textContent = entries.length;
-      el.cloud.innerHTML = entries.map(e=>`
-        <span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
+      el.cloud.innerHTML = entries.map(e=>
+        `<span class="kb-chip" data-kw="${esc(e.kw)}" title="${esc(e.kw)} (${e.count})">
           ${esc(e.kw)} <span class="kb-muted">(${e.count})</span>
         </span>`).join('');
       document.querySelectorAll('.kb-chip').forEach(ch=>ch.addEventListener('click',()=>{
