@@ -7,8 +7,14 @@
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="mb-0">Recurring Dashboard</h2>
     <div class="d-flex gap-2">
-      <input id="search" class="form-control form-control-sm" placeholder="Search (category/freq)..." style="width: 220px;">
+      <input id="search" class="form-control form-control-sm" placeholder="Search (category/freq/merchant)..." style="width: 240px;">
+      <button id="manageRulesBtn" class="btn btn-sm btn-outline-primary">Manage rules</button>
       <button id="exportCsv" class="btn btn-sm btn-outline-secondary">Export CSV</button>
+      <button id="exportRules" class="btn btn-sm btn-outline-secondary">Export rules</button>
+      <label class="btn btn-sm btn-outline-secondary mb-0 position-relative overflow-hidden">
+        Import rules
+        <input id="importRules" type="file" accept="application/json" style="position:absolute;inset:0;opacity:0;cursor:pointer;">
+      </label>
       <select id="win" class="form-select form-select-sm" style="width: 140px;">
         <option value="90">Last 90 days</option>
         <option value="180">Last 180 days</option>
@@ -98,15 +104,17 @@
             <thead>
               <tr>
                 <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
+                <th class="text-end sortable" data-sort="merchant">Merchant <span class="sort"></span></th>
                 <th class="text-end sortable" data-sort="amount">Amount <span class="sort"></span></th>
                 <th class="text-end sortable" data-sort="count">Count <span class="sort"></span></th>
                 <th class="sortable" data-sort="freq">Freq <span class="sort"></span></th>
                 <th class="sortable" data-sort="next">Next <span class="sort"></span></th>
                 <th>Trend (6 mo)</th>
+                <th style="width:1%"></th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="6" class="text-muted py-3 text-center">Loading…</td></tr>
+              <tr><td colspan="8" class="text-muted py-3 text-center">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -169,7 +177,7 @@
   </div>
 </div>
 
-<!-- Manual Recurring Overrides (edit as needed) -->
+<!-- ========= Manual Rule Store (boot default) ========= -->
 <script id="recurring-overrides" type="application/json">
 {
   "include": [],
@@ -180,53 +188,237 @@
 }
 </script>
 
+<!-- ========= Rules Modal ========= -->
+<div class="modal fade" id="rulesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Manage recurring rules</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="rulesTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabInclude" type="button" role="tab">Include (force)</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabExclude" type="button" role="tab">Exclude (hide)</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabOverride" type="button" role="tab">Override (tweak)</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPins" type="button" role="tab">Pins (one-offs)</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSchedules" type="button" role="tab">Schedules</button>
+          </li>
+        </ul>
+
+        <div class="tab-content pt-3">
+          <!-- Include -->
+          <div class="tab-pane fade show active" id="tabInclude" role="tabpanel">
+            <form id="formInclude" class="row g-2 align-items-end">
+              <div class="col-12 col-md-5">
+                <label class="form-label small">Keywords (comma separated)</label>
+                <input class="form-control" id="incKeywords" placeholder="e.g., VERIZON, FIOS, WIRELESS">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small">Amount</label>
+                <input class="form-control" id="incAmount" placeholder="e.g., 85" inputmode="decimal">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small">Freq</label>
+                <select class="form-select" id="incFreq">
+                  <option value="monthly">monthly</option>
+                  <option value="biweekly">biweekly</option>
+                  <option value="weekly">weekly</option>
+                  <option value="quarterly">quarterly</option>
+                  <option value="semiannual">semiannual</option>
+                  <option value="annual">annual</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small">Next date</label>
+                <input class="form-control" id="incNext" type="date">
+              </div>
+              <div class="col-12">
+                <label class="form-label small">Label (optional)</label>
+                <input class="form-control" id="incLabel" placeholder="e.g., Verizon Wireless">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary btn-sm" type="submit">Add include rule</button>
+              </div>
+            </form>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm">
+                <thead><tr><th>Keywords</th><th>Amount</th><th>Freq</th><th>Next</th><th>Label</th><th></th></tr></thead>
+                <tbody id="includeList"><tr><td colspan="6" class="text-muted">No include rules.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Exclude -->
+          <div class="tab-pane fade" id="tabExclude" role="tabpanel">
+            <form id="formExclude" class="row g-2 align-items-end">
+              <div class="col-12 col-lg-6">
+                <label class="form-label small">Keywords to exclude (comma separated)</label>
+                <input class="form-control" id="excKeywords" placeholder="e.g., TRIAL, TEST, REFUND">
+              </div>
+              <div class="col-12 col-lg-6">
+                <label class="form-label small">Reason (optional)</label>
+                <input class="form-control" id="excReason" placeholder="e.g., trials / noise">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary btn-sm" type="submit">Add exclude rule</button>
+              </div>
+            </form>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm">
+                <thead><tr><th>Keywords</th><th>Reason</th><th></th></tr></thead>
+                <tbody id="excludeList"><tr><td colspan="3" class="text-muted">No exclude rules.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Override -->
+          <div class="tab-pane fade" id="tabOverride" role="tabpanel">
+            <form id="formOverride" class="row g-2 align-items-end">
+              <div class="col-12 col-lg-5">
+                <label class="form-label small">Match keywords (comma separated)</label>
+                <input class="form-control" id="ovKeywords" placeholder="e.g., NETFLIX">
+              </div>
+              <div class="col-6 col-lg-2">
+                <label class="form-label small">Amount</label>
+                <input class="form-control" id="ovAmount" placeholder="leave blank to keep" inputmode="decimal">
+              </div>
+              <div class="col-6 col-lg-2">
+                <label class="form-label small">Freq</label>
+                <select class="form-select" id="ovFreq">
+                  <option value="">(no change)</option>
+                  <option value="monthly">monthly</option>
+                  <option value="biweekly">biweekly</option>
+                  <option value="weekly">weekly</option>
+                  <option value="quarterly">quarterly</option>
+                  <option value="semiannual">semiannual</option>
+                  <option value="annual">annual</option>
+                </select>
+              </div>
+              <div class="col-6 col-lg-3">
+                <label class="form-label small">Next date</label>
+                <input class="form-control" id="ovNext" type="date">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary btn-sm" type="submit">Add override</button>
+              </div>
+            </form>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm">
+                <thead><tr><th>Keywords</th><th>Set</th><th></th></tr></thead>
+                <tbody id="overrideList"><tr><td colspan="3" class="text-muted">No overrides.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Pins -->
+          <div class="tab-pane fade" id="tabPins" role="tabpanel">
+            <form id="formPin" class="row g-2 align-items-end">
+              <div class="col-12 col-md-5">
+                <label class="form-label small">Label</label>
+                <input class="form-control" id="pinLabel" placeholder="e.g., HOA Special Assessment">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small">Amount</label>
+                <input class="form-control" id="pinAmount" inputmode="decimal" placeholder="e.g., 250">
+              </div>
+              <div class="col-6 col-md-4">
+                <label class="form-label small">Date</label>
+                <input class="form-control" id="pinDate" type="date">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary btn-sm" type="submit">Add pin</button>
+              </div>
+            </form>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm">
+                <thead><tr><th>Label</th><th>Amount</th><th>Date</th><th></th></tr></thead>
+                <tbody id="pinsList"><tr><td colspan="4" class="text-muted">No pins.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Schedules -->
+          <div class="tab-pane fade" id="tabSchedules" role="tabpanel">
+            <form id="formSched" class="row g-2 align-items-end">
+              <div class="col-12 col-md-4">
+                <label class="form-label small">Label</label>
+                <input class="form-control" id="scLabel" placeholder="e.g., Rent">
+              </div>
+              <div class="col-6 col-md-2">
+                <label class="form-label small">Amount</label>
+                <input class="form-control" id="scAmount" inputmode="decimal" placeholder="e.g., 1800">
+              </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label small">Frequency</label>
+                <select class="form-select" id="scFreq">
+                  <option value="monthly">monthly</option>
+                  <option value="biweekly">biweekly</option>
+                  <option value="weekly">weekly</option>
+                  <option value="quarterly">quarterly</option>
+                  <option value="semiannual">semiannual</option>
+                  <option value="annual">annual</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="form-label small">Next date</label>
+                <input class="form-control" id="scNext" type="date">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary btn-sm" type="submit">Add schedule</button>
+              </div>
+            </form>
+
+            <div class="table-responsive mt-3">
+              <table class="table table-sm">
+                <thead><tr><th>Label</th><th>Amount</th><th>Freq</th><th>Next</th><th></th></tr></thead>
+                <tbody id="schedulesList"><tr><td colspan="5" class="text-muted">No schedules.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="small me-auto text-muted" id="rulesStatus">Rules auto-save to this browser.</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
-  const winSel = document.getElementById('win');
-  const horSel = document.getElementById('horizon');
-  const searchEl = document.getElementById('search');
-  const exportBtn = document.getElementById('exportCsv');
-
+  // ---- utility
   const money = n => {
     const v = Number(n || 0);
     const s = v < 0 ? '-$' : '$';
     return s + Math.abs(v).toFixed(2);
   };
+  const parseDate = s => { const [y,m,d] = (s||'').split('-').map(Number); return (y&&m&&d) ? new Date(y,m-1,d) : null; };
+  const daysFromToday = s => { const dt=parseDate(s); if(!dt) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()); return Math.round((d-t)/(1000*60*60*24)); };
+  const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
+  const freqOrder = { 'weekly':1,'biweekly':2,'monthly':3,'quarterly':4,'semiannual':5,'annual':6,'unknown':7 };
+  const byId = id => document.getElementById(id);
+  function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-  const parseDate = s => {
-    const [y,m,d] = (s||'').split('-').map(Number);
-    if (!y || !m || !d) return null;
-    return new Date(y, m-1, d);
-  };
-
-  const daysFromToday = s => {
-    const dt = parseDate(s);
-    if (!dt) return null;
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const t = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-    return Math.round((t - today) / (1000*60*60*24));
-  };
-
-  function setFloorMeter(floor, income){
-    const bar = document.getElementById('kpi-floor-meter');
-    const subEl = document.getElementById('kpi-floor-sub');
-    const tile = document.getElementById('tile-floor');
-    if (income > 0){
-      const pct = Math.min(140, Math.max(0, (floor / income) * 100));
-      bar.style.width = pct.toFixed(0) + '%';
-      subEl.textContent = `${pct.toFixed(0)}% of income`;
-      tile.classList.toggle('over', pct > 100);
-    } else {
-      bar.style.width = '0%';
-      subEl.textContent = 'no income set';
-      tile.classList.remove('over');
-    }
-  }
-
-  // ---------- Sparkline helpers ----------
-  const SPARK_W = 120, SPARK_H = 28;
-
+  // ---------- SPARKLINES ----------
+  const SPARK_W=120, SPARK_H=28;
   function lastNMonthsLabels(n){
     const labels = [];
     const today = new Date();
@@ -237,344 +429,245 @@
     }
     return labels;
   }
-
   function bucketSeriesByMonth(txs, months){
     const sums = Object.fromEntries(months.map(m=>[m,0]));
     for (const t of txs){
       const [mm,dd,yy] = (t.date||'').split('/');
-      let key = '';
+      let key='';
       if (yy && mm){ key = `${yy}-${String(mm).padStart(2,'0')}`; }
       else if ((t.date||'').includes('-')) { key = (t.date||'').slice(0,7); }
       if (key && key in sums){
-        const a = Math.abs(Number(t.amount||0));
-        sums[key] += a;
+        sums[key] += Math.abs(Number(t.amount||0));
       }
     }
     return months.map(m => Math.round((sums[m]||0)*100)/100);
   }
-
-  function svgSparkline(series, w=SPARK_W, h=SPARK_H){
-    const pad=2;
-    const max = Math.max(...series, 1);
-    const step = (w - pad*2) / Math.max(series.length-1, 1);
-    const ys = series.map(v => h - pad - (max === 0 ? 0 : (v/max)*(h - pad*2)));
-    const xs = series.map((_,i)=> pad + i*step);
-    let d = '';
-    for (let i=0;i<series.length;i++){
-      d += (i===0 ? 'M' : 'L') + xs[i] + ' ' + ys[i] + ' ';
-    }
-    return `
-      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-        <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>
-      </svg>
-    `;
+  function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
+  function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
+  function svgSparkline(series,w=SPARK_W,h=SPARK_H){
+    const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
+    const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
+    const xs=series.map((_,i)=> pad+i*step);
+    let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>`;
   }
 
-  function median(vals){
-    const v = [...vals].sort((a,b)=>a-b);
-    if (!v.length) return 0;
-    const m = Math.floor(v.length/2);
-    return v.length % 2 ? v[m] : (v[m-1]+v[m])/2;
-  }
-
-  function outlierFlag(series){
-    if (!series.length) return '';
-    const med = median(series.filter(x => x>0));
-    const last = series[series.length-1] || 0;
-    if (med>0 && last > med*1.2) return '⚠';
-    return '';
-  }
-
-  // ---------- Category helpers ----------
+  // ---------- CATEGORY helpers ----------
   function txDeepLabel(t){
     const lbl = (t.sub_subcategory || t.subcategory || t.subcat || t.category || t.cat_top || '').toString().trim();
     return lbl || 'Other';
   }
   function deepCategoryForStream(subset){
     const counts = new Map();
-    for (const t of subset){
-      const lbl = txDeepLabel(t);
-      counts.set(lbl, (counts.get(lbl)||0)+1);
-    }
+    for (const t of subset){ const lbl=txDeepLabel(t); counts.set(lbl,(counts.get(lbl)||0)+1); }
     if (!counts.size) return 'Other';
     return [...counts.entries()].sort((a,b)=> b[1]-a[1])[0][0];
   }
   function categoryPathForLabel(subset, targetLabel){
-    const norm = (d) => {
-      if (!d) return '';
-      if (d.includes('-')) return d;
-      if (d.includes('/')){
-        const [mm,dd,yy] = d.split('/');
-        if (yy && mm && dd) return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
-      }
+    const norm = d=>{
+      if(!d) return '';
+      if(d.includes('-')) return d;
+      if(d.includes('/')){ const [mm,dd,yy]=d.split('/'); if(yy && mm && dd) return `${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`; }
       return d;
     };
-    let chosen = subset.find(t => txDeepLabel(t) === targetLabel);
-    if (!chosen){
-      const sorted = subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0)));
-      chosen = sorted[0] || {};
-    }
-    const cat  = (chosen.cat_top || chosen.category || '').toString().trim();
-    const sub  = (chosen.subcat || chosen.subcategory || '').toString().trim();
-    const ssub = (chosen.sub_subcategory || '').toString().trim();
-    return { cat, sub, ssub, sss:'', label: (ssub || sub || cat || 'Category') };
+    let chosen = subset.find(t=> txDeepLabel(t)===targetLabel);
+    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{}; }
+    const cat=(chosen.cat_top||chosen.category||'').toString().trim();
+    const sub=(chosen.subcat||chosen.subcategory||'').toString().trim();
+    const ssub=(chosen.sub_subcategory||'').toString().trim();
+    return { cat, sub, ssub, sss:'', label:(ssub||sub||cat||'Category') };
   }
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-
-  /* Chip that opens the UNIVERSAL drawer via dashManage (from layout.html) */
   function catChip(label, path){
-    const txt = escapeHtml(label || 'Category');
+    const txt = esc(label||'Category');
     const level = path.ssub ? 'subsubcategory' : (path.sub ? 'subcategory' : 'category');
     return `<a href="#" class="chip link-manage"
-              data-manage
-              data-level="${escapeHtml(level)}"
-              data-cat="${escapeHtml(path.cat||'')}"
-              data-sub="${escapeHtml(path.sub||'')}"
-              data-ssub="${escapeHtml(path.ssub||'')}"
+              data-manage data-level="${esc(level)}"
+              data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}"
               onclick="return dashManage(event, this);">${txt}</a>`;
   }
 
-  // ---------- Sorting helpers ----------
-  let sortState = { key: 'category', dir: 'asc' };
-  const freqOrder = { 'biweekly':1, 'monthly':2, 'bi-monthly':3, 'quarterly':4, 'semiannual':5, 'annual':6, 'unknown':7 };
+  // ---------- RULES STORAGE ----------
+  const LS_KEY = 'recurringOverrides';
+  function readOverrides(){
+    try{
+      const ls = localStorage.getItem(LS_KEY);
+      if (ls) return JSON.parse(ls);
+      const tag = document.getElementById('recurring-overrides');
+      const j = JSON.parse(tag.textContent || '{}');
+      return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[]}, j||{});
+    }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[] }; }
+  }
+  function writeOverrides(state){
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+    document.getElementById('recurring-overrides').textContent = JSON.stringify(state, null, 2);
+    renderRulesTables(state);
+  }
+  function exportRulesFile(){
+    const blob = new Blob([JSON.stringify(readOverrides(), null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download='recurring_rules.json'; a.click(); URL.revokeObjectURL(url);
+  }
 
+  // ---------- MATCHING ----------
+  function mkMatcher(keywords){
+    const K = (Array.isArray(keywords)?keywords:String(keywords||'').split(',')).map(s=>s.trim().toLowerCase()).filter(Boolean);
+    if (!K.length) return ()=>false;
+    return (s)=>{ const t=String(s||'').toLowerCase(); return K.some(k=> t.includes(k)); };
+  }
+  function streamMatchesKeywords(stream, txsForStream, keywords){
+    const m = mkMatcher(keywords);
+    if (m(stream.merchant||stream.name)) return true;
+    if (txsForStream && txsForStream.some(t => m(t.merchant||t.merchant_name||t.description))) return true;
+    return false;
+  }
+
+  // ---------- APPLY OVERRIDES ----------
+  function nextFromFreq(freq, baseDateStr){
+    const base = parseDate(baseDateStr) || new Date();
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    const f = String(freq||'').toLowerCase();
+    if (f==='weekly') d.setDate(d.getDate()+7);
+    else if (f==='biweekly') d.setDate(d.getDate()+14);
+    else if (f==='monthly') d.setMonth(d.getMonth()+1);
+    else if (f==='quarterly') d.setMonth(d.getMonth()+3);
+    else if (f==='semiannual') d.setMonth(d.getMonth()+6);
+    else if (f==='annual') d.setFullYear(d.getFullYear()+1);
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+
+  function applyRecurringOverrides(base){
+    const ov = readOverrides();
+    const streams = (base.streams||[]).map(s=>({...s}));
+    const txs = base.transactions || [];
+    const txByKey = txs.reduce((acc, t) => { const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; }, {});
+
+    // EXCLUDE
+    const excMatchers = Object.entries(ov.exclude||{}).map(([k,reason])=>({ match: mkMatcher(k.split(',')), reason }));
+    let filtered = streams.filter(s => {
+      const m = (desc)=> excMatchers.some(x => x.match(desc));
+      const inTx = (txByKey[s._key]||[]).some(t => excMatchers.some(x => x.match(t.merchant||t.merchant_name||t.description)));
+      const self = m(s.merchant || s.name || '');
+      return !(self || inTx);
+    });
+
+    // OVERRIDE (adjust existing)
+    (ov.override||[]).forEach(rule => {
+      filtered.forEach(s => {
+        const subset = txByKey[s._key] || [];
+        if (streamMatchesKeywords(s, subset, rule.keywords)){
+          if (rule.amount!=null && rule.amount!=='') s.amount = Number(rule.amount);
+          if (rule.freq) s.freq = rule.freq;
+          if (rule.next) s.next = rule.next;
+        }
+      });
+    });
+
+    // INCLUDE (force streams)
+    (ov.include||[]).forEach(rule => {
+      // If something already matches, modify it; else create new
+      let found = null, foundIdx=-1;
+      for (let i=0;i<filtered.length;i++){
+        const s=filtered[i]; const subset=txByKey[s._key]||[];
+        if (streamMatchesKeywords(s, subset, rule.keywords)) { found=s; foundIdx=i; break; }
+      }
+      const label = rule.label || (Array.isArray(rule.keywords) ? rule.keywords[0] : String(rule.keywords||'').split(',')[0]||'Manual');
+      if (found){
+        if (rule.amount!=null && rule.amount!=='') found.amount = Number(rule.amount);
+        if (rule.freq) found.freq = rule.freq;
+        if (rule.next) found.next = rule.next;
+        if (!found.merchant) found.merchant = label;
+      }else{
+        filtered.push({
+          _key: 'manual:' + label.toLowerCase().replace(/\s+/g,'_') + ':' + Date.now(),
+          merchant: label,
+          amount: Number(rule.amount||0),
+          count: '',
+          freq: rule.freq || 'monthly',
+          next: rule.next || nextFromFreq(rule.freq||'monthly', new Date().toISOString().slice(0,10)),
+          manual: true
+        });
+      }
+    });
+
+    // SCHEDULES (add explicit recurring regardless of transactions)
+    (ov.schedules||[]).forEach(sc => {
+      filtered.push({
+        _key: 'schedule:' + (sc.label||'').toLowerCase().replace(/\s+/g,'_')+':'+Date.now(),
+        merchant: sc.label || 'Scheduled',
+        amount: Number(sc.amount||0),
+        count: '',
+        freq: sc.freq || 'monthly',
+        next: sc.next || new Date().toISOString().slice(0,10),
+        manual: true
+      });
+    });
+
+    // PINS (one-off upcoming)
+    const upcoming = (base.upcoming||[]).slice();
+    (ov.pins||[]).forEach(p => {
+      upcoming.push({
+        date: p.date,
+        amount: Number(p.amount||0),
+        merchant: p.label || 'Pinned',
+        _stream_key: 'pin:'+Date.now()
+      });
+    });
+
+    return { ...base, streams: filtered, upcoming };
+  }
+
+  // ---------- PAGE RENDER + INTERACTIONS ----------
+  const winSel = byId('win'), horSel=byId('horizon'), searchEl=byId('search'), exportBtn=byId('exportCsv');
+  const manageBtn = byId('manageRulesBtn'); const exportRulesBtn = byId('exportRules'); const importRulesInput = byId('importRules');
+
+  // Sort
+  let sortState = { key: 'category', dir: 'asc' };
   function sortableVal(key, s, txByKey){
-    if (key === 'amount')   return Number(s.amount || 0);
-    if (key === 'count')    return Number(s.count || 0);
-    if (key === 'freq')     return freqOrder[(s.freq || 'unknown').toLowerCase()] || 9;
-    if (key === 'next')     return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
-    if (key === 'category') {
+    if (key==='merchant') return String(s.merchant||'').toLowerCase();
+    if (key==='amount') return Number(s.amount||0);
+    if (key==='count') return Number(s.count||0);
+    if (key==='freq') return freqOrder[(s.freq||'unknown').toLowerCase()]||9;
+    if (key==='next') return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+    if (key==='category'){
       const deep = deepCategoryForStream(txByKey[s._key] || []);
       return deep.toLowerCase();
     }
     return 0;
   }
-
-  function compareStreams(a, b, txByKey){
-    const va = sortableVal(sortState.key, a, txByKey);
-    const vb = sortableVal(sortState.key, b, txByKey);
-    if (va < vb) return sortState.dir === 'asc' ? -1 : 1;
-    if (va > vb) return sortState.dir === 'asc' ?  1 : -1;
+  function compareStreams(a,b,txByKey){
+    const va=sortableVal(sortState.key,a,txByKey), vb=sortableVal(sortState.key,b,txByKey);
+    if (va<vb) return sortState.dir==='asc'?-1:1;
+    if (va>vb) return sortState.dir==='asc'? 1:-1;
     return 0;
   }
-
   function setSortIndicators(){
     document.querySelectorAll('#streamsTable thead th.sortable').forEach(th=>{
-      const key = th.getAttribute('data-sort');
-      th.classList.remove('sorted-asc','sorted-desc');
-      if (key === sortState.key){
-        th.classList.add(sortState.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
-      }
+      const key=th.getAttribute('data-sort'); th.classList.remove('sorted-asc','sorted-desc');
+      if (key===sortState.key){ th.classList.add(sortState.dir==='asc'?'sorted-asc':'sorted-desc'); }
     });
   }
-
   function bindSort(){
     document.querySelectorAll('#streamsTable thead th.sortable').forEach(th=>{
       th.addEventListener('click', ()=>{
-        const key = th.getAttribute('data-sort');
-        if (sortState.key === key){
-          sortState.dir = (sortState.dir === 'asc' ? 'desc' : 'asc');
-        } else {
-          sortState = { key, dir: (key === 'category') ? 'asc' : 'desc' };
-        }
+        const key=th.getAttribute('data-sort');
+        if (sortState.key===key){ sortState.dir = (sortState.dir==='asc'?'desc':'asc'); }
+        else { sortState={ key, dir:(key==='category'||key==='merchant')?'asc':'desc' }; }
         renderStreamsTable();
         setSortIndicators();
       });
     });
   }
 
-  // ====== Manual Recurring Overrides (helpers) ======
-  function readOverrides(){
-    try{
-      const el = document.getElementById('recurring-overrides');
-      if (el && el.textContent) return JSON.parse(el.textContent);
-    }catch(_e){}
-    try{
-      const raw = localStorage.getItem('recurring_overrides');
-      if (raw) return JSON.parse(raw);
-    }catch(_e){}
-    return { include:[], exclude:{}, override:[], pins:[], schedules:[] };
-  }
-  function mmddyyyyToIso(s){
-    if (!s) return '';
-    const parts = s.split('/');
-    if (parts.length === 3){
-      const [m,d,y] = parts.map(x=>Number(x));
-      if (y && m && d) return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    }
-    return s;
-  }
-  function nextFromDayOfMonth(day){
-    const n = Number(day||0);
-    if (!n) return null;
-    const now = new Date();
-    const cur = new Date(now.getFullYear(), now.getMonth(), n);
-    const base = (cur >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) ? cur
-             : new Date(now.getFullYear(), now.getMonth()+1, n);
-    return base.toISOString().slice(0,10);
-  }
-  function pickMedianAbsolute(series){
-    const v = series.map(n => Math.abs(Number(n||0))).filter(n => n>0).sort((a,b)=>a-b);
-    if (!v.length) return 0;
-    const m = Math.floor(v.length/2);
-    return v.length % 2 ? v[m] : (v[m-1]+v[m])/2;
-  }
-  function textMatch(hay, needles){
-    const H = String(hay||'').toUpperCase();
-    return (needles||[]).some(n => H.includes(String(n||'').toUpperCase()));
-  }
-  function applyRecurringOverrides(data){
-    const o = readOverrides();
-    if (!data || typeof data !== 'object') return data;
-    data.streams = Array.isArray(data.streams) ? data.streams.slice() : [];
-    data.transactions = Array.isArray(data.transactions) ? data.transactions.slice() : [];
-    data.upcoming = Array.isArray(data.upcoming) ? data.upcoming.slice() : [];
+  let cachedData=null;
+  async function load(){
+    const win=winSel.value, horizon=horSel.value;
+    const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
+    const res=await fetch(url); const base=await res.json();
+    const data=applyRecurringOverrides(base);
+    cachedData=data;
 
-    const txs = data.transactions;
-    const txByKey = txs.reduce((acc, t) => {
-      const k = t._stream_key || t.merchant_key || '';
-      (acc[k] ||= []).push(t);
-      return acc;
-    }, {});
-
-    // Exclude streams
-    if (o.exclude){
-      const exKw = (o.exclude.keywords||[]).map(s=>s.toUpperCase());
-      const exMer = (o.exclude.merchants||[]).map(s=>s.toUpperCase());
-      data.streams = data.streams.filter(s => {
-        const m = String(s.merchant || s.label || '').toUpperCase();
-        const hitMer = exMer.some(x => m.includes(x));
-        const hitKw  = exKw.some(x => m.includes(x));
-        return !(hitMer || hitKw);
-      });
-    }
-
-    // Force include by keywords
-    (o.include||[]).forEach(rule => {
-      const label = rule.label || (rule.keywords && rule.keywords[0]) || 'Manual stream';
-      const subset = txs.filter(t => {
-        const desc = (t.description || t.merchant || t.merchant_name || '').toString();
-        return textMatch(desc, rule.keywords||[]);
-      });
-
-      let amount = rule.amount;
-      if ((amount == null) && rule.amountFallback === 'median6'){
-        amount = pickMedianAbsolute(subset.map(t => t.amount));
-        amount = Number(Number(amount).toFixed(2));
-      }
-
-      const next = rule.next || (rule.dayOfMonth ? nextFromDayOfMonth(rule.dayOfMonth) : null);
-
-      const existing = data.streams.find(s => String(s.merchant||s.label||'').toLowerCase() === String(label).toLowerCase());
-      const payload = {
-        _key: existing? existing._key : `manual:${label}`,
-        merchant: label,
-        label,
-        amount: amount != null ? Number(amount) : (existing?.amount ?? 0),
-        count: existing?.count ?? (subset.length || ''),
-        freq: rule.freq || existing?.freq || 'monthly',
-        next: next || existing?.next || null,
-        _manual_category: rule.category || existing?._manual_category || ''
-      };
-
-      if (existing){
-        Object.assign(existing, payload);
-      } else {
-        data.streams.push(payload);
-      }
-
-      if (rule.graceDays && payload.next){
-        const lastHit = subset
-          .map(t => mmddyyyyToIso(t.date || ''))
-          .filter(Boolean)
-          .sort()
-          .pop();
-        if (lastHit){
-          const ms = (d) => new Date(d).getTime();
-          const days = (ms(payload.next) - ms(lastHit)) / 86400000;
-          if (days < 0 && Math.abs(days) <= Number(rule.graceDays)){
-            if ((payload.freq||'').toLowerCase() === 'monthly'){
-              const dt = new Date(payload.next + 'T00:00:00');
-              dt.setMonth(dt.getMonth()+1);
-              payload.next = dt.toISOString().slice(0,10);
-            }
-          }
-        }
-      }
-    });
-
-    // Field overrides
-    (o.override||[]).forEach(ovr => {
-      const matcher = (s) => {
-        const name = String(s.merchant || s.label || '').toUpperCase();
-        return textMatch(name, (ovr.match?.keywords)||[]);
-      };
-      data.streams.forEach(s => {
-        if (matcher(s)){
-          Object.assign(s, ovr.set||{});
-          if (ovr.set?.dayOfMonth && !ovr.set.next){
-            s.next = nextFromDayOfMonth(ovr.set.dayOfMonth) || s.next;
-          }
-        }
-      });
-    });
-
-    // Pins (one-off)
-    (o.pins||[]).forEach(p => {
-      data.upcoming.push({
-        date: p.date,
-        category: p.category || 'Misc',
-        amount: Number(p.amount||0),
-        merchant: p.label || 'Pinned',
-        _stream_key: `pin:${(p.label||p.date)}`
-      });
-    });
-
-    // Schedules (manual streams + upcoming)
-    (o.schedules||[]).forEach(sch => {
-      const label = sch.label || 'Manual schedule';
-      const next = sch.next || (sch.dayOfMonth ? nextFromDayOfMonth(sch.dayOfMonth) : null);
-      const exists = data.streams.find(s => String(s.merchant||s.label||'').toLowerCase() === label.toLowerCase());
-      const stream = {
-        _key: exists? exists._key : `sched:${label}`,
-        merchant: label,
-        label,
-        amount: Number(sch.amount||0),
-        count: exists?.count ?? '',
-        freq: sch.freq || 'monthly',
-        next: next,
-        _manual_category: sch.category || ''
-      };
-      if (exists) Object.assign(exists, stream); else data.streams.push(stream);
-
-      if (next){
-        data.upcoming.push({
-          date: next,
-          category: sch.category || 'Scheduled',
-          amount: Number(sch.amount||0),
-          merchant: label,
-          _stream_key: stream._key
-        });
-      }
-    });
-
-    return data;
-  }
-  // ====== /Manual Recurring Overrides ======
-
-  let cachedData = null;
-
-  async function load() {
-    const win = winSel.value;
-    const horizon = horSel.value;
-    const url = `/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
-    const res = await fetch(url);
-    const base = await res.json();
-
-    // merge manual overrides here
-    const data = applyRecurringOverrides(base);
-    cachedData = data;
-
+    // KPIs
     const pm = data.projected_month || {
       income_recurring: Number(data.income_recurring || 0),
       variable_income_monthly: Number(data.variable_income_monthly || 0),
@@ -582,220 +675,335 @@
       fixed_floor: Number(data.floor || 0),
       leftover: Number(data.leftover != null ? data.leftover : (Number(data.income_expected||0) - Number(data.floor||0)))
     };
+    const income=Number(pm.income_expected||data.income_expected||0);
+    const floor=Number(pm.fixed_floor||data.floor||0);
+    const leftover=Number(pm.leftover!=null?pm.leftover:(income-floor));
 
-    // KPIs
-    const income = Number(pm.income_expected || data.income_expected || 0);
-    const floor  = Number(pm.fixed_floor || data.floor || 0);
-    const leftover = Number(pm.leftover != null ? pm.leftover : (income - floor));
-
-    document.getElementById('kpi-floor').textContent    = money(floor);
-    document.getElementById('kpi-income').textContent   = money(income);
-    const leftoverEl = document.getElementById('kpi-leftover');
-    leftoverEl.textContent = money(leftover);
-    leftoverEl.classList.toggle('text-danger', leftover < 0);
-    document.getElementById('kpi-week').textContent     = money(data.this_week_due);
-
+    byId('kpi-floor').textContent=money(floor);
+    byId('kpi-income').textContent=money(income);
+    const lEl=byId('kpi-leftover'); lEl.textContent=money(leftover); lEl.classList.toggle('text-danger',leftover<0);
+    byId('kpi-week').textContent=money(data.this_week_due);
     setFloorMeter(floor, income);
 
-    // Projected card
-    document.getElementById('pmRecurring').textContent = money(pm.income_recurring || 0);
-    document.getElementById('pmVariable').textContent  = money(pm.variable_income_monthly || 0);
-    document.getElementById('pmExpected').textContent  = money(pm.income_expected || 0);
-    document.getElementById('pmFloor').textContent     = money(pm.fixed_floor || 0);
-    const pmLeftEl = document.getElementById('pmLeftover');
-    pmLeftEl.textContent = money(pm.leftover || 0);
-    pmLeftEl.classList.toggle('text-danger', Number(pm.leftover||0) < 0);
-    document.getElementById('pmNote').textContent = `Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
+    byId('pmRecurring').textContent=money(pm.income_recurring||0);
+    byId('pmVariable').textContent=money(pm.variable_income_monthly||0);
+    byId('pmExpected').textContent=money(pm.income_expected||0);
+    byId('pmFloor').textContent=money(pm.fixed_floor||0);
+    const pmL=byId('pmLeftover'); pmL.textContent=money(pm.leftover||0); pmL.classList.toggle('text-danger', Number(pm.leftover||0)<0);
+    byId('pmNote').textContent=`Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
 
-    // ---------- Due soon (next 7 days) ----------
-    const txs = cachedData.transactions || [];
-    const dueTbody = document.querySelector('#dueSoonTable tbody');
-    dueTbody.innerHTML = '';
-
-    const upcoming = (data.upcoming || []).slice().sort((a,b)=> (a.date<b.date?-1:1));
-    const dueSoon = upcoming
-      .map(u => ({...u, days: daysFromToday(u.date)}))
-      .filter(u => u.days !== null && u.days >= 0 && u.days <= 7)
-      .sort((a,b)=> (a.date<b.date?-1:1));
-
-    if (!dueSoon.length) {
-      dueTbody.innerHTML = '<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>';
-    } else {
-      for (const u of dueSoon) {
-        const key = u._stream_key || u.stream_key || u.merchant_key || '';
-        let subset = [];
-        if (key) {
-          subset = txs.filter(t => (t._stream_key || t.merchant_key || '') === key);
-        } else {
-          const name = String(u.merchant || '').toLowerCase();
-          subset = txs.filter(t => {
-            const m = String(t.merchant || t.merchant_name || t.description || '').toLowerCase();
-            return name && m.includes(name);
-          });
-          if (!subset.length && Array.isArray(cachedData.streams)) {
-            const s = cachedData.streams.find(x => String(x.merchant||'').toLowerCase() === name);
-            if (s) subset = txs.filter(t => (t._stream_key || t.merchant_key || '') === (s._key || ''));
-          }
-        }
-        const deep = subset.length ? deepCategoryForStream(subset) : (u.category || 'Other');
-        const path = subset.length ? categoryPathForLabel(subset, deep) : { cat: u.category || 'Other', sub:'', ssub:'', sss:'' };
-        const chip = catChip(deep, path);
-
-        const label = u.days === 0 ? '<span class="badge text-bg-danger">Today</span>' :
-                      u.days === 1 ? '1 day' : `${u.days} days`;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${u.date}</td>
-          <td>${chip}</td>
-          <td class="text-end">${money(u.amount)}</td>
-          <td class="text-end">${label}</td>
-        `;
+    // Due soon (7d)
+    const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
+    const txs=data.transactions||[];
+    const upcoming=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
+    const dueSoon=upcoming.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7).sort((a,b)=> (a.date<b.date?-1:1));
+    if(!dueSoon.length){ dueTbody.innerHTML='<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>'; }
+    else{
+      for (const u of dueSoon){
+        const key=u._stream_key||u.stream_key||u.merchant_key||'';
+        let subset=[]; if (key){ subset=txs.filter(t=>(t._stream_key||t.merchant_key||'')===key); }
+        const deep=subset.length?deepCategoryForStream(subset):(u.category||'Other');
+        const path=subset.length?categoryPathForLabel(subset,deep):{cat:u.category||'Other',sub:'',ssub:'',sss:''};
+        const chip=catChip(deep,path);
+        const label = u.days===0 ? '<span class="badge text-bg-danger">Today</span>' : (u.days===1?'1 day':`${u.days} days`);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${u.date}</td><td>${chip}</td><td class="text-end">${money(u.amount)}</td><td class="text-end">${label}</td>`;
         dueTbody.appendChild(tr);
-
-        if (window.canonicalizeChip) {
-          const a = tr.querySelector('.chip.link-manage');
-          if (a) window.canonicalizeChip(a);
-        }
+        if (window.canonicalizeChip){ const a=tr.querySelector('.chip.link-manage'); if(a) window.canonicalizeChip(a); }
       }
     }
 
-    // Streams
     renderStreamsTable();
-    bindSort();
-    setSortIndicators();
+    bindSort(); setSortIndicators();
+  }
+
+  function setFloorMeter(floor,income){
+    const bar=byId('kpi-floor-meter'), subEl=byId('kpi-floor-sub'), tile=byId('tile-floor');
+    if(income>0){ const pct=clamp((floor/income)*100,0,140); bar.style.width=pct.toFixed(0)+'%'; subEl.textContent=`${pct.toFixed(0)}% of income`; tile.classList.toggle('over',pct>100); }
+    else { bar.style.width='0%'; subEl.textContent='no income set'; tile.classList.remove('over'); }
   }
 
   function renderStreamsTable(){
-    if (!cachedData) return;
-    const tbody = document.querySelector('#streamsTable tbody');
-    tbody.innerHTML = '';
+    if(!cachedData) return;
+    const tbody=document.querySelector('#streamsTable tbody'); tbody.innerHTML='';
+    const streams=(cachedData.streams||[]).slice();
+    const txs=cachedData.transactions||[];
+    const txByKey = txs.reduce((acc,t)=>{ const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; },{});
 
-    const streams = (cachedData.streams || []).slice();
-    const txs = cachedData.transactions || [];
-
-    const txByKey = txs.reduce((acc, t) => {
-      const k = t._stream_key || t.merchant_key || '';
-      (acc[k] ||= []).push(t);
-      return acc;
-    }, {});
-
-    // Filter by search using deep category + freq
-    const q = (searchEl.value || '').trim().toLowerCase();
-    const filtered = streams.filter(s => {
-      if (!q) return true;
-      const deep = deepCategoryForStream(txByKey[s._key] || []);
-      const hay = [ deep || '', s.freq || '' ].join(' ').toLowerCase();
+    const q=(searchEl.value||'').trim().toLowerCase();
+    const filtered = streams.filter(s=>{
+      if(!q) return true;
+      const deep = deepCategoryForStream(txByKey[s._key]||[]);
+      const hay = [ deep||'', s.freq||'', s.merchant||'' ].join(' ').toLowerCase();
       return hay.includes(q);
     });
 
-    if (!filtered.length){
-      tbody.innerHTML = '<tr><td colspan="6" class="text-muted py-3 text-center">No streams detected.</td></tr>';
-      return;
-    }
+    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="8" class="text-muted py-3 text-center">No streams detected.</td></tr>'; return; }
 
     filtered.sort((a,b)=>compareStreams(a,b,txByKey));
-    const months = lastNMonthsLabels(6);
+    const months=lastNMonthsLabels(6);
 
     for (const s of filtered){
-      const key = s._key || '';
-      const subset = txByKey[key] || [];
-      const series = bucketSeriesByMonth(subset, months);
-      const warn = outlierFlag(series);
-      const nextDays = s.next ? daysFromToday(s.next) : null;
+      const key=s._key||''; const subset=txByKey[key]||[];
+      const series=bucketSeriesByMonth(subset, months);
+      const warn=outlierFlag(series);
+      const nextDays=s.next?daysFromToday(s.next):null;
 
-      const deepLabel = deepCategoryForStream(subset);
-      const path = categoryPathForLabel(subset, deepLabel);
-      const chipHtml = catChip(deepLabel, path);
+      const deepLabel=deepCategoryForStream(subset);
+      const path=categoryPathForLabel(subset, deepLabel);
+      const chipHtml=catChip(deepLabel, path);
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
+      // actions (quick rule add)
+      const actions = `
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">⋮</button>
+          <div class="dropdown-menu dropdown-menu-end">
+            <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
+            <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
+            <button class="dropdown-item" data-act="override-next" data-kw="${esc(s.merchant||'')}" data-next="${esc(s.next||'')}">Set next date…</button>
+            <button class="dropdown-item" data-act="override-freq" data-kw="${esc(s.merchant||'')}">Set frequency…</button>
+          </div>
+        </div>`;
+
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
-            ${chipHtml}
-            ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
+            ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
           </div>
         </td>
+        <td class="text-end">${esc(s.merchant||'—')}</td>
         <td class="text-end">${money(s.amount)}</td>
         <td class="text-end">${s.count ?? ''}</td>
         <td>${(s.freq || '—')}</td>
-        <td>
-          ${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}
-        </td>
-        <td class="trend-cell">
-          ${svgSparkline(series)}
-        </td>
+        <td>${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
+        <td class="trend-cell">${svgSparkline(series)}</td>
+        <td>${actions}</td>
       `;
       tbody.appendChild(tr);
-
-      if (window.canonicalizeChip) {
-        const a = tr.querySelector('.chip.link-manage');
-        if (a) window.canonicalizeChip(a);
-      }
     }
 
-    // CSV export for current view
+    // wire actions
+    tbody.querySelectorAll('[data-act]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const act=btn.dataset.act; const kw=btn.dataset.kw||'';
+        const ov=readOverrides();
+        if (act==='exclude'){
+          ov.exclude[kw] = 'manual exclude';
+          writeOverrides(ov); load();
+        } else if (act==='override-amount'){
+          const a = prompt('Set amount (blank to cancel):', btn.dataset.amt||'');
+          if (a===null || a==='') return;
+          ov.override.push({ keywords: kw, amount: Number(a) });
+          writeOverrides(ov); load();
+        } else if (act==='override-next'){
+          const nxt = prompt('Set next date (YYYY-MM-DD):', btn.dataset.next||'');
+          if (!nxt) return;
+          ov.override.push({ keywords: kw, next: nxt });
+          writeOverrides(ov); load();
+        } else if (act==='override-freq'){
+          const f = prompt('Set frequency (weekly/biweekly/monthly/quarterly/semiannual/annual):','monthly');
+          if (!f) return;
+          ov.override.push({ keywords: kw, freq: f });
+          writeOverrides(ov); load();
+        }
+      });
+    });
+
     exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
   }
 
-  // CSV (Category-first)
   function exportStreamsCsv(streams, txByKey){
-    const rows = [
-      ['Category','Amount','Count','Freq','Next'].join(',')
-    ];
+    const rows=[['Category','Merchant','Amount','Count','Freq','Next'].join(',')];
     for (const s of streams){
-      const deep = deepCategoryForStream((txByKey[s._key] || []));
+      const deep=deepCategoryForStream((txByKey[s._key]||[]));
       rows.push([
         `"${String(deep||'Other').replace(/"/g,'""')}"`,
-        s.amount,
-        s.count??'',
-        s.freq||'',
-        s.next||''
+        `"${String(s.merchant||'').replace(/"/g,'""')}"`,
+        s.amount, s.count??'', s.freq||'', s.next||''
       ].join(','));
     }
-    const blob = new Blob([rows.join('\n')], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href=url; a.download='recurring_streams.csv'; a.click();
-    URL.revokeObjectURL(url);
+    const blob=new Blob([rows.join('\n')],{type:'text/csv'}); const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='recurring_streams.csv'; a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ---------- RULES UI BINDINGS ----------
+  const rulesModalEl = document.getElementById('rulesModal');
+  let rulesModal = null;
+  manageBtn.addEventListener('click', ()=>{
+    rulesModal = rulesModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(rulesModalEl) : null);
+    if (rulesModal) rulesModal.show();
+    renderRulesTables(readOverrides());
+  });
+
+  exportRulesBtn.addEventListener('click', exportRulesFile);
+  importRulesInput.addEventListener('change', async (e)=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{
+      const text = await f.text(); const j=JSON.parse(text);
+      const base = { include:[], exclude:{}, override:[], pins:[], schedules:[] };
+      writeOverrides(Object.assign(base, j||{})); load();
+      e.target.value='';
+    }catch(err){ alert('Invalid JSON file.'); }
+  });
+
+  // forms
+  byId('formInclude').addEventListener('submit', e=>{
+    e.preventDefault();
+    const ov=readOverrides();
+    const keywords = (byId('incKeywords').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    if (!keywords.length){ alert('Enter at least one keyword.'); return; }
+    ov.include.push({
+      keywords,
+      amount: byId('incAmount').value || undefined,
+      freq: byId('incFreq').value || undefined,
+      next: byId('incNext').value || undefined,
+      label: byId('incLabel').value || undefined
+    });
+    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+  });
+
+  byId('formExclude').addEventListener('submit', e=>{
+    e.preventDefault();
+    const ov=readOverrides();
+    const k = (byId('excKeywords').value||'').trim();
+    if(!k){ alert('Enter keywords.'); return; }
+    ov.exclude[k] = (byId('excReason').value||'');
+    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+  });
+
+  byId('formOverride').addEventListener('submit', e=>{
+    e.preventDefault();
+    const ov=readOverrides();
+    const kw=(byId('ovKeywords').value||'').trim(); if(!kw){ alert('Enter keywords.'); return; }
+    const amt=byId('ovAmount').value; const nxt=byId('ovNext').value; const fq=byId('ovFreq').value;
+    ov.override.push(Object.fromEntries(Object.entries({ keywords:kw, amount: amt===''?undefined:Number(amt), next:nxt||undefined, freq:fq||undefined }).filter(([,v])=>v!==undefined && v!=='')));
+    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+  });
+
+  byId('formPin').addEventListener('submit', e=>{
+    e.preventDefault();
+    const ov=readOverrides();
+    const label=(byId('pinLabel').value||'').trim(); const amount=Number(byId('pinAmount').value||0); const date=byId('pinDate').value;
+    if(!label || !date){ alert('Label and date required.'); return; }
+    ov.pins.push({ label, amount, date }); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+  });
+
+  byId('formSched').addEventListener('submit', e=>{
+    e.preventDefault();
+    const ov=readOverrides();
+    const label=(byId('scLabel').value||'').trim(); const amount=Number(byId('scAmount').value||0);
+    const freq=byId('scFreq').value||'monthly'; const next=byId('scNext').value;
+    if(!label || !next){ alert('Label and next date required.'); return; }
+    ov.schedules.push({ label, amount, freq, next }); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+  });
+
+  function renderRulesTables(ov){
+    // include
+    const incT=byId('includeList'); incT.innerHTML='';
+    if (!(ov.include||[]).length){ incT.innerHTML='<tr><td colspan="6" class="text-muted">No include rules.</td></tr>'; }
+    else {
+      ov.include.forEach((r,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${esc((r.keywords||[]).join(', '))}</td><td>${r.amount??''}</td><td>${esc(r.freq||'')}</td><td>${esc(r.next||'')}</td><td>${esc(r.label||'')}</td>
+                      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="include" data-idx="${i}">Delete</button></td>`;
+        incT.appendChild(tr);
+      });
+    }
+
+    // exclude
+    const excT=byId('excludeList'); excT.innerHTML='';
+    const entries = Object.entries(ov.exclude||{});
+    if (!entries.length){ excT.innerHTML='<tr><td colspan="3" class="text-muted">No exclude rules.</td></tr>'; }
+    else {
+      entries.forEach(([k,reason],i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${esc(k)}</td><td>${esc(reason||'')}</td>
+                      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="exclude" data-key="${esc(k)}">Delete</button></td>`;
+        excT.appendChild(tr);
+      });
+    }
+
+    // override
+    const ovT=byId('overrideList'); ovT.innerHTML='';
+    if (!(ov.override||[]).length){ ovT.innerHTML='<tr><td colspan="3" class="text-muted">No overrides.</td></tr>'; }
+    else {
+      ov.override.forEach((r,i)=>{
+        const parts=[];
+        if (r.amount!=null) parts.push(`amount=${r.amount}`);
+        if (r.freq) parts.push(`freq=${r.freq}`);
+        if (r.next) parts.push(`next=${r.next}`);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${esc(r.keywords)}</td><td>${esc(parts.join(', '))}</td>
+                      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="override" data-idx="${i}">Delete</button></td>`;
+        ovT.appendChild(tr);
+      });
+    }
+
+    // pins
+    const pinT=byId('pinsList'); pinT.innerHTML='';
+    if (!(ov.pins||[]).length){ pinT.innerHTML='<tr><td colspan="4" class="text-muted">No pins.</td></tr>'; }
+    else {
+      ov.pins.forEach((p,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${esc(p.label||'')}</td><td>${p.amount??''}</td><td>${esc(p.date||'')}</td>
+                      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="pins" data-idx="${i}">Delete</button></td>`;
+        pinT.appendChild(tr);
+      });
+    }
+
+    // schedules
+    const scT=byId('schedulesList'); scT.innerHTML='';
+    if (!(ov.schedules||[]).length){ scT.innerHTML='<tr><td colspan="5" class="text-muted">No schedules.</td></tr>'; }
+    else {
+      ov.schedules.forEach((s,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${esc(s.label||'')}</td><td>${s.amount??''}</td><td>${esc(s.freq||'')}</td><td>${esc(s.next||'')}</td>
+                      <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-del="schedules" data-idx="${i}">Delete</button></td>`;
+        scT.appendChild(tr);
+      });
+    }
+
+    // wire deletes
+    document.querySelectorAll('[data-del]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const type=btn.dataset.del; const idx=btn.dataset.idx; const key=btn.dataset.key;
+        const state=readOverrides();
+        if (type==='include' || type==='override' || type==='pins' || type==='schedules'){
+          state[type].splice(Number(idx),1);
+        } else if (type==='exclude'){
+          delete state.exclude[key];
+        }
+        writeOverrides(state); renderRulesTables(state); load();
+      });
+    });
   }
 
   // Events
   winSel.addEventListener('change', load);
   horSel.addEventListener('change', load);
-  searchEl.addEventListener('input', renderStreamsTable);
+  byId('search').addEventListener('input', renderStreamsTable);
 
+  // init
+  renderRulesTables(readOverrides());
   load();
 })();
 </script>
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
-.kpi-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
-  gap:12px;
-}
+.kpi-grid{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
 @media (max-width: 992px){ .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 576px){ .kpi-grid{ grid-template-columns: 1fr; } }
 
 .kpi-tile{
-  border:1px solid var(--card-border);
-  border-radius:14px;
-  padding:12px 14px;
+  border:1px solid var(--card-border); border-radius:14px; padding:12px 14px;
   background: var(--card-bg);
   box-shadow: 0 12px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
-  color: var(--text);
-  backdrop-filter: saturate(120%) blur(4px);
+  color: var(--text); backdrop-filter: saturate(120%) blur(4px);
 }
 .kpi-top{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
-.kpi-icon{
-  display:grid; place-items:center;
-  width:28px; height:28px; border-radius:999px;
-  color: var(--text);
-  background: rgba(255,255,255,.06);
-  border:1px solid var(--card-border);
-}
+.kpi-icon{ display:grid; place-items:center; width:28px; height:28px; border-radius:999px; color: var(--text); background: rgba(255,255,255,.06); border:1px solid var(--card-border); }
 .kpi-label{ font-size:12px; color: var(--muted); font-weight:600; }
 .kpi-value{ font-size:22px; font-weight:700; line-height:1.1; margin-top:2px; }
 .kpi-sub{ font-size:12px; color: var(--muted); margin-top:2px; }
@@ -807,47 +1015,28 @@
 .accent-amber .kpi-icon{ color:#fde68a; }
 
 /* meter */
-.kpi-meter{
-  width:100%; height:10px; border-radius:999px;
-  background: rgba(255,255,255,.06);
-  border:1px solid var(--card-border);
-  overflow:hidden; margin-top:6px;
-}
+.kpi-meter{ width:100%; height:10px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid var(--card-border); overflow:hidden; margin-top:6px; }
 .kpi-meter .fill{ height:100%; width:0%; background:#f87171; transition:width .25s ease; }
 #tile-floor.over .kpi-meter .fill{ background:#dc2626; }
 
-/* ==== CATEGORY "CHIP" AS TEXT LINK (universal drawer) ==== */
-.chip{
-  display:inline-block;
-  background: transparent;
-  border: 0;
-  color: var(--text);
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-decoration: none;
-}
+/* ==== CATEGORY "CHIP" ==== */
+.chip{ display:inline-block; background:transparent; border:0; color:var(--text); padding:0; margin:0; border-radius:0; font-size:14px; font-weight:700; line-height:1.1; text-decoration:none; }
 .chip:hover{ text-decoration: underline; }
 .chip:focus{ outline:2px solid color-mix(in oklab, var(--text) 45%, transparent); outline-offset:2px; }
 
 /* table UX */
-#streamsTable thead th.sortable { cursor: pointer; user-select: none; }
-#streamsTable thead th .sort { opacity: .5; margin-left: 4px; font-size: 10px; }
-#streamsTable thead th.sorted-asc .sort::after  { content: "▲"; }
-#streamsTable thead th.sorted-desc .sort::after { content: "▼"; }
-#streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content: "↕"; }
-
+#streamsTable thead th.sortable { cursor:pointer; user-select:none; }
+#streamsTable thead th .sort { opacity:.5; margin-left:4px; font-size:10px; }
+#streamsTable thead th.sorted-asc .sort::after  { content:"▲"; }
+#streamsTable thead th.sorted-desc .sort::after { content:"▼"; }
+#streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content:"↕"; }
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
-.trend-cell { white-space: nowrap; min-width: 190px; }
+.trend-cell { white-space:nowrap; min-width:190px; }
 
 /* variance label */
-.variance-tag{
-  font-size: .85rem;
-  color: color-mix(in oklab, var(--text) 70%, #fff 0%);
-  opacity: .85;
-}
+.variance-tag{ font-size:.85rem; color: color-mix(in oklab, var(--text) 70%, #fff 0%); opacity:.85; }
+
+/* modal spacing tweaks */
+#rulesModal .nav-tabs .nav-link{ font-weight:600; }
 </style>
 {% endblock %}
