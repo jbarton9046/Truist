@@ -1567,50 +1567,69 @@
   obs.observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
+
 <script>
 (function(){
-  // keep: ensure allow_hidden=1 on inspect calls
+  // ========= FETCH PATCH =========
   const origFetch = window.fetch;
-  window.fetch = function(input, init){
-    try {
-      let url = typeof input === 'string' ? input : (input && input.url) || '';
-      if (url && url.indexOf('/admin/categories/inspect') !== -1 && !/[?&]allow_hidden=/.test(url)) {
+
+  function ctxFromDrawer(){
+    const c = (window.__drawerCtx || {});
+    return { level: c.level || 'category', cat: c.cat||'', sub: c.sub||'', ssub: c.ssub||'', sss: c.sss||'' };
+  }
+  function pathFromCtx(ctx){ return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/'); }
+  function qs(o){ return Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&'); }
+
+  async function getKeywordsMerged({ name, path }){
+    const ctx  = ctxFromDrawer();
+    const last = name || [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
+    const pth  = path || pathFromCtx(ctx);
+    const urls = [
+      `/admin/api/keywords_for_name?${qs({name:last})}`,
+      `/admin/categories/keywords_for_name?${qs({name:last})}`,
+      `/admin/api/keywords_for_path?${qs({path:pth})}`,
+      `/admin/categories/keywords_for_path?${qs({path:pth})}`,
+      `/admin/categories/keywords?${qs({name:last, path:pth})}`
+    ];
+    for (const url of urls){
+      try{
+        const r = await origFetch(url, { headers: { 'Accept':'application/json' }});
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (Array.isArray(j)) return j;
+        if (j && Array.isArray(j.keywords)) return j.keywords;
+        if (j && Array.isArray(j.data)) return j.data;
+      }catch(_e){}
+    }
+    return [];
+  }
+
+  window.fetch = async function(input, init){
+    try{
+      let url = (typeof input === 'string') ? input : (input && input.url) || '';
+      if (url){
         const u = new URL(url, window.location.origin);
-        u.searchParams.set('allow_hidden', '1');
-        if (typeof input === 'string') {
-          input = u.toString();
-        } else {
-          input = new Request(u.toString(), input);
+
+        // keep: ensure allow_hidden on inspect
+        if (u.pathname.includes('/admin/categories/inspect') && !u.searchParams.has('allow_hidden')){
+          u.searchParams.set('allow_hidden','1');
+          input = (typeof input === 'string') ? u.toString() : new Request(u.toString(), input);
+          url = u.toString();
+        }
+
+        // intercept any drawer "keywords" calls
+        const isKw =
+          /\/admin\/(categories|api)\/(keywords|keywords_for_name|keywords_for_path)/.test(u.pathname);
+        if (isKw){
+          const data = await getKeywordsMerged({ name: u.searchParams.get('name')||'', path: u.searchParams.get('path')||'' });
+          return new Response(JSON.stringify({ ok:true, keywords:data }), { status:200, headers:{'Content-Type':'application/json'}});
         }
       }
-    } catch(e) {}
+    }catch(_e){}
     return origFetch(input, init);
   };
-})();
-</script>
 
-<!-- BUILDER-LOCAL KEYWORD ADAPTER -->
-<script>
-/*
-  This page-level shim guarantees the drawer’s Keywords tab works here.
-  It tries, in order:
-
-    GET  /admin/api/keywords_for_name?name=LAST
-    GET  /admin/categories/keywords_for_name?name=LAST
-    GET  /admin/api/keywords_for_path?path=Cat/Sub/...
-    GET  /admin/categories/keywords_for_path?path=Cat/Sub/...
-    GET  /admin/categories/keywords?name=LAST&path=Cat/Sub/...
-
-  Exposes:
-    window.refreshKeywords()
-    window.deleteKeyword({ keyword, path })
-    window.addKeyword(kw)
-*/
-(function(){
-  'use strict';
-
-  // --- helpers --------------------------------------------------
-
+  // ========= PAGE-LEVEL KEYWORD API (single source) =========
   function pickKwListEl(){
     return document.getElementById('kw-list') ||
            document.querySelector('[data-kw-list]') ||
@@ -1618,111 +1637,69 @@
            document.getElementById('keywordsList') ||
            document.getElementById('kwList');
   }
-
-  function ctxPathStr(ctx){
-    return [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).join('/');
-  }
-
-  function guessCtx(){
-    // Prefer context set when “View drawer” was clicked
-    const ctx = (window.__drawerCtx || {});
-    return {
-      level: ctx.level || 'category',
-      cat:   ctx.cat   || '',
-      sub:   ctx.sub   || '',
-      ssub:  ctx.ssub  || '',
-      sss:   ctx.sss   || ''
-    };
-  }
+  function guessCtx(){ return ctxFromDrawer(); }
+  function ctxPathStr(ctx){ return pathFromCtx(ctx); }
 
   async function tryJson(urls){
     let last;
     for (const u of urls){
       try{
-        const r = await fetch(u, { headers: { 'Accept':'application/json' }});
+        const r = await fetch(u, { headers:{'Accept':'application/json'} });
         if (r.ok) return await r.json();
         last = new Error('GET '+u+' → '+r.status);
       }catch(e){ last = e; }
     }
     throw last || new Error('No keyword endpoint worked');
   }
-
   async function tryPost(urls, body){
     let last;
     for (const u of urls){
       try{
-        const r = await fetch(u, {
-          method:'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(body||{})
-        });
-        if (r.ok){
-          const ct = (r.headers.get('content-type')||'').toLowerCase();
-          return ct.includes('json') ? await r.json() : await r.text();
-        }
+        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+        if (r.ok){ const ct=(r.headers.get('content-type')||'').toLowerCase(); return ct.includes('json')? await r.json(): await r.text(); }
         last = new Error('POST '+u+' → '+r.status);
       }catch(e){ last = e; }
     }
     throw last || new Error('No keyword POST endpoint worked');
   }
 
-  // --- exported ops ---------------------------------------------
-
   async function refreshKeywords(){
-    // wait briefly for the drawer DOM to mount if needed
-    let list = pickKwListEl();
-    let tries = 0;
-    while (!list && tries < 60){ // up to ~1.2s
-      await new Promise(r => setTimeout(r, 20));
-      list = pickKwListEl();
-      tries++;
-    }
-    if (!list) return; // drawer not present yet; do nothing
-
+    let list = pickKwListEl(), tries=0;
+    while (!list && tries<60){ await new Promise(r=>setTimeout(r,20)); list=pickKwListEl(); tries++; }
+    if (!list) return;
     list.innerHTML = '<span class="muted">Loading…</span>';
 
-    const ctx = guessCtx();
+    const ctx  = guessCtx();
     const last = [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop() || '';
     const path = ctxPathStr(ctx);
-
-    const qs = (o)=>Object.entries(o)
-      .map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
-
+    const qs2  = (o)=>Object.entries(o).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
     const candidates = [
-      `/admin/api/keywords_for_name?${qs({name:last})}`,
-      `/admin/categories/keywords_for_name?${qs({name:last})}`,
-      `/admin/api/keywords_for_path?${qs({path})}`,
-      `/admin/categories/keywords_for_path?${qs({path})}`,
-      `/admin/categories/keywords?${qs({name:last, path})}`
+      `/admin/api/keywords_for_name?${qs2({name:last})}`,
+      `/admin/categories/keywords_for_name?${qs2({name:last})}`,
+      `/admin/api/keywords_for_path?${qs2({path})}`,
+      `/admin/categories/keywords_for_path?${qs2({path})}`,
+      `/admin/categories/keywords?${qs2({name:last, path})}`
     ];
 
-    let arr = [];
+    let arr=[];
     try{
       const j = await tryJson(candidates);
-      if (Array.isArray(j)) arr = j;
-      else if (j && Array.isArray(j.keywords)) arr = j.keywords;
-      else if (j && Array.isArray(j.data)) arr = j.data;
-    }catch(e){
-      console.warn('Keywords GET failed', e);
-      arr = [];
-    }
+      if (Array.isArray(j)) arr=j;
+      else if (j && Array.isArray(j.keywords)) arr=j.keywords;
+      else if (j && Array.isArray(j.data)) arr=j.data;
+    }catch(_e){ arr=[]; }
 
-    if (!arr.length){
-      list.innerHTML = '<span class="muted">No keywords yet.</span>';
-      return;
-    }
+    if (!arr.length){ list.innerHTML='<span class="muted">No keywords yet.</span>'; return; }
 
     list.innerHTML = arr.map(k =>
       `<span class="pill"><span class="pill-text">${String(k)}</span><button class="kw-x" data-kw="${encodeURIComponent(k)}" title="Remove">×</button></span>`
     ).join(' ');
 
-    // Avoid duplicate bindings by using {once:true}
     list.addEventListener('click', function onX(e){
       const btn = e.target.closest('.kw-x'); if (!btn) return;
       e.preventDefault();
       deleteKeyword({ keyword: decodeURIComponent(btn.dataset.kw||''), path })
-        .then(refreshKeywords)
-        .catch(()=>{/* noop */});
+        .then(refreshKeywords).catch(()=>{});
     }, { once:true });
   }
 
@@ -1731,15 +1708,10 @@
     const posts = [
       '/admin/api/keyword_remove',
       '/admin/categories/keyword_remove',
-      '/admin/categories/keywords' // unified
+      '/admin/categories/keywords'
     ];
-    try{
-      await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body));
-    }catch(e){
-      console.warn('Keyword remove failed', e);
-    }
+    try{ await tryPost(posts, Object.assign({ remove:true, action:'remove' }, body)); } catch(_e){}
   }
-
   async function addKeyword(kw){
     const ctx = guessCtx();
     const body = Object.assign({
@@ -1747,20 +1719,14 @@
       name: [ctx.cat, ctx.sub, ctx.ssub, ctx.sss].filter(Boolean).pop()||'',
       path: ctxPathStr(ctx)
     }, ctx);
-
     const posts = [
       '/admin/api/keyword_add',
       '/admin/categories/keyword_add',
-      '/admin/categories/keywords' // unified
+      '/admin/categories/keywords'
     ];
-    try{
-      await tryPost(posts, Object.assign({ action:'add' }, body));
-    }catch(e){
-      console.warn('Keyword add failed', e);
-    }
+    try{ await tryPost(posts, Object.assign({ action:'add' }, body)); } catch(_e){}
   }
 
-  // --- expose for the drawer -----------------------------------
   window.refreshKeywords = refreshKeywords;
   window.deleteKeyword   = deleteKeyword;
   window.addKeyword      = addKeyword;
