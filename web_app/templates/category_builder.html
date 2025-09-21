@@ -1822,6 +1822,7 @@
 </script>
 
 <!-- ====== NEW: Category → Recurring JS ====== -->
+<!-- ====== NEW: Category → Recurring JS (patched) ====== -->
 <script>
 (function(){
   let modal;
@@ -1831,14 +1832,12 @@
     const s = v < 0 ? '-$' : '$';
     return s + Math.abs(v).toFixed(2);
   }
-
   function populate(sel, items, ph){
     sel.innerHTML = '';
     const o0 = document.createElement('option'); o0.value=''; o0.textContent = ph || '—';
     sel.appendChild(o0);
     items.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
   }
-
   function getPath(){
     const cat  = document.getElementById('rcCat').value || '';
     const sub  = document.getElementById('rcSub').value || '';
@@ -1846,15 +1845,18 @@
     const sss  = document.getElementById('rcSss').value || '';
     return { cat, sub, ssub, sss };
   }
-
   function setMeta(text){ document.getElementById('rcMeta').textContent = text || '—'; }
+  const asQuery = (o)=>Object.entries(o).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
 
   async function callJSON(urls, body){
     let last;
     for (const u of urls){
       try{
         const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-        if (r.ok) return await r.json().catch(()=>({}));
+        if (r.ok) {
+          const ct = (r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : { ok:true, raw: await r.text() };
+        }
         last = new Error(`${u} → ${r.status}`);
       }catch(e){ last = e; }
     }
@@ -1868,14 +1870,18 @@
     const freq    = document.getElementById('rcFreq').value || '';
 
     if (!cat){ alert('Pick at least a Category.'); return; }
-
     setMeta('Loading preview…');
 
     const payload = { path:{cat,sub,ssub,sss}, lookback: lb, amount_mode: amtMode, frequency_hint: freq };
 
     try{
       const res = await callJSON(
-        ['/admin/recurring/propose_from_category','/api/recurring/propose_from_category'],
+        [
+          '/admin/recurring/propose_from_category',
+          '/api/recurring/propose_from_category',
+          '/recurring/propose_from_category',                 // new fallback
+          '/admin/api/recurring/propose_from_category'        // new fallback
+        ],
         payload
       );
       const box = document.getElementById('rcPreviewBox');
@@ -1898,11 +1904,28 @@
         return `<div class="d-flex justify-content-between"><span class="text-truncate me-2" style="max-width:70%;">${m||'—'}</span><span class="mono">${a}</span></div>`;
       }).join('');
       box.innerHTML = list || '<div class="text-muted">No sample returned.</div>';
-    }catch(err){
+    }catch(_err){
       setMeta('Preview unavailable.');
       document.getElementById('rcPreviewBox').innerHTML =
         '<div class="text-muted">No preview endpoint found. You can still save — keywords and median will be computed server-side.</div>';
     }
+  }
+
+  // graceful fallback -> seed /recurring if no API exists
+  function fallbackRedirect({ path, keywords, amount_mode, frequency, lookback }){
+    try{
+      const seed = {
+        from: 'builder',
+        category_path: path,
+        keywords,
+        amount_mode,
+        frequency,
+        lookback,
+        ts: Date.now()
+      };
+      localStorage.setItem('__recurringCategorySeed', JSON.stringify(seed));
+    }catch(_e){}
+    window.location.href = '/recurring';
   }
 
   async function confirmAdd(){
@@ -1926,7 +1949,12 @@
 
     try{
       const res = await callJSON(
-        ['/admin/recurring/upsert_from_category','/api/recurring/upsert_from_category'],
+        [
+          '/admin/recurring/upsert_from_category',
+          '/api/recurring/upsert_from_category',
+          '/recurring/upsert_from_category',             // new fallback
+          '/admin/api/recurring/upsert_from_category'    // new fallback
+        ],
         payload
       );
       if (simulate){
@@ -1937,15 +1965,26 @@
       const mEl = document.getElementById('catToRecurringModal');
       (bootstrap && bootstrap.Modal.getInstance(mEl))?.hide();
     }catch(err){
-      alert('Could not add to Recurring.\n\n' + String(err) + '\n\nTried endpoints:\n' +
-        '/admin/recurring/upsert_from_category\n/api/recurring/upsert_from_category');
+      // hard fallback to existing /recurring flow so the user isn't blocked
+      const nice = String(err||'').replace(/^Error:\s*/, '');
+      alert(
+        'Could not reach a Recurring API. We will open the Recurring page and pass your selections there.\n\n' +
+        'Last error: ' + nice
+      );
+      fallbackRedirect({
+        path: { cat, sub, ssub, sss },
+        keywords: kws,
+        amount_mode: amtMode,
+        frequency: freq || '',
+        lookback: lb
+      });
     }
   }
 
   function openModal(){
     const mEl = document.getElementById('catToRecurringModal');
-    modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(mEl) : null;
-    if (modal) modal.show();
+    const bootstrapModal = (bootstrap && bootstrap.Modal) ? new bootstrap.Modal(mEl) : null;
+    bootstrapModal?.show();
 
     const rcCat  = document.getElementById('rcCat');
     const rcSub  = document.getElementById('rcSub');
