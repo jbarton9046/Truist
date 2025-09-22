@@ -590,7 +590,7 @@
 
   const freqOrder = { weekly:1, biweekly:2, semi_monthly:2.5, monthly:3, quarterly:4, semiannual:5, annual:6, unknown:7 };
 
-  // lightweight fetch retry to reduce “network error” flakiness
+  // small retry wrapper to reduce flakiness
   async function fetchWithRetry(url, opts={}, tries=3, baseDelay=250){
     let lastErr;
     for (let i=0;i<tries;i++){
@@ -600,10 +600,7 @@
         return res;
       }catch(e){
         lastErr = e;
-        if (i < tries-1) {
-          await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, i)));
-          continue;
-        }
+        if (i < tries-1) await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, i)));
       }
     }
     throw lastErr || new Error('Network error');
@@ -638,7 +635,6 @@
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
 
-  // Sparkline with explicit hit areas + data attributes (for custom tooltip)
   function svgSparkline(series, labels, w=SPARK_W, h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
@@ -700,8 +696,9 @@
       if (ls) return JSON.parse(ls);
       const tag = document.getElementById('recurring-overrides');
       const j = JSON.parse(tag.textContent || '{}');
-      return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[]}, j||{});
-    }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[] }; }
+      // NEW: add 'synthetic' list for manual attachments
+      return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[], synthetic:[]}, j||{});
+    }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[], synthetic:[] }; }
   }
   function writeOverrides(state){
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -791,14 +788,13 @@
       });
     });
 
-    // MERGE rules are stored inside include with merge:true
+    // MERGE rules stored as include with merge:true
     const includes = (ov.include||[]);
     const mergeIncludes = includes.filter(r => r.merge === true);
 
     mergeIncludes.forEach(rule => {
-      // streams that match keywords & variance
       const matched = filtered.filter(s => {
-        const subset = txByKey[s._key] || [];
+        const subset = (txByKey[s._key] || []);
         const kwOK = streamMatchesKeywords(s, subset, rule.keywords);
         const varOK = (rule.amount==null || rule.amount==='') ? true : withinVariance(s.amount, rule);
         return kwOK && varOK;
@@ -848,13 +844,13 @@
         freq,
         next,
         manual: true,
-        _merge_of: combinedKeys,                  // includes orphans
+        _merge_of: combinedKeys,
         _merge_var_abs: rule.variance_abs || null,
         _merge_var_pct: rule.variance_pct || null
       });
     });
 
-    // INCLUDE (non-merge) force streams
+    // INCLUDE (non-merge)
     includes.filter(r=>!r.merge).forEach(rule => {
       let found = null;
       for (let i=0;i<filtered.length;i++){
@@ -901,15 +897,42 @@
       });
     });
 
-    // Build merged tx map so sorting/graphs have the combined transactions
+    // === NEW: apply synthetic attachments (manual “pull into stream”) ===
+    // Each item is { sig: {date, amount, text}, to_keywords: "STRAIGHTTALK", cloned: true }
+    const synth = Array.isArray(ov.synthetic) ? ov.synthetic : [];
     const txByKeyMerged = { ...txByKey };
-    for (const s of filtered) {
-      if (s._merge_of && s._merge_of.length) {
-        txByKeyMerged[s._key] = [].concat(...s._merge_of.map(k => txByKey[k] || []));
-      }
-    }
+    filtered.forEach(s => { if (!txByKeyMerged[s._key]) txByKeyMerged[s._key]=[]; });
 
-    return { ...base, streams: filtered, upcoming, _txByKey: txByKeyMerged };
+    // Try to locate the target stream by keywords and push a cloned tx into its bucket
+    synth.forEach(entry => {
+      const { sig={}, to_keywords } = entry || {};
+      const matchTo = mkMatcher(to_keywords || '');
+      const target = filtered.find(s => matchTo(s.merchant||s.name));
+      if (!target) return;
+      // find the real tx in raw list first (better tooltip/category), else synthesize it
+      const found = txs.find(t => {
+        const sameAmt = Math.abs(Number(t.amount||0)) === Math.abs(Number(sig.amount||0));
+        const sameDate = (String(t.date||'') === String(sig.date||''));
+        const text = (t.merchant || t.merchant_name || t.description || '').toString().toLowerCase();
+        const want = (sig.text||'').toString().toLowerCase();
+        return sameAmt && sameDate && (!want || text.includes(want));
+      });
+      const clone = found ? { ...found } : {
+        date: sig.date, amount: Number(sig.amount||0),
+        merchant: sig.text || (target.merchant || 'Manual attach'),
+        category: 'Manual'
+      };
+      (txByKeyMerged[target._key] ||= []).push(clone);
+    });
+
+    // For merged rows, collect their source tx groups
+    filtered.forEach(s => {
+      if (s._merge_of && s._merge_of.length) {
+        txByKeyMerged[s._key] = [].concat(...s._merge_of.map(k => txByKeyMerged[k] || []));
+      }
+    });
+
+    return { ...base, streams: filtered, upcoming, _txByKey: txByKeyMerged, _synthetic: synth };
   }
 
   // ---------- PAGE RENDER + INTERACTIONS ----------
@@ -917,7 +940,7 @@
   const mergeBtn = byId('mergeBtn');
   const manageBtn = byId('manageRulesBtn');
 
-  // Sort (default by deep category; add data-sort="merchant" in header if you want A→Z by name)
+  // Sort (you can add data-sort="merchant" in the header to sort A→Z by name)
   let sortState = { key: 'category', dir: 'asc' };
   function sortableVal(key, s, txByKey){
     if (key==='merchant') return (s.merchant || s.name || '').toString().toLowerCase();
@@ -964,11 +987,8 @@
     try{
       const win=winSel.value, horizon=horSel.value;
       const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
-
-      // retry-enabled fetch
       const res=await fetchWithRetry(url, {}, 3, 300);
       const base=await res.json();
-
       const data=applyRecurringOverrides(base);
       cachedData=data;
 
@@ -1025,7 +1045,7 @@
       }
 
       renderStreamsTable();
-      renderScatter(); // shows next-30-days expected charges
+      renderScatter(); // next-30-days, rent excluded, colored by category
       bindSort(); setSortIndicators();
     }catch(err){
       showDebug(err.message || String(err));
@@ -1050,6 +1070,7 @@
     return allTx.filter(t => (t._stream_key||t.merchant_key||'')===key);
   }
 
+  // ---- row table ----
   function renderStreamsTable(){
     if(!cachedData) return;
     const tbody=document.querySelector('#streamsTable tbody'); tbody.innerHTML='';
@@ -1087,6 +1108,8 @@
           <div class="dropdown-menu dropdown-menu-end">
             <button class="dropdown-item" data-act="start-merge" data-key="${esc(s._key||'')}">Combine with…</button>
             <div class="dropdown-divider"></div>
+            <button class="dropdown-item" data-act="attach-last" data-kw="${esc(s.merchant||'')}">Attach last matching tx…</button> <!-- NEW -->
+            <div class="dropdown-divider"></div>
             <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
             <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
             <button class="dropdown-item" data-act="override-next" data-kw="${esc(s.merchant||'')}" data-next="${esc(s.next||'')}">Set next date…</button>
@@ -1121,7 +1144,7 @@
       });
     });
 
-    // wire actions (exclude/override/quick-merge)
+    // wire actions (exclude/override/quick-merge/attach)
     tbody.querySelectorAll('[data-act]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const act=btn.dataset.act; const kw=btn.dataset.kw||'';
@@ -1131,6 +1154,26 @@
           const k = btn.dataset.key;
           if (k){ selectedKeys.add(k); updateMergeBtn(); }
           document.getElementById('mergeBtn').click();
+          return;
+        }
+
+        if (act==='attach-last'){ // NEW: manually pull last matching tx
+          // Look for most recent transaction that matches keywords (but isn’t already grouped in this stream)
+          const matcher = mkMatcher(kw);
+          const all = (cachedData.transactions||[]).slice().reverse();
+          const targetKey = btn.closest('tr')?.querySelector('.rowSel')?.dataset.key || '';
+          const already = new Set((cachedData._txByKey?.[targetKey]||[]).map(t=>`${t.date}|${t.amount}|${(t.merchant||t.description||'')}`));
+          const picked = all.find(t => matcher(t.merchant||t.merchant_name||t.description) && !already.has(`${t.date}|${t.amount}|${(t.merchant||t.description||'')}`));
+          if (!picked){ alert('No unassigned matching transaction found.'); return; }
+          // confirm (helpful when grabbing that $46.23 STRAIGHTTALK)
+          const ok = confirm(`Attach ${money(picked.amount)} on ${picked.date} — ${(picked.merchant||picked.description||'').slice(0,64)} — to "${kw}"?`);
+          if (!ok) return;
+          ov.synthetic = Array.isArray(ov.synthetic) ? ov.synthetic : [];
+          ov.synthetic.push({
+            to_keywords: kw,
+            sig: { date: picked.date, amount: Number(picked.amount||0), text: (picked.merchant||picked.merchant_name||picked.description||'') }
+          });
+          writeOverrides(ov); load();
           return;
         }
 
@@ -1159,7 +1202,19 @@
     updateMergeBtn();
   }
 
-  // ----- Scatter plot: ONLY next 30 days expected charges -----
+  // ----- Scatter plot: ONLY next 30 days expected charges; exclude Rent; color by category -----
+  function categoryColor(name){
+    const n = (name||'').toString().toLowerCase();
+    // simple palette (oklab-mixed with theme)
+    if (n.includes('phone') || n.includes('cell')) return 'var(--cat-phone, #7dd3fc)';
+    if (n.includes('internet') || n.includes('cable')) return 'var(--cat-internet, #a78bfa)';
+    if (n.includes('utilities') || n.includes('power') || n.includes('water')) return 'var(--cat-utilities, #fbbf24)';
+    if (n.includes('insurance')) return 'var(--cat-insurance, #34d399)';
+    if (n.includes('subscription') || n.includes('stream')) return 'var(--cat-subs, #f472b6)';
+    if (n.includes('rent') || n === 'rent') return 'var(--cat-rent, #f87171)';
+    return 'var(--cat-other, #9ca3af)';
+  }
+
   function renderScatter(){
     const el = document.getElementById('scatterWrap');
     if (!el || !cachedData) return;
@@ -1169,24 +1224,34 @@
     const today = new Date(); today.setHours(0,0,0,0);
     const end = new Date(today); end.setDate(end.getDate() + NEXT_DAYS);
 
-    // use upcoming expected charges (not historical tx)
-    const upcoming = (cachedData.upcoming || []).map(u => ({...u, days: daysFromToday(u.date)}))
+    // upcoming expected charges
+    const upcomingAll = (cachedData.upcoming || []).map(u => ({...u, days: daysFromToday(u.date)}));
+    // EXCLUDE rent-like rows (your $2,500 rent) to declutter
+    const isRentish = (u)=>{
+      const label = (u.merchant || u.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g,'');
+      const cat = (u.category || '').toString().toLowerCase();
+      const amt = Math.abs(Number(u.amount||0));
+      return label.includes('rent') || cat==='rent' || amt >= 2000; // tune if needed
+    };
+    const upcoming = upcomingAll
       .filter(u => u.days != null && u.days >= 0 && u.days <= NEXT_DAYS)
+      .filter(u => !isRentish(u)) // <— exclude Rent
       .sort((a,b)=> (a.date < b.date ? -1 : 1));
 
+    const note = byId('scatterNote');
+
     if (!upcoming.length){
-      el.innerHTML = '<div class="text-muted small">No expected charges in the next 30 days.</div>';
-      byId('scatterNote').textContent = `0 items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)}`;
+      el.innerHTML = '<div class="text-muted small">No expected charges in the next 30 days (rent excluded).</div>';
+      note.textContent = `0 items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)}`;
       return;
     }
 
-    // map to points
     const points = upcoming.map(u => {
       const dt = parseDate(u.date);
-      return { x: dt.getTime(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString() };
+      const cat = (u.category || u.cat_top || 'Other');
+      return { x: dt.getTime(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString(), cat };
     });
 
-    // bounds
     const pad=24, W=480, H=220;
     const minX=today.getTime(), maxX=end.getTime();
     const ys=points.map(p=>p.y);
@@ -1197,7 +1262,7 @@
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Next 30 days of expected charges');
+    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Next 30 days of expected charges (rent excluded)');
 
     // axes
     const axis = document.createElementNS(svg.namespaceURI,'g');
@@ -1224,7 +1289,7 @@
       svg.appendChild(lbl);
     }
 
-    // y ticks (nice steps)
+    // y ticks
     const step = Math.pow(10, Math.floor(Math.log10(maxY)) - 1);
     for (let v=0; v<=maxY; v+= step){
       const y = yScale(v);
@@ -1241,22 +1306,39 @@
       svg.appendChild(lbl);
     }
 
-    // points
+    // points (colored by category)
     const g = document.createElementNS(svg.namespaceURI,'g');
     points.forEach(p => {
       const cx = xScale(p.x), cy = yScale(p.y);
       const dot = document.createElementNS(svg.namespaceURI,'circle');
       dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', 3.2);
-      dot.setAttribute('fill', 'currentColor');
+      dot.setAttribute('fill', categoryColor(p.cat)); // NEW color
+      dot.classList.add('scatter-dot');
       const hit = document.createElementNS(svg.namespaceURI,'circle');
-      hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', 9);
-      hit.setAttribute('fill','transparent'); hit.setAttribute('data-tip', `${new Date(p.x).toISOString().slice(0,10)} · ${money(p.y)}`);
+      hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', 10);
+      hit.setAttribute('fill','transparent');
+      hit.setAttribute('data-tip', `${new Date(p.x).toISOString().slice(0,10)} · ${money(p.y)} · ${p.cat}`);
       hit.classList.add('scatter-hit');
       const group = document.createElementNS(svg.namespaceURI,'g');
       group.appendChild(dot); group.appendChild(hit);
       g.appendChild(group);
     });
     svg.appendChild(g);
+
+    // simple legend (top-right)
+    const cats = Array.from(new Set(points.map(p=>p.cat))).slice(0,6);
+    let lx = W - pad - 120, ly = pad + 4;
+    cats.forEach((name,i)=>{
+      const sw = document.createElementNS(svg.namespaceURI,'rect');
+      sw.setAttribute('x', lx); sw.setAttribute('y', ly + i*14 - 8); sw.setAttribute('width', 10); sw.setAttribute('height', 10);
+      sw.setAttribute('rx', 2); sw.setAttribute('fill', categoryColor(name));
+      const cap = document.createElementNS(svg.namespaceURI,'text');
+      cap.setAttribute('x', lx + 14); cap.setAttribute('y', ly + i*14); cap.setAttribute('font-size','10');
+      cap.setAttribute('fill','currentColor'); cap.setAttribute('opacity','.8');
+      cap.textContent = name;
+      svg.appendChild(sw); svg.appendChild(cap);
+    });
+
     el.appendChild(svg);
 
     // tooltip reuse
@@ -1283,7 +1365,7 @@
     });
     el.addEventListener('pointerleave', hideTip2);
 
-    byId('scatterNote').textContent = `${points.length} items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)}`;
+    byId('scatterNote').textContent = `${points.length} items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)} (rent excluded)`;
   }
 
   // ===== Sparkline tooltip (delegated) =====
@@ -1431,7 +1513,6 @@
       window.bootstrap?.Modal.getInstance(mergeModalEl)?.hide();
       selectedKeys.clear(); updateMergeBtn(); load();
     }catch(err){
-      // Local fallback: store as include rule with merge:true so UI collapses them into one
       const ov = readOverrides();
       const keywords = Array.from(new Set(chosen.map(s=>(s.merchant||'').trim()))).filter(Boolean);
       ov.include.push({ keywords, amount, freq, next, label, merge:true, variance_abs: var_abs, variance_pct: var_pct });
@@ -1452,6 +1533,7 @@
   load();
 })();
 </script>
+
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
@@ -1504,10 +1586,10 @@
 /* monospace for money blocks we show in merge list */
 .mono{ font-variant-numeric: tabular-nums; }
 
-/* tighten cell paddings a bit for better fit */
+/* space */
 .table.table-floating > :not(caption) > * > * { padding-top: .6rem; padding-bottom: .6rem; }
 
-/* Sparkline style + bullet/line color sync; FORCE events just in case */
+/* Sparkline styling */
 #streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
 #streamsTable .trend-cell svg { display:block; margin:0 auto; color: var(--muted); pointer-events:auto; }
 #streamsTable .trend-cell svg path { stroke: currentColor; }
@@ -1516,7 +1598,21 @@
 #streamsTable .trend-cell svg .spark-pt:hover .dot,
 #streamsTable .trend-cell svg .spark-pt:focus .dot { filter: drop-shadow(0 0 2px currentColor); }
 
-/* scatter */
+/* Scatter */
 .scatter-wrap svg { width:100%; height:auto; color: var(--text); }
+.scatter-dot { mix-blend-mode: normal; }
+.scatter-wrap text { paint-order: stroke; stroke: rgba(0,0,0,.25); stroke-width: .6px; }
+
+/* Optional category color tokens (used by JS as fallbacks) */
+:root{
+  --cat-phone:#7dd3fc;
+  --cat-internet:#a78bfa;
+  --cat-utilities:#fbbf24;
+  --cat-insurance:#34d399;
+  --cat-subs:#f472b6;
+  --cat-rent:#f87171;
+  --cat-other:#9ca3af;
+}
 </style>
+
 {% endblock %}
