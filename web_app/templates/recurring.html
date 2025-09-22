@@ -595,7 +595,7 @@
     return `<a href="#" class="chip link-manage"
               data-manage data-level="${esc(level)}"
               data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}"
-              onclick="return dashManage(event, this);">${txt}</a>`;
+              onclick="return (window.dashManage ? window.dashManage(event, this) : true);">${txt}</a>`;
   }
 
   // ---------- RULES STORAGE ----------
@@ -613,11 +613,6 @@
     localStorage.setItem(LS_KEY, JSON.stringify(state));
     document.getElementById('recurring-overrides').textContent = JSON.stringify(state, null, 2);
     renderRulesTables(state);
-  }
-  function exportRulesFile(){
-    const blob = new Blob([JSON.stringify(readOverrides(), null, 2)], {type:'application/json'});
-    const url = URL.createObjectURL(blob); const a=document.createElement('a');
-    a.href=url; a.download='recurring_rules.json'; a.click(); URL.revokeObjectURL(url);
   }
 
   // ---------- MATCHING ----------
@@ -640,7 +635,7 @@
     const f = String(freq||'').toLowerCase();
     if (f==='weekly') d.setDate(d.getDate()+7);
     else if (f==='biweekly') d.setDate(d.getDate()+14);
-    else if (f==='semi_monthly') d.setDate(d.getDate()+14); // rough; server should compute anchors
+    else if (f==='semi_monthly') d.setDate(d.getDate()+14);
     else if (f==='monthly') d.setMonth(d.getMonth()+1);
     else if (f==='quarterly') d.setMonth(d.getMonth()+3);
     else if (f==='semiannual') d.setMonth(d.getMonth()+6);
@@ -711,7 +706,7 @@
       }
     });
 
-    // SCHEDULES (add explicit recurring regardless of transactions)
+    // SCHEDULES
     (ov.schedules||[]).forEach(sc => {
       filtered.push({
         _key: 'schedule:' + (sc.label||'').toLowerCase().replace(/\s+/g,'_')+':'+Date.now(),
@@ -730,7 +725,7 @@
   // ---------- PAGE RENDER + INTERACTIONS ----------
   const winSel = byId('win'), horSel=byId('horizon'), searchEl=byId('search');
   const mergeBtn = byId('mergeBtn');
-  const manageBtn = byId('manageRulesBtn'); const exportRulesBtn = byId('exportRules'); const importRulesInput = byId('importRules');
+  const manageBtn = byId('manageRulesBtn');
 
   // Sort
   let sortState = { key: 'category', dir: 'asc' };
@@ -772,9 +767,7 @@
   let upcomingWeekTotal=0;
   const selectedKeys = new Set();
 
-  function updateMergeBtn(){
-    mergeBtn.disabled = selectedKeys.size < 2;
-  }
+  function updateMergeBtn(){ mergeBtn.disabled = selectedKeys.size < 2; }
 
   async function load(){
     const win=winSel.value, horizon=horSel.value;
@@ -783,7 +776,7 @@
     const data=applyRecurringOverrides(base);
     cachedData=data;
 
-    // KPIs (compute "due this week" locally from filtered upcoming)
+    // KPIs and week total (from filtered upcoming)
     const pm = data.projected_month || {
       income_recurring: Number(data.income_recurring || 0),
       variable_income_monthly: Number(data.variable_income_monthly || 0),
@@ -799,13 +792,11 @@
     byId('kpi-income').textContent=money(income);
     const lEl=byId('kpi-leftover'); lEl.textContent=money(leftover); lEl.classList.toggle('text-danger',leftover<0);
 
-    // compute week total from filtered upcoming
     const todayTo7 = (data.upcoming||[])
       .map(u=>({...u,days:daysFromToday(u.date)}))
       .filter(u=>u.days!=null && u.days>=0 && u.days<=7);
     upcomingWeekTotal = todayTo7.reduce((a,u)=>a+Number(u.amount||0),0);
     byId('kpi-week').textContent=money(upcomingWeekTotal);
-
     setFloorMeter(floor, income);
 
     byId('pmRecurring').textContent=money(pm.income_recurring||0);
@@ -815,7 +806,7 @@
     const pmL=byId('pmLeftover'); pmL.textContent=money(pm.leftover||0); pmL.classList.toggle('text-danger', Number(pm.leftover||0)<0);
     byId('pmNote').textContent=`Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
 
-    // Due soon (7d)
+    // Due soon table (filtered upcoming)
     const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
     const txs=data.transactions||[];
     const txByKey = txs.reduce((acc,t)=>{ const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; },{});
@@ -1037,22 +1028,7 @@
     renderRulesTables(readOverrides());
   });
 
-  // (export/import buttons kept if you re-add them later)
-  // import file input still wired for rules restore
-  const importRulesInput = document.getElementById('importRules');
-  if (importRulesInput){
-    importRulesInput.addEventListener('change', async (e)=>{
-      const f=e.target.files[0]; if(!f) return;
-      try{
-        const text = await f.text(); const j=JSON.parse(text);
-        const base = { include:[], exclude:{}, override:[], pins:[], schedules:[] };
-        writeOverrides(Object.assign(base, j||{})); load();
-        e.target.value='';
-      }catch(err){ alert('Invalid JSON file.'); }
-    });
-  }
-
-  mergeBtn.addEventListener('click', ()=>{
+  byId('mergeBtn').addEventListener('click', ()=>{
     if (selectedKeys.size < 2) return;
     mergeModal = mergeModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(mergeModalEl) : null);
     const listEl = byId('mergeList');
