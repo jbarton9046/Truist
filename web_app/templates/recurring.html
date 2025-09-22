@@ -123,19 +123,20 @@
     </div>
 
     <div class="col-12 col-lg-5">
-      <!-- MONTHLY RECURRING SCATTER -->
-      <div class="card mt-3">
+
+      <!-- Scatter Plot (replaces "Projected Month" position) -->
+      <div class="card mt-3" id="scatterCard">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span>Monthly recurring charges (scatter)</span>
-          <small class="muted" id="scNote"></small>
+          <small class="muted" id="scatterNote"></small>
         </div>
         <div class="card-body">
-          <svg id="txScatter" width="100%" height="240" role="img" aria-label="Monthly recurring scatter plot"></svg>
+          <div id="scatterWrap" class="scatter-wrap"></div>
         </div>
       </div>
 
-      <!-- Projected Month (moved down) -->
-      <div class="card mt-3">
+      <!-- Projected Month (moved down under scatter) -->
+      <div class="card mt-3" id="projectedCard">
         <div class="card-header d-flex justify-content-between align-items-center">
           <span>Projected month</span>
           <small class="muted" id="pmNote"></small>
@@ -202,8 +203,7 @@
   "exclude": {},
   "override": [],
   "pins": [],
-  "schedules": [],
-  "merges": []
+  "schedules": []
 }
 </script>
 
@@ -232,9 +232,6 @@
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSchedules" type="button" role="tab">Schedules</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMerges" type="button" role="tab">Merges</button>
           </li>
         </ul>
 
@@ -404,6 +401,7 @@
                 <input class="form-control" id="scNext" type="date">
               </div>
 
+              <!-- Anchors (only for semi-monthly) -->
               <div id="scAnchors" class="col-12 d-none">
                 <div class="row g-2">
                   <div class="col-4">
@@ -435,16 +433,6 @@
             </div>
           </div>
 
-          <!-- Merges -->
-          <div class="tab-pane fade" id="tabMerges" role="tabpanel">
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead><tr><th>Label</th><th>Keys merged</th><th>Amount</th><th>Freq</th><th>Next</th><th></th></tr></thead>
-                <tbody id="mergesList"><tr><td colspan="6" class="text-muted">No merges.</td></tr></tbody>
-              </table>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -470,7 +458,7 @@
         <div class="row g-3">
           <div class="col-12">
             <label class="form-label small">Label</label>
-            <input id="mergeLabel" class="form-control" placeholder="e.g., Oona (combined)">
+            <input id="mergeLabel" class="form-control" placeholder="e.g., Straight Talk (2 lines)">
           </div>
 
           <div class="col-12 col-md-4">
@@ -521,6 +509,15 @@
             <div class="form-text">For semi-monthly schedules only.</div>
           </div>
 
+          <div class="col-12 col-md-6">
+            <label class="form-label small">Variance (± dollars)</label>
+            <input id="mergeVarAbs" class="form-control" inputmode="decimal" placeholder="e.g., 10">
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label small">Variance (± percent)</label>
+            <input id="mergeVarPct" class="form-control" inputmode="decimal" placeholder="e.g., 15">
+          </div>
+
           <div class="col-12">
             <label class="form-label small">Selected items</label>
             <div id="mergeList" class="small border rounded p-2" style="max-height:180px; overflow:auto;">—</div>
@@ -529,7 +526,7 @@
       </div>
 
       <div class="modal-footer">
-        <div class="small text-muted me-auto" id="mergeStatus">Creates a single combined stream; originals are hidden.</div>
+        <div class="small text-muted me-auto" id="mergeStatus">Will merge locally if API is unavailable.</div>
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button id="mergeConfirm" class="btn btn-primary">Merge</button>
       </div>
@@ -538,46 +535,60 @@
 </div>
 
 <script>
-(function(){
-  // ---- utility
-  const money = n => {
+(function () {
+  // ======= DEBUG BANNER (first JS/fetch error) =======
+  const dbg = document.createElement('div');
+  dbg.id = 'debugBanner';
+  dbg.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:9999;padding:8px 12px;border-radius:10px;font:12px/1.3 system-ui;background:#1f2937;color:#fde68a;border:1px solid #374151;box-shadow:0 8px 20px rgba(0,0,0,.35);display:none';
+  document.body.appendChild(dbg);
+  function showDebug(msg){ dbg.textContent = '⚠ ' + msg; dbg.style.display = 'inline-block'; console.error(msg); }
+  window.addEventListener('error', e => showDebug(e.message || 'Script error'));
+  window.addEventListener('unhandledrejection', e => showDebug((e.reason && (e.reason.message||e.reason)) || 'Promise rejection'));
+
+  // ======= UTIL =======
+  const byId = id => document.getElementById(id);
+  const money = (n) => {
     const v = Number(n || 0);
     const s = v < 0 ? '-$' : '$';
     return s + Math.abs(v).toFixed(2);
   };
-  const parseDate = s => { const [y,m,d] = (s||'').split('-').map(Number); return (y&&m&&d) ? new Date(y,m-1,d) : null; };
-  const daysFromToday = s => { const dt=parseDate(s); if(!dt) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()); return Math.round((d-t)/(1000*60*60*24)); };
-  const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
-  const freqOrder = { 'weekly':1,'biweekly':2,'semi_monthly':2.5,'monthly':3,'quarterly':4,'semiannual':5,'annual':6,'unknown':7 };
-  const byId = id => document.getElementById(id);
-  const slug = s=> String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
-  function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-  const parseTxDate = (d) => {
-    if (!d) return null;
-    if (d.includes('-')){ const [y,m,dd]=d.split('-').map(Number); return (y&&m&&dd)? new Date(y,m-1,dd): null; }
-    if (d.includes('/')){ const [mm,dd,yy]=d.split('/'); const y = Number(yy) + (yy.length===2 ? 2000 : 0); return (y&&mm&&dd)? new Date(y,Number(mm)-1,Number(dd)) : null; }
-    return null;
+  const parseDate = (s) => {
+    const [y, m, d] = (s || '').split('-').map(Number);
+    return (y && m && d) ? new Date(y, m - 1, d) : null;
   };
+  const daysFromToday = (s) => {
+    const dt = parseDate(s);
+    if (!dt) return null;
+    const t = new Date(); t.setHours(0,0,0,0);
+    const d = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    return Math.round((d - t) / (1000 * 60 * 60 * 24));
+  };
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const esc = (s) =>
+    String(s || '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
 
-  // ---------- SPARKLINES ----------
-  const SPARK_W=120, SPARK_H=28;
+  const freqOrder = { weekly:1, biweekly:2, semi_monthly:2.5, monthly:3, quarterly:4, semiannual:5, annual:6, unknown:7 };
+
+  // ======= SPARKLINES =======
+  const SPARK_W = 120, SPARK_H = 28;
+
   function lastNMonthsLabels(n){
     const labels = [];
     const today = new Date();
     const d = new Date(today.getFullYear(), today.getMonth(), 1);
-    for (let i=n-1; i>=0; i--){
-      const mm = new Date(d.getFullYear(), d.getMonth()-i, 1);
-      labels.push(mm.toISOString().slice(0,7));
+    for (let i = n - 1; i >= 0; i--){
+      const mm = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      labels.push(mm.toISOString().slice(0, 7)); // YYYY-MM
     }
     return labels;
   }
   function bucketSeriesByMonth(txs, months){
     const sums = Object.fromEntries(months.map(m=>[m,0]));
     for (const t of txs){
-      const [mm,dd,yy] = (t.date||'').split('/');
+      const dateStr = t.date || '';
       let key='';
-      if (yy && mm){ key = `${yy}-${String(mm).padStart(2,'0')}`; }
-      else if ((t.date||'').includes('-')) { key = (t.date||'').slice(0,7); }
+      if (dateStr.includes('-')){ key = dateStr.slice(0,7); }
+      else if (dateStr.includes('/')){ const [mm,dd,yy] = dateStr.split('/'); if (yy && mm) key = `${yy}-${String(mm).padStart(2,'0')}`; }
       if (key && key in sums){
         sums[key] += Math.abs(Number(t.amount||0));
       }
@@ -649,8 +660,8 @@
       if (ls) return JSON.parse(ls);
       const tag = document.getElementById('recurring-overrides');
       const j = JSON.parse(tag.textContent || '{}');
-      return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[], merges:[]}, j||{});
-    }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[], merges:[] }; }
+      return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[]}, j||{});
+    }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[] }; }
   }
   function writeOverrides(state){
     localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -671,7 +682,7 @@
     return false;
   }
 
-  // ---------- APPLY OVERRIDES (incl. TRUE MERGES) ----------
+  // ---------- APPLY OVERRIDES + MERGE ----------
   function nextFromFreq(freq, baseDateStr){
     const base = parseDate(baseDateStr) || new Date();
     const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
@@ -689,26 +700,24 @@
 
   function applyRecurringOverrides(base){
     const ov = readOverrides();
-
-    // Start with clones
     let streams = (base.streams||[]).map(s=>({...s}));
-    let txs = (base.transactions||[]).map(t=>({...t}));
-    let upcoming = (base.upcoming||[]).map(u=>({...u}));
+    const txs = base.transactions || [];
+    const txByKey = txs.reduce((acc, t) => { const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; }, {});
 
-    // Build map for excludes by text
+    // EXCLUDE
     const excMatchers = Object.entries(ov.exclude||{}).map(([k,reason])=>({ match: mkMatcher(k.split(',')), reason }));
     const isExcludedText = (desc)=> excMatchers.some(x => x.match(desc));
 
-    // Remove excluded by text (stream + tx + upcoming)
-    streams = streams.filter(s=> !isExcludedText(s.merchant || s.name || ''));
-    txs = txs.filter(t=> !isExcludedText(t.merchant||t.merchant_name||t.description));
-    upcoming = upcoming.filter(u=> !isExcludedText(u.merchant||u.name||''));
+    let filtered = streams.filter(s => {
+      const inTx = (txByKey[s._key]||[]).some(t => isExcludedText(t.merchant||t.merchant_name||t.description));
+      const self = isExcludedText(s.merchant || s.name || '');
+      return !(self || inTx);
+    });
 
-    // OVERRIDES
-    const txByKey0 = txs.reduce((a,t)=>{const k=t._stream_key||t.merchant_key||'';(a[k] ||= []).push(t);return a;},{});
-    (ov.override||[]).forEach(rule=>{
-      streams.forEach(s=>{
-        const subset = txByKey0[s._key] || [];
+    // OVERRIDE (adjust existing)
+    (ov.override||[]).forEach(rule => {
+      filtered.forEach(s => {
+        const subset = txByKey[s._key] || [];
         if (streamMatchesKeywords(s, subset, rule.keywords)){
           if (rule.amount!=null && rule.amount!=='') s.amount = Number(rule.amount);
           if (rule.freq) s.freq = rule.freq;
@@ -717,44 +726,38 @@
       });
     });
 
-    // ===== MERGES =====
-    const merges = Array.isArray(ov.merges) ? ov.merges : [];
-    const keyMap = new Map(); // oldKey -> newKey
-    const addMerged = [];
-    for (const m of merges){
-      const label = m.label || 'Merged';
-      const newKey = 'merge:' + slug(label);
-      (m.keys||[]).forEach(k=> keyMap.set(k, newKey));
-
-      const sample = streams.filter(s=> (m.keys||[]).includes(s._key));
-      const freq = m.freq || (sample[0]?.freq || 'monthly');
-      const next = m.next || (sample.sort((a,b)=> (a.next||'')<(b.next||'')? -1:1)[0]?.next) || nextFromFreq(freq, new Date().toISOString().slice(0,10));
-      const amount = (m.amount!=null) ? Number(m.amount) : (sample.reduce((a,s)=>a+Number(s.amount||0),0));
-
-      addMerged.push({_key:newKey, merchant:label, amount, count:'', freq, next, manual:true});
-    }
-
-    if (merges.length){
-      const mergedKeys = new Set(merges.flatMap(m=> m.keys||[]));
-      streams = streams.filter(s => !mergedKeys.has(s._key));
-      streams.push(...addMerged);
-      txs.forEach(t=>{
-        const k = t._stream_key || t.merchant_key || '';
-        if (keyMap.has(k)) t._stream_key = keyMap.get(k);
+    // MERGE rules are stored inside include with merge:true
+    const includes = (ov.include||[]);
+    const mergeIncludes = includes.filter(r => r.merge === true);
+    // For each merge rule: remove matched streams, add a single combined one, keep source keys so we can combine transactions for sparkline
+    mergeIncludes.forEach(rule => {
+      const matched = filtered.filter(s => streamMatchesKeywords(s, txByKey[s._key]||[], rule.keywords));
+      const matchedKeys = matched.map(s => s._key);
+      if (!matchedKeys.length) return;
+      filtered = filtered.filter(s => !matchedKeys.includes(s._key)); // remove originals
+      const amount = (rule.amount!=null && rule.amount!=='') ? Number(rule.amount) : matched.reduce((a,s)=>a+Number(s.amount||0),0);
+      const next = rule.next || matched.map(s=>s.next).filter(Boolean).sort()[0] || nextFromFreq(rule.freq||'monthly', new Date().toISOString().slice(0,10));
+      const freq = rule.freq || (matched[0]?.freq || 'monthly');
+      filtered.push({
+        _key: 'merge:' + (rule.label||'Merged').toLowerCase().replace(/\s+/g,'_') + ':' + Date.now(),
+        merchant: rule.label || 'Merged',
+        amount,
+        count: '',
+        freq,
+        next,
+        manual: true,
+        _merge_of: matchedKeys,
+        _merge_var_abs: rule.variance_abs || null,
+        _merge_var_pct: rule.variance_pct || null
       });
-      upcoming.forEach(u=>{
-        const k = u._stream_key || u.stream_key || u.merchant_key || '';
-        if (keyMap.has(k)) u._stream_key = keyMap.get(k);
-      });
-    }
+    });
 
-    // INCLUDE (force streams)
-    (ov.include||[]).forEach(rule=>{
-      const txByKey = txs.reduce((a,t)=>{const k=t._stream_key||t.merchant_key||'';(a[k] ||= []).push(t);return a;},{});
-      let found=null;
-      for (const s of streams){
-        const subset = txByKey[s._key]||[];
-        if (streamMatchesKeywords(s, subset, rule.keywords)){ found=s; break; }
+    // INCLUDE (non-merge) force streams
+    includes.filter(r=>!r.merge).forEach(rule => {
+      let found = null;
+      for (let i=0;i<filtered.length;i++){
+        const s=filtered[i]; const subset=txByKey[s._key]||[];
+        if (streamMatchesKeywords(s, subset, rule.keywords)) { found=s; break; }
       }
       const label = rule.label || (Array.isArray(rule.keywords) ? rule.keywords[0] : String(rule.keywords||'').split(',')[0]||'Manual');
       if (found){
@@ -763,8 +766,8 @@
         if (rule.next) found.next = rule.next;
         if (!found.merchant) found.merchant = label;
       }else{
-        streams.push({
-          _key: 'manual:' + slug(label) + ':' + Date.now(),
+        filtered.push({
+          _key: 'manual:' + label.toLowerCase().replace(/\s+/g,'_') + ':' + Date.now(),
           merchant: label,
           amount: Number(rule.amount||0),
           count: '',
@@ -775,7 +778,28 @@
       }
     });
 
-    return { ...base, streams, transactions: txs, upcoming };
+    // PINS + UPCOMING (apply excludes here too)
+    let upcoming = (base.upcoming||[]).filter(u => !isExcludedText(u.merchant||u.name||''));
+    (ov.pins||[]).forEach(p => {
+      if (!isExcludedText(p.label||'')){
+        upcoming.push({ date: p.date, amount: Number(p.amount||0), merchant: p.label || 'Pinned', _stream_key: 'pin:'+Date.now() });
+      }
+    });
+
+    // SCHEDULES
+    (ov.schedules||[]).forEach(sc => {
+      filtered.push({
+        _key: 'schedule:' + (sc.label||'').toLowerCase().replace(/\s+/g,'_')+':'+Date.now(),
+        merchant: sc.label || 'Scheduled',
+        amount: Number(sc.amount||0),
+        count: '',
+        freq: sc.freq || 'monthly',
+        next: sc.next || new Date().toISOString().slice(0,10),
+        manual: true
+      });
+    });
+
+    return { ...base, streams: filtered, upcoming, _txByKey: txByKey };
   }
 
   // ---------- PAGE RENDER + INTERACTIONS ----------
@@ -826,71 +850,75 @@
   function updateMergeBtn(){ mergeBtn.disabled = selectedKeys.size < 2; }
 
   async function load(){
-    const win=winSel.value, horizon=horSel.value;
-    const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
-    const res=await fetch(url); const base=await res.json();
-    const data=applyRecurringOverrides(base);
-    cachedData=data;
+    try{
+      const win=winSel.value, horizon=horSel.value;
+      const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
+      const res=await fetch(url);
+      if (!res.ok) throw new Error(`API ${url} → ${res.status}`);
+      const base=await res.json();
+      const data=applyRecurringOverrides(base);
+      cachedData=data;
 
-    // KPIs and week total (from filtered upcoming)
-    const pm = data.projected_month || {
-      income_recurring: Number(data.income_recurring || 0),
-      variable_income_monthly: Number(data.variable_income_monthly || 0),
-      income_expected: Number(data.income_expected || 0),
-      fixed_floor: Number(data.floor || 0),
-      leftover: Number(data.leftover != null ? data.leftover : (Number(data.income_expected||0) - Number(data.floor||0)))
-    };
-    const income=Number(pm.income_expected||data.income_expected||0);
-    const floor=Number(pm.fixed_floor||data.floor||0);
-    const leftover=Number(pm.leftover!=null?pm.leftover:(income-floor));
+      // KPIs and week total (from filtered upcoming)
+      const pm = data.projected_month || {
+        income_recurring: Number(data.income_recurring || 0),
+        variable_income_monthly: Number(data.variable_income_monthly || 0),
+        income_expected: Number(data.income_expected || 0),
+        fixed_floor: Number(data.floor || 0),
+        leftover: Number(data.leftover != null ? data.leftover : (Number(data.income_expected||0) - Number(data.floor||0)))
+      };
+      const income=Number(pm.income_expected||data.income_expected||0);
+      const floor=Number(pm.fixed_floor||data.floor||0);
+      const leftover=Number(pm.leftover!=null?pm.leftover:(income-floor));
 
-    byId('kpi-floor').textContent=money(floor);
-    byId('kpi-income').textContent=money(income);
-    const lEl=byId('kpi-leftover'); lEl.textContent=money(leftover); lEl.classList.toggle('text-danger',leftover<0);
+      byId('kpi-floor').textContent=money(floor);
+      byId('kpi-income').textContent=money(income);
+      const lEl=byId('kpi-leftover'); lEl.textContent=money(leftover); lEl.classList.toggle('text-danger',leftover<0);
 
-    const todayTo7 = (data.upcoming||[])
-      .map(u=>({...u,days:daysFromToday(u.date)}))
-      .filter(u=>u.days!=null && u.days>=0 && u.days<=7);
-    upcomingWeekTotal = todayTo7.reduce((a,u)=>a+Number(u.amount||0),0);
-    byId('kpi-week').textContent=money(upcomingWeekTotal);
-    setFloorMeter(floor, income);
+      const todayTo7 = (data.upcoming||[])
+        .map(u=>({...u,days:daysFromToday(u.date)}))
+        .filter(u=>u.days!=null && u.days>=0 && u.days<=7);
+      upcomingWeekTotal = todayTo7.reduce((a,u)=>a+Number(u.amount||0),0);
+      byId('kpi-week').textContent=money(upcomingWeekTotal);
+      setFloorMeter(floor, income);
 
-    byId('pmRecurring').textContent=money(pm.income_recurring||0);
-    byId('pmVariable').textContent=money(pm.variable_income_monthly||0);
-    byId('pmExpected').textContent=money(pm.income_expected||0);
-    byId('pmFloor').textContent=money(pm.fixed_floor||0);
-    const pmL=byId('pmLeftover'); pmL.textContent=money(pm.leftover||0); pmL.classList.toggle('text-danger', Number(pm.leftover||0)<0);
-    byId('pmNote').textContent=`Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
+      byId('pmRecurring').textContent=money(pm.income_recurring||0);
+      byId('pmVariable').textContent=money(pm.variable_income_monthly||0);
+      byId('pmExpected').textContent=money(pm.income_expected||0);
+      byId('pmFloor').textContent=money(pm.fixed_floor||0);
+      const pmL=byId('pmLeftover'); pmL.textContent=money(pm.leftover||0); pmL.classList.toggle('text-danger', Number(pm.leftover||0)<0);
+      byId('pmNote').textContent=`Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
 
-    // Scatter header note
-    const mKeys = new Set((data.streams||[]).filter(s=> (s.freq||'').toLowerCase()==='monthly').map(s=> s._key));
-    const txCount = (data.transactions||[]).filter(t=> mKeys.has(t._stream_key||t.merchant_key||'')).length;
-    byId('scNote').textContent = `Window: ${data.window || winSel.value} days • ${txCount} monthly tx`;
-
-    renderStreamsTable();
-    renderScatterMonthly();   // <<<<<< monthly scatter
-    bindSort(); setSortIndicators();
-
-    // Due soon table
-    const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
-    const txs=data.transactions||[];
-    const txByKey = txs.reduce((acc,t)=>{ const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; },{});
-    const upcoming=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
-    const dueSoon=upcoming.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7).sort((a,b)=> (a.date<b.date?-1:1));
-    if(!dueSoon.length){ dueTbody.innerHTML='<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>'; }
-    else{
-      for (const u of dueSoon){
-        const key=u._stream_key||u.stream_key||u.merchant_key||'';
-        let subset=[]; if (key){ subset=txs.filter(t=>(t._stream_key||t.merchant_key||'')===key); }
-        const deep=subset.length?deepCategoryForStream(subset):(u.category||'Other');
-        const path=subset.length?categoryPathForLabel(subset,deep):{cat:u.category||'Other',sub:'',ssub:'',sss:''};
-        const chip=catChip(deep,path);
-        const label = u.days===0 ? '<span class="badge text-bg-danger">Today</span>' : (u.days===1?'1 day':`${u.days} days`);
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td>${u.date}</td><td>${chip}</td><td class="text-end">${money(u.amount)}</td><td class="text-end">${label}</td>`;
-        dueTbody.appendChild(tr);
-        if (window.canonicalizeChip){ const a=tr.querySelector('.chip.link-manage'); if(a) window.canonicalizeChip(a); }
+      // Due soon table (filtered upcoming)
+      const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
+      const txs=data.transactions||[];
+      const baseTxByKey = data._txByKey || {};
+      const txByKey = baseTxByKey; // keep original map; merged rows gather subsets in render
+      const upcoming=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
+      const dueSoon=upcoming.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7).sort((a,b)=> (a.date<b.date?-1:1));
+      if(!dueSoon.length){ dueTbody.innerHTML='<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>'; }
+      else{
+        for (const u of dueSoon){
+          const key=u._stream_key||u.stream_key||u.merchant_key||'';
+          let subset=[]; if (key){ subset=txs.filter(t=>(t._stream_key||t.merchant_key||'')===key); }
+          const deep=subset.length?deepCategoryForStream(subset):(u.category||'Other');
+          const path=subset.length?categoryPathForLabel(subset,deep):{cat:u.category||'Other',sub:'',ssub:'',sss:''};
+          const chip=catChip(deep,path);
+          const label = u.days===0 ? '<span class="badge text-bg-danger">Today</span>' : (u.days===1?'1 day':`${u.days} days`);
+          const tr=document.createElement('tr');
+          tr.innerHTML=`<td>${u.date}</td><td>${chip}</td><td class="text-end">${money(u.amount)}</td><td class="text-end">${label}</td>`;
+          dueTbody.appendChild(tr);
+          if (window.canonicalizeChip){ const a=tr.querySelector('.chip.link-manage'); if(a) window.canonicalizeChip(a); }
+        }
       }
+
+      renderStreamsTable();
+      renderScatter();
+      bindSort(); setSortIndicators();
+    }catch(err){
+      showDebug(err.message || String(err));
+      const tbody=document.querySelector('#streamsTable tbody');
+      if (tbody) tbody.innerHTML='<tr><td colspan="6" class="text-danger py-3 text-center">Failed to load data.</td></tr>';
     }
   }
 
@@ -900,17 +928,28 @@
     else { bar.style.width='0%'; subEl.textContent='no income set'; tile.classList.remove('over'); }
   }
 
+  function combinedSubsetFor(stream, txByKey, allTx){
+    if (stream._merge_of && stream._merge_of.length){
+      const arr=[];
+      stream._merge_of.forEach(k => { (txByKey[k]||[]).forEach(t=>arr.push(t)); });
+      return arr;
+    }
+    const key=stream._key||'';
+    return allTx.filter(t => (t._stream_key||t.merchant_key||'')===key);
+  }
+
   function renderStreamsTable(){
     if(!cachedData) return;
     const tbody=document.querySelector('#streamsTable tbody'); tbody.innerHTML='';
     const streams=(cachedData.streams||[]).slice();
     const txs=cachedData.transactions||[];
-    const txByKey = txs.reduce((acc,t)=>{ const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; },{});
+    const txByKey = cachedData._txByKey || {};
 
     const q=(searchEl.value||'').trim().toLowerCase();
     const filtered = streams.filter(s=>{
       if(!q) return true;
-      const deep = deepCategoryForStream(txByKey[s._key]||[]);
+      const subset = combinedSubsetFor(s, txByKey, txs);
+      const deep = deepCategoryForStream(subset);
       const hay = [ deep||'', s.freq||'' ].join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -921,7 +960,7 @@
     const months=lastNMonthsLabels(6);
 
     for (const s of filtered){
-      const key=s._key||''; const subset=txByKey[key]||[];
+      const subset=combinedSubsetFor(s, txByKey, txs);
       const series=bucketSeriesByMonth(subset, months);
       const warn=outlierFlag(series);
       const nextDays=s.next?daysFromToday(s.next):null;
@@ -930,11 +969,12 @@
       const path=categoryPathForLabel(subset, deepLabel);
       const chipHtml=catChip(deepLabel, path);
 
+      // actions menu: include "Combine with…"
       const actions = `
         <div class="dropdown ms-1">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Row actions">⋮</button>
           <div class="dropdown-menu dropdown-menu-end">
-            <button class="dropdown-item" data-act="start-merge" data-key="${esc(key)}">Combine with…</button>
+            <button class="dropdown-item" data-act="start-merge" data-key="${esc(s._key||'')}">Combine with…</button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
             <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
@@ -943,10 +983,10 @@
           </div>
         </div>`;
 
-      const checked = selectedKeys.has(key) ? 'checked' : '';
+      const checked = selectedKeys.has(s._key||'') ? 'checked' : '';
       const tr=document.createElement('tr');
       tr.innerHTML=`
-        <td class="text-center align-middle"><input type="checkbox" class="rowSel" data-key="${esc(key)}" ${checked}></td>
+        <td class="text-center align-middle"><input type="checkbox" class="rowSel" data-key="${esc(s._key||'')}" ${checked}></td>
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
             ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
@@ -970,7 +1010,7 @@
       });
     });
 
-    // wire actions
+    // wire actions (exclude/override/quick-merge)
     tbody.querySelectorAll('[data-act]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const act=btn.dataset.act; const kw=btn.dataset.kw||'';
@@ -979,6 +1019,7 @@
         if (act==='start-merge'){
           const k = btn.dataset.key;
           if (k){ selectedKeys.add(k); updateMergeBtn(); }
+          // open the merge modal seeded with this row
           document.getElementById('mergeBtn').click();
           return;
         }
@@ -1008,118 +1049,168 @@
     updateMergeBtn();
   }
 
-  // ----- MONTHLY scatter plot -----
-  function renderScatterMonthly(){
-    const svg = document.getElementById('txScatter');
-    if (!svg || !cachedData) return;
+  // ----- Scatter plot (SVG) of recurring charges over time -----
+  function renderScatter(){
+    const el = document.getElementById('scatterWrap');
+    if (!el || !cachedData) return;
+    el.innerHTML = '';
+    const txs = (cachedData.transactions||[]).filter(t => Number(t.amount||0) !== 0);
+    if (!txs.length){ el.innerHTML = '<div class="text-muted small">No transaction data.</div>'; return; }
 
-    const monthlyKeys = new Set((cachedData.streams||[])
-      .filter(s => (s.freq||'').toLowerCase() === 'monthly')
-      .map(s => s._key));
+    // map dates to numbers
+    const points = txs.map(t => {
+      const ds = String(t.date||'');
+      let y, m, d;
+      if (ds.includes('-')) { const a=ds.split('-'); y=+a[0]; m=+a[1]; d=+(a[2]||'1'); }
+      else if (ds.includes('/')) { const a=ds.split('/'); m=+a[0]; d=+a[1]; y=+a[2]; }
+      else { return null; }
+      const dt = new Date(y, (m||1)-1, d||1);
+      return { x: dt.getTime(), y: Math.abs(Number(t.amount||0)), k: (t._stream_key||t.merchant_key||''), cat: (t.category||t.cat_top||'') };
+    }).filter(Boolean);
 
-    const txs = (cachedData.transactions||[])
-      .filter(t => monthlyKeys.has(t._stream_key || t.merchant_key || ''))
-      .map(t=>({ dt: parseTxDate(t.date), amt: Math.abs(Number(t.amount||0)), label: t.merchant||t.merchant_name||t.description||'' }))
-      .filter(t=> t.dt && isFinite(t.amt));
+    if (!points.length){ el.innerHTML = '<div class="text-muted small">No dated points.</div>'; return; }
 
-    const W = svg.clientWidth || svg.getBoundingClientRect().width || 520;
-    const H = svg.getAttribute('height') ? Number(svg.getAttribute('height')) : 240;
-    const m = {t:12, r:16, b:28, l:40};
-    const iw = Math.max(10, W - m.l - m.r);
-    const ih = Math.max(10, H - m.t - m.b);
+    // bounds
+    const pad=24, W=480, H=220;
+    const xs = points.map(p=>p.x), ys=points.map(p=>p.y);
+    const minX=Math.min(...xs), maxX=Math.max(...xs);
+    const minY=0, maxY=Math.max(...ys,1)*1.1;
+    const xScale = x => pad + ( (x-minX) / Math.max(1,(maxX-minX)) ) * (W-pad*2);
+    const yScale = y => H - pad - ( (y-minY) / Math.max(1,(maxY-minY)) ) * (H-pad*2);
 
-    if (!txs.length){ svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="var(--muted)">No monthly recurring transactions</text>`; return; }
+    // axes ticks (months)
+    const s = new Date(minX), e = new Date(maxX);
+    s.setDate(1); e.setDate(1);
+    const monthTicks=[]; const cur = new Date(s);
+    while (cur <= e){ monthTicks.push(new Date(cur)); cur.setMonth(cur.getMonth()+1); }
 
-    const dmin = new Date(Math.min(...txs.map(t=>t.dt)));
-    const dmax = new Date(Math.max(...txs.map(t=>t.dt)));
-    const amax = Math.max(...txs.map(t=>t.amt)) || 1;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Recurring charges scatter plot');
 
-    const x = d => m.l + ( (d - dmin) / Math.max(1,(dmax - dmin)) ) * iw;
-    const y = a => m.t + (1 - (a/amax)) * ih;
+    // axes
+    const axis = document.createElementNS(svg.namespaceURI,'g');
+    axis.innerHTML = `
+      <path d="M${pad} ${H-pad} L ${W-pad} ${H-pad}" stroke="currentColor" opacity=".3"/>
+      <path d="M${pad} ${H-pad} L ${pad} ${pad}" stroke="currentColor" opacity=".3"/>
+    `;
+    svg.appendChild(axis);
 
-    // axes + ticks
-    const xticks = 5, yticks = 4;
-    const parts = [];
-    parts.push(`<rect x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="none" stroke="var(--card-border)"/>`);
-    for (let i=0;i<=xticks;i++){
-      const t = dmin.getTime() + (i/xticks)*(dmax.getTime()-dmin.getTime());
-      const dd = new Date(t);
-      const xx = x(dd);
-      parts.push(`<line x1="${xx}" y1="${m.t+ih}" x2="${xx}" y2="${m.t+ih+4}" stroke="var(--card-border)"/>`);
-      const label = dd.toISOString().slice(5,10);
-      parts.push(`<text x="${xx}" y="${m.t+ih+18}" font-size="11" text-anchor="middle" fill="var(--muted)">${label}</text>`);
-    }
-    for (let i=0;i<=yticks;i++){
-      const val = (i/yticks)*amax;
-      const yy = y(val);
-      parts.push(`<line x1="${m.l-4}" y1="${yy}" x2="${m.l}" y2="${yy}" stroke="var(--card-border)"/>`);
-      parts.push(`<text x="${m.l-8}" y="${yy+4}" font-size="11" text-anchor="end" fill="var(--muted)">$${Math.round(val)}</text>`);
+    // x ticks
+    monthTicks.forEach(d => {
+      const x = xScale(d.getTime());
+      const t = document.createElementNS(svg.namespaceURI,'line');
+      t.setAttribute('x1', x); t.setAttribute('x2', x); t.setAttribute('y1', H-pad); t.setAttribute('y2', H-pad+4);
+      t.setAttribute('stroke','currentColor'); t.setAttribute('opacity','.3');
+      svg.appendChild(t);
+
+      const lbl = document.createElementNS(svg.namespaceURI,'text');
+      lbl.setAttribute('x', x); lbl.setAttribute('y', H-pad+14);
+      lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('font-size','10');
+      lbl.setAttribute('fill','currentColor'); lbl.setAttribute('opacity','.7');
+      lbl.textContent = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      svg.appendChild(lbl);
+    });
+
+    // y ticks (nice steps)
+    const step = Math.pow(10, Math.floor(Math.log10(maxY)) - 1);
+    for (let v=0; v<=maxY; v+= step){
+      const y = yScale(v);
+      const t = document.createElementNS(svg.namespaceURI,'line');
+      t.setAttribute('x1', pad-4); t.setAttribute('x2', pad); t.setAttribute('y1', y); t.setAttribute('y2', y);
+      t.setAttribute('stroke','currentColor'); t.setAttribute('opacity','.3');
+      svg.appendChild(t);
+
+      const lbl = document.createElementNS(svg.namespaceURI,'text');
+      lbl.setAttribute('x', 4); lbl.setAttribute('y', y+3);
+      lbl.setAttribute('text-anchor','start'); lbl.setAttribute('font-size','10');
+      lbl.setAttribute('fill','currentColor'); lbl.setAttribute('opacity','.7');
+      lbl.textContent = money(v);
+      svg.appendChild(lbl);
     }
 
     // points
-    const pts = txs.map(t=>{
-      const xx = x(t.dt), yy = y(t.amt);
-      const dstr = t.dt.toISOString().slice(0,10);
-      return `<g class="sc-pt"><circle cx="${xx}" cy="${yy}" r="3" fill="currentColor"></circle>
-        <circle class="sc-hit" cx="${xx}" cy="${yy}" r="10" fill="transparent"
-          data-label="${dstr}" data-value="${money(t.amt)}" data-what="${esc(t.label)}"></circle></g>`;
-    }).join('');
-    parts.push(`<g transform="translate(0,0)" style="color:var(--muted)">${pts}</g>`);
+    const g = document.createElementNS(svg.namespaceURI,'g');
+    points.forEach(p => {
+      const cx = xScale(p.x), cy = yScale(p.y);
+      const dot = document.createElementNS(svg.namespaceURI,'circle');
+      dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', 3.2);
+      dot.setAttribute('fill', 'currentColor');
+      const hit = document.createElementNS(svg.namespaceURI,'circle');
+      hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', 9);
+      hit.setAttribute('fill','transparent'); hit.setAttribute('data-tip', `${new Date(p.x).toISOString().slice(0,10)} · ${money(p.y)}`);
+      hit.classList.add('scatter-hit');
+      const group = document.createElementNS(svg.namespaceURI,'g');
+      group.appendChild(dot); group.appendChild(hit);
+      g.appendChild(group);
+    });
+    svg.appendChild(g);
+    el.appendChild(svg);
 
-    svg.innerHTML = parts.join('');
-
-    // tooltip (reuse floating tip)
-    const tip = document.getElementById('sparkTip');
-    function showTip(xp,yp,txt){
+    // tooltip reuse
+    const tip = document.getElementById('sparkTip') || (()=>{
+      const t = document.createElement('div');
+      t.id = 'sparkTip';
+      t.style.cssText = 'position:fixed; z-index:9999; padding:6px 10px; border-radius:10px; font-size:12px; color:var(--text); background:var(--card-bg); border:1px solid var(--card-border); box-shadow:0 10px 24px rgba(0,0,0,.45); pointer-events:none; opacity:0; transform:translate(-50%,-110%); transition:opacity .08s ease';
+      document.body.appendChild(t); return t;
+    })();
+    function showTip(x,y,txt){
       tip.textContent = txt;
       const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
-      const left = Math.min(vw-pad, Math.max(pad, xp));
-      let top = yp - 8;
-      tip.style.transform = 'translate(-50%,-110%)';
-      tip.style.left = left+'px';
-      tip.style.top = top+'px';
-      tip.style.opacity = '1';
+      const left = Math.min(vw - pad, Math.max(pad, x));
+      let top = y - 8; tip.style.transform = 'translate(-50%,-110%)';
+      tip.style.left = left + 'px'; tip.style.top = top + 'px'; tip.style.opacity = '1';
       const r = tip.getBoundingClientRect();
-      if (r.top < 0){ top = Math.min(vh-pad, yp+18); tip.style.top = top+'px'; tip.style.transform='translate(-50%,0)'; }
+      if (r.top < 0){ top = Math.min(vh - pad, y + 18); tip.style.top = top + 'px'; tip.style.transform = 'translate(-50%,0)'; }
     }
-    function hideTip(){ tip.style.opacity='0'; }
+    function hideTip(){ tip.style.opacity = '0'; }
 
-    svg.onpointermove = (e)=>{
-      const c = e.target.closest('.sc-hit');
-      if (c){
-        const txt = `${c.dataset.label}: ${c.dataset.value}`;
-        showTip(e.clientX, e.clientY, txt);
-      } else { hideTip(); }
-    };
-    svg.onpointerleave = ()=> hideTip();
+    el.addEventListener('pointermove', (e)=>{
+      const c = e.target.closest('.scatter-hit');
+      if (c){ showTip(e.clientX, e.clientY, c.getAttribute('data-tip')); } else { hideTip(); }
+    });
+    el.addEventListener('pointerleave', hideTip);
 
-    window.addEventListener('resize', ()=> renderScatterMonthly(), { once:true });
+    byId('scatterNote').textContent = `${points.length} points • ${new Date(minX).toISOString().slice(0,10)} → ${new Date(maxX).toISOString().slice(0,10)}`;
   }
 
-  // ===== Shared floating tooltip (for sparklines & scatter) =====
+  // ===== Sparkline tooltip (delegated) =====
   const tableEl = document.getElementById('streamsTable');
   const tip = document.createElement('div');
   tip.id = 'sparkTip';
+  // match theme colors and keep it close to the cursor
   tip.style.cssText = [
-    'position:fixed','z-index:9999','padding:6px 10px','border-radius:10px','font-size:12px',
-    'color:var(--text)','background:var(--card-bg)','border:1px solid var(--card-border)',
-    'box-shadow:0 10px 24px rgba(0,0,0,.45)','pointer-events:none','opacity:0',
-    'transform:translate(-50%,-110%)','transition:opacity .08s ease'
+    'position:fixed',
+    'z-index:9999',
+    'padding:6px 10px',
+    'border-radius:10px',
+    'font-size:12px',
+    'color:var(--text)',
+    'background:var(--card-bg)',
+    'border:1px solid var(--card-border)',
+    'box-shadow:0 10px 24px rgba(0,0,0,.45)',
+    'pointer-events:none',
+    'opacity:0',
+    'transform:translate(-50%,-110%)',
+    'transition:opacity .08s ease'
   ].join(';');
   document.body.appendChild(tip);
 
-  function showSparkTip(x,y,txt){
+  function showTip(x,y,txt){
     tip.textContent = txt;
-    const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
+
+    const pad = 8;
+    const vw = window.innerWidth, vh = window.innerHeight;
     const left = Math.min(vw - pad, Math.max(pad, x));
-    let top = y - 8;
+    let top = y - 8; // closer above the cursor
     tip.style.transform = 'translate(-50%,-110%)';
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
     tip.style.opacity = '1';
+
     const r = tip.getBoundingClientRect();
     if (r.top < 0){
-      top = Math.min(vh - pad, y + 18);
+      top = Math.min(vh - pad, y + 18); // closer below the cursor
       tip.style.top = top + 'px';
       tip.style.transform = 'translate(-50%,0)';
     }
@@ -1130,7 +1221,7 @@
     const c = e.target.closest('.hit');
     if (c){
       const txt = `${c.dataset.label}: ${c.dataset.value}`;
-      showSparkTip(e.clientX, e.clientY, txt);
+      showTip(e.clientX, e.clientY, txt);
     } else {
       hideTip();
     }
@@ -1141,9 +1232,115 @@
     const hit = g.querySelector('.hit');
     const r = g.getBoundingClientRect();
     const txt = `${hit.dataset.label}: ${hit.dataset.value}`;
-    showSparkTip(r.left + r.width/2, r.top, txt);
+    showTip(r.left + r.width/2, r.top, txt);
   });
   tableEl.addEventListener('focusout', hideTip);
+
+  // ---------- Merge flow ----------
+  const rulesModalEl = document.getElementById('rulesModal');
+  let rulesModal = null;
+  const mergeModalEl = document.getElementById('mergeModal');
+  let mergeModal = null;
+
+  manageBtn.addEventListener('click', ()=>{
+    rulesModal = rulesModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(rulesModalEl) : null);
+    if (rulesModal) rulesModal.show();
+    renderRulesTables(readOverrides());
+  });
+
+  byId('mergeBtn').addEventListener('click', ()=>{
+    if (selectedKeys.size < 2) return;
+    mergeModal = mergeModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(mergeModalEl) : null);
+    const listEl = byId('mergeList');
+    const note = byId('mergePickNote');
+
+    const chosen = (cachedData.streams||[]).filter(s=> selectedKeys.has(s._key));
+    const lines = chosen.map(s => `<div class="d-flex justify-content-between"><span>${esc(s.merchant||'')}</span><span class="mono">${money(s.amount)}</span></div>`).join('');
+    listEl.innerHTML = lines || '—';
+
+    const defaultLabel = (()=>{
+      const unique = Array.from(new Set(chosen.map(s=> (s.merchant||'').trim()))).filter(Boolean);
+      if (unique.length===1) return unique[0];
+      if (unique.length===2) return `${unique[0]} + ${unique[1]}`;
+      return `${unique[0]} (+${unique.length-1} more)`;
+    })();
+    byId('mergeLabel').value = defaultLabel;
+
+    const amtSum = chosen.reduce((a,s)=>a+Number(s.amount||0),0);
+    byId('mergeFixed').value = amtSum.toFixed(2);
+    byId('mergeAmtMode').value = 'sum';
+    byId('mergeFixedWrap').style.display = 'none';
+
+    byId('mergeFreq').value = 'semi_monthly';
+    byId('mergeNext').value = '';
+
+    byId('mergeA').value = 8; byId('mergeB').value = 18; byId('mergeGrace').value = 3;
+    byId('mergeAnchorsWrap').style.display = 'block';
+
+    note.textContent = `${chosen.length} items selected.`;
+
+    mergeModal?.show();
+  });
+
+  byId('mergeAmtMode').addEventListener('change', (e)=>{
+    const show = e.target.value === 'fixed';
+    byId('mergeFixedWrap').style.display = show ? '' : 'none';
+  });
+  byId('mergeFreq').addEventListener('change', (e)=>{
+    byId('mergeAnchorsWrap').style.display = (e.target.value === 'semi_monthly') ? '' : 'none';
+  });
+
+  async function postJSON(urls, body){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (r.ok){
+          const ct=(r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : { ok:true, raw: await r.text() };
+        }
+        last = new Error(`${u} → ${r.status}`);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('merge endpoints not available');
+  }
+
+  byId('mergeConfirm').addEventListener('click', async ()=>{
+    const chosen = (cachedData.streams||[]).filter(s=> selectedKeys.has(s._key));
+    if (chosen.length < 2){ alert('Pick at least two items.'); return; }
+
+    const label = (byId('mergeLabel').value||'').trim() || 'Merged';
+    const mode = byId('mergeAmtMode').value;
+    const freq = byId('mergeFreq').value || 'monthly';
+    const next = byId('mergeNext').value || undefined;
+    const anchors = (freq==='semi_monthly') ? [ Number(byId('mergeA').value||8), Number(byId('mergeB').value||18) ] : undefined;
+    const grace_days = (freq==='semi_monthly') ? Number(byId('mergeGrace').value||3) : undefined;
+
+    const var_abs = Number(byId('mergeVarAbs').value||0) || undefined;
+    const var_pct = Number(byId('mergeVarPct').value||0) || undefined;
+
+    const amounts = chosen.map(s=>Number(s.amount||0));
+    const amount = mode==='sum' ? amounts.reduce((a,b)=>a+b,0)
+                 : mode==='median' ? median(amounts)
+                 : Number(byId('mergeFixed').value||0);
+
+    const payload = { keys: chosen.map(s=>s._key), label, amount, freq, next, anchors, grace_days, variance_abs: var_abs, variance_pct: var_pct };
+
+    try{
+      await postJSON(['/admin/recurring/merge','/api/recurring/merge','/recurring/merge'], payload);
+      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      selectedKeys.clear(); updateMergeBtn(); load();
+    }catch(err){
+      // Local fallback: store as include rule with merge:true so UI collapses them into one
+      const ov = readOverrides();
+      const keywords = Array.from(new Set(chosen.map(s=>(s.merchant||'').trim()))).filter(Boolean);
+      ov.include.push({ keywords, amount, freq, next, label, merge:true, variance_abs: var_abs, variance_pct: var_pct });
+      writeOverrides(ov);
+      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      selectedKeys.clear(); updateMergeBtn(); load();
+      alert('Server merge API not found. Created a local combined rule instead.');
+    }
+  });
 
   // Events
   winSel.addEventListener('change', load);
@@ -1216,11 +1413,10 @@
 #streamsTable .trend-cell svg path { stroke: currentColor; }
 #streamsTable .trend-cell svg .dot { fill: currentColor; stroke: currentColor; }
 #streamsTable .trend-cell svg .hit { fill: transparent; pointer-events: all !important; }
-
-/* Scatter */
-#txScatter { color: var(--muted); }
-
 #streamsTable .trend-cell svg .spark-pt:hover .dot,
 #streamsTable .trend-cell svg .spark-pt:focus .dot { filter: drop-shadow(0 0 2px currentColor); }
+
+/* scatter */
+.scatter-wrap svg { width:100%; height:auto; color: var(--text); }
 </style>
 {% endblock %}
