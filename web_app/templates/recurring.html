@@ -102,18 +102,30 @@
         </div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-floating" id="streamsTable">
+            <!-- enforce stable column widths -->
+            <colgroup>
+              <col style="width:28px">          <!-- checkbox -->
+              <col>                              <!-- category -->
+              <col>                              <!-- merchant -->
+              <col style="width:110px">          <!-- amount -->
+              <col style="width:72px">           <!-- count -->
+              <col style="width:120px">          <!-- freq -->
+              <col style="width:150px">          <!-- next -->
+              <col style="width:210px">          <!-- trend -->
+              <col style="width:1%">             <!-- actions -->
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:28px;">
-                  <!-- header checkbox in future if you want "select all" -->
+                <th class="text-center align-middle">
+                  <!-- (optional) select-all later -->
                 </th>
-                <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
-                <th class="text-end sortable" data-sort="merchant">Merchant <span class="sort"></span></th>
-                <th class="text-end sortable" data-sort="amount">Amount <span class="sort"></span></th>
-                <th class="text-end sortable" data-sort="count">Count <span class="sort"></span></th>
-                <th class="sortable" data-sort="freq">Freq <span class="sort"></span></th>
-                <th class="sortable" data-sort="next">Next <span class="sort"></span></th>
-                <th>Trend (6 mo)</th>
+                <th class="sortable align-middle" data-sort="category">Category <span class="sort"></span></th>
+                <th class="text-end sortable align-middle" data-sort="merchant">Merchant <span class="sort"></span></th>
+                <th class="text-end sortable align-middle" data-sort="amount">Amount <span class="sort"></span></th>
+                <th class="text-end sortable align-middle" data-sort="count">Count <span class="sort"></span></th>
+                <th class="sortable align-middle" data-sort="freq">Freq <span class="sort"></span></th>
+                <th class="sortable align-middle" data-sort="next">Next <span class="sort"></span></th>
+                <th class="align-middle">Trend (6 mo)</th>
                 <th style="width:1%"></th>
               </tr>
             </thead>
@@ -579,7 +591,8 @@
       return d;
     };
     let chosen = subset.find(t=> txDeepLabel(t)===targetLabel);
-    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{}; }
+    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{};
+    }
     const cat=(chosen.cat_top||chosen.category||'').toString().trim();
     const sub=(chosen.subcat||chosen.subcategory||'').toString().trim();
     const ssub=(chosen.sub_subcategory||'').toString().trim();
@@ -885,18 +898,18 @@
       const tr=document.createElement('tr');
       tr.innerHTML=`
         <td class="text-center align-middle"><input type="checkbox" class="rowSel" data-key="${esc(key)}" ${checked}></td>
-        <td class="streams-category">
+        <td class="streams-category align-middle">
           <div class="d-flex align-items-center gap-2">
             ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
           </div>
         </td>
-        <td class="text-end">${esc(s.merchant||'—')}</td>
-        <td class="text-end">${money(s.amount)}</td>
-        <td class="text-end">${s.count ?? ''}</td>
-        <td>${(s.freq || '—')}</td>
-        <td>${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
-        <td class="trend-cell">${svgSparkline(series)}</td>
-        <td>${actions}</td>
+        <td class="text-end align-middle">${esc(s.merchant||'—')}</td>
+        <td class="text-end align-middle">${money(s.amount)}</td>
+        <td class="text-end align-middle">${s.count ?? ''}</td>
+        <td class="align-middle">${(s.freq || '—')}</td>
+        <td class="align-middle">${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
+        <td class="trend-cell align-middle">${svgSparkline(series)}</td>
+        <td class="align-middle">${actions}</td>
       `;
       tbody.appendChild(tr);
     }
@@ -1137,7 +1150,7 @@
     const lines = chosen.map(s => `<div class="d-flex justify-content-between"><span>${esc(s.merchant||'')}</span><span class="mono">${money(s.amount)}</span></div>`).join('');
     listEl.innerHTML = lines || '—';
 
-    const defaultLabel = (()=> {
+    const defaultLabel = (()=>{
       const unique = Array.from(new Set(chosen.map(s=> (s.merchant||'').trim()))).filter(Boolean);
       if (unique.length===1) return unique[0];
       if (unique.length===2) return `${unique[0]} + ${unique[1]}`;
@@ -1279,22 +1292,26 @@
 .chip:focus{ outline:2px solid color-mix(in oklab, var(--text) 45%, transparent); outline-offset:2px; }
 
 /* table UX */
+#streamsTable { table-layout:auto; }
 #streamsTable thead th.sortable { cursor:pointer; user-select:none; }
 #streamsTable thead th .sort { opacity:.5; margin-left:4px; font-size:10px; }
 #streamsTable thead th.sorted-asc .sort::after  { content:"▲"; }
 #streamsTable thead th.sorted-desc .sort::after { content:"▼"; }
 #streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content:"↕"; }
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
-.trend-cell { white-space:nowrap; min-width:190px; }
+.trend-cell { white-space:nowrap; }
+
+/* keep checkboxes aligned to category baseline */
+#streamsTable th, #streamsTable td { vertical-align: middle; }
+#streamsTable td:first-child, #streamsTable th:first-child { width:28px; }
+#streamsTable td:first-child { text-align:center; }
+
+.mono{ font-variant-numeric: tabular-nums; }
 
 /* variance label */
 .variance-tag{ font-size:.85rem; color: color-mix(in oklab, var(--text) 70%, #fff 0%); opacity:.85; }
 
 /* modal spacing tweaks */
 #rulesModal .nav-tabs .nav-link{ font-weight:600; }
-
-/* row selector cell */
-#streamsTable td:first-child, #streamsTable th:first-child { width:28px; }
-.mono{ font-variant-numeric: tabular-nums; }
 </style>
 {% endblock %}
