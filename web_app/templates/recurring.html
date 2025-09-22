@@ -595,7 +595,8 @@
       return d;
     };
     let chosen = subset.find(t=> txDeepLabel(t)===targetLabel);
-    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{}; }
+    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{};
+    }
     const cat=(chosen.cat_top||chosen.category||'').toString().trim();
     const sub=(chosen.subcat||chosen.subcategory||'').toString().trim();
     const ssub=(chosen.sub_subcategory||'').toString().trim();
@@ -880,6 +881,20 @@
       const path=categoryPathForLabel(subset, deepLabel);
       const chipHtml=catChip(deepLabel, path);
 
+      // actions menu: restored + "Combine with…" (quick-merge)
+      const actions = `
+        <div class="dropdown ms-1">
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Row actions">⋮</button>
+          <div class="dropdown-menu dropdown-menu-end">
+            <button class="dropdown-item" data-act="start-merge" data-key="${esc(key)}">Combine with…</button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
+            <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
+            <button class="dropdown-item" data-act="override-next" data-kw="${esc(s.merchant||'')}" data-next="${esc(s.next||'')}">Set next date…</button>
+            <button class="dropdown-item" data-act="override-freq" data-kw="${esc(s.merchant||'')}">Set frequency…</button>
+          </div>
+        </div>`;
+
       const checked = selectedKeys.has(key) ? 'checked' : '';
       const tr=document.createElement('tr');
       tr.innerHTML=`
@@ -887,6 +902,7 @@
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
             ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
+            ${actions}
           </div>
         </td>
         <td class="text-start">${money(s.amount)}</td>
@@ -906,11 +922,20 @@
       });
     });
 
-    // wire actions (exclude/override)
+    // wire actions (exclude/override/quick-merge)
     tbody.querySelectorAll('[data-act]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const act=btn.dataset.act; const kw=btn.dataset.kw||'';
         const ov=readOverrides();
+
+        if (act==='start-merge'){
+          const k = btn.dataset.key;
+          if (k){ selectedKeys.add(k); updateMergeBtn(); }
+          // open the merge modal seeded with this row
+          document.getElementById('mergeBtn').click();
+          return;
+        }
+
         if (act==='exclude'){
           ov.exclude[kw] = 'manual exclude';
           writeOverrides(ov); load();
@@ -1123,20 +1148,20 @@
   const tableEl = document.getElementById('streamsTable');
   const tip = document.createElement('div');
   tip.id = 'sparkTip';
-  // match theme colors and make it floaty
+  // match theme colors and keep it close to the cursor
   tip.style.cssText = [
     'position:fixed',
     'z-index:9999',
     'padding:6px 10px',
     'border-radius:10px',
     'font-size:12px',
-    'color:var(--text)',           // same text color as the app
-    'background:var(--card-bg)',   // same surface as cards
+    'color:var(--text)',
+    'background:var(--card-bg)',
     'border:1px solid var(--card-border)',
     'box-shadow:0 10px 24px rgba(0,0,0,.45)',
     'pointer-events:none',
     'opacity:0',
-    'transform:translate(-50%,-120%)',
+    'transform:translate(-50%,-110%)', // slightly closer
     'transition:opacity .08s ease'
   ].join(';');
   document.body.appendChild(tip);
@@ -1144,19 +1169,18 @@
   function showTip(x,y,txt){
     tip.textContent = txt;
 
-    // keep tooltip on-screen with a small offset; flip if it would clip
-    const pad = 10;
+    const pad = 8;
     const vw = window.innerWidth, vh = window.innerHeight;
     const left = Math.min(vw - pad, Math.max(pad, x));
-    let top = y - 14; // above cursor
-    tip.style.transform = 'translate(-50%,-120%)';
+    let top = y - 8; // closer above the cursor
+    tip.style.transform = 'translate(-50%,-110%)';
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
     tip.style.opacity = '1';
 
     const r = tip.getBoundingClientRect();
     if (r.top < 0){
-      top = Math.min(vh - pad, y + 26); // place below if clipped
+      top = Math.min(vh - pad, y + 18); // closer below the cursor
       tip.style.top = top + 'px';
       tip.style.transform = 'translate(-50%,0)';
     }
@@ -1192,7 +1216,6 @@
   load();
 })();
 </script>
-
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
