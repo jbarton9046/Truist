@@ -696,7 +696,7 @@
       if (ls) return JSON.parse(ls);
       const tag = document.getElementById('recurring-overrides');
       const j = JSON.parse(tag.textContent || '{}');
-      // NEW: add 'synthetic' list for manual attachments
+      // include synthetic list for manual attachments
       return Object.assign({include:[], exclude:{}, override:[], pins:[], schedules:[], synthetic:[]}, j||{});
     }catch(e){ return { include:[], exclude:{}, override:[], pins:[], schedules:[], synthetic:[] }; }
   }
@@ -724,7 +724,7 @@
   function streamMatchesKeywords(stream, txsForStream, keywords){
     const m = mkMatcher(keywords);
     if (m(stream.merchant||stream.name)) return true;
-    if (txsForStream && txsForStream.some(t => m(t.merchant||t.merchant_name||t.description))) return true;
+    if (txsForStream && txsForStream.some(t => m(t.merchant||t.merchant_name||t.name||t.original_description||t.description))) return true;
     return false;
   }
 
@@ -771,7 +771,7 @@
     const isExcludedText = (desc)=> excMatchers.some(x => x.match(desc));
 
     let filtered = streams.filter(s => {
-      const inTx = (txByKey[s._key]||[]).some(t => isExcludedText(t.merchant||t.merchant_name||t.description));
+      const inTx = (txByKey[s._key]||[]).some(t => isExcludedText(t.merchant||t.merchant_name||t.name||t.original_description||t.description));
       const self = isExcludedText(s.merchant || s.name || '');
       return !(self || inTx);
     });
@@ -808,7 +808,7 @@
         const subset = txByKey[k] || [];
         if (!subset.length) return false;
         const kwOK = subset.some(t => streamMatchesKeywords(
-          { merchant: t.merchant || t.merchant_name || t.description || '' },
+          { merchant: t.merchant || t.merchant_name || t.name || t.original_description || t.description || '' },
           subset,
           rule.keywords
         ));
@@ -897,23 +897,20 @@
       });
     });
 
-    // === NEW: apply synthetic attachments (manual “pull into stream”) ===
-    // Each item is { sig: {date, amount, text}, to_keywords: "STRAIGHTTALK", cloned: true }
+    // === apply synthetic attachments (manual “pull into stream”) ===
     const synth = Array.isArray(ov.synthetic) ? ov.synthetic : [];
     const txByKeyMerged = { ...txByKey };
     filtered.forEach(s => { if (!txByKeyMerged[s._key]) txByKeyMerged[s._key]=[]; });
 
-    // Try to locate the target stream by keywords and push a cloned tx into its bucket
     synth.forEach(entry => {
       const { sig={}, to_keywords } = entry || {};
       const matchTo = mkMatcher(to_keywords || '');
       const target = filtered.find(s => matchTo(s.merchant||s.name));
       if (!target) return;
-      // find the real tx in raw list first (better tooltip/category), else synthesize it
-      const found = txs.find(t => {
+      const found = (txs||[]).find(t => {
         const sameAmt = Math.abs(Number(t.amount||0)) === Math.abs(Number(sig.amount||0));
         const sameDate = (String(t.date||'') === String(sig.date||''));
-        const text = (t.merchant || t.merchant_name || t.description || '').toString().toLowerCase();
+        const text = (t.merchant || t.merchant_name || t.name || t.original_description || t.description || '').toString().toLowerCase();
         const want = (sig.text||'').toString().toLowerCase();
         return sameAmt && sameDate && (!want || text.includes(want));
       });
@@ -940,7 +937,7 @@
   const mergeBtn = byId('mergeBtn');
   const manageBtn = byId('manageRulesBtn');
 
-  // Sort (you can add data-sort="merchant" in the header to sort A→Z by name)
+  // Sort (default by deep category)
   let sortState = { key: 'category', dir: 'asc' };
   function sortableVal(key, s, txByKey){
     if (key==='merchant') return (s.merchant || s.name || '').toString().toLowerCase();
@@ -1108,7 +1105,8 @@
           <div class="dropdown-menu dropdown-menu-end">
             <button class="dropdown-item" data-act="start-merge" data-key="${esc(s._key||'')}">Combine with…</button>
             <div class="dropdown-divider"></div>
-            <button class="dropdown-item" data-act="attach-last" data-kw="${esc(s.merchant||'')}">Attach last matching tx…</button> <!-- NEW -->
+            <button class="dropdown-item" data-act="attach-last" data-kw="${esc(s.merchant||'')}">Attach last matching tx…</button>
+            <button class="dropdown-item" data-act="attach-search" data-kw="${esc(s.merchant||'')}">Force-attach by search…</button>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
             <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
@@ -1157,21 +1155,44 @@
           return;
         }
 
-        if (act==='attach-last'){ // NEW: manually pull last matching tx
-          // Look for most recent transaction that matches keywords (but isn’t already grouped in this stream)
+        if (act==='attach-last'){ // manually pull last matching tx
           const matcher = mkMatcher(kw);
-          const all = (cachedData.transactions||[]).slice().reverse();
+          const all = (cachedData.transactions||[]).slice().reverse(); // newest first
           const targetKey = btn.closest('tr')?.querySelector('.rowSel')?.dataset.key || '';
-          const already = new Set((cachedData._txByKey?.[targetKey]||[]).map(t=>`${t.date}|${t.amount}|${(t.merchant||t.description||'')}`));
-          const picked = all.find(t => matcher(t.merchant||t.merchant_name||t.description) && !already.has(`${t.date}|${t.amount}|${(t.merchant||t.description||'')}`));
+          const already = new Set((cachedData._txByKey?.[targetKey]||[])
+             .map(t=>`${t.date}|${t.amount}|${(t.merchant||t.merchant_name||t.name||t.original_description||t.description||'')}`));
+          const picked = all.find(t => {
+            const text = (t.merchant||t.merchant_name||t.name||t.original_description||t.description||'');
+            return matcher(text) && !already.has(`${t.date}|${t.amount}|${text}`);
+          });
           if (!picked){ alert('No unassigned matching transaction found.'); return; }
-          // confirm (helpful when grabbing that $46.23 STRAIGHTTALK)
-          const ok = confirm(`Attach ${money(picked.amount)} on ${picked.date} — ${(picked.merchant||picked.description||'').slice(0,64)} — to "${kw}"?`);
+          const ok = confirm(`Attach ${money(picked.amount)} on ${picked.date} — ${(picked.merchant||picked.name||picked.original_description||picked.description||'').slice(0,64)} — to "${kw}"?`);
           if (!ok) return;
           ov.synthetic = Array.isArray(ov.synthetic) ? ov.synthetic : [];
           ov.synthetic.push({
             to_keywords: kw,
-            sig: { date: picked.date, amount: Number(picked.amount||0), text: (picked.merchant||picked.merchant_name||picked.description||'') }
+            sig: { date: picked.date, amount: Number(picked.amount||0), text: (picked.merchant||picked.merchant_name||picked.name||picked.original_description||picked.description||'') }
+          });
+          writeOverrides(ov); load();
+          return;
+        }
+
+        if (act==='attach-search'){
+          const m = mkMatcher(kw);
+          const txs = (cachedData.transactions||[]).slice().sort((a,b)=> (a.date<b.date?1:-1));
+          const picks = txs.filter(t => m(t.merchant||t.merchant_name||t.name||t.original_description||t.description))
+                           .slice(0,20);
+          if (!picks.length){ alert('No matches found.'); return; }
+          const fmt = t => `${t.date} • ${money(Math.abs(Number(t.amount||0)))} • ${(t.merchant||t.name||t.original_description||t.description||'').slice(0,42)}`;
+          const idx = prompt(`Pick 1–${picks.length}\n` + picks.map((t,i)=>`${i+1}. ${fmt(t)}`).join('\n'));
+          const n = Number(idx||0);
+          const tx = picks[n-1]; if (!tx) return;
+
+          const ov = readOverrides();
+          ov.synthetic = Array.isArray(ov.synthetic) ? ov.synthetic : [];
+          ov.synthetic.push({
+            to_keywords: kw,
+            sig: { date: tx.date, amount: Number(tx.amount||0), text: (tx.merchant||tx.merchant_name||tx.name||tx.original_description||tx.description||'') }
           });
           writeOverrides(ov); load();
           return;
@@ -1205,7 +1226,6 @@
   // ----- Scatter plot: ONLY next 30 days expected charges; exclude Rent; color by category -----
   function categoryColor(name){
     const n = (name||'').toString().toLowerCase();
-    // simple palette (oklab-mixed with theme)
     if (n.includes('phone') || n.includes('cell')) return 'var(--cat-phone, #7dd3fc)';
     if (n.includes('internet') || n.includes('cable')) return 'var(--cat-internet, #a78bfa)';
     if (n.includes('utilities') || n.includes('power') || n.includes('water')) return 'var(--cat-utilities, #fbbf24)';
@@ -1226,16 +1246,16 @@
 
     // upcoming expected charges
     const upcomingAll = (cachedData.upcoming || []).map(u => ({...u, days: daysFromToday(u.date)}));
-    // EXCLUDE rent-like rows (your $2,500 rent) to declutter
+    // EXCLUDE rent-like rows (declutter)
     const isRentish = (u)=>{
       const label = (u.merchant || u.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g,'');
       const cat = (u.category || '').toString().toLowerCase();
       const amt = Math.abs(Number(u.amount||0));
-      return label.includes('rent') || cat==='rent' || amt >= 2000; // tune if needed
+      return label.includes('rent') || cat==='rent' || amt >= 2000;
     };
     const upcoming = upcomingAll
       .filter(u => u.days != null && u.days >= 0 && u.days <= NEXT_DAYS)
-      .filter(u => !isRentish(u)) // <— exclude Rent
+      .filter(u => !isRentish(u))
       .sort((a,b)=> (a.date < b.date ? -1 : 1));
 
     const note = byId('scatterNote');
@@ -1246,9 +1266,12 @@
       return;
     }
 
+    // derive category from the stream’s transactions where possible
     const points = upcoming.map(u => {
       const dt = parseDate(u.date);
-      const cat = (u.category || u.cat_top || 'Other');
+      const key = u._stream_key || u.stream_key || u.merchant_key || '';
+      const subset = key ? (cachedData._txByKey?.[key] || []) : [];
+      const cat = subset.length ? deepCategoryForStream(subset) : (u.category || u.cat_top || 'Other');
       return { x: dt.getTime(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString(), cat };
     });
 
@@ -1289,9 +1312,11 @@
       svg.appendChild(lbl);
     }
 
-    // y ticks
-    const step = Math.pow(10, Math.floor(Math.log10(maxY)) - 1);
-    for (let v=0; v<=maxY; v+= step){
+    // y ticks — fixed $50 increments
+    const toNearest = (n, step) => Math.ceil(n / step) * step;
+    const yStep = 50;
+    const yMax = toNearest(maxY, yStep);
+    for (let v=0; v<=yMax; v+=yStep){
       const y = yScale(v);
       const t = document.createElementNS(svg.namespaceURI,'line');
       t.setAttribute('x1', pad-4); t.setAttribute('x2', pad); t.setAttribute('y1', y); t.setAttribute('y2', y);
@@ -1312,7 +1337,7 @@
       const cx = xScale(p.x), cy = yScale(p.y);
       const dot = document.createElementNS(svg.namespaceURI,'circle');
       dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', 3.2);
-      dot.setAttribute('fill', categoryColor(p.cat)); // NEW color
+      dot.setAttribute('fill', categoryColor(p.cat));
       dot.classList.add('scatter-dot');
       const hit = document.createElementNS(svg.namespaceURI,'circle');
       hit.setAttribute('cx', cx); hit.setAttribute('cy', cy); hit.setAttribute('r', 10);
@@ -1533,8 +1558,6 @@
   load();
 })();
 </script>
-
-
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
