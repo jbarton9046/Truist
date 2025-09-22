@@ -1123,10 +1123,44 @@
   const tableEl = document.getElementById('streamsTable');
   const tip = document.createElement('div');
   tip.id = 'sparkTip';
-  tip.style.cssText = 'position:fixed; z-index:9999; padding:4px 8px; border-radius:8px; font-size:12px; background:rgba(20,24,30,.92); color:#dbeafe; border:1px solid rgba(255,255,255,.15); box-shadow:0 6px 14px rgba(0,0,0,.4); pointer-events:none; opacity:0; transform:translate(-50%,-130%); transition:opacity .08s ease';
+  // match theme colors and make it floaty
+  tip.style.cssText = [
+    'position:fixed',
+    'z-index:9999',
+    'padding:6px 10px',
+    'border-radius:10px',
+    'font-size:12px',
+    'color:var(--text)',           // same text color as the app
+    'background:var(--card-bg)',   // same surface as cards
+    'border:1px solid var(--card-border)',
+    'box-shadow:0 10px 24px rgba(0,0,0,.45)',
+    'pointer-events:none',
+    'opacity:0',
+    'transform:translate(-50%,-120%)',
+    'transition:opacity .08s ease'
+  ].join(';');
   document.body.appendChild(tip);
 
-  function showTip(x,y,txt){ tip.textContent = txt; tip.style.left = x+'px'; tip.style.top = y+'px'; tip.style.opacity = '1'; }
+  function showTip(x,y,txt){
+    tip.textContent = txt;
+
+    // keep tooltip on-screen with a small offset; flip if it would clip
+    const pad = 10;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const left = Math.min(vw - pad, Math.max(pad, x));
+    let top = y - 14; // above cursor
+    tip.style.transform = 'translate(-50%,-120%)';
+    tip.style.left = left + 'px';
+    tip.style.top = top + 'px';
+    tip.style.opacity = '1';
+
+    const r = tip.getBoundingClientRect();
+    if (r.top < 0){
+      top = Math.min(vh - pad, y + 26); // place below if clipped
+      tip.style.top = top + 'px';
+      tip.style.transform = 'translate(-50%,0)';
+    }
+  }
   function hideTip(){ tip.style.opacity = '0'; }
 
   tableEl.addEventListener('pointermove', (e)=>{
@@ -1158,6 +1192,7 @@
   load();
 })();
 </script>
+
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
