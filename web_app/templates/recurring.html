@@ -555,13 +555,23 @@
   }
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
+
+  // UPDATED: dots = same color as line, reliable tooltips with larger invisible hit areas
   function svgSparkline(series,w=SPARK_W,h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
     const xs=series.map((_,i)=> pad+i*step);
     let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
-    const circles = series.map((v,i)=>`<circle cx="${xs[i]}" cy="${ys[i]}" r="2"><title>${money(v)}</title></circle>`).join('');
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>${circles}</svg>`;
+    const points = series.map((v,i)=>`
+      <g>
+        <circle class="dot" cx="${xs[i]}" cy="${ys[i]}" r="2.2" fill="currentColor"/>
+        <circle cx="${xs[i]}" cy="${ys[i]}" r="8" fill="transparent" pointer-events="all"><title>${money(v)}</title></circle>
+      </g>`).join('');
+    return `
+      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="6 month trend">
+        <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        ${points}
+      </svg>`;
   }
 
   // ---------- CATEGORY helpers ----------
@@ -1167,8 +1177,11 @@
 #streamsTable thead th.sorted-asc .sort::after  { content:"▲"; }
 #streamsTable thead th.sorted-desc .sort::after { content:"▼"; }
 #streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content:"↕"; }
+
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
-.trend-cell { white-space:nowrap; min-width:190px; }
+#streamsTable .trend-cell svg .dot{ opacity:.9; }
+#streamsTable .trend-cell svg g:hover .dot{ opacity:1; }
+#streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
 
 #streamsTable td, #streamsTable th,
 #dueSoonTable td, #dueSoonTable th{ vertical-align: middle; }
