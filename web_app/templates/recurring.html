@@ -101,7 +101,6 @@
               <col style="width:28px">          <!-- checkbox -->
               <col>                              <!-- category -->
               <col style="width:110px">          <!-- amount -->
-              <col style="width:72px">           <!-- count -->
               <col style="width:120px">          <!-- freq -->
               <col style="width:150px">          <!-- next -->
               <col style="width:210px">          <!-- trend -->
@@ -114,15 +113,14 @@
                 </th>
                 <th class="sortable align-middle" data-sort="category">Category <span class="sort"></span></th>
                 <th class="text-end sortable align-middle" data-sort="amount">Amount <span class="sort"></span></th>
-                <th class="text-end sortable align-middle" data-sort="count">Count <span class="sort"></span></th>
                 <th class="sortable align-middle" data-sort="freq">Freq <span class="sort"></span></th>
                 <th class="sortable align-middle" data-sort="next">Next <span class="sort"></span></th>
                 <th class="align-middle">Trend (6 mo)</th>
-                <th style="width:1%" class="align-middle"></th>
+                <th class="align-middle"></th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8" class="text-muted py-3 text-center">Loading…</td></tr>
+              <tr><td colspan="7" class="text-muted py-3 text-center">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -556,12 +554,20 @@
   }
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
-  function svgSparkline(series,w=SPARK_W,h=SPARK_H){
+
+  // sparkline with point tooltips
+  function svgSparkline(series, labels, w=SPARK_W, h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
     const xs=series.map((_,i)=> pad+i*step);
     let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/></svg>`;
+    const points = xs.map((cx,i)=>`<circle cx="${cx}" cy="${ys[i]}" r="4" fill="transparent">
+        <title>${labels?.[i]??''}: ${money(series[i]||0)}</title>
+      </circle>`).join('');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="6-month trend">
+        <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>
+        ${points}
+      </svg>`;
   }
 
   // ---------- CATEGORY helpers ----------
@@ -593,10 +599,10 @@
   function catChip(label, path){
     const txt = esc(label||'Category');
     const level = path.ssub ? 'subsubcategory' : (path.sub ? 'subcategory' : 'category');
+    /* NOTE: NO onclick here — lets the app's global delegated handler catch [data-manage] */
     return `<a href="#" class="chip link-manage"
               data-manage data-level="${esc(level)}"
-              data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}"
-              onclick="return dashManage(event, this);">${txt}</a>`;
+              data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}">${txt}</a>`;
   }
 
   // ---------- RULES STORAGE ----------
@@ -734,7 +740,6 @@
   let sortState = { key: 'category', dir: 'asc' };
   function sortableVal(key, s, txByKey){
     if (key==='amount') return Number(s.amount||0);
-    if (key==='count') return Number(s.count||0);
     if (key==='freq') return (freqOrder[(s.freq||'unknown').toLowerCase()]||9);
     if (key==='next') return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
     if (key==='category'){
@@ -852,7 +857,7 @@
       return hay.includes(q);
     });
 
-    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="8" class="text-muted py-3 text-center">No streams detected.</td></tr>'; return; }
+    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="7" class="text-muted py-3 text-center">No streams detected.</td></tr>'; return; }
 
     filtered.sort((a,b)=>compareStreams(a,b,txByKey));
     const months=lastNMonthsLabels(6);
@@ -889,10 +894,9 @@
           </div>
         </td>
         <td class="text-end align-middle">${money(s.amount)}</td>
-        <td class="text-end align-middle">${s.count ?? ''}</td>
         <td class="align-middle">${(s.freq || '—')}</td>
         <td class="align-middle">${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
-        <td class="trend-cell align-middle">${svgSparkline(series)}</td>
+        <td class="trend-cell align-middle">${svgSparkline(series, months)}</td>
         <td class="align-middle">${actions}</td>
       `;
       tbody.appendChild(tr);
@@ -1209,8 +1213,7 @@
   renderRulesTables(readOverrides());
   load();
 
-  // expose manage chip hook (no-op if not defined globally)
-  window.dashManage = function(ev, el){ ev.preventDefault(); return false; };
+  // IMPORTANT: do NOT override category click; let the app's global handler catch [data-manage]
 })();
 </script>
 
