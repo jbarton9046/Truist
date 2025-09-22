@@ -536,6 +536,31 @@
 
 <script>
 (function () {
+  /* ================= SAFETY SHIMS =================
+     Prevent init crashes when rules UI isn’t loaded yet.
+     We also attach a lazy click handler so rules only render
+     after you press “Manage rules”.
+  ================================================== */
+  if (typeof window.renderRulesTables !== "function") {
+    window.renderRulesTables = function noopRenderRulesTables() { /* no-op until rules UI is present */ };
+  }
+  if (typeof window.renderRulesModalOpen !== "function") {
+    window.renderRulesModalOpen = function noopRenderRulesModalOpen() { /* no-op */ };
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("manageRulesBtn");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        if (typeof window.renderRulesTables === "function") {
+          try { window.renderRulesTables(); } catch (e) { console.error("renderRulesTables failed:", e); }
+        }
+        if (typeof window.renderRulesModalOpen === "function") {
+          try { window.renderRulesModalOpen(); } catch (e) { console.error("renderRulesModalOpen failed:", e); }
+        }
+      });
+    }
+  });
+
   // ======= DEBUG BANNER (first JS/fetch error) =======
   const dbg = document.createElement('div');
   dbg.id = 'debugBanner';
@@ -666,7 +691,10 @@
   function writeOverrides(state){
     localStorage.setItem(LS_KEY, JSON.stringify(state));
     document.getElementById('recurring-overrides').textContent = JSON.stringify(state, null, 2);
-    renderRulesTables(state);
+    // SAFETY: only call if present
+    if (typeof renderRulesTables === "function") {
+      try { renderRulesTables(state); } catch (e) { console.error("renderRulesTables error:", e); }
+    }
   }
 
   // ---------- MATCHING ----------
