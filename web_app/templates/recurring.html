@@ -536,16 +536,12 @@
 
 <script>
 (function () {
-  /* ================= SAFETY SHIMS =================
-     Prevent init crashes when rules UI isn’t loaded yet.
-     We also attach a lazy click handler so rules only render
-     after you press “Manage rules”.
-  ================================================== */
+  /* ================= SAFETY SHIMS ================= */
   if (typeof window.renderRulesTables !== "function") {
-    window.renderRulesTables = function noopRenderRulesTables() { /* no-op until rules UI is present */ };
+    window.renderRulesTables = function noopRenderRulesTables() {};
   }
   if (typeof window.renderRulesModalOpen !== "function") {
-    window.renderRulesModalOpen = function noopRenderRulesModalOpen() { /* no-op */ };
+    window.renderRulesModalOpen = function noopRenderRulesModalOpen() {};
   }
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("manageRulesBtn");
@@ -593,6 +589,25 @@
     String(s || '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
 
   const freqOrder = { weekly:1, biweekly:2, semi_monthly:2.5, monthly:3, quarterly:4, semiannual:5, annual:6, unknown:7 };
+
+  // lightweight fetch retry to reduce “network error” flakiness
+  async function fetchWithRetry(url, opts={}, tries=3, baseDelay=250){
+    let lastErr;
+    for (let i=0;i<tries;i++){
+      try{
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      }catch(e){
+        lastErr = e;
+        if (i < tries-1) {
+          await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, i)));
+          continue;
+        }
+      }
+    }
+    throw lastErr || new Error('Network error');
+  }
 
   // ======= SPARKLINES =======
   const SPARK_W = 120, SPARK_H = 28;
@@ -691,23 +706,45 @@
   function writeOverrides(state){
     localStorage.setItem(LS_KEY, JSON.stringify(state));
     document.getElementById('recurring-overrides').textContent = JSON.stringify(state, null, 2);
-    // SAFETY: only call if present
     if (typeof renderRulesTables === "function") {
       try { renderRulesTables(state); } catch (e) { console.error("renderRulesTables error:", e); }
     }
   }
 
   // ---------- MATCHING ----------
+  // robust: case-insensitive, ignores spaces/punctuation
   function mkMatcher(keywords){
-    const K = (Array.isArray(keywords)?keywords:String(keywords||'').split(',')).map(s=>s.trim().toLowerCase()).filter(Boolean);
-    if (!K.length) return ()=>false;
-    return (s)=>{ const t=String(s||'').toLowerCase(); return K.some(k=> t.includes(k)); };
+    const K = (Array.isArray(keywords)?keywords:String(keywords||'').split(','))
+              .map(s=>s.trim()).filter(Boolean);
+    const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+    const Knorm = K.map(norm);
+    if (!Knorm.length) return ()=>false;
+    return (s)=>{
+      const t = norm(s);
+      return Knorm.some(k => t.includes(k));
+    };
   }
   function streamMatchesKeywords(stream, txsForStream, keywords){
     const m = mkMatcher(keywords);
     if (m(stream.merchant||stream.name)) return true;
     if (txsForStream && txsForStream.some(t => m(t.merchant||t.merchant_name||t.description))) return true;
     return false;
+  }
+
+  // variance gates for merge matching
+  function withinVariance(amount, rule){
+    const a = Number(amount || 0);
+    if (!isFinite(a)) return true;
+    if (rule.variance_abs != null && rule.variance_abs !== '') {
+      const anchor = Number(rule.amount ?? a);
+      return Math.abs(a - anchor) <= Number(rule.variance_abs);
+    }
+    if (rule.variance_pct != null && rule.variance_pct !== '') {
+      const anchor = Number(rule.amount ?? a);
+      const pct = Math.abs(a - anchor) / (anchor || 1);
+      return pct <= (Number(rule.variance_pct) / 100);
+    }
+    return true;
   }
 
   // ---------- APPLY OVERRIDES + MERGE ----------
@@ -757,15 +794,52 @@
     // MERGE rules are stored inside include with merge:true
     const includes = (ov.include||[]);
     const mergeIncludes = includes.filter(r => r.merge === true);
-    // For each merge rule: remove matched streams, add a single combined one, keep source keys so we can combine transactions for sparkline
+
     mergeIncludes.forEach(rule => {
-      const matched = filtered.filter(s => streamMatchesKeywords(s, txByKey[s._key]||[], rule.keywords));
+      // streams that match keywords & variance
+      const matched = filtered.filter(s => {
+        const subset = txByKey[s._key] || [];
+        const kwOK = streamMatchesKeywords(s, subset, rule.keywords);
+        const varOK = (rule.amount==null || rule.amount==='') ? true : withinVariance(s.amount, rule);
+        return kwOK && varOK;
+      });
       const matchedKeys = matched.map(s => s._key);
-      if (!matchedKeys.length) return;
-      filtered = filtered.filter(s => !matchedKeys.includes(s._key)); // remove originals
-      const amount = (rule.amount!=null && rule.amount!=='') ? Number(rule.amount) : matched.reduce((a,s)=>a+Number(s.amount||0),0);
-      const next = rule.next || matched.map(s=>s.next).filter(Boolean).sort()[0] || nextFromFreq(rule.freq||'monthly', new Date().toISOString().slice(0,10));
+
+      // absorb orphan tx groups (no stream) that match the rule
+      const allTxKeys = Object.keys(txByKey);
+      const orphanKeys = allTxKeys.filter(k => {
+        if (matchedKeys.includes(k)) return false;
+        const subset = txByKey[k] || [];
+        if (!subset.length) return false;
+        const kwOK = subset.some(t => streamMatchesKeywords(
+          { merchant: t.merchant || t.merchant_name || t.description || '' },
+          subset,
+          rule.keywords
+        ));
+        if (!kwOK) return false;
+        if (rule.amount != null && rule.amount !== '') {
+          const avg = subset.reduce((a, t) => a + Math.abs(Number(t.amount || 0)), 0) / subset.length;
+          return withinVariance(avg, rule);
+        }
+        return true;
+      });
+
+      const combinedKeys = matchedKeys.concat(orphanKeys);
+      if (!combinedKeys.length) return;
+
+      // remove original matched streams
+      filtered = filtered.filter(s => !matchedKeys.includes(s._key));
+
+      const amount = (rule.amount!=null && rule.amount!=='')
+        ? Number(rule.amount)
+        : matched.reduce((a,s)=>a+Number(s.amount||0),0);
+
+      const next = rule.next
+        || matched.map(s=>s.next).filter(Boolean).sort()[0]
+        || nextFromFreq(rule.freq||'monthly', new Date().toISOString().slice(0,10));
+
       const freq = rule.freq || (matched[0]?.freq || 'monthly');
+
       filtered.push({
         _key: 'merge:' + (rule.label||'Merged').toLowerCase().replace(/\s+/g,'_') + ':' + Date.now(),
         merchant: rule.label || 'Merged',
@@ -774,7 +848,7 @@
         freq,
         next,
         manual: true,
-        _merge_of: matchedKeys,
+        _merge_of: combinedKeys,                  // includes orphans
         _merge_var_abs: rule.variance_abs || null,
         _merge_var_pct: rule.variance_pct || null
       });
@@ -827,7 +901,15 @@
       });
     });
 
-    return { ...base, streams: filtered, upcoming, _txByKey: txByKey };
+    // Build merged tx map so sorting/graphs have the combined transactions
+    const txByKeyMerged = { ...txByKey };
+    for (const s of filtered) {
+      if (s._merge_of && s._merge_of.length) {
+        txByKeyMerged[s._key] = [].concat(...s._merge_of.map(k => txByKey[k] || []));
+      }
+    }
+
+    return { ...base, streams: filtered, upcoming, _txByKey: txByKeyMerged };
   }
 
   // ---------- PAGE RENDER + INTERACTIONS ----------
@@ -835,14 +917,15 @@
   const mergeBtn = byId('mergeBtn');
   const manageBtn = byId('manageRulesBtn');
 
-  // Sort
+  // Sort (default by deep category; add data-sort="merchant" in header if you want A→Z by name)
   let sortState = { key: 'category', dir: 'asc' };
   function sortableVal(key, s, txByKey){
+    if (key==='merchant') return (s.merchant || s.name || '').toString().toLowerCase();
     if (key==='amount') return Number(s.amount||0);
     if (key==='freq') return (freqOrder[(s.freq||'unknown').toLowerCase()]||9);
     if (key==='next') return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
     if (key==='category'){
-      const deep = deepCategoryForStream(txByKey[s._key] || []);
+      const deep = deepCategoryForStream((txByKey[s._key] || []));
       return deep.toLowerCase();
     }
     return 0;
@@ -881,9 +964,11 @@
     try{
       const win=winSel.value, horizon=horSel.value;
       const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
-      const res=await fetch(url);
-      if (!res.ok) throw new Error(`API ${url} → ${res.status}`);
+
+      // retry-enabled fetch
+      const res=await fetchWithRetry(url, {}, 3, 300);
       const base=await res.json();
+
       const data=applyRecurringOverrides(base);
       cachedData=data;
 
@@ -920,8 +1005,7 @@
       // Due soon table (filtered upcoming)
       const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
       const txs=data.transactions||[];
-      const baseTxByKey = data._txByKey || {};
-      const txByKey = baseTxByKey; // keep original map; merged rows gather subsets in render
+      const txByKey = data._txByKey || {};
       const upcoming=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
       const dueSoon=upcoming.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7).sort((a,b)=> (a.date<b.date?-1:1));
       if(!dueSoon.length){ dueTbody.innerHTML='<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>'; }
@@ -941,7 +1025,7 @@
       }
 
       renderStreamsTable();
-      renderScatter();
+      renderScatter(); // shows next-30-days expected charges
       bindSort(); setSortIndicators();
     }catch(err){
       showDebug(err.message || String(err));
@@ -997,7 +1081,6 @@
       const path=categoryPathForLabel(subset, deepLabel);
       const chipHtml=catChip(deepLabel, path);
 
-      // actions menu: include "Combine with…"
       const actions = `
         <div class="dropdown ms-1">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-label="Row actions">⋮</button>
@@ -1047,7 +1130,6 @@
         if (act==='start-merge'){
           const k = btn.dataset.key;
           if (k){ selectedKeys.add(k); updateMergeBtn(); }
-          // open the merge modal seeded with this row
           document.getElementById('mergeBtn').click();
           return;
         }
@@ -1077,44 +1159,45 @@
     updateMergeBtn();
   }
 
-  // ----- Scatter plot (SVG) of recurring charges over time -----
+  // ----- Scatter plot: ONLY next 30 days expected charges -----
   function renderScatter(){
     const el = document.getElementById('scatterWrap');
     if (!el || !cachedData) return;
     el.innerHTML = '';
-    const txs = (cachedData.transactions||[]).filter(t => Number(t.amount||0) !== 0);
-    if (!txs.length){ el.innerHTML = '<div class="text-muted small">No transaction data.</div>'; return; }
 
-    // map dates to numbers
-    const points = txs.map(t => {
-      const ds = String(t.date||'');
-      let y, m, d;
-      if (ds.includes('-')) { const a=ds.split('-'); y=+a[0]; m=+a[1]; d=+(a[2]||'1'); }
-      else if (ds.includes('/')) { const a=ds.split('/'); m=+a[0]; d=+a[1]; y=+a[2]; }
-      else { return null; }
-      const dt = new Date(y, (m||1)-1, d||1);
-      return { x: dt.getTime(), y: Math.abs(Number(t.amount||0)), k: (t._stream_key||t.merchant_key||''), cat: (t.category||t.cat_top||'') };
-    }).filter(Boolean);
+    const NEXT_DAYS = 30;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const end = new Date(today); end.setDate(end.getDate() + NEXT_DAYS);
 
-    if (!points.length){ el.innerHTML = '<div class="text-muted small">No dated points.</div>'; return; }
+    // use upcoming expected charges (not historical tx)
+    const upcoming = (cachedData.upcoming || []).map(u => ({...u, days: daysFromToday(u.date)}))
+      .filter(u => u.days != null && u.days >= 0 && u.days <= NEXT_DAYS)
+      .sort((a,b)=> (a.date < b.date ? -1 : 1));
+
+    if (!upcoming.length){
+      el.innerHTML = '<div class="text-muted small">No expected charges in the next 30 days.</div>';
+      byId('scatterNote').textContent = `0 items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)}`;
+      return;
+    }
+
+    // map to points
+    const points = upcoming.map(u => {
+      const dt = parseDate(u.date);
+      return { x: dt.getTime(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString() };
+    });
 
     // bounds
     const pad=24, W=480, H=220;
-    const xs = points.map(p=>p.x), ys=points.map(p=>p.y);
-    const minX=Math.min(...xs), maxX=Math.max(...xs);
+    const minX=today.getTime(), maxX=end.getTime();
+    const ys=points.map(p=>p.y);
     const minY=0, maxY=Math.max(...ys,1)*1.1;
+
     const xScale = x => pad + ( (x-minX) / Math.max(1,(maxX-minX)) ) * (W-pad*2);
     const yScale = y => H - pad - ( (y-minY) / Math.max(1,(maxY-minY)) ) * (H-pad*2);
 
-    // axes ticks (months)
-    const s = new Date(minX), e = new Date(maxX);
-    s.setDate(1); e.setDate(1);
-    const monthTicks=[]; const cur = new Date(s);
-    while (cur <= e){ monthTicks.push(new Date(cur)); cur.setMonth(cur.getMonth()+1); }
-
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Recurring charges scatter plot');
+    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Next 30 days of expected charges');
 
     // axes
     const axis = document.createElementNS(svg.namespaceURI,'g');
@@ -1124,9 +1207,10 @@
     `;
     svg.appendChild(axis);
 
-    // x ticks
-    monthTicks.forEach(d => {
-      const x = xScale(d.getTime());
+    // x ticks weekly
+    for (let d=0; d<=NEXT_DAYS; d+=7){
+      const tickDate = new Date(today); tickDate.setDate(today.getDate()+d);
+      const x = xScale(tickDate.getTime());
       const t = document.createElementNS(svg.namespaceURI,'line');
       t.setAttribute('x1', x); t.setAttribute('x2', x); t.setAttribute('y1', H-pad); t.setAttribute('y2', H-pad+4);
       t.setAttribute('stroke','currentColor'); t.setAttribute('opacity','.3');
@@ -1136,9 +1220,9 @@
       lbl.setAttribute('x', x); lbl.setAttribute('y', H-pad+14);
       lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('font-size','10');
       lbl.setAttribute('fill','currentColor'); lbl.setAttribute('opacity','.7');
-      lbl.textContent = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      lbl.textContent = tickDate.toISOString().slice(5,10); // MM-DD
       svg.appendChild(lbl);
-    });
+    }
 
     // y ticks (nice steps)
     const step = Math.pow(10, Math.floor(Math.log10(maxY)) - 1);
@@ -1182,7 +1266,7 @@
       t.style.cssText = 'position:fixed; z-index:9999; padding:6px 10px; border-radius:10px; font-size:12px; color:var(--text); background:var(--card-bg); border:1px solid var(--card-border); box-shadow:0 10px 24px rgba(0,0,0,.45); pointer-events:none; opacity:0; transform:translate(-50%,-110%); transition:opacity .08s ease';
       document.body.appendChild(t); return t;
     })();
-    function showTip(x,y,txt){
+    function showTip2(x,y,txt){
       tip.textContent = txt;
       const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
       const left = Math.min(vw - pad, Math.max(pad, x));
@@ -1191,54 +1275,42 @@
       const r = tip.getBoundingClientRect();
       if (r.top < 0){ top = Math.min(vh - pad, y + 18); tip.style.top = top + 'px'; tip.style.transform = 'translate(-50%,0)'; }
     }
-    function hideTip(){ tip.style.opacity = '0'; }
+    function hideTip2(){ tip.style.opacity = '0'; }
 
     el.addEventListener('pointermove', (e)=>{
       const c = e.target.closest('.scatter-hit');
-      if (c){ showTip(e.clientX, e.clientY, c.getAttribute('data-tip')); } else { hideTip(); }
+      if (c){ showTip2(e.clientX, e.clientY, c.getAttribute('data-tip')); } else { hideTip2(); }
     });
-    el.addEventListener('pointerleave', hideTip);
+    el.addEventListener('pointerleave', hideTip2);
 
-    byId('scatterNote').textContent = `${points.length} points • ${new Date(minX).toISOString().slice(0,10)} → ${new Date(maxX).toISOString().slice(0,10)}`;
+    byId('scatterNote').textContent = `${points.length} items • ${today.toISOString().slice(0,10)} → ${end.toISOString().slice(0,10)}`;
   }
 
   // ===== Sparkline tooltip (delegated) =====
   const tableEl = document.getElementById('streamsTable');
   const tip = document.createElement('div');
   tip.id = 'sparkTip';
-  // match theme colors and keep it close to the cursor
   tip.style.cssText = [
-    'position:fixed',
-    'z-index:9999',
-    'padding:6px 10px',
-    'border-radius:10px',
-    'font-size:12px',
-    'color:var(--text)',
-    'background:var(--card-bg)',
-    'border:1px solid var(--card-border)',
-    'box-shadow:0 10px 24px rgba(0,0,0,.45)',
-    'pointer-events:none',
-    'opacity:0',
-    'transform:translate(-50%,-110%)',
-    'transition:opacity .08s ease'
+    'position:fixed','z-index:9999','padding:6px 10px','border-radius:10px','font-size:12px',
+    'color:var(--text)','background:var(--card-bg)','border:1px solid var(--card-border)',
+    'box-shadow:0 10px 24px rgba(0,0,0,.45)','pointer-events:none','opacity:0',
+    'transform:translate(-50%,-110%)','transition:opacity .08s ease'
   ].join(';');
   document.body.appendChild(tip);
 
   function showTip(x,y,txt){
     tip.textContent = txt;
-
     const pad = 8;
     const vw = window.innerWidth, vh = window.innerHeight;
     const left = Math.min(vw - pad, Math.max(pad, x));
-    let top = y - 8; // closer above the cursor
+    let top = y - 8;
     tip.style.transform = 'translate(-50%,-110%)';
     tip.style.left = left + 'px';
     tip.style.top = top + 'px';
     tip.style.opacity = '1';
-
     const r = tip.getBoundingClientRect();
     if (r.top < 0){
-      top = Math.min(vh - pad, y + 18); // closer below the cursor
+      top = Math.min(vh - pad, y + 18);
       tip.style.top = top + 'px';
       tip.style.transform = 'translate(-50%,0)';
     }
@@ -1271,14 +1343,14 @@
   let mergeModal = null;
 
   manageBtn.addEventListener('click', ()=>{
-    rulesModal = rulesModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(rulesModalEl) : null);
+    rulesModal = rulesModal || (window.bootstrap && bootstrap.Modal ? new bootstrap.Modal(rulesModalEl) : null);
     if (rulesModal) rulesModal.show();
     renderRulesTables(readOverrides());
   });
 
   byId('mergeBtn').addEventListener('click', ()=>{
     if (selectedKeys.size < 2) return;
-    mergeModal = mergeModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(mergeModalEl) : null);
+    mergeModal = mergeModal || (window.bootstrap && bootstrap.Modal ? new bootstrap.Modal(mergeModalEl) : null);
     const listEl = byId('mergeList');
     const note = byId('mergePickNote');
 
@@ -1294,8 +1366,8 @@
     })();
     byId('mergeLabel').value = defaultLabel;
 
-    const amtSum = chosen.reduce((a,s)=>a+Number(s.amount||0),0);
-    byId('mergeFixed').value = amtSum.toFixed(2);
+    const amounts = chosen.map(s=>Number(s.amount||0));
+    byId('mergeFixed').value = amounts.reduce((a,b)=>a+b,0).toFixed(2);
     byId('mergeAmtMode').value = 'sum';
     byId('mergeFixedWrap').style.display = 'none';
 
@@ -1322,7 +1394,7 @@
     let last;
     for (const u of urls){
       try{
-        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const r = await fetchWithRetry(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }, 2, 300);
         if (r.ok){
           const ct=(r.headers.get('content-type')||'').toLowerCase();
           return ct.includes('json') ? await r.json() : { ok:true, raw: await r.text() };
@@ -1356,7 +1428,7 @@
 
     try{
       await postJSON(['/admin/recurring/merge','/api/recurring/merge','/recurring/merge'], payload);
-      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      window.bootstrap?.Modal.getInstance(mergeModalEl)?.hide();
       selectedKeys.clear(); updateMergeBtn(); load();
     }catch(err){
       // Local fallback: store as include rule with merge:true so UI collapses them into one
@@ -1364,7 +1436,7 @@
       const keywords = Array.from(new Set(chosen.map(s=>(s.merchant||'').trim()))).filter(Boolean);
       ov.include.push({ keywords, amount, freq, next, label, merge:true, variance_abs: var_abs, variance_pct: var_pct });
       writeOverrides(ov);
-      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      window.bootstrap?.Modal.getInstance(mergeModalEl)?.hide();
       selectedKeys.clear(); updateMergeBtn(); load();
       alert('Server merge API not found. Created a local combined rule instead.');
     }
