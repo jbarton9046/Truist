@@ -556,19 +556,21 @@
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
 
-  // UPDATED: dots = same color as line, reliable tooltips with larger invisible hit areas
-  function svgSparkline(series,w=SPARK_W,h=SPARK_H){
+  // UPDATED sparkline with labels + hit area + tooltips
+  function svgSparkline(series, labels, w=SPARK_W, h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
     const xs=series.map((_,i)=> pad+i*step);
     let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
     const points = series.map((v,i)=>`
-      <g>
-        <circle class="dot" cx="${xs[i]}" cy="${ys[i]}" r="2.2" fill="currentColor"/>
-        <circle cx="${xs[i]}" cy="${ys[i]}" r="8" fill="transparent" pointer-events="all"><title>${money(v)}</title></circle>
+      <g class="spark-pt">
+        <circle class="dot" cx="${xs[i]}" cy="${ys[i]}" r="2.2"/>
+        <circle class="hit" cx="${xs[i]}" cy="${ys[i]}" r="8">
+          <title>${(labels?.[i] ?? `#${i+1}`)}: ${money(v)}</title>
+        </circle>
       </g>`).join('');
     return `
-      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-label="6 month trend">
+      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="6 month trend">
         <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         ${points}
       </svg>`;
@@ -878,17 +880,6 @@
       const path=categoryPathForLabel(subset, deepLabel);
       const chipHtml=catChip(deepLabel, path);
 
-      const actions = `
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">⋮</button>
-          <div class="dropdown-menu dropdown-menu-end">
-            <button class="dropdown-item" data-act="exclude" data-kw="${esc(s.merchant||'')}">Exclude “${esc(s.merchant||'') || 'stream'}”</button>
-            <button class="dropdown-item" data-act="override-amount" data-kw="${esc(s.merchant||'')}" data-amt="${esc(s.amount||'')}">Set amount…</button>
-            <button class="dropdown-item" data-act="override-next" data-kw="${esc(s.merchant||'')}" data-next="${esc(s.next||'')}">Set next date…</button>
-            <button class="dropdown-item" data-act="override-freq" data-kw="${esc(s.merchant||'')}">Set frequency…</button>
-          </div>
-        </div>`;
-
       const checked = selectedKeys.has(key) ? 'checked' : '';
       const tr=document.createElement('tr');
       tr.innerHTML=`
@@ -901,7 +892,7 @@
         <td class="text-start">${money(s.amount)}</td>
         <td>${(s.freq || '—')}</td>
         <td>${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
-        <td class="trend-cell">${svgSparkline(series)}</td>
+        <td class="trend-cell">${svgSparkline(series, months)}</td>
       `;
       tbody.appendChild(tr);
     }
@@ -915,7 +906,7 @@
       });
     });
 
-    // wire actions
+    // wire actions (exclude/override)
     tbody.querySelectorAll('[data-act]').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const act=btn.dataset.act; const kw=btn.dataset.kw||'';
@@ -1178,11 +1169,6 @@
 #streamsTable thead th.sorted-desc .sort::after { content:"▼"; }
 #streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content:"↕"; }
 
-#streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
-#streamsTable .trend-cell svg .dot{ opacity:.9; }
-#streamsTable .trend-cell svg g:hover .dot{ opacity:1; }
-#streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
-
 #streamsTable td, #streamsTable th,
 #dueSoonTable td, #dueSoonTable th{ vertical-align: middle; }
 
@@ -1197,5 +1183,13 @@
 
 /* tighten cell paddings a bit for better fit */
 .table.table-floating > :not(caption) > * > * { padding-top: .6rem; padding-bottom: .6rem; }
+
+/* Sparkline hover + hit-area enablement (keeps dots same color as line) */
+#streamsTable .trend-cell svg { display:block; margin:0 auto; color: var(--muted); pointer-events:auto; }
+#streamsTable .trend-cell svg path { stroke: currentColor; }
+#streamsTable .trend-cell svg .dot { fill: currentColor; stroke: currentColor; }
+#streamsTable .trend-cell svg .hit { fill: transparent; pointer-events: all; }
+#streamsTable .trend-cell svg .spark-pt:hover .dot { filter: drop-shadow(0 0 2px currentColor); }
+#streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
 </style>
 {% endblock %}
