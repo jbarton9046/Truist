@@ -588,6 +588,10 @@
   const esc = (s) =>
     String(s || '').replace(/[&<>\"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[m]));
 
+  // NEW: tx text helpers used across attach/search
+  const txText = (t) => (t.merchant||t.merchant_name||t.name||t.original_description||t.description||'');
+  const txKeySig = (t) => `${t.date}|${t.amount}|${txText(t)}`;
+
   const freqOrder = { weekly:1, biweekly:2, semi_monthly:2.5, monthly:3, quarterly:4, semiannual:5, annual:6, unknown:7 };
 
   // small retry wrapper to reduce flakiness
@@ -724,7 +728,7 @@
   function streamMatchesKeywords(stream, txsForStream, keywords){
     const m = mkMatcher(keywords);
     if (m(stream.merchant||stream.name)) return true;
-    if (txsForStream && txsForStream.some(t => m(t.merchant||t.merchant_name||t.name||t.original_description||t.description))) return true;
+    if (txsForStream && txsForStream.some(t => m(txText(t)))) return true;
     return false;
   }
 
@@ -771,7 +775,7 @@
     const isExcludedText = (desc)=> excMatchers.some(x => x.match(desc));
 
     let filtered = streams.filter(s => {
-      const inTx = (txByKey[s._key]||[]).some(t => isExcludedText(t.merchant||t.merchant_name||t.name||t.original_description||t.description));
+      const inTx = (txByKey[s._key]||[]).some(t => isExcludedText(txText(t)));
       const self = isExcludedText(s.merchant || s.name || '');
       return !(self || inTx);
     });
@@ -910,7 +914,7 @@
       const found = (txs||[]).find(t => {
         const sameAmt = Math.abs(Number(t.amount||0)) === Math.abs(Number(sig.amount||0));
         const sameDate = (String(t.date||'') === String(sig.date||''));
-        const text = (t.merchant || t.merchant_name || t.name || t.original_description || t.description || '').toString().toLowerCase();
+        const text = txText(t).toLowerCase();
         const want = (sig.text||'').toString().toLowerCase();
         return sameAmt && sameDate && (!want || text.includes(want));
       });
@@ -1155,44 +1159,48 @@
           return;
         }
 
-        if (act==='attach-last'){ // manually pull last matching tx
+        // UPDATED: attach even if tx is already assigned elsewhere (stores synthetic attach)
+        if (act==='attach-last'){
           const matcher = mkMatcher(kw);
           const all = (cachedData.transactions||[]).slice().reverse(); // newest first
-          const targetKey = btn.closest('tr')?.querySelector('.rowSel')?.dataset.key || '';
-          const already = new Set((cachedData._txByKey?.[targetKey]||[])
-             .map(t=>`${t.date}|${t.amount}|${(t.merchant||t.merchant_name||t.name||t.original_description||t.description||'')}`));
-          const picked = all.find(t => {
-            const text = (t.merchant||t.merchant_name||t.name||t.original_description||t.description||'');
-            return matcher(text) && !already.has(`${t.date}|${t.amount}|${text}`);
-          });
-          if (!picked){ alert('No unassigned matching transaction found.'); return; }
-          const ok = confirm(`Attach ${money(picked.amount)} on ${picked.date} — ${(picked.merchant||picked.name||picked.original_description||picked.description||'').slice(0,64)} — to "${kw}"?`);
-          if (!ok) return;
+          // prefer within ±$6 or ±18% of stream amount if available
+          const row = btn.closest('tr');
+          const streamKey = row?.querySelector('.rowSel')?.dataset.key || '';
+          const streamObj = (cachedData.streams||[]).find(s=>s._key===streamKey) || {};
+          const targetAmt = Number(streamObj.amount||0);
+          const withinAmt = (a) => {
+            const abs = 6, pct = 0.18;
+            const d = Math.abs(a - targetAmt);
+            return (d <= abs) || (targetAmt>0 && (d/targetAmt) <= pct);
+          };
+          const prefer = all.find(t => matcher(txText(t)) && (targetAmt ? withinAmt(Math.abs(Number(t.amount||0))) : true));
+          const picked = prefer || all.find(t => matcher(txText(t)));
+          if (!picked){ alert('No matching transaction found.'); return; }
+
           ov.synthetic = Array.isArray(ov.synthetic) ? ov.synthetic : [];
           ov.synthetic.push({
             to_keywords: kw,
-            sig: { date: picked.date, amount: Number(picked.amount||0), text: (picked.merchant||picked.merchant_name||picked.name||picked.original_description||picked.description||'') }
+            sig: { date: picked.date, amount: Number(picked.amount||0), text: txText(picked) }
           });
           writeOverrides(ov); load();
           return;
         }
 
+        // UPDATED: broader search across all text fields, up to 30 recent matches
         if (act==='attach-search'){
           const m = mkMatcher(kw);
           const txs = (cachedData.transactions||[]).slice().sort((a,b)=> (a.date<b.date?1:-1));
-          const picks = txs.filter(t => m(t.merchant||t.merchant_name||t.name||t.original_description||t.description))
-                           .slice(0,20);
+          const picks = txs.filter(t => m(txText(t))).slice(0,30);
           if (!picks.length){ alert('No matches found.'); return; }
-          const fmt = t => `${t.date} • ${money(Math.abs(Number(t.amount||0)))} • ${(t.merchant||t.name||t.original_description||t.description||'').slice(0,42)}`;
+          const fmt = t => `${t.date} • ${money(Math.abs(Number(t.amount||0)))} • ${txText(t).slice(0,42)}`;
           const idx = prompt(`Pick 1–${picks.length}\n` + picks.map((t,i)=>`${i+1}. ${fmt(t)}`).join('\n'));
           const n = Number(idx||0);
           const tx = picks[n-1]; if (!tx) return;
 
-          const ov = readOverrides();
           ov.synthetic = Array.isArray(ov.synthetic) ? ov.synthetic : [];
           ov.synthetic.push({
             to_keywords: kw,
-            sig: { date: tx.date, amount: Number(tx.amount||0), text: (tx.merchant||tx.merchant_name||tx.name||tx.original_description||tx.description||'') }
+            sig: { date: tx.date, amount: Number(tx.amount||0), text: txText(tx) }
           });
           writeOverrides(ov); load();
           return;
@@ -1266,13 +1274,29 @@
       return;
     }
 
-    // derive category from the stream’s transactions where possible
+    // derive category from the stream’s transactions where possible; otherwise infer by name→stream match
     const points = upcoming.map(u => {
       const dt = parseDate(u.date);
+      // 1) try direct key
+      let subset = [];
+      let cat = 'Other';
       const key = u._stream_key || u.stream_key || u.merchant_key || '';
-      const subset = key ? (cachedData._txByKey?.[key] || []) : [];
-      const cat = subset.length ? deepCategoryForStream(subset) : (u.category || u.cat_top || 'Other');
-      return { x: dt.getTime(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString(), cat };
+      if (key && cachedData._txByKey?.[key]?.length){
+        subset = cachedData._txByKey[key];
+        cat = deepCategoryForStream(subset);
+      } else {
+        // 2) infer stream by keywords on merchant/name
+        const name = (u.merchant || u.name || '').toString();
+        const m = mkMatcher(name);
+        const candidate = (cachedData.streams||[]).find(s => m(s.merchant||s.name));
+        if (candidate){
+          subset = (cachedData._txByKey?.[candidate._key] || []);
+          cat = subset.length ? deepCategoryForStream(subset) : (u.category || u.cat_top || 'Other');
+        } else {
+          cat = (u.category || u.cat_top || 'Other');
+        }
+      }
+      return { x: dt ? dt.getTime() : Date.now(), y: Math.abs(Number(u.amount||0)), label: (u.merchant || u.name || '').toString(), cat };
     });
 
     const pad=24, W=480, H=220;
@@ -1558,6 +1582,7 @@
   load();
 })();
 </script>
+
 
 <style>
 /* ---- Align with global dark/glass theme from layout.html ---- */
