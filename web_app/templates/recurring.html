@@ -96,27 +96,24 @@
         </div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-floating" id="streamsTable">
-            <!-- Column sizing to keep layout tight -->
             <colgroup>
-              <col style="width:28px">          <!-- checkbox -->
-              <col>                              <!-- category -->
-              <col style="width:110px">          <!-- amount -->
-              <col style="width:120px">          <!-- freq -->
-              <col style="width:150px">          <!-- next -->
-              <col style="width:210px">          <!-- trend -->
-              <col style="width:1%">             <!-- actions -->
+              <col style="width:28px;">
+              <col style="width:28%;">
+              <col style="width:18%;">
+              <col style="width:18%;">
+              <col style="width:18%;">
+              <col style="width:180px;">
+              <col style="width:1%;">
             </colgroup>
             <thead>
               <tr>
-                <th class="align-middle text-center">
-                  <!-- (optional) select-all goes here -->
-                </th>
-                <th class="sortable align-middle" data-sort="category">Category <span class="sort"></span></th>
-                <th class="text-end sortable align-middle" data-sort="amount">Amount <span class="sort"></span></th>
-                <th class="sortable align-middle" data-sort="freq">Freq <span class="sort"></span></th>
-                <th class="sortable align-middle" data-sort="next">Next <span class="sort"></span></th>
-                <th class="align-middle">Trend (6 mo)</th>
-                <th class="align-middle"></th>
+                <th></th>
+                <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
+                <th class="sortable" data-sort="amount">Amount <span class="sort"></span></th>
+                <th class="sortable" data-sort="freq">Freq <span class="sort"></span></th>
+                <th class="sortable" data-sort="next">Next <span class="sort"></span></th>
+                <th>Trend (6 mo)</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -414,7 +411,7 @@
 
             <div class="table-responsive mt-3">
               <table class="table table-sm">
-                <thead><tr><th>Label</th><th>Amount</th><th>Freq</th><th>Next</th><th></th></tr></thead>
+                <thead><tr><th>Label</th><th>Amount</th><th>Freq</th><th>Next</th><th></th></trthead>
                 <tbody id="schedulesList"><tr><td colspan="5" class="text-muted">No schedules.</td></tr></tbody>
               </table>
             </div>
@@ -527,7 +524,7 @@
   const byId = id => document.getElementById(id);
   function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-  // ---------- SPARKLINES ----------
+  // ---------- SPARKLINES with tooltips ----------
   const SPARK_W=120, SPARK_H=28;
   function lastNMonthsLabels(n){
     const labels = [];
@@ -535,7 +532,7 @@
     const d = new Date(today.getFullYear(), today.getMonth(), 1);
     for (let i=n-1; i>=0; i--){
       const mm = new Date(d.getFullYear(), d.getMonth()-i, 1);
-      labels.push(mm.toISOString().slice(0,7));
+      labels.push(mm.toISOString().slice(0,7)); // YYYY-MM
     }
     return labels;
   }
@@ -554,20 +551,16 @@
   }
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
-
-  // sparkline with point tooltips
-  function svgSparkline(series, labels, w=SPARK_W, h=SPARK_H){
+  function svgSparkline(series, labels, w=SPARK_W,h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
     const xs=series.map((_,i)=> pad+i*step);
     let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
-    const points = xs.map((cx,i)=>`<circle cx="${cx}" cy="${ys[i]}" r="4" fill="transparent">
-        <title>${labels?.[i]??''}: ${money(series[i]||0)}</title>
-      </circle>`).join('');
-    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="6-month trend">
-        <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>
-        ${points}
-      </svg>`;
+    const circles = xs.map((x,i)=>`<circle cx="${x}" cy="${ys[i]}" r="2"><title>${labels[i]}: ${money(series[i])}</title></circle>`).join('');
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+              <path d="${d}" stroke="currentColor" fill="none" stroke-width="1.6"/>
+              ${circles}
+            </svg>`;
   }
 
   // ---------- CATEGORY helpers ----------
@@ -589,8 +582,7 @@
       return d;
     };
     let chosen = subset.find(t=> txDeepLabel(t)===targetLabel);
-    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{};
-    }
+    if(!chosen){ const sorted=subset.slice().sort((a,b)=> (norm(b.date)>norm(a.date)?1:(norm(b.date)<norm(a.date)?-1:0))); chosen=sorted[0]||{}; }
     const cat=(chosen.cat_top||chosen.category||'').toString().trim();
     const sub=(chosen.subcat||chosen.subcategory||'').toString().trim();
     const ssub=(chosen.sub_subcategory||'').toString().trim();
@@ -599,10 +591,10 @@
   function catChip(label, path){
     const txt = esc(label||'Category');
     const level = path.ssub ? 'subsubcategory' : (path.sub ? 'subcategory' : 'category');
-    /* NOTE: NO onclick here — lets the app's global delegated handler catch [data-manage] */
     return `<a href="#" class="chip link-manage"
               data-manage data-level="${esc(level)}"
-              data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}">${txt}</a>`;
+              data-cat="${esc(path.cat||'')}" data-sub="${esc(path.sub||'')}" data-ssub="${esc(path.ssub||'')}"
+              onclick="return dashManage(event, this);">${txt}</a>`;
   }
 
   // ---------- RULES STORAGE ----------
@@ -642,7 +634,7 @@
     const f = String(freq||'').toLowerCase();
     if (f==='weekly') d.setDate(d.getDate()+7);
     else if (f==='biweekly') d.setDate(d.getDate()+14);
-    else if (f==='semi_monthly') d.setDate(d.getDate()+14); // rough; server should compute anchors
+    else if (f==='semi_monthly') d.setDate(d.getDate()+14);
     else if (f==='monthly') d.setMonth(d.getMonth()+1);
     else if (f==='quarterly') d.setMonth(d.getMonth()+3);
     else if (f==='semiannual') d.setMonth(d.getMonth()+6);
@@ -680,10 +672,10 @@
 
     // INCLUDE (force streams)
     (ov.include||[]).forEach(rule => {
-      let found = null, foundIdx=-1;
+      let found = null;
       for (let i=0;i<filtered.length;i++){
         const s=filtered[i]; const subset=txByKey[s._key]||[];
-        if (streamMatchesKeywords(s, subset, rule.keywords)) { found=s; foundIdx=i; break; }
+        if (streamMatchesKeywords(s, subset, rule.keywords)) { found=s; break; }
       }
       const label = rule.label || (Array.isArray(rule.keywords) ? rule.keywords[0] : String(rule.keywords||'').split(',')[0]||'Manual');
       if (found){
@@ -704,7 +696,7 @@
       }
     });
 
-    // SCHEDULES (add explicit recurring regardless of transactions)
+    // SCHEDULES (explicit recurring)
     (ov.schedules||[]).forEach(sc => {
       filtered.push({
         _key: 'schedule:' + (sc.label||'').toLowerCase().replace(/\s+/g,'_')+':'+Date.now(),
@@ -779,6 +771,19 @@
     mergeBtn.disabled = selectedKeys.size < 2;
   }
 
+  // income-like detector for KPI/week (keeps expenses only)
+  function isIncomeLike(u){
+    if (u == null) return false;
+    // explicit flags if provided by API
+    if (u.is_income === true || u.income === true || u.type === 'income') return true;
+    // sign-based
+    if (typeof u.amount === 'number' && u.amount < 0) return true;
+    // merchant-name heuristics
+    const m = String(u.merchant||'').toLowerCase();
+    if (/payroll|paycheck|salary|wages|direct\s*dep|dd\s*pay|rachel\s*pay|deposit/.test(m)) return true;
+    return false;
+  }
+
   async function load(){
     const win=winSel.value, horizon=horSel.value;
     const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
@@ -801,7 +806,15 @@
     byId('kpi-floor').textContent=money(floor);
     byId('kpi-income').textContent=money(income);
     const lEl=byId('kpi-leftover'); lEl.textContent=money(leftover); lEl.classList.toggle('text-danger',leftover<0);
-    byId('kpi-week').textContent=money(data.this_week_due);
+
+    // Recompute "Due this week" locally to exclude income-like items
+    const upcoming=(data.upcoming||[]).slice();
+    const dueWeek = upcoming
+      .map(u=> ({...u, days: daysFromToday(u.date)}))
+      .filter(u=> u.days!=null && u.days>=0 && u.days<=7 && !isIncomeLike(u))
+      .reduce((sum,u)=> sum + Math.max(0, Number(u.amount||0)), 0);
+    byId('kpi-week').textContent = money(dueWeek);
+
     setFloorMeter(floor, income);
 
     byId('pmRecurring').textContent=money(pm.income_recurring||0);
@@ -811,16 +824,17 @@
     const pmL=byId('pmLeftover'); pmL.textContent=money(pm.leftover||0); pmL.classList.toggle('text-danger', Number(pm.leftover||0)<0);
     byId('pmNote').textContent=`Horizon: ${data.horizon || horSel.value} days • Window: ${data.window || winSel.value}`;
 
-    // Due soon (7d)
+    // Due soon (7d) table (expenses only)
     const dueTbody=document.querySelector('#dueSoonTable tbody'); dueTbody.innerHTML='';
     const txs=data.transactions||[];
-    const upcoming=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
-    const dueSoon=upcoming.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7).sort((a,b)=> (a.date<b.date?-1:1));
+    const txByKey = txs.reduce((acc,t)=>{ const k=t._stream_key||t.merchant_key||''; (acc[k] ||= []).push(t); return acc; },{});
+    const upcomingSorted=(data.upcoming||[]).slice().sort((a,b)=> (a.date<b.date?-1:1));
+    const dueSoon=upcomingSorted.map(u=>({...u,days:daysFromToday(u.date)})).filter(u=>u.days!=null&&u.days>=0&&u.days<=7 && !isIncomeLike(u)).sort((a,b)=> (a.date<b.date?-1:1));
     if(!dueSoon.length){ dueTbody.innerHTML='<tr><td colspan="4" class="text-muted py-3 text-center">Nothing due in the next 7 days.</td></tr>'; }
     else{
       for (const u of dueSoon){
         const key=u._stream_key||u.stream_key||u.merchant_key||'';
-        let subset=[]; if (key){ subset=txs.filter(t=>(t._stream_key||t.merchant_key||'')===key); }
+        const subset=txByKey[key]||[];
         const deep=subset.length?deepCategoryForStream(subset):(u.category||'Other');
         const path=subset.length?categoryPathForLabel(subset,deep):{cat:u.category||'Other',sub:'',ssub:'',sss:''};
         const chip=catChip(deep,path);
@@ -872,7 +886,6 @@
       const path=categoryPathForLabel(subset, deepLabel);
       const chipHtml=catChip(deepLabel, path);
 
-      // actions (quick rule add)
       const actions = `
         <div class="dropdown">
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">⋮</button>
@@ -888,16 +901,16 @@
       const tr=document.createElement('tr');
       tr.innerHTML=`
         <td class="text-center align-middle"><input type="checkbox" class="rowSel" data-key="${esc(key)}" ${checked}></td>
-        <td class="streams-category align-middle">
+        <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
             ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
           </div>
         </td>
-        <td class="text-end align-middle">${money(s.amount)}</td>
-        <td class="align-middle">${(s.freq || '—')}</td>
-        <td class="align-middle">${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
-        <td class="trend-cell align-middle">${svgSparkline(series, months)}</td>
-        <td class="align-middle">${actions}</td>
+        <td>${money(s.amount)}</td>
+        <td>${(s.freq || '—')}</td>
+        <td>${s.next ? `<div>${s.next}</div><div class="small muted">${nextDays===0?'today':(nextDays===1?'in 1 day':(nextDays!=null?`in ${nextDays} days`:'—'))}</div>` : '—'}</td>
+        <td class="trend-cell">${svgSparkline(series, months)}</td>
+        <td>${actions}</td>
       `;
       tbody.appendChild(tr);
     }
@@ -948,72 +961,6 @@
     rulesModal = rulesModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(rulesModalEl) : null);
     if (rulesModal) rulesModal.show();
     renderRulesTables(readOverrides());
-  });
-
-  // forms
-  byId('formInclude').addEventListener('submit', e=>{
-    e.preventDefault();
-    const ov=readOverrides();
-    const keywords = (byId('incKeywords').value||'').split(',').map(s=>s.trim()).filter(Boolean);
-    if (!keywords.length){ alert('Enter at least one keyword.'); return; }
-    ov.include.push({
-      keywords,
-      amount: byId('incAmount').value || undefined,
-      freq: byId('incFreq').value || undefined,
-      next: byId('incNext').value || undefined,
-      label: byId('incLabel').value || undefined
-    });
-    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
-  });
-
-  byId('formExclude').addEventListener('submit', e=>{
-    e.preventDefault();
-    const ov=readOverrides();
-    const k = (byId('excKeywords').value||'').trim();
-    if(!k){ alert('Enter keywords.'); return; }
-    ov.exclude[k] = (byId('excReason').value||'');
-    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
-  });
-
-  byId('formOverride').addEventListener('submit', e=>{
-    e.preventDefault();
-    const ov=readOverrides();
-    const kw=(byId('ovKeywords').value||'').trim(); if(!kw){ alert('Enter keywords.'); return; }
-    const amt=byId('ovAmount').value; const nxt=byId('ovNext').value; const fq=byId('ovFreq').value;
-    ov.override.push(Object.fromEntries(Object.entries({ keywords:kw, amount: amt===''?undefined:Number(amt), next:nxt||undefined, freq:fq||undefined }).filter(([,v])=>v!==undefined && v!=='')));
-    writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
-  });
-
-  byId('formPin').addEventListener('submit', e=>{
-    e.preventDefault();
-    const ov=readOverrides();
-    const label=(byId('pinLabel').value||'').trim(); const amount=Number(byId('pinAmount').value||0); const date=byId('pinDate').value;
-    if(!label || !date){ alert('Label and date required.'); return; }
-    ov.pins.push({ label, amount, date }); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
-  });
-
-  // Schedules: show anchors for semi-monthly
-  const scFreqSel = byId('scFreq');
-  const scAnchors = byId('scAnchors');
-  function toggleScAnchors(){
-    scAnchors.classList.toggle('d-none', scFreqSel.value !== 'semi_monthly');
-  }
-  scFreqSel.addEventListener('change', toggleScAnchors);
-  toggleScAnchors();
-
-  byId('formSched').addEventListener('submit', e=>{
-    e.preventDefault();
-    const ov=readOverrides();
-    const label=(byId('scLabel').value||'').trim(); const amount=Number(byId('scAmount').value||0);
-    const freq=byId('scFreq').value||'monthly'; const next=byId('scNext').value;
-    if(!label || !next){ alert('Label and next date required.'); return; }
-    const sched = { label, amount, freq, next };
-    if (freq==='semi_monthly'){
-      const A = byId('scAnchorA').value, B = byId('scAnchorB').value, G = byId('scGrace').value;
-      sched.anchors = [(A?Number(A):8),(B?Number(B):18)];
-      sched.grace_days = (G?Number(G):3);
-    }
-    ov.schedules.push(sched); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset(); toggleScAnchors();
   });
 
   function renderRulesTables(ov){
@@ -1119,8 +1066,9 @@
     })();
     byId('mergeLabel').value = defaultLabel;
 
-    const amtSum = chosen.reduce((a,s)=>a+Number(s.amount||0),0);
-    const med = median(chosen.map(s=>Number(s.amount||0)));
+    const amounts = chosen.map(s=>Number(s.amount||0));
+    const amtSum = amounts.reduce((a,b)=>a+b,0);
+
     byId('mergeFixed').value = amtSum.toFixed(2);
     byId('mergeAmtMode').value = 'sum';
     byId('mergeFixedWrap').style.display = 'none';
@@ -1172,7 +1120,7 @@
 
     const amounts = chosen.map(s=>Number(s.amount||0));
     const amount = mode==='sum' ? amounts.reduce((a,b)=>a+b,0)
-                 : mode==='median' ? median(amounts)
+                 : mode==='median' ? (amounts.sort((a,b)=>a-b)[Math.floor(amounts.length/2)] || 0)
                  : Number(byId('mergeFixed').value||0);
 
     const payload = {
@@ -1193,7 +1141,6 @@
       bootstrap.Modal.getInstance(mergeModalEl)?.hide();
       selectedKeys.clear(); updateMergeBtn(); load();
     }catch(err){
-      // Local fallback: turn selection into a single include rule
       const ov = readOverrides();
       const keywords = Array.from(new Set(chosen.map(s=>(s.merchant||'').trim()))).filter(Boolean);
       ov.include.push({ keywords, amount, freq, next, label });
@@ -1213,7 +1160,18 @@
   renderRulesTables(readOverrides());
   load();
 
-  // IMPORTANT: do NOT override category click; let the app's global handler catch [data-manage]
+  // expose manage chip hook (drawer opener is expected to be defined globally)
+  window.dashManage = function(ev, el){
+    ev.preventDefault();
+    if (window.openCategoryDrawer) {
+      const level = el.getAttribute('data-level');
+      const cat = el.getAttribute('data-cat');
+      const sub = el.getAttribute('data-sub');
+      const ssub = el.getAttribute('data-ssub');
+      window.openCategoryDrawer({ level, cat, sub, ssub });
+    }
+    return false;
+  };
 })();
 </script>
 
@@ -1258,7 +1216,7 @@
 #streamsTable thead th.sorted-desc .sort::after { content:"▼"; }
 #streamsTable thead th:not(.sorted-asc):not(.sorted-desc) .sort::after { content:"↕"; }
 #streamsTable svg{ display:block; margin:0 auto; color: var(--muted); }
-.trend-cell { white-space:nowrap; min-width:190px; }
+.trend-cell { white-space:nowrap; min-width:180px; }
 
 /* variance label */
 .variance-tag{ font-size:.85rem; color: color-mix(in oklab, var(--text) 70%, #fff 0%); opacity:.85; }
@@ -1266,9 +1224,8 @@
 /* modal spacing tweaks */
 #rulesModal .nav-tabs .nav-link{ font-weight:600; }
 
-/* row selector cell + vertical alignment */
+/* row selector cell */
 #streamsTable td:first-child, #streamsTable th:first-child { width:28px; }
-#streamsTable td, #streamsTable th { vertical-align: middle; }
 .mono{ font-variant-numeric: tabular-nums; }
 </style>
 {% endblock %}
