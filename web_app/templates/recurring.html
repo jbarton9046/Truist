@@ -8,6 +8,7 @@
     <h2 class="mb-0">Recurring Dashboard</h2>
     <div class="d-flex gap-2">
       <input id="search" class="form-control form-control-sm" placeholder="Search (category/freq/merchant)..." style="width: 240px;">
+      <button id="mergeBtn" class="btn btn-sm btn-outline-danger" disabled>Merge selected</button>
       <button id="manageRulesBtn" class="btn btn-sm btn-outline-primary">Manage rules</button>
       <button id="exportCsv" class="btn btn-sm btn-outline-secondary">Export CSV</button>
       <button id="exportRules" class="btn btn-sm btn-outline-secondary">Export rules</button>
@@ -103,6 +104,9 @@
           <table class="table table-sm table-hover mb-0 table-floating" id="streamsTable">
             <thead>
               <tr>
+                <th style="width:28px;">
+                  <!-- header checkbox in future if you want "select all" -->
+                </th>
                 <th class="sortable" data-sort="category">Category <span class="sort"></span></th>
                 <th class="text-end sortable" data-sort="merchant">Merchant <span class="sort"></span></th>
                 <th class="text-end sortable" data-sort="amount">Amount <span class="sort"></span></th>
@@ -114,7 +118,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8" class="text-muted py-3 text-center">Loading…</td></tr>
+              <tr><td colspan="9" class="text-muted py-3 text-center">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -232,6 +236,7 @@
                 <label class="form-label small">Freq</label>
                 <select class="form-select" id="incFreq">
                   <option value="monthly">monthly</option>
+                  <option value="semi_monthly">semi-monthly</option>
                   <option value="biweekly">biweekly</option>
                   <option value="weekly">weekly</option>
                   <option value="quarterly">quarterly</option>
@@ -300,6 +305,7 @@
                 <select class="form-select" id="ovFreq">
                   <option value="">(no change)</option>
                   <option value="monthly">monthly</option>
+                  <option value="semi_monthly">semi-monthly</option>
                   <option value="biweekly">biweekly</option>
                   <option value="weekly">weekly</option>
                   <option value="quarterly">quarterly</option>
@@ -367,6 +373,7 @@
                 <label class="form-label small">Frequency</label>
                 <select class="form-select" id="scFreq">
                   <option value="monthly">monthly</option>
+                  <option value="semi_monthly">semi-monthly</option>
                   <option value="biweekly">biweekly</option>
                   <option value="weekly">weekly</option>
                   <option value="quarterly">quarterly</option>
@@ -378,6 +385,26 @@
                 <label class="form-label small">Next date</label>
                 <input class="form-control" id="scNext" type="date">
               </div>
+
+              <!-- Anchors (only for semi-monthly) -->
+              <div id="scAnchors" class="col-12 d-none">
+                <div class="row g-2">
+                  <div class="col-4">
+                    <label class="form-label small">Anchor A (day)</label>
+                    <input class="form-control" id="scAnchorA" type="number" min="1" max="31" placeholder="e.g., 8">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Anchor B (day)</label>
+                    <input class="form-control" id="scAnchorB" type="number" min="1" max="31" placeholder="e.g., 18">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Grace days</label>
+                    <input class="form-control" id="scGrace" type="number" min="0" max="10" placeholder="e.g., 3">
+                  </div>
+                </div>
+                <div class="form-text">Optional: choose two days of month for semi-monthly schedule; grace lets “nearby” charges match.</div>
+              </div>
+
               <div class="col-12">
                 <button class="btn btn-primary btn-sm" type="submit">Add schedule</button>
               </div>
@@ -402,6 +429,87 @@
   </div>
 </div>
 
+<!-- ========= Merge Modal ========= -->
+<div class="modal fade" id="mergeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Merge selected recurring items</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="mergePickNote">—</div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small">Label</label>
+            <input id="mergeLabel" class="form-control" placeholder="e.g., Straight Talk (2 lines)">
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Amount mode</label>
+            <select id="mergeAmtMode" class="form-select">
+              <option value="sum">sum of selected</option>
+              <option value="median">median of selected</option>
+              <option value="fixed">fixed…</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-4" id="mergeFixedWrap" style="display:none;">
+            <label class="form-label small">Fixed amount</label>
+            <input id="mergeFixed" class="form-control" inputmode="decimal" placeholder="e.g., 95">
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Next date (optional)</label>
+            <input id="mergeNext" class="form-control" type="date">
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label small">Frequency</label>
+            <select id="mergeFreq" class="form-select">
+              <option value="monthly">monthly</option>
+              <option value="semi_monthly">semi-monthly</option>
+              <option value="biweekly">biweekly</option>
+              <option value="weekly">weekly</option>
+              <option value="quarterly">quarterly</option>
+              <option value="semiannual">semiannual</option>
+              <option value="annual">annual</option>
+            </select>
+          </div>
+
+          <div class="col-12" id="mergeAnchorsWrap" style="display:none;">
+            <div class="row g-2">
+              <div class="col-4">
+                <label class="form-label small">Anchor A (day)</label>
+                <input id="mergeA" class="form-control" type="number" min="1" max="31" value="8">
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Anchor B (day)</label>
+                <input id="mergeB" class="form-control" type="number" min="1" max="31" value="18">
+              </div>
+              <div class="col-4">
+                <label class="form-label small">Grace days</label>
+                <input id="mergeGrace" class="form-control" type="number" min="0" max="10" value="3">
+              </div>
+            </div>
+            <div class="form-text">For semi-monthly schedules only.</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small">Selected items</label>
+            <div id="mergeList" class="small border rounded p-2" style="max-height:180px; overflow:auto;">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <div class="small text-muted me-auto" id="mergeStatus">Will merge locally if API is unavailable.</div>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="mergeConfirm" class="btn btn-primary">Merge</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   // ---- utility
@@ -413,7 +521,7 @@
   const parseDate = s => { const [y,m,d] = (s||'').split('-').map(Number); return (y&&m&&d) ? new Date(y,m-1,d) : null; };
   const daysFromToday = s => { const dt=parseDate(s); if(!dt) return null; const t=new Date(); t.setHours(0,0,0,0); const d=new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()); return Math.round((d-t)/(1000*60*60*24)); };
   const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
-  const freqOrder = { 'weekly':1,'biweekly':2,'monthly':3,'quarterly':4,'semiannual':5,'annual':6,'unknown':7 };
+  const freqOrder = { 'weekly':1,'biweekly':2,'semi_monthly':2.5,'monthly':3,'quarterly':4,'semiannual':5,'annual':6,'unknown':7 };
   const byId = id => document.getElementById(id);
   function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
@@ -528,6 +636,7 @@
     const f = String(freq||'').toLowerCase();
     if (f==='weekly') d.setDate(d.getDate()+7);
     else if (f==='biweekly') d.setDate(d.getDate()+14);
+    else if (f==='semi_monthly') d.setDate(d.getDate()+14); // rough; server should compute anchors
     else if (f==='monthly') d.setMonth(d.getMonth()+1);
     else if (f==='quarterly') d.setMonth(d.getMonth()+3);
     else if (f==='semiannual') d.setMonth(d.getMonth()+6);
@@ -619,6 +728,7 @@
 
   // ---------- PAGE RENDER + INTERACTIONS ----------
   const winSel = byId('win'), horSel=byId('horizon'), searchEl=byId('search'), exportBtn=byId('exportCsv');
+  const mergeBtn = byId('mergeBtn');
   const manageBtn = byId('manageRulesBtn'); const exportRulesBtn = byId('exportRules'); const importRulesInput = byId('importRules');
 
   // Sort
@@ -627,7 +737,7 @@
     if (key==='merchant') return String(s.merchant||'').toLowerCase();
     if (key==='amount') return Number(s.amount||0);
     if (key==='count') return Number(s.count||0);
-    if (key==='freq') return freqOrder[(s.freq||'unknown').toLowerCase()]||9;
+    if (key==='freq') return (freqOrder[(s.freq||'unknown').toLowerCase()]||9);
     if (key==='next') return s.next ? (parseDate(s.next)?.getTime() || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
     if (key==='category'){
       const deep = deepCategoryForStream(txByKey[s._key] || []);
@@ -660,6 +770,12 @@
   }
 
   let cachedData=null;
+  const selectedKeys = new Set();
+
+  function updateMergeBtn(){
+    mergeBtn.disabled = selectedKeys.size < 2;
+  }
+
   async function load(){
     const win=winSel.value, horizon=horSel.value;
     const url=`/api/recurrents?win=${encodeURIComponent(win)}&horizon=${encodeURIComponent(horizon)}&top_n=5`;
@@ -738,7 +854,7 @@
       return hay.includes(q);
     });
 
-    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="8" class="text-muted py-3 text-center">No streams detected.</td></tr>'; return; }
+    if(!filtered.length){ tbody.innerHTML='<tr><td colspan="9" class="text-muted py-3 text-center">No streams detected.</td></tr>'; return; }
 
     filtered.sort((a,b)=>compareStreams(a,b,txByKey));
     const months=lastNMonthsLabels(6);
@@ -765,8 +881,10 @@
           </div>
         </div>`;
 
+      const checked = selectedKeys.has(key) ? 'checked' : '';
       const tr=document.createElement('tr');
       tr.innerHTML=`
+        <td class="text-center align-middle"><input type="checkbox" class="rowSel" data-key="${esc(key)}" ${checked}></td>
         <td class="streams-category">
           <div class="d-flex align-items-center gap-2">
             ${chipHtml} ${warn?`<span class="variance-tag" title="Last charge >20% above median">variance</span>`:''}
@@ -782,6 +900,15 @@
       `;
       tbody.appendChild(tr);
     }
+
+    // row selectors
+    tbody.querySelectorAll('.rowSel').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        const k = cb.dataset.key;
+        if (cb.checked) selectedKeys.add(k); else selectedKeys.delete(k);
+        updateMergeBtn();
+      });
+    });
 
     // wire actions
     tbody.querySelectorAll('[data-act]').forEach(btn=>{
@@ -802,7 +929,7 @@
           ov.override.push({ keywords: kw, next: nxt });
           writeOverrides(ov); load();
         } else if (act==='override-freq'){
-          const f = prompt('Set frequency (weekly/biweekly/monthly/quarterly/semiannual/annual):','monthly');
+          const f = prompt('Set frequency (weekly/biweekly/semi_monthly/monthly/quarterly/semiannual/annual):','monthly');
           if (!f) return;
           ov.override.push({ keywords: kw, freq: f });
           writeOverrides(ov); load();
@@ -811,6 +938,7 @@
     });
 
     exportBtn.onclick = () => exportStreamsCsv(filtered, txByKey);
+    updateMergeBtn();
   }
 
   function exportStreamsCsv(streams, txByKey){
@@ -889,13 +1017,28 @@
     ov.pins.push({ label, amount, date }); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
   });
 
+  // Schedules: show anchors for semi-monthly
+  const scFreqSel = byId('scFreq');
+  const scAnchors = byId('scAnchors');
+  function toggleScAnchors(){
+    scAnchors.classList.toggle('d-none', scFreqSel.value !== 'semi_monthly');
+  }
+  scFreqSel.addEventListener('change', toggleScAnchors);
+  toggleScAnchors();
+
   byId('formSched').addEventListener('submit', e=>{
     e.preventDefault();
     const ov=readOverrides();
     const label=(byId('scLabel').value||'').trim(); const amount=Number(byId('scAmount').value||0);
     const freq=byId('scFreq').value||'monthly'; const next=byId('scNext').value;
     if(!label || !next){ alert('Label and next date required.'); return; }
-    ov.schedules.push({ label, amount, freq, next }); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset();
+    const sched = { label, amount, freq, next };
+    if (freq==='semi_monthly'){
+      const A = byId('scAnchorA').value, B = byId('scAnchorB').value, G = byId('scGrace').value;
+      sched.anchors = [(A?Number(A):8),(B?Number(B):18)];
+      sched.grace_days = (G?Number(G):3);
+    }
+    ov.schedules.push(sched); writeOverrides(ov); renderRulesTables(ov); load(); e.target.reset(); toggleScAnchors();
   });
 
   function renderRulesTables(ov){
@@ -979,6 +1122,114 @@
     });
   }
 
+  // ---------- Merge flow ----------
+  const mergeModalEl = document.getElementById('mergeModal');
+  let mergeModal = null;
+
+  mergeBtn.addEventListener('click', ()=>{
+    if (selectedKeys.size < 2) return;
+    mergeModal = mergeModal || (bootstrap && bootstrap.Modal ? new bootstrap.Modal(mergeModalEl) : null);
+    const listEl = byId('mergeList');
+    const note = byId('mergePickNote');
+
+    // build list + defaults
+    const chosen = (cachedData.streams||[]).filter(s=> selectedKeys.has(s._key));
+    const lines = chosen.map(s => `<div class="d-flex justify-content-between"><span>${esc(s.merchant||'')}</span><span class="mono">${money(s.amount)}</span></div>`).join('');
+    listEl.innerHTML = lines || '—';
+
+    const defaultLabel = (()=> {
+      const unique = Array.from(new Set(chosen.map(s=> (s.merchant||'').trim()))).filter(Boolean);
+      if (unique.length===1) return unique[0];
+      if (unique.length===2) return `${unique[0]} + ${unique[1]}`;
+      return `${unique[0]} (+${unique.length-1} more)`;
+    })();
+    byId('mergeLabel').value = defaultLabel;
+
+    const amtSum = chosen.reduce((a,s)=>a+Number(s.amount||0),0);
+    const med = median(chosen.map(s=>Number(s.amount||0)));
+    byId('mergeFixed').value = amtSum.toFixed(2);
+    byId('mergeAmtMode').value = 'sum';
+    byId('mergeFixedWrap').style.display = 'none';
+
+    byId('mergeFreq').value = 'semi_monthly';
+    byId('mergeNext').value = '';
+
+    byId('mergeA').value = 8; byId('mergeB').value = 18; byId('mergeGrace').value = 3;
+    byId('mergeAnchorsWrap').style.display = 'block';
+
+    note.textContent = `${chosen.length} items selected.`;
+
+    mergeModal?.show();
+  });
+
+  byId('mergeAmtMode').addEventListener('change', (e)=>{
+    const show = e.target.value === 'fixed';
+    byId('mergeFixedWrap').style.display = show ? '' : 'none';
+  });
+  byId('mergeFreq').addEventListener('change', (e)=>{
+    byId('mergeAnchorsWrap').style.display = (e.target.value === 'semi_monthly') ? '' : 'none';
+  });
+
+  async function postJSON(urls, body){
+    let last;
+    for (const u of urls){
+      try{
+        const r = await fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (r.ok){
+          const ct=(r.headers.get('content-type')||'').toLowerCase();
+          return ct.includes('json') ? await r.json() : { ok:true, raw: await r.text() };
+        }
+        last = new Error(`${u} → ${r.status}`);
+      }catch(e){ last = e; }
+    }
+    throw last || new Error('merge endpoints not available');
+  }
+
+  byId('mergeConfirm').addEventListener('click', async ()=>{
+    const chosen = (cachedData.streams||[]).filter(s=> selectedKeys.has(s._key));
+    if (chosen.length < 2){ alert('Pick at least two items.'); return; }
+
+    const label = (byId('mergeLabel').value||'').trim() || 'Merged';
+    const mode = byId('mergeAmtMode').value;
+    const freq = byId('mergeFreq').value || 'monthly';
+    const next = byId('mergeNext').value || undefined;
+    const anchors = (freq==='semi_monthly') ? [ Number(byId('mergeA').value||8), Number(byId('mergeB').value||18) ] : undefined;
+    const grace_days = (freq==='semi_monthly') ? Number(byId('mergeGrace').value||3) : undefined;
+
+    const amounts = chosen.map(s=>Number(s.amount||0));
+    const amount = mode==='sum' ? amounts.reduce((a,b)=>a+b,0)
+                 : mode==='median' ? median(amounts)
+                 : Number(byId('mergeFixed').value||0);
+
+    const payload = {
+      keys: chosen.map(s=>s._key),
+      label,
+      amount,
+      freq,
+      next,
+      anchors,
+      grace_days
+    };
+
+    try{
+      await postJSON(
+        ['/admin/recurring/merge','/api/recurring/merge','/recurring/merge'],
+        payload
+      );
+      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      selectedKeys.clear(); updateMergeBtn(); load();
+    }catch(err){
+      // Local fallback: turn selection into a single include rule
+      const ov = readOverrides();
+      const keywords = Array.from(new Set(chosen.map(s=>(s.merchant||'').trim()))).filter(Boolean);
+      ov.include.push({ keywords, amount, freq, next, label });
+      writeOverrides(ov);
+      bootstrap.Modal.getInstance(mergeModalEl)?.hide();
+      selectedKeys.clear(); updateMergeBtn(); load();
+      alert('Server merge API not found. Created a local combined rule instead.');
+    }
+  });
+
   // Events
   winSel.addEventListener('change', load);
   horSel.addEventListener('change', load);
@@ -987,6 +1238,9 @@
   // init
   renderRulesTables(readOverrides());
   load();
+
+  // expose manage chip hook (no-op if not defined globally)
+  window.dashManage = function(ev, el){ ev.preventDefault(); return false; };
 })();
 </script>
 
@@ -1038,5 +1292,9 @@
 
 /* modal spacing tweaks */
 #rulesModal .nav-tabs .nav-link{ font-weight:600; }
+
+/* row selector cell */
+#streamsTable td:first-child, #streamsTable th:first-child { width:28px; }
+.mono{ font-variant-numeric: tabular-nums; }
 </style>
 {% endblock %}
