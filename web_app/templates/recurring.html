@@ -556,18 +556,18 @@
   function median(vals){ const v=[...vals].filter(x=>isFinite(x)).sort((a,b)=>a-b); if(!v.length) return 0; const m=Math.floor(v.length/2); return v.length%2?v[m]:(v[m-1]+v[m])/2; }
   function outlierFlag(series){ const med=median(series.filter(x=>x>0)); const last=series[series.length-1]||0; return (med>0 && last>med*1.2)?'⚠':''; }
 
-  // UPDATED sparkline with labels + hit area + tooltips
+  // Sparkline with explicit hit areas + data attributes (for custom tooltip)
   function svgSparkline(series, labels, w=SPARK_W, h=SPARK_H){
     const pad=2, max=Math.max(...series,1), step=(w-pad*2)/Math.max(series.length-1,1);
     const ys=series.map(v=> h-pad-(max===0?0:(v/max)*(h-pad*2)));
     const xs=series.map((_,i)=> pad+i*step);
     let d=''; for (let i=0;i<series.length;i++){ d+=(i===0?'M':'L')+xs[i]+' '+ys[i]+' '; }
     const points = series.map((v,i)=>`
-      <g class="spark-pt">
+      <g class="spark-pt" tabindex="0" aria-label="${(labels?.[i] ?? `#${i+1}`)}: ${money(v)}" style="pointer-events:all">
         <circle class="dot" cx="${xs[i]}" cy="${ys[i]}" r="2.2"/>
-        <circle class="hit" cx="${xs[i]}" cy="${ys[i]}" r="8">
-          <title>${(labels?.[i] ?? `#${i+1}`)}: ${money(v)}</title>
-        </circle>
+        <circle class="hit" cx="${xs[i]}" cy="${ys[i]}" r="9"
+                data-label="${labels?.[i] ?? `#${i+1}`}" data-value="${money(v)}"
+                style="pointer-events:all"></circle>
       </g>`).join('');
     return `
       <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="6 month trend">
@@ -1119,6 +1119,35 @@
     }
   });
 
+  // ===== Sparkline tooltip (delegated) =====
+  const tableEl = document.getElementById('streamsTable');
+  const tip = document.createElement('div');
+  tip.id = 'sparkTip';
+  tip.style.cssText = 'position:fixed; z-index:9999; padding:4px 8px; border-radius:8px; font-size:12px; background:rgba(20,24,30,.92); color:#dbeafe; border:1px solid rgba(255,255,255,.15); box-shadow:0 6px 14px rgba(0,0,0,.4); pointer-events:none; opacity:0; transform:translate(-50%,-130%); transition:opacity .08s ease';
+  document.body.appendChild(tip);
+
+  function showTip(x,y,txt){ tip.textContent = txt; tip.style.left = x+'px'; tip.style.top = y+'px'; tip.style.opacity = '1'; }
+  function hideTip(){ tip.style.opacity = '0'; }
+
+  tableEl.addEventListener('pointermove', (e)=>{
+    const c = e.target.closest('.hit');
+    if (c){
+      const txt = `${c.dataset.label}: ${c.dataset.value}`;
+      showTip(e.clientX, e.clientY, txt);
+    } else {
+      hideTip();
+    }
+  });
+  tableEl.addEventListener('pointerleave', hideTip);
+  tableEl.addEventListener('focusin', (e)=>{
+    const g = e.target.closest('.spark-pt'); if (!g) return;
+    const hit = g.querySelector('.hit');
+    const r = g.getBoundingClientRect();
+    const txt = `${hit.dataset.label}: ${hit.dataset.value}`;
+    showTip(r.left + r.width/2, r.top, txt);
+  });
+  tableEl.addEventListener('focusout', hideTip);
+
   // Events
   winSel.addEventListener('change', load);
   horSel.addEventListener('change', load);
@@ -1184,12 +1213,13 @@
 /* tighten cell paddings a bit for better fit */
 .table.table-floating > :not(caption) > * > * { padding-top: .6rem; padding-bottom: .6rem; }
 
-/* Sparkline hover + hit-area enablement (keeps dots same color as line) */
+/* Sparkline style + bullet/line color sync; FORCE events just in case */
+#streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
 #streamsTable .trend-cell svg { display:block; margin:0 auto; color: var(--muted); pointer-events:auto; }
 #streamsTable .trend-cell svg path { stroke: currentColor; }
 #streamsTable .trend-cell svg .dot { fill: currentColor; stroke: currentColor; }
-#streamsTable .trend-cell svg .hit { fill: transparent; pointer-events: all; }
-#streamsTable .trend-cell svg .spark-pt:hover .dot { filter: drop-shadow(0 0 2px currentColor); }
-#streamsTable .trend-cell { white-space:nowrap; min-width:190px; }
+#streamsTable .trend-cell svg .hit { fill: transparent; pointer-events: all !important; }
+#streamsTable .trend-cell svg .spark-pt:hover .dot,
+#streamsTable .trend-cell svg .spark-pt:focus .dot { filter: drop-shadow(0 0 2px currentColor); }
 </style>
 {% endblock %}
